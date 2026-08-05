@@ -1,0 +1,65 @@
+/* DescriptionTab.css - UI metrics boxes */
+
+.lm-metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin: 20px 0 30px;
+}
+
+.lm-metric-card {
+    background: var(--bg-surface);
+    border: 1px solid rgba(0, 0, 0, 0.06);
+    border-radius: 12px;
+    padding: 24px 20px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    height: 100px;
+    box-sizing: border-box;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.02);
+}
+
+[data-theme="dark"] .lm-metric-card {
+    background: rgba(15, 23, 42, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    box-shadow: none;
+}
+
+.lm-metric-card:hover {
+    border-color: rgba(0, 0, 0, 0.15);
+    background: var(--bg-surface-hover);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.05);
+}
+
+[data-theme="dark"] .lm-metric-card:hover {
+    border-color: rgba(255, 255, 255, 0.15);
+    background: rgba(15, 23, 42, 0.6);
+}
+
+.lm-val-row {
+    display: flex;
+    justify-content: flex-end;
+}
+
+.lm-val {
+    font-size: 1.8rem;
+    font-weight: 800;
+    color: var(--text-main);
+    line-height: 1;
+    font-family: var(--font-sans);
+}
+
+.lm-label-row {
+    display: flex;
+    justify-content: flex-start;
+}
+
+.lm-label {
+    font-size: 0.65rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}

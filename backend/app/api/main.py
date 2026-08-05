@@ -1,0 +1,84 @@
+from fastapi import APIRouter
+
+from app.api.routes import (
+    analysis,
+    annotations,
+    cameras,
+    collections,
+    collection_bundle_exports,
+    data_imports,
+    files,
+    geo,
+    index_logs,
+    label_settings,
+    labels,
+    lenses,
+    licenses,
+    login,
+    media,
+    menus,
+    microphones,
+    network,
+    operation_logs,
+    permissions,
+    projects,
+    queue,
+    recorders,
+    reviews,
+    roles,
+    sensors,
+    sites,
+    sound_classifications,
+    tasks,
+    taxons,
+    users,
+    utils,
+)
+
+api_router = APIRouter()
+api_router.include_router(login.router)
+api_router.include_router(users.router)
+api_router.include_router(users.router_views)
+api_router.include_router(projects.router)
+api_router.include_router(projects.router_views)
+api_router.include_router(collections.router)
+api_router.include_router(collections.router_views)
+api_router.include_router(collection_bundle_exports.router)
+api_router.include_router(permissions.user_permissions_router)
+api_router.include_router(utils.router)
+api_router.include_router(taxons.router)
+api_router.include_router(taxons.router_views)
+api_router.include_router(sound_classifications.router)
+api_router.include_router(menus.router)
+api_router.include_router(analysis.router)
+api_router.include_router(annotations.router)
+api_router.include_router(files.router)
+api_router.include_router(recorders.router)
+api_router.include_router(recorders.router_views)
+api_router.include_router(microphones.router)
+api_router.include_router(microphones.router_views)
+api_router.include_router(licenses.router)
+api_router.include_router(licenses.router_views)
+api_router.include_router(sites.router)
+api_router.include_router(sites.router_views)
+api_router.include_router(roles.router)
+api_router.include_router(media.router)
+api_router.include_router(media.router_views)
+api_router.include_router(labels.router)
+api_router.include_router(labels.router_media)
+api_router.include_router(label_settings.router)
+api_router.include_router(tasks.router)
+api_router.include_router(tasks.router_tasks)
+api_router.include_router(queue.router)
+api_router.include_router(geo.router)
+api_router.include_router(sensors.router)
+api_router.include_router(sensors.router_views)
+api_router.include_router(cameras.router)
+api_router.include_router(lenses.router)
+api_router.include_router(lenses.router_views)
+api_router.include_router(reviews.router)
+api_router.include_router(reviews.router_views)
+api_router.include_router(index_logs.router)
+api_router.include_router(network.router)
+api_router.include_router(operation_logs.router, prefix="/system/operation-logs", tags=["系统管理 / system"])
+api_router.include_router(data_imports.router)

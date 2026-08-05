@@ -1,0 +1,61 @@
+name: Test Backend
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    types:
+      - opened
+      - synchronize
+
+jobs:
+  test-backend:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Free disk space on runner
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /opt/hostedtoolcache/CodeQL
+          docker system prune -af || true
+          df -h
+      - name: Prepare test env file
+        run: cp .env.example .env
+      - run: docker compose -f docker-compose.yml -f docker-compose.ci.yml down -v --remove-orphans
+      - run: docker compose -f docker-compose.yml -f docker-compose.ci.yml up -d --build db geo_db redis rabbitmq backend
+      - name: Run tests
+        run: |
+          docker compose -f docker-compose.yml -f docker-compose.ci.yml exec -T backend bash -lc '
+            # Analysis suites need model and analyzer runtime dependencies that this gate does not provision.
+            # Re-enable them when a dedicated CI job supplies those dependencies.
+            /app/.venv/bin/python -m coverage run -m pytest tests \
+              --ignore=tests/api/routes/test_analysis.py \
+              --ignore=tests/api/routes/test_analysis_routes.py \
+              --ignore=tests/api/routes/test_analysis_routes_extra.py \
+              --ignore=tests/api/routes/test_birdnet_analyzer.py \
+              --ignore=tests/api/routes/test_batdetect_analyzer.py \
+              --ignore=tests/api/routes/test_insects_analyzer.py \
+              --ignore=tests/api/routes/test_maad_analyzer.py \
+              --ignore=tests/api/routes/test_acoustic_indices.py \
+              --ignore=tests/services/test_analysis_service.py \
+              --ignore=tests/workers/test_analysis.py \
+              --ignore=tests/workers/test_analysis_tasks.py
+            /app/.venv/bin/python -m coverage report
+            /app/.venv/bin/python -m coverage html --title "Coverage for ${{ github.sha }}"
+          '
+      - name: Copy coverage report
+        if: ${{ always() }}
+        run: docker compose -f docker-compose.yml -f docker-compose.ci.yml cp backend:/app/htmlcov ./backend/htmlcov
+      - if: ${{ always() }}
+        run: docker compose -f docker-compose.yml -f docker-compose.ci.yml down -v --remove-orphans
+      - name: Store coverage files
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v6
+        with:
+          name: coverage-html
+          path: backend/htmlcov
+          include-hidden-files: true

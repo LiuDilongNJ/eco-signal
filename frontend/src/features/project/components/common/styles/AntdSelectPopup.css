@@ -1,0 +1,83 @@
+.eco-select-popup.ant-select-dropdown,
+.form-drawer-select-popup.ant-select-dropdown,
+.data-dpl-select-popup.ant-select-dropdown,
+.set-taxons-select-dropdown.ant-select-dropdown {
+    background-color: var(--bg-surface) !important;
+    border: 1px solid var(--border-light) !important;
+}
+
+.eco-select-popup.ant-select-dropdown .ant-empty,
+.eco-select-popup.ant-select-dropdown .ant-empty-description,
+.form-drawer-select-popup.ant-select-dropdown .ant-empty,
+.form-drawer-select-popup.ant-select-dropdown .ant-empty-description,
+.data-dpl-select-popup.ant-select-dropdown .ant-empty,
+.data-dpl-select-popup.ant-select-dropdown .ant-empty-description,
+.set-taxons-select-dropdown.ant-select-dropdown .ant-empty,
+.set-taxons-select-dropdown.ant-select-dropdown .ant-empty-description {
+    color: var(--text-muted) !important;
+}
+
+.eco-select-popup.ant-select-dropdown .ant-select-item,
+.eco-select-popup.ant-select-dropdown .ant-select-item-option-content,
+.form-drawer-select-popup.ant-select-dropdown .ant-select-item,
+.form-drawer-select-popup.ant-select-dropdown .ant-select-item-option-content,
+.data-dpl-select-popup.ant-select-dropdown .ant-select-item,
+.data-dpl-select-popup.ant-select-dropdown .ant-select-item-option-content,
+.set-taxons-select-dropdown.ant-select-dropdown .ant-select-item,
+.set-taxons-select-dropdown.ant-select-dropdown .ant-select-item-option-content {
+    color: var(--text-main) !important;
+}
+
+.eco-select-popup.ant-select-dropdown .ant-select-item-option,
+.form-drawer-select-popup.ant-select-dropdown .ant-select-item-option,
+.data-dpl-select-popup.ant-select-dropdown .ant-select-item-option,
+.set-taxons-select-dropdown.ant-select-dropdown .ant-select-item-option {
+    background-color: transparent !important;
+}
+
+.eco-select-popup.ant-select-dropdown .ant-select-item-option-active:not(.ant-select-item-option-disabled),
+.eco-select-popup.ant-select-dropdown .ant-select-item-option:hover:not(.ant-select-item-option-disabled),
+.form-drawer-select-popup.ant-select-dropdown .ant-select-item-option-active:not(.ant-select-item-option-disabled),
+.form-drawer-select-popup.ant-select-dropdown .ant-select-item-option:hover:not(.ant-select-item-option-disabled),
+.data-dpl-select-popup.ant-select-dropdown .ant-select-item-option-active:not(.ant-select-item-option-disabled),
+.data-dpl-select-popup.ant-select-dropdown .ant-select-item-option:hover:not(.ant-select-item-option-disabled),
+.set-taxons-select-dropdown.ant-select-dropdown .ant-select-item-option-active:not(.ant-select-item-option-disabled),
+.set-taxons-select-dropdown.ant-select-dropdown .ant-select-item-option:hover:not(.ant-select-item-option-disabled) {
+    background-color: var(--brand-tint) !important;
+    color: var(--text-main) !important;
+}
+
+.eco-select-popup.ant-select-dropdown .ant-select-item-option-selected:not(.ant-select-item-option-disabled),
+.eco-select-popup.ant-select-dropdown .ant-select-item-option-selected.ant-select-item-option-active:not(.ant-select-item-option-disabled),
+.form-drawer-select-popup.ant-select-dropdown .ant-select-item-option-selected:not(.ant-select-item-option-disabled),
+.form-drawer-select-popup.ant-select-dropdown .ant-select-item-option-selected.ant-select-item-option-active:not(.ant-select-item-option-disabled),
+.data-dpl-select-popup.ant-select-dropdown .ant-select-item-option-selected:not(.ant-select-item-option-disabled),
+.data-dpl-select-popup.ant-select-dropdown .ant-select-item-option-selected.ant-select-item-option-active:not(.ant-select-item-option-disabled),
+.set-taxons-select-dropdown.ant-select-dropdown .ant-select-item-option-selected:not(.ant-select-item-option-disabled),
+.set-taxons-select-dropdown.ant-select-dropdown .ant-select-item-option-selected.ant-select-item-option-active:not(.ant-select-item-option-disabled) {
+    background-color: rgba(var(--brand-rgb, 131, 205, 32), 0.18) !important;
+    color: var(--text-main) !important;
+    font-weight: 600;
+}
+
+.eco-select-popup.ant-select-dropdown .ant-select-item-option-selected:not(.ant-select-item-option-disabled) .ant-select-item-option-content,
+.eco-select-popup.ant-select-dropdown .ant-select-item-option-selected.ant-select-item-option-active:not(.ant-select-item-option-disabled) .ant-select-item-option-content,
+.form-drawer-select-popup.ant-select-dropdown .ant-select-item-option-selected:not(.ant-select-item-option-disabled) .ant-select-item-option-content,
+.form-drawer-select-popup.ant-select-dropdown .ant-select-item-option-selected.ant-select-item-option-active:not(.ant-select-item-option-disabled) .ant-select-item-option-content,
+.data-dpl-select-popup.ant-select-dropdown .ant-select-item-option-selected:not(.ant-select-item-option-disabled) .ant-select-item-option-content,
+.data-dpl-select-popup.ant-select-dropdown .ant-select-item-option-selected.ant-select-item-option-active:not(.ant-select-item-option-disabled) .ant-select-item-option-content,
+.set-taxons-select-dropdown.ant-select-dropdown .ant-select-item-option-selected:not(.ant-select-item-option-disabled) .ant-select-item-option-content,
+.set-taxons-select-dropdown.ant-select-dropdown .ant-select-item-option-selected.ant-select-item-option-active:not(.ant-select-item-option-disabled) .ant-select-item-option-content {
+    color: var(--text-main) !important;
+}
+
+:root[data-theme="dark"] .eco-select-popup.ant-select-dropdown .ant-select-item-option-active:not(.ant-select-item-option-disabled),
+:root[data-theme="dark"] .eco-select-popup.ant-select-dropdown .ant-select-item-option:hover:not(.ant-select-item-option-disabled),
+:root[data-theme="dark"] .form-drawer-select-popup.ant-select-dropdown .ant-select-item-option-active:not(.ant-select-item-option-disabled),
+:root[data-theme="dark"] .form-drawer-select-popup.ant-select-dropdown .ant-select-item-option:hover:not(.ant-select-item-option-disabled),
+:root[data-theme="dark"] .data-dpl-select-popup.ant-select-dropdown .ant-select-item-option-active:not(.ant-select-item-option-disabled),
+:root[data-theme="dark"] .data-dpl-select-popup.ant-select-dropdown .ant-select-item-option:hover:not(.ant-select-item-option-disabled),
+:root[data-theme="dark"] .set-taxons-select-dropdown.ant-select-dropdown .ant-select-item-option-active:not(.ant-select-item-option-disabled),
+:root[data-theme="dark"] .set-taxons-select-dropdown.ant-select-dropdown .ant-select-item-option:hover:not(.ant-select-item-option-disabled) {
+    background-color: rgba(255, 255, 255, 0.08) !important;
+}

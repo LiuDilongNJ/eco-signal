@@ -1,0 +1,773 @@
+/**
+ * Modal 系列组件 CSS
+ */
+
+/* ===== 通用 Modal ===== */
+.app-overlay-root .app-modal-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 99999;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+.app-modal-panel {
+    width: 100%;
+    background: var(--card-bg);
+    border-radius: 16px;
+    border: var(--card-border);
+    box-shadow: 0 30px 60px rgba(0, 0, 0, 0.3);
+    display: flex;
+    flex-direction: column;
+    max-height: 85%;
+    animation: scaleIn 0.25s ease;
+}
+
+@keyframes scaleIn {
+    from {
+        transform: scale(0.95);
+        opacity: 0;
+    }
+
+    to {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+.app-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--border-color);
+    flex-shrink: 0;
+}
+
+.app-modal-title {
+    font-size: 1.15rem;
+    font-weight: 800;
+    color: var(--text-main);
+    margin: 0;
+}
+
+.app-modal-close-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: 999px;
+    border: none;
+    background: var(--bg-surface-secondary);
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.app-modal-close-btn:hover {
+    background: var(--brand-tint);
+    color: var(--brand);
+}
+
+.app-modal-body {
+    padding: 20px;
+    overflow: hidden;
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.app-modal-footer {
+    padding: 16px 24px;
+    border-top: 1px solid var(--border-color);
+    flex-shrink: 0;
+}
+
+.app-modal-footer-actions {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 10px;
+}
+
+.app-modal-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 72px;
+    height: 32px;
+    padding: 0 15px;
+    border-radius: 999px;
+    font-size: 14px;
+    font-weight: 700;
+    font-family: var(--font-sans);
+    cursor: pointer;
+    transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease, opacity 0.2s ease;
+    border: 1px solid var(--border-color);
+    background: var(--bg-surface);
+    color: var(--text-main);
+}
+
+.app-modal-btn:hover:not(:disabled) {
+    border-color: var(--brand);
+    color: var(--brand);
+    background: var(--brand-tint);
+}
+
+.app-modal-btn.primary {
+    background: var(--brand);
+    border-color: var(--brand);
+    color: var(--text-invert);
+}
+
+.app-modal-btn.primary:hover:not(:disabled) {
+    background: var(--brand-hover, var(--brand));
+    border-color: var(--brand-hover, var(--brand));
+    color: var(--text-invert);
+}
+
+.app-modal-btn.cancel {
+    background: var(--bg-surface);
+}
+
+.app-modal-btn.danger {
+    background: var(--danger);
+    border-color: var(--danger);
+    color: var(--text-invert);
+}
+
+.app-modal-btn.danger:hover:not(:disabled) {
+    background: var(--danger);
+    border-color: var(--danger);
+    color: var(--text-invert);
+    opacity: 0.9;
+}
+
+.app-modal-btn:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+/* ===== CRUD Form ===== */
+.crud-form {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+
+.form-columns {
+    display: flex;
+    gap: 24px;
+}
+
+.form-columns.one-col {
+    flex-direction: column;
+}
+
+.form-columns.two-col .form-column {
+    flex: 1;
+}
+
+.form-column {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.form-label {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text-main);
+}
+
+.form-required {
+    color: var(--danger);
+    margin-left: 2px;
+}
+
+.form-input {
+    height: 32px;
+    padding: 0 12px;
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-surface-secondary);
+    color: var(--text-main);
+    font-size: 14px;
+    font-family: var(--font-sans);
+    font-weight: 700;
+    transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+    outline: none;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.form-input:hover:not(:disabled) {
+    background: var(--bg-surface);
+    border-color: var(--brand);
+}
+
+.form-input:focus {
+    border-color: var(--brand);
+    background: var(--bg-surface);
+    box-shadow: 0 0 0 2px var(--brand-tint);
+}
+
+.form-input:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.form-textarea {
+    resize: vertical;
+    min-height: 80px;
+    padding: 10px 12px;
+}
+
+.form-select {
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1.5L6 6.5L11 1.5' stroke='%23666' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    padding-right: 36px;
+}
+
+/* Toggle */
+.form-toggle {
+    width: 40px;
+    height: 22px;
+    border-radius: 11px;
+    border: none;
+    background: var(--border-color);
+    padding: 2px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    transition: all 0.25s;
+}
+
+.form-toggle.on {
+    background: var(--brand);
+    justify-content: flex-end;
+}
+
+.toggle-thumb {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: white;
+    display: block;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+    transition: transform 0.2s;
+}
+
+/* File drop */
+.form-file-drop {
+    position: relative;
+    padding: 16px;
+    border: 2px dashed var(--border-color);
+    border-radius: 10px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.form-file-drop:hover {
+    border-color: var(--brand);
+    background: var(--brand-tint);
+}
+
+.form-file-input {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+}
+
+.form-file-label {
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    font-weight: 600;
+}
+
+/* ===== Upload Modal ===== */
+.upload-drop-zone {
+    border: 2px dashed var(--border-color);
+    border-radius: 14px;
+    padding: 40px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-bottom: 16px;
+    position: relative;
+}
+
+.upload-drop-zone:hover,
+.upload-drop-zone.drag-over {
+    border-color: var(--brand);
+    background: var(--brand-tint);
+}
+
+.upload-hidden-input {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+}
+
+.upload-icon {
+    color: var(--text-muted);
+    margin-bottom: 12px;
+}
+
+.upload-drop-text {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    font-weight: 600;
+    margin: 0 0 6px;
+}
+
+.upload-link {
+    color: var(--brand);
+    text-decoration: underline;
+    cursor: pointer;
+}
+
+.upload-drop-hint {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin: 0;
+}
+
+.upload-file-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 300px;
+    overflow: hidden;
+}
+
+.upload-file-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    background: var(--bg-surface-secondary);
+    border-radius: 10px;
+    border: 1px solid var(--border-color);
+}
+
+.upload-file-icon {
+    color: var(--brand);
+    flex-shrink: 0;
+}
+
+.upload-file-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.upload-file-row {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 4px;
+}
+
+.upload-file-name {
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: var(--text-main);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.upload-file-size {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    font-weight: 600;
+    flex-shrink: 0;
+}
+
+.upload-progress-bar {
+    height: 4px;
+    background: var(--bg-capsule);
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+.upload-progress-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.3s ease;
+    background: var(--brand);
+}
+
+.upload-progress-fill.done {
+    background: var(--success);
+}
+
+.upload-progress-fill.error {
+    background: var(--danger);
+}
+
+.upload-file-status {
+    flex-shrink: 0;
+    width: 32px;
+    text-align: center;
+}
+
+.status-done {
+    color: var(--success);
+}
+
+.status-error {
+    color: var(--danger);
+}
+
+.status-percent {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--text-muted);
+}
+
+.upload-file-remove {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 2px;
+    border-radius: 4px;
+    transition: all 0.2s;
+    flex-shrink: 0;
+}
+
+.upload-file-remove:hover {
+    color: var(--danger);
+    background: var(--danger-tint);
+}
+
+.upload-summary-text {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    font-weight: 600;
+}
+
+/* ===== Editor Modal ===== */
+.editor-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 8px 0;
+    margin-bottom: 12px;
+    border-bottom: 1px solid var(--border-color);
+    flex-wrap: wrap;
+}
+
+.editor-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: 999px;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.editor-btn:hover {
+    background: var(--brand-tint);
+    color: var(--brand);
+}
+
+.editor-sep {
+    width: 1px;
+    height: 20px;
+    background: var(--border-color);
+    margin: 0 4px;
+}
+
+.editor-area-container {
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    background: var(--bg-surface-secondary);
+    transition: all 0.2s;
+}
+
+.editor-area-container:focus-within {
+    border-color: var(--brand);
+    box-shadow: 0 0 0 3px var(--brand-tint);
+}
+
+.editor-area-body {
+    padding: 16px;
+    min-height: 200px;
+}
+
+.editor-tiptap-content {
+    color: var(--text-main);
+    font-size: 0.9rem;
+    line-height: 1.6;
+    outline: none;
+    font-family: var(--font-sans);
+}
+
+.editor-tiptap-content h2 {
+    font-size: 1.25rem;
+    font-weight: 800;
+    margin: 1rem 0 0.5rem;
+}
+
+.editor-tiptap-content h3 {
+    font-size: 1.1rem;
+    font-weight: 700;
+    margin: 0.75rem 0 0.4rem;
+}
+
+.editor-tiptap-content h4 {
+    font-size: 1rem;
+    font-weight: 700;
+    margin: 0.5rem 0 0.25rem;
+}
+
+.editor-tiptap-content p {
+    margin: 0 0 0.5rem;
+}
+
+.editor-tiptap-content p.is-editor-empty:first-child::before {
+    content: attr(data-placeholder);
+    float: left;
+    color: var(--text-muted);
+    pointer-events: none;
+    height: 0;
+}
+
+.editor-toolbar-row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px;
+    width: 100%;
+}
+
+.editor-toolbar-row--secondary {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border-color);
+}
+
+.editor-toolbar-label {
+    display: inline-flex;
+    align-items: center;
+    color: var(--text-muted);
+    margin-right: 4px;
+}
+
+.editor-btn.active {
+    background: var(--brand-tint);
+    color: var(--brand);
+}
+
+.editor-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.editor-btn--text {
+    width: auto !important;
+    padding: 0 10px !important;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.editor-color-swatch {
+    width: 22px;
+    height: 22px;
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+    cursor: pointer;
+    padding: 0;
+    flex-shrink: 0;
+    transition: transform 0.12s, box-shadow 0.12s;
+}
+
+.editor-color-swatch:hover {
+    transform: scale(1.08);
+    box-shadow: 0 0 0 2px var(--brand-tint);
+}
+
+/* TipTap 编辑区 */
+.editor-tiptap-content blockquote {
+    margin: 0.5rem 0;
+    padding-left: 1rem;
+    border-left: 4px solid var(--brand);
+    color: var(--text-secondary);
+}
+
+.editor-tiptap-content pre {
+    margin: 0.75rem 0;
+    padding: 12px 16px;
+    border-radius: 10px;
+    background: var(--bg-capsule);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    font-size: 0.85rem;
+    overflow-x: auto;
+    border: 1px solid var(--border-color);
+}
+
+.editor-tiptap-content pre code {
+    background: none;
+    color: inherit;
+    padding: 0;
+    font-size: inherit;
+}
+
+.editor-tiptap-content code {
+    background-color: var(--bg-capsule);
+    color: var(--brand);
+    padding: 0.15rem 0.35rem;
+    border-radius: 6px;
+    font-size: 0.88rem;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    border: 1px solid var(--border-color);
+}
+
+.editor-tiptap-content hr {
+    margin: 1rem 0;
+    border: none;
+    border-top: 1px solid var(--border-color);
+}
+
+.editor-tiptap-content a {
+    color: var(--brand);
+    text-decoration: underline;
+}
+
+.editor-image-file-input {
+    position: absolute;
+    width: 0;
+    height: 0;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.editor-tiptap-content img.editor-content-image,
+.editor-content-image {
+    max-width: 100%;
+    height: auto;
+    border-radius: 8px;
+    display: block;
+    margin: 0.75rem auto;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+}
+
+/*
+ * TipTap ResizableNodeView：默认把手 div 无宽高，必须给可点击区域。
+ * 角点 / 边条分别设尺寸与光标。
+ */
+.editor-tiptap-content [data-resize-wrapper] {
+    position: relative;
+    display: inline-block;
+    max-width: 100%;
+    vertical-align: top;
+}
+
+.editor-tiptap-content [data-resize-handle] {
+    z-index: 5;
+    box-sizing: border-box;
+    background: var(--brand) !important;
+    border-radius: 50%;
+    border: 1px solid rgba(255, 255, 255, 0.85);
+    box-shadow: none;
+    opacity: 0.92;
+}
+
+.editor-tiptap-content [data-resize-handle="top-left"],
+.editor-tiptap-content [data-resize-handle="top-right"],
+.editor-tiptap-content [data-resize-handle="bottom-left"],
+.editor-tiptap-content [data-resize-handle="bottom-right"] {
+    width: 7px;
+    height: 7px;
+}
+
+.editor-tiptap-content [data-resize-handle="top-left"] {
+    cursor: nwse-resize;
+}
+
+.editor-tiptap-content [data-resize-handle="top-right"] {
+    cursor: nesw-resize;
+}
+
+.editor-tiptap-content [data-resize-handle="bottom-left"] {
+    cursor: nesw-resize;
+}
+
+.editor-tiptap-content [data-resize-handle="bottom-right"] {
+    cursor: nwse-resize;
+}
+
+.editor-tiptap-content [data-resize-handle="top"],
+.editor-tiptap-content [data-resize-handle="bottom"] {
+    height: 4px;
+    border-radius: 1px;
+    cursor: ns-resize;
+}
+
+.editor-tiptap-content [data-resize-handle="left"],
+.editor-tiptap-content [data-resize-handle="right"] {
+    width: 4px;
+    border-radius: 1px;
+    cursor: ew-resize;
+}
+
+/* 选中节点时图片仍可点，把手叠在上方 */
+.editor-tiptap-content [data-resize-container] {
+    position: relative;
+    z-index: 1;
+    max-width: 100%;
+}
+
+.editor-tiptap-content [data-resize-container] img.editor-content-image {
+    display: block;
+    vertical-align: middle;
+}
+
+.editor-tiptap-content ul {
+    list-style-type: disc !important;
+    margin: 0.5rem 0;
+    padding-left: 1.5rem;
+}
+
+.editor-tiptap-content ol {
+    list-style-type: decimal !important;
+    margin: 0.5rem 0;
+    padding-left: 1.5rem;
+}
+
+.editor-tiptap-content li {
+    margin-bottom: 0.25rem;
+}

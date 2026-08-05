@@ -1,0 +1,80 @@
+name: Deploy to Staging
+
+on:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: ecosignal-staging-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    environment: staging
+    runs-on:
+      - self-hosted
+      - staging
+    env:
+      ENVIRONMENT: staging
+      DOMAIN: ${{ vars.DOMAIN }}
+      STACK_NAME: ${{ vars.STACK_NAME }}
+      FRONTEND_HOST: ${{ vars.FRONTEND_HOST }}
+      BACKEND_CORS_ORIGINS: ${{ vars.BACKEND_CORS_ORIGINS }}
+      SECRET_KEY: ${{ secrets.SECRET_KEY }}
+      FIRST_SUPERUSER: ${{ secrets.FIRST_SUPERUSER }}
+      FIRST_SUPERUSER_PASSWORD: ${{ secrets.FIRST_SUPERUSER_PASSWORD }}
+      PROJECT_NAME: ${{ vars.PROJECT_NAME || 'ecoSignal' }}
+      POSTGRES_USER: ${{ vars.POSTGRES_USER || 'postgres' }}
+      POSTGRES_DB: ${{ vars.POSTGRES_DB || 'ecosignal' }}
+      POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+      REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
+      DOCKER_IMAGE_BACKEND: ${{ vars.DOCKER_IMAGE_BACKEND || 'backend' }}
+      DOCKER_IMAGE_FRONTEND: ${{ vars.DOCKER_IMAGE_FRONTEND || 'frontend' }}
+      TAG: ${{ github.sha }}
+      SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+      LEGACY_PROJECT_DIR: ${{ vars.LEGACY_PROJECT_DIR || './ecoSound-web' }}
+      GEO_DB_READY_URL: ${{ vars.GEO_DB_READY_URL || 'https://github.com/csaay/geo_db/releases/download/v1.0.2/geo_db_ready.zip' }}
+      GEO_DB_XR_SEED_URL: ${{ vars.GEO_DB_XR_SEED_URL || 'https://github.com/csaay/geo_db/releases/download/v1.0.2/col_xr_seed.zip' }}
+      EMAIL: ${{ vars.EMAIL }}
+      TRAEFIK_DASHBOARD_USER: ${{ vars.TRAEFIK_DASHBOARD_USER }}
+      TRAEFIK_DASHBOARD_HASH: ${{ secrets.TRAEFIK_DASHBOARD_HASH }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Prepare deployment env file
+        run: |
+          cp .env.example .env
+          cat >> .env <<EOF
+          DOMAIN=${DOMAIN}
+          FRONTEND_HOST=${FRONTEND_HOST}
+          ENVIRONMENT=${ENVIRONMENT}
+          ENABLE_HTTPS=true
+          PROJECT_NAME=${PROJECT_NAME}
+          STACK_NAME=${STACK_NAME}
+          BACKEND_CORS_ORIGINS=${BACKEND_CORS_ORIGINS}
+          SECRET_KEY=${SECRET_KEY}
+          FIRST_SUPERUSER=${FIRST_SUPERUSER}
+          FIRST_SUPERUSER_PASSWORD=${FIRST_SUPERUSER_PASSWORD}
+          POSTGRES_SERVER=localhost
+          POSTGRES_PORT=5432
+          POSTGRES_DB=${POSTGRES_DB}
+          POSTGRES_USER=${POSTGRES_USER}
+          POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+          REDIS_PASSWORD=${REDIS_PASSWORD}
+          SENTRY_DSN=${SENTRY_DSN}
+          DOCKER_IMAGE_BACKEND=${DOCKER_IMAGE_BACKEND}
+          DOCKER_IMAGE_FRONTEND=${DOCKER_IMAGE_FRONTEND}
+          TAG=${TAG}
+          LEGACY_PROJECT_DIR=${LEGACY_PROJECT_DIR}
+          GEO_DB_AUTO_DOWNLOAD=true
+          GEO_DB_READY_URL=${GEO_DB_READY_URL}
+          GEO_DB_XR_SEED_URL=${GEO_DB_XR_SEED_URL}
+          RABBITMQ_USER=ecosignal
+          RABBITMQ_PASSWORD=ecosignal
+          RABBITMQ_VHOST=/
+          EMAIL=${EMAIL}
+          TRAEFIK_DASHBOARD_USER=${TRAEFIK_DASHBOARD_USER}
+          TRAEFIK_DASHBOARD_HASH=${TRAEFIK_DASHBOARD_HASH}
+          EOF
+      - run: ./deploy.sh

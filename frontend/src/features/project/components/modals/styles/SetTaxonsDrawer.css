@@ -1,0 +1,211 @@
+.set-taxons-title {
+    font-weight: 600;
+    color: var(--text-main);
+}
+
+.set-taxons-body {
+    background-color: var(--card-bg) !important;
+    padding: 24px !important;
+    display: flex !important;
+    flex-direction: column !important;
+}
+
+.set-taxons-toolbar {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.set-taxons-btn-add,
+.set-taxons-btn-save {
+    border-radius: 999px !important;
+    height: 32px !important;
+    padding: 0 15px !important;
+    background: var(--brand) !important;
+    border-color: var(--brand) !important;
+    color: var(--text-invert) !important;
+    font-size: 14px !important;
+    font-weight: 700 !important;
+    box-shadow: none !important;
+    transition: all 0.2s ease !important;
+}
+
+.set-taxons-btn-add:hover,
+.set-taxons-btn-add:focus-visible,
+.set-taxons-btn-save:hover,
+.set-taxons-btn-save:focus-visible {
+    background: var(--brand-hover, var(--brand)) !important;
+    border-color: var(--brand-hover, var(--brand)) !important;
+    color: var(--text-invert) !important;
+}
+
+.set-taxons-content {
+    display: flex;
+    flex-direction: column;
+}
+
+.set-taxons-label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 700;
+    color: var(--text-muted);
+}
+
+.set-taxons-input {
+    width: 100%;
+}
+
+.set-taxons-divider {
+    margin: 12px 0;
+    border-color: var(--border-color);
+}
+
+.set-taxons-tags-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    min-height: 30px;
+}
+
+.set-taxons-tag-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    max-width: 100%;
+    background: var(--brand);
+    color: var(--text-invert);
+    border: none;
+    border-radius: 999px;
+    padding: 0 4px 0 15px;
+    font-size: 14px;
+    font-weight: 600;
+    height: 30px;
+}
+
+.set-taxons-tag-name {
+    cursor: default;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 280px;
+}
+
+.set-taxons-tag-remove {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    box-sizing: border-box;
+    width: 22px;
+    height: 22px;
+    min-width: 22px;
+    min-height: 22px;
+    margin: 0;
+    padding: 0;
+    border: none;
+    border-radius: 50%;
+    aspect-ratio: 1 / 1;
+    background: transparent;
+    color: var(--text-invert);
+    cursor: pointer;
+    transition: background var(--es-duration-fast, 0.15s) var(--es-ease-standard, ease);
+}
+
+.set-taxons-tag-remove:hover {
+    background: var(--es-color-danger, #dc2626);
+    color: var(--text-invert);
+}
+
+.set-taxons-tag-popover .ant-popover-inner {
+    padding: 0;
+    border-radius: 12px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+    background: var(--es-color-bg-elevated);
+}
+
+.set-taxons-tag-popover-inner {
+    padding: 4px 6px;
+    min-width: 220px;
+    max-width: 320px;
+}
+
+.set-taxons-tag-popover-rank {
+    font-weight: 700;
+    color: var(--brand);
+    font-size: 15px;
+    margin-bottom: 10px;
+    letter-spacing: 0.02em;
+}
+
+.set-taxons-tag-popover-row {
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+    margin-top: 6px;
+    font-size: 14px;
+    line-height: 1.45;
+}
+
+.set-taxons-tag-popover-row:first-of-type {
+    margin-top: 0;
+}
+
+.set-taxons-tag-popover-label {
+    flex: 0 0 auto;
+    color: var(--es-color-text-muted);
+    font-weight: 700;
+}
+
+.set-taxons-tag-popover-value {
+    flex: 1;
+    min-width: 0;
+    color: var(--es-color-text);
+    word-break: break-word;
+}
+
+.set-taxons-empty {
+    width: 100%;
+    text-align: center;
+    color: rgba(0, 0, 0, 0.25);
+    margin-top: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.set-taxons-select-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    color: rgba(0, 0, 0, 0.25);
+    padding: 8px 0;
+    font-size: 14px;
+    font-weight: 700;
+}
+
+:root[data-theme="dark"] .set-taxons-empty,
+:root[data-theme="dark"] .set-taxons-select-empty {
+    color: rgba(255, 255, 255, 0.25);
+}
+
+.set-taxons-loading-text {
+    width: 100%;
+    text-align: center;
+    margin-top: 20px;
+}
+
+/* Custom Select Overrides matching original <style> */
+.set-taxons-select.custom-select .ant-select-selection-search,
+.custom-select .ant-select-selection-search {
+    display: flex !important;
+    align-items: center !important;
+}
+
+.custom-select-dropdown {
+    background-color: var(--card-bg) !important;
+}

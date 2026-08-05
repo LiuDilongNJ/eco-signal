@@ -1,0 +1,134 @@
+.login-modal .es-dialog__header {
+    position: relative;
+    justify-content: center;
+    padding: 40px 40px 20px;
+    border-bottom: 0;
+}
+
+.login-modal .es-dialog__body {
+    padding: 0 40px 40px;
+}
+
+.login-modal .es-dialog__title {
+    margin: 0;
+    font-size: 1.8rem;
+    font-weight: var(--es-font-weight-medium);
+    line-height: var(--es-line-height-tight);
+    text-align: center;
+}
+
+.login-modal .es-dialog__close.ant-btn {
+    position: absolute;
+    top: 18px;
+    right: 18px;
+    border: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    color: var(--es-color-text-muted) !important;
+}
+
+.login-modal .es-dialog__close.ant-btn:hover:not(:disabled),
+.login-modal .es-dialog__close.ant-btn:focus-visible:not(:disabled),
+.login-modal .es-dialog__close.ant-btn:active:not(:disabled) {
+    border: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    color: var(--es-color-text) !important;
+}
+
+.login-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--es-space-3);
+}
+
+.login-form-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.login-form .es-input-unstyled {
+    width: 100%;
+    height: 48px;
+    min-height: 48px;
+    box-sizing: border-box;
+    padding: 0 var(--es-space-4);
+    border: 1px solid var(--es-color-border);
+    border-radius: var(--es-radius-md);
+    background: var(--bg-surface-secondary);
+    color: var(--es-color-text);
+    outline: none;
+    transition: border-color var(--es-duration-fast) var(--es-ease-standard), box-shadow var(--es-duration-fast) var(--es-ease-standard);
+}
+
+.login-form .es-input-unstyled::placeholder {
+    color: var(--es-color-text-muted);
+}
+
+.login-form .es-input-unstyled:hover,
+.login-form .es-input-unstyled:focus {
+    border-color: var(--es-color-brand);
+    background: var(--bg-surface);
+    box-shadow: 0 0 0 2px var(--brand-tint);
+}
+
+.login-form .es-input-unstyled.login-form-input--error {
+    border-color: var(--danger);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--danger) 18%, transparent);
+}
+
+.login-form .es-input-unstyled.login-form-input--error:hover,
+.login-form .es-input-unstyled.login-form-input--error:focus {
+    border-color: var(--danger);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--danger) 18%, transparent);
+}
+
+.login-form .es-input-unstyled:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.login-error {
+    margin: 0;
+    color: var(--es-color-danger);
+    font-size: var(--es-font-size-sm);
+    line-height: var(--es-line-height-normal);
+}
+
+.login-field-error {
+    margin-top: 0;
+    color: var(--danger);
+    font-size: 14px;
+    line-height: 1.45;
+}
+
+.login-modal-submit-btn.ant-btn {
+    width: 100%;
+    height: 48px;
+    min-height: 48px;
+    border: 0;
+    border-radius: 12px;
+    background: var(--es-color-brand);
+    color: var(--es-color-text-inverse);
+    font-size: var(--es-font-size-md);
+    font-weight: var(--es-font-weight-semibold);
+    letter-spacing: 0;
+    transition: background var(--es-duration-fast) var(--es-ease-standard), box-shadow var(--es-duration-fast) var(--es-ease-standard);
+}
+
+.login-modal-submit-btn.ant-btn:hover:not(:disabled),
+.login-modal-submit-btn.ant-btn:focus-visible:not(:disabled) {
+    background: var(--es-color-brand-hover);
+    color: var(--es-color-text-inverse);
+    box-shadow: var(--es-shadow-focus);
+}
+
+.login-modal-submit-btn.ant-btn:active:not(:disabled) {
+    background: var(--es-color-brand-active);
+}
+
+.login-modal-submit-btn.ant-btn:disabled {
+    color: var(--es-color-text-inverse);
+    opacity: 0.6;
+}

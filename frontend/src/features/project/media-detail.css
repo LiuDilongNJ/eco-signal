@@ -1,0 +1,2576 @@
+/*
+ * media-detail.css
+ * Unified audio and photo media detail workspace.
+ */
+
+@import "./components/common/styles/AntdSelectPopup.css";
+
+/* 音频详情全宽贴边，与其它 Tab 的 content-wrapper 留白区分 */
+.content-wrapper--media-detail {
+    padding: 0;
+    --media-control-size: 32px;
+    --media-control-icon-size: 18px;
+    --media-control-radius: 999px;
+    --media-control-selected-bg: var(--es-color-brand);
+    --media-control-focus-ring: 0 0 0 1px var(--es-color-focus);
+}
+
+.media-studio-container {
+    position: relative;
+}
+
+.studio-assign-task-body {
+    padding: var(--es-space-3) 14px;
+}
+
+.studio-assign-task-content {
+    overflow: hidden;
+    border: 1px solid var(--es-color-border);
+    border-radius: var(--es-radius-lg);
+    background: var(--es-color-bg-subtle);
+}
+
+.studio-assign-task-item {
+    border-bottom: 1px dashed var(--es-color-border);
+    background: transparent;
+}
+
+.studio-assign-task-item[data-last="true"] {
+    border-bottom: 0;
+}
+
+.studio-assign-task-item.is-selected {
+    background: var(--es-color-bg-subtle);
+}
+
+.studio-assign-task-checkbox {
+    color: var(--es-color-text-secondary);
+    font-weight: var(--es-font-weight-medium);
+}
+
+.studio-table-toolbar-button {
+    width: 100%;
+    padding: var(--es-space-2);
+    justify-content: center;
+}
+
+.studio-table-toolbar-divider {
+    width: 24px;
+    height: 1px;
+    margin: 6px 0;
+    border-radius: 1px;
+    background: var(--es-color-border);
+    opacity: 0.8;
+}
+
+.studio-table-toolbar-actions {
+    display: flex;
+    width: 100%;
+    flex-direction: column;
+    gap: var(--es-space-3);
+}
+
+.studio-table-toolbar-spacer {
+    flex: 1;
+}
+
+/* Keep the photo annotation-table toggle anchored to the same main-section slot
+ * while the table expands or collapses. */
+.studio-photo-annotation-table-toggle {
+    position: absolute;
+    left: 8px;
+    bottom: 16px;
+    z-index: 20;
+    width: var(--media-control-size, 32px) !important;
+    min-width: var(--media-control-size, 32px) !important;
+    height: var(--media-control-size, 32px) !important;
+    min-height: var(--media-control-size, 32px) !important;
+    padding: 0 !important;
+    align-items: center;
+    justify-content: center;
+}
+
+.studio-annotation-table-container,
+.studio-annotation-table-viewport {
+    position: relative;
+    display: flex;
+    min-height: 0;
+    flex: 1;
+    flex-direction: column;
+}
+
+.studio-annotation-table-viewport {
+    overflow: hidden;
+}
+
+.studio-annotation-table-viewport .es-data-table {
+    display: flex;
+    min-height: 0;
+    flex: 1;
+    flex-direction: column;
+}
+
+.studio-annotation-table-viewport .es-data-table > .ant-table-wrapper {
+    display: flex;
+    min-height: 0;
+    flex: 1;
+    flex-direction: column;
+}
+
+.media-detail-analysis-blocker {
+    position: absolute;
+    inset: 0;
+    z-index: 900;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(248, 250, 252, 0.58);
+    backdrop-filter: blur(1px);
+    pointer-events: auto;
+    cursor: wait;
+}
+
+[data-theme="dark"] .media-detail-analysis-blocker {
+    background: rgba(15, 23, 42, 0.56);
+}
+
+/* 横向缩放平移层 */
+.spectrogram-zoom-slab {
+    position: absolute;
+    left: 0;
+    top: 0;
+    will-change: transform;
+}
+
+.spectrogram-zoom-slab .spectrogram-dynamic-img,
+.spectrogram-zoom-slab .spectrogram-static-fallback {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+}
+
+.spectrogram-zoom-slab .spectrogram-dynamic-img {
+    object-fit: fill;
+}
+
+.spectrogram-zoom-slab .spectrogram-dynamic-img.unified-image-fallback,
+.spectrogram-viewport .spectrogram-dynamic-img--degen.unified-image-fallback {
+    z-index: 1;
+    border: 0;
+    border-radius: 0;
+    background: color-mix(in srgb, var(--tone-slate-900, #0f172a) 92%, white 8%);
+    color: rgba(255, 255, 255, 0.72);
+    pointer-events: none;
+}
+
+/* 首帧 viewport 宽为 0 时的退化铺满 */
+.spectrogram-viewport .spectrogram-dynamic-img--degen {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: fill;
+    pointer-events: none;
+}
+
+.spectrogram-loading-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(15, 23, 42, 0.12);
+    pointer-events: none;
+}
+
+.photo-player-section {
+    min-height: min(48vh, 560px);
+}
+
+.photo-player-middle {
+    flex: 1;
+    min-height: 360px;
+}
+
+.player-middle.photo-player-middle {
+    height: auto;
+}
+
+.studio-main-section--table-hidden .photo-player-middle,
+.studio-main-section--table-hidden .photo-image-stage {
+    flex: 1 1 auto;
+    height: auto;
+    min-height: 0;
+}
+
+.photo-image-stage {
+    position: relative;
+    width: 100%;
+    min-width: 0;
+    aspect-ratio: 3 / 1;
+    height: auto;
+    overflow: hidden;
+    background:
+        linear-gradient(45deg, rgba(127, 127, 127, 0.08) 25%, transparent 25%),
+        linear-gradient(-45deg, rgba(127, 127, 127, 0.08) 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, rgba(127, 127, 127, 0.08) 75%),
+        linear-gradient(-45deg, transparent 75%, rgba(127, 127, 127, 0.08) 75%),
+        var(--es-color-editor);
+    background-position: 0 0, 0 8px, 8px -8px, -8px 0;
+    background-size: 16px 16px;
+    cursor: crosshair;
+    touch-action: none;
+    user-select: none;
+}
+
+.photo-image-transform {
+    position: absolute;
+    left: 0;
+    top: 0;
+    line-height: 0;
+    transform-origin: top left;
+    will-change: transform;
+}
+
+.photo-image-transform > img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    max-width: none;
+    user-select: none;
+    pointer-events: none;
+}
+
+.photo-image-transform > .unified-image-fallback {
+    border-radius: 0;
+    user-select: none;
+    pointer-events: none;
+}
+
+.photo-image-stage > .photo-image-missing.unified-image-fallback {
+    position: absolute;
+    inset: 24px;
+    width: auto;
+    height: auto;
+    border-radius: 8px;
+}
+
+.photo-annotation-layer {
+    position: absolute;
+    z-index: 2;
+    overflow: hidden;
+    pointer-events: none;
+}
+
+.photo-viewer-help,
+.photo-player-toolbar-bottom {
+    color: var(--es-color-text-secondary);
+    font-weight: 600;
+}
+
+.photo-viewer-help {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.photo-player-toolbar-bottom {
+    min-height: 28px;
+}
+
+.studio-minimap--photo {
+    background-size: contain;
+    background-position: center;
+}
+
+/* 声谱图框选层（在图像之上、播放进度线之下由 z-index 控制） */
+.spectrogram-marquee-layer {
+    position: absolute;
+    inset: 0;
+    z-index: 8;
+    cursor: crosshair;
+    touch-action: none;
+}
+
+.media-selection-box {
+    position: absolute;
+    left: 0;
+    top: 0;
+    z-index: 11;
+    border: calc(1px / var(--media-overlay-scale, 1)) dashed rgba(var(--es-color-brand-rgb), 0.95);
+    background: transparent;
+    box-shadow: 0 0 0 calc(1px / var(--media-overlay-scale, 1)) rgba(0, 0, 0, 0.35);
+    pointer-events: auto;
+    box-sizing: border-box;
+    cursor: move;
+}
+
+.media-selection-handle {
+    position: absolute;
+    width: calc(10px / var(--media-overlay-scale, 1));
+    height: calc(10px / var(--media-overlay-scale, 1));
+    border-radius: 50%;
+    background: var(--es-color-brand);
+    border: calc(2px / var(--media-overlay-scale, 1)) solid rgba(0, 0, 0, 0.45);
+    box-sizing: border-box;
+    pointer-events: auto;
+}
+
+.media-selection-handle--nw {
+    left: calc(-5px / var(--media-overlay-scale, 1));
+    top: calc(-5px / var(--media-overlay-scale, 1));
+    cursor: nwse-resize;
+}
+
+.media-selection-handle--n {
+    left: 50%;
+    top: calc(-5px / var(--media-overlay-scale, 1));
+    transform: translateX(-50%);
+    cursor: ns-resize;
+}
+
+.media-selection-handle--ne {
+    right: calc(-5px / var(--media-overlay-scale, 1));
+    top: calc(-5px / var(--media-overlay-scale, 1));
+    cursor: nesw-resize;
+}
+
+.media-selection-handle--w {
+    left: calc(-5px / var(--media-overlay-scale, 1));
+    top: 50%;
+    transform: translateY(-50%);
+    cursor: ew-resize;
+}
+
+.media-selection-handle--e {
+    right: calc(-5px / var(--media-overlay-scale, 1));
+    top: 50%;
+    transform: translateY(-50%);
+    cursor: ew-resize;
+}
+
+.media-selection-handle--sw {
+    left: calc(-5px / var(--media-overlay-scale, 1));
+    bottom: calc(-5px / var(--media-overlay-scale, 1));
+    cursor: nesw-resize;
+}
+
+.media-selection-handle--s {
+    left: 50%;
+    bottom: calc(-5px / var(--media-overlay-scale, 1));
+    transform: translateX(-50%);
+    cursor: ns-resize;
+}
+
+.media-selection-handle--se {
+    right: calc(-5px / var(--media-overlay-scale, 1));
+    bottom: calc(-5px / var(--media-overlay-scale, 1));
+    cursor: nwse-resize;
+}
+
+/* Saved annotation frames share state and interaction styling across media viewers. */
+.media-annotation-box {
+    position: absolute;
+    left: 0;
+    top: 0;
+    border-width: calc(1px / var(--media-overlay-scale, 1));
+    border-color: transparent;
+    box-sizing: border-box;
+    pointer-events: auto;
+    cursor: pointer;
+    z-index: 1;
+}
+
+.media-annotation-box--no-review {
+    border-style: dashed;
+    border-width: calc(1px / var(--media-overlay-scale, 1));
+    border-radius: 0;
+}
+
+.media-annotation-box--has-review {
+    border-style: solid;
+    border-width: calc(1px / var(--media-overlay-scale, 1));
+    border-radius: calc(2px / var(--media-overlay-scale, 1));
+}
+
+/*
+ * 有分配任务：点状边框（与 no-review 虚线框、has-review 实线框区分）
+ */
+.media-annotation-box--has-task {
+    border: none !important;
+    box-shadow: none;
+}
+
+.media-annotation-box--has-task::before {
+    content: none;
+}
+
+.media-annotation-box--has-task::after {
+    content: "";
+    position: absolute;
+    inset: 0px;
+    pointer-events: none;
+    z-index: 0;
+    box-sizing: border-box;
+    --task-dot-color: var(--annot-frame-color, rgba(245, 158, 11, 0.95));
+    --task-dot-r: 1px;
+    --task-dot-step: 5px;
+    background:
+        radial-gradient(circle, var(--task-dot-color) var(--task-dot-r), transparent calc(var(--task-dot-r) + 0.5px))
+            0 0 / var(--task-dot-step) calc(var(--task-dot-r) * 2 + 1px) repeat-x,
+        radial-gradient(circle, var(--task-dot-color) var(--task-dot-r), transparent calc(var(--task-dot-r) + 0.5px))
+            0 100% / var(--task-dot-step) calc(var(--task-dot-r) * 2 + 1px) repeat-x,
+        radial-gradient(circle, var(--task-dot-color) var(--task-dot-r), transparent calc(var(--task-dot-r) + 0.5px))
+            0 0 / calc(var(--task-dot-r) * 2 + 1px) var(--task-dot-step) repeat-y,
+        radial-gradient(circle, var(--task-dot-color) var(--task-dot-r), transparent calc(var(--task-dot-r) + 0.5px))
+            100% 0 / calc(var(--task-dot-r) * 2 + 1px) var(--task-dot-step) repeat-y;
+}
+
+/* 声谱图：联动高亮的标注框（hover / 与表联动） */
+.media-annotation-box--linked {
+    z-index: 3;
+    border-width: calc(1px / var(--media-overlay-scale, 1));
+    border-color: var(--es-color-brand);
+    --annot-frame-color: var(--es-color-brand);
+    /* 不做大面积发光：用轻微描边 + 细阴影提升可见性 */
+    box-shadow:
+        0 0 0 1px rgba(var(--es-color-brand-rgb), 0.35),
+        0 2px 10px rgba(var(--es-color-brand-rgb), 0.22);
+}
+
+.media-studio--dark .media-annotation-box--linked {
+    box-shadow:
+        0 0 0 1px rgba(var(--es-color-brand-rgb), 0.45),
+        0 2px 12px rgba(var(--es-color-brand-rgb), 0.28);
+}
+
+/* 有 task 且联动：与默认 linked 相同阴影，点状边框已标识 task */
+.media-annotation-box--has-task.media-annotation-box--linked {
+    box-shadow:
+        0 0 0 1px rgba(var(--es-color-brand-rgb), 0.35),
+        0 2px 10px rgba(var(--es-color-brand-rgb), 0.22);
+}
+
+.media-studio--dark .media-annotation-box--has-task.media-annotation-box--linked {
+    box-shadow:
+        0 0 0 1px rgba(var(--es-color-brand-rgb), 0.45),
+        0 2px 12px rgba(var(--es-color-brand-rgb), 0.28);
+}
+
+/* 音频详情页标注表：行 hover 与声谱图联动高亮 */
+.studio-annotation-table-wrap .data-table-wrapper .ant-table-tbody>tr:hover>td {
+    background: var(--es-color-bg-subtle) !important;
+}
+
+.studio-annotation-table-wrap .ant-table-tbody>tr.studio-annotation-row--linked>td {
+    background: var(--es-color-bg-subtle) !important;
+}
+
+.studio-annotation-table-wrap .ant-table-tbody>tr.studio-annotation-row--linked:hover>td {
+    background: var(--es-color-bg-subtle) !important;
+}
+
+/* 表头固定：Table 使用 scroll.y，外层不要整体滚动 */
+.studio-annotation-table-wrap.data-table-container {
+    overflow: hidden;
+}
+
+.studio-annotation-table-wrap .data-table-wrapper {
+    overflow: hidden;
+    padding-bottom: 0;
+}
+
+.studio-annotation-table-wrap .data-table-wrapper .ant-table-wrapper,
+.studio-annotation-table-wrap .data-table-wrapper .ant-spin-nested-loading,
+.studio-annotation-table-wrap .data-table-wrapper .ant-spin-container {
+    min-height: 0;
+}
+
+.studio-annotation-table-wrap .ant-table-body {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+.studio-annotation-table-wrap .ant-table-body::-webkit-scrollbar,
+.studio-annotation-table-wrap .ant-table-header::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
+}
+
+/* 表体单元格内容限制在列宽内，避免长文本溢出导致横向滚动时视觉错位。 */
+.studio-annotation-table-wrap .ant-table-tbody>tr>td.ant-table-cell {
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    max-width: none !important;
+}
+
+/* 表头：定位 + 裁剪，避免排序区溢出到表体（尤其与 scroll + 固定选择列叠加时） */
+.studio-annotation-table-wrap .ant-table-thead>tr>th.ant-table-cell {
+    position: relative;
+    overflow: hidden;
+}
+
+.studio-annotation-table-wrap .ant-table-thead>tr>th.ant-table-selection-column,
+.studio-annotation-table-wrap .ant-table-tbody>tr>td.ant-table-selection-column,
+.studio-annotation-table-wrap .ant-table-thead>tr>th.studio-annot-th-selection,
+.studio-annotation-table-wrap .ant-table-tbody>tr>td.studio-annot-td-selection,
+.studio-annotation-table-wrap .ant-table-thead>tr>th.ant-table-cell-fix-left,
+.studio-annotation-table-wrap .ant-table-tbody>tr>td.ant-table-cell-fix-left {
+    position: sticky !important;
+    left: 0 !important;
+}
+
+.studio-annotation-table-wrap .ant-table-thead>tr>th.ant-table-selection-column,
+.studio-annotation-table-wrap .ant-table-thead>tr>th.studio-annot-th-selection,
+.studio-annotation-table-wrap .ant-table-thead>tr>th.ant-table-cell-fix-left {
+    z-index: 34 !important;
+}
+
+.studio-annotation-table-wrap .ant-table-tbody>tr>td.ant-table-selection-column,
+.studio-annotation-table-wrap .ant-table-tbody>tr>td.studio-annot-td-selection,
+.studio-annotation-table-wrap .ant-table-tbody>tr>td.ant-table-cell-fix-left {
+    z-index: 3 !important;
+}
+
+.studio-annotation-table-wrap .studio-annot-th-selection,
+.studio-annotation-table-wrap .studio-annot-td-selection {
+    width: 48px !important;
+    min-width: 48px !important;
+    max-width: 48px !important;
+    padding: 0 !important;
+    vertical-align: middle !important;
+    border-right: 1px solid var(--data-table-border-color, #0000000f) !important;
+}
+
+.studio-annotation-table-wrap .studio-annot-select-head,
+.studio-annotation-table-wrap .studio-annot-select-cell {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+}
+
+.studio-annotation-table-wrap .studio-annot-select-head {
+    position: absolute;
+    inset: 0;
+}
+
+.studio-annotation-table-wrap .studio-annot-select-head .ant-checkbox-wrapper,
+.studio-annotation-table-wrap .studio-annot-select-cell .ant-checkbox-wrapper {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    line-height: 1;
+}
+
+.studio-annotation-table-wrap .studio-annot-select-head .ant-checkbox,
+.studio-annotation-table-wrap .studio-annot-select-cell .ant-checkbox,
+.studio-annotation-table-wrap .studio-annot-select-head .ant-checkbox-inner,
+.studio-annotation-table-wrap .studio-annot-select-cell .ant-checkbox-inner {
+    width: 16px;
+    height: 16px;
+}
+
+.studio-annotation-table-wrap .studio-annot-select-head .ant-checkbox,
+.studio-annotation-table-wrap .studio-annot-select-cell .ant-checkbox {
+    top: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/*
+ * DataPageLayout.css 把 .ant-table-column-sorter 做成 position:absolute，在 Table 有 scroll.y、
+ * rowSelection.fixed 时，与 rc-table 的 sticky / cell-fix z-index 叠层冲突，选中首行时箭头会像落在首行格内。
+ * 标注表表头改回流式排序区（与 antd 默认 flex 思路一致），不再用 absolute。
+ */
+.studio-annotation-table-wrap .data-table-wrapper .ant-table-thead .ant-table-column-sorters {
+    flex-wrap: nowrap !important;
+    align-items: flex-start !important;
+    justify-content: flex-start !important;
+    gap: 6px;
+}
+
+.studio-annotation-table-wrap .data-table-wrapper .ant-table-thead .ant-table-column-title {
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+}
+
+.studio-annotation-table-wrap .data-table-wrapper .ant-table-thead .ant-table-column-sorter {
+    position: static !important;
+    top: auto !important;
+    right: auto !important;
+    inset: auto !important;
+    flex-shrink: 0;
+    margin-top: 2px;
+    align-self: flex-start;
+}
+
+/* 滚动表头整体压在固定列单元格之上，避免选中行时表体盖住表头排序区造成错位感 */
+.studio-annotation-table-wrap .ant-table-header,
+.studio-annotation-table-wrap .ant-table-sticky-holder {
+    z-index: 32 !important;
+}
+
+/*
+ * 视觉兜底：scroll + fixed 选择列时，排序箭头仍可能叠在首行格子上。
+ * 1) 表体内不应出现排序控件，一律隐藏。
+ * 2) 首行数据格右侧加与背景同色的窄条，盖住误显的箭头（pointer-events 不挡点击）。
+ */
+.studio-annotation-table-wrap .ant-table-tbody .ant-table-column-sorter,
+.studio-annotation-table-wrap .ant-table-tbody .ant-table-column-sorters .ant-table-column-sorter {
+    color: var(--es-color-bg-surface) !important;
+    opacity: 0 !important;
+    visibility: hidden !important;
+    width: 0 !important;
+    max-width: 0 !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+    pointer-events: none !important;
+}
+
+.studio-annotation-table-wrap .ant-table-tbody>tr:first-child>td.ant-table-cell:not(.ant-table-selection-column):not(.studio-annot-td-comments) {
+    position: relative;
+}
+
+/* inherit 与单元格背景一致（默认 / hover / 选中 / 暗色），避免遮条颜色不同步 */
+.studio-annotation-table-wrap .ant-table-tbody>tr:first-child>td.ant-table-cell:not(.ant-table-selection-column):not(.studio-annot-td-comments)::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 26px;
+    bottom: 0;
+    z-index: 4;
+    pointer-events: none;
+    background: inherit;
+}
+
+.studio-annotation-table-wrap .ant-table-thead>tr>th:not(.studio-annot-th-comments),
+.studio-annotation-table-wrap .ant-table-tbody>tr>td:not(.studio-annot-td-comments) {
+    white-space: nowrap;
+}
+
+.studio-annotation-table-wrap .ant-table-thead .dpl-th-layout {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+}
+
+.studio-annotation-table-wrap .ant-table-thead .th-filter {
+    width: 100%;
+    min-width: 0;
+}
+
+.studio-annotation-table-wrap .th-filter .dpl-filter-select {
+    min-width: 0;
+    max-width: 100%;
+}
+
+.studio-annotation-table-wrap .th-filter .dpl-filter-input {
+    min-width: 0;
+    max-width: 100%;
+}
+
+.studio-annotation-table-wrap .th-filter .dpl-filter-number-input {
+    min-width: 0;
+    max-width: 100%;
+}
+
+.studio-annotation-table-wrap .th-filter .dpl-filter-number-group {
+    min-width: 0;
+    width: 100%;
+}
+
+.studio-annotation-table-wrap .studio-annot-th-comments,
+.studio-annotation-table-wrap .studio-annot-td-comments {
+    white-space: normal !important;
+    word-break: break-word;
+    min-width: 12rem;
+}
+
+.studio-annotation-table-wrap .studio-annot-cell-ellipsis {
+    display: block;
+    max-width: 100%;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* 布尔列：True / False 药丸（True = 主题色，False = 红） */
+.studio-annotation-table-wrap .studio-annot-bool-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.2rem 0.7rem;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--es-color-text-inverse);
+    line-height: 1.2;
+    letter-spacing: 0.02em;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.14);
+}
+
+.studio-annotation-table-wrap .studio-annot-bool-badge--true {
+    background: var(--es-color-brand);
+}
+
+.studio-annotation-table-wrap .studio-annot-bool-badge--false {
+    background: var(--es-color-danger);
+}
+
+[data-theme="dark"] .studio-annotation-table-wrap .studio-annot-bool-badge {
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+}
+
+/* 右侧「新建标注」— 参考设计稿：白卡片、海军蓝标签、浅灰输入、天蓝 Save */
+.studio-info-section:has(.studio-annotation-panel) {
+    padding: 0;
+    background: var(--es-color-bg-subtle);
+    /* 与 .studio-info-section overflow:hidden 配合：子级可 flex 收缩，内部再滚动 */
+    min-height: 0;
+}
+
+.studio-info-section:has(.studio-annotation-panel)>.studio-annotation-panel {
+    flex: 1 1 auto;
+    min-height: 0;
+}
+
+[data-theme="dark"] .studio-info-section:has(.studio-annotation-panel) {
+    background: var(--es-color-bg-subtle);
+    min-height: 0;
+}
+
+.studio-assign-task-empty {
+    padding: 24px;
+    text-align: center;
+    color: rgba(0, 0, 0, 0.25);
+    font-size: 14px;
+    font-weight: 700;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+}
+
+.studio-annotation-table-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    color: rgba(0, 0, 0, 0.25);
+    font-size: 14px;
+    font-weight: 700;
+}
+
+:root[data-theme="dark"] .studio-assign-task-empty,
+:root[data-theme="dark"] .studio-annotation-table-empty {
+    color: rgba(255, 255, 255, 0.25);
+}
+
+.studio-info-section:has(.studio-analysis-embed) {
+    padding: 0;
+    gap: 0;
+    background: var(--es-color-bg-subtle);
+}
+
+[data-theme="dark"] .studio-info-section:has(.studio-analysis-embed) {
+    background: var(--es-color-bg-subtle);
+}
+
+.studio-info-section>.studio-analysis-embed {
+    flex: 1;
+    min-height: 0;
+}
+
+.studio-analysis-embed {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    height: 100%;
+    background: var(--es-color-bg-surface);
+    box-shadow: 0 4px 24px rgba(15, 23, 42, 0.06);
+    box-sizing: border-box;
+}
+
+[data-theme="dark"] .studio-analysis-embed {
+    background: var(--es-color-bg-surface);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+}
+
+.studio-analysis-embed-top {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px 12px;
+    flex-shrink: 0;
+    border-bottom: 1px solid var(--es-color-border);
+}
+
+[data-theme="dark"] .studio-analysis-embed-top {
+    border-bottom-color: var(--es-color-border);
+}
+
+.studio-analysis-embed-top .header-back {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border: none;
+    border-radius: var(--es-radius-pill);
+    background: transparent;
+    color: var(--es-color-text-secondary);
+    cursor: pointer;
+    transition: background var(--es-duration-fast) var(--es-ease-standard), color var(--es-duration-fast) var(--es-ease-standard);
+}
+
+.studio-analysis-embed-top .header-back:hover {
+    background: var(--es-color-brand);
+    color: var(--es-color-text-inverse);
+}
+
+[data-theme="dark"] .studio-analysis-embed-top .header-back {
+    color: var(--es-color-text);
+}
+
+[data-theme="dark"] .studio-analysis-embed-top .header-back:hover {
+    background: var(--es-color-brand);
+    color: var(--es-color-text-inverse);
+}
+
+.studio-analysis-embed-heading {
+    flex: 1;
+    font-weight: 700;
+    font-size: 1.02rem;
+    letter-spacing: -0.02em;
+    color: var(--es-color-text-secondary);
+    line-height: 1.25;
+}
+
+[data-theme="dark"] .studio-analysis-embed-heading {
+    color: var(--es-color-text);
+}
+
+.studio-analysis-embed-body {
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.studio-analysis-embed-foot {
+    flex-shrink: 0;
+    padding: 10px 14px 14px;
+    border-top: 1px solid var(--es-color-border);
+    display: flex;
+    justify-content: flex-end;
+}
+
+[data-theme="dark"] .studio-analysis-embed-foot {
+    border-top-color: var(--es-color-border);
+}
+
+.studio-annotation-panel {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+    height: 100%;
+    /* 滚动交给 .studio-annotation-card-scroll，避免 Review 被裁到视口外 */
+    overflow: hidden;
+}
+
+.studio-annotation-panel>.studio-annotation-card {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    height: auto;
+    /* 去掉 1px 描边，避免底部像一条灰色「进度条」分隔线 */
+    box-shadow: 0 4px 24px rgba(15, 23, 42, 0.08);
+}
+
+.studio-annotation-card {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+    background: var(--es-color-bg-surface);
+    box-shadow: 0 4px 24px rgba(15, 23, 42, 0.08), 0 0 0 1px rgba(15, 23, 42, 0.04);
+    padding: 20px 20px 18px;
+    box-sizing: border-box;
+}
+
+/* 上：可滚动标注表单；下：REVIEW（编辑时） */
+.studio-annotation-card-scroll {
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.studio-annotation-form-only-scroll {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+[data-theme="dark"] .studio-annotation-card {
+    background: var(--es-color-bg-surface);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
+[data-theme="dark"] .studio-annotation-panel>.studio-annotation-card {
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+}
+
+.studio-annotation-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: -20px -20px 14px;
+    padding: 14px 16px 12px;
+    flex-shrink: 0;
+    border-bottom: 1px solid var(--es-color-border);
+}
+
+[data-theme="dark"] .studio-annotation-header {
+    border-bottom-color: var(--es-color-border);
+}
+
+.studio-annotation-header .header-back {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border: none;
+    border-radius: var(--es-radius-pill);
+    background: transparent;
+    color: var(--es-color-text-secondary);
+    cursor: pointer;
+    transition: background var(--es-duration-fast) var(--es-ease-standard), color var(--es-duration-fast) var(--es-ease-standard);
+}
+
+.studio-annotation-header .header-back:hover {
+    background: var(--es-color-brand);
+    color: var(--es-color-text-inverse);
+}
+
+[data-theme="dark"] .studio-annotation-header .header-back {
+    color: var(--es-color-text);
+}
+
+[data-theme="dark"] .studio-annotation-header .header-back:hover {
+    background: var(--es-color-brand);
+    color: var(--es-color-text-inverse);
+}
+
+.studio-annotation-header .header-title {
+    flex: 1;
+    font-weight: 700;
+    font-size: 1.02rem;
+    letter-spacing: -0.02em;
+    color: var(--es-color-text-secondary);
+    line-height: 1.25;
+}
+
+[data-theme="dark"] .studio-annotation-header .header-title {
+    color: var(--es-color-text);
+}
+
+.studio-annotation-header-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    flex-shrink: 0;
+    flex-wrap: nowrap;
+}
+
+.studio-annot-header-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border-radius: 999px;
+    border: 1px solid var(--es-color-border);
+    background: var(--es-color-bg-surface);
+    color: var(--es-color-text);
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.1);
+    cursor: pointer;
+    transition:
+        background 0.15s ease,
+        border-color 0.15s ease,
+        color 0.15s ease,
+        box-shadow 0.15s ease;
+}
+
+.studio-annot-header-icon:hover {
+    border-color: var(--es-color-brand);
+    background: var(--es-color-brand);
+    color: var(--es-color-text-inverse);
+    box-shadow: 0 4px 10px rgba(37, 99, 235, 0.18);
+}
+
+.studio-annot-header-icon--danger:hover {
+    border-color: var(--es-color-danger);
+    background: var(--es-color-danger);
+    color: var(--es-color-text-inverse);
+    box-shadow: 0 4px 10px color-mix(in srgb, var(--es-color-danger) 24%, transparent);
+}
+
+.studio-annot-header-icon.is-active {
+    border-color: var(--media-control-selected-bg, #1e293b);
+    background: var(--media-control-selected-bg, #1e293b);
+    color: var(--es-color-text-inverse);
+}
+
+[data-theme="dark"] .studio-annot-header-icon {
+    border-color: var(--es-color-border);
+    background: var(--es-color-bg-subtle);
+    color: var(--es-color-text);
+    box-shadow: none;
+}
+
+[data-theme="dark"] .studio-annot-header-icon:hover {
+    background: var(--es-color-brand);
+    color: var(--es-color-text-inverse);
+}
+
+[data-theme="dark"] .studio-annot-header-icon--danger:hover {
+    border-color: var(--es-color-danger);
+    background: var(--es-color-danger);
+    color: var(--es-color-text-inverse);
+}
+
+[data-theme="dark"] .studio-annot-header-icon.is-active {
+    border-color: var(--media-control-selected-bg, #1e293b);
+    background: var(--media-control-selected-bg, #1e293b);
+    color: var(--es-color-text-inverse);
+}
+
+/* Media workspace control contract: one visual language for every toolbar edge. */
+.content-wrapper--media-detail .player-toolbar-top {
+    height: var(--media-control-size);
+    min-height: var(--media-control-size);
+}
+
+.content-wrapper--media-detail .player-toolbar-bottom {
+    min-height: var(--media-control-size);
+}
+
+.content-wrapper--media-detail .media-viewer-toolbar-button.ant-btn,
+.content-wrapper--media-detail .studio-table-toolbar-button.ant-btn,
+.content-wrapper--media-detail .media-studio-action,
+.content-wrapper--media-detail .player-toolbar-top .btn-toolbar--static,
+.content-wrapper--media-detail .crumb-wrapper--studio-toolbar .crumb-btn {
+    height: var(--media-control-size) !important;
+    min-height: var(--media-control-size) !important;
+    box-sizing: border-box !important;
+    border: 0 !important;
+    border-radius: var(--media-control-radius) !important;
+    background: var(--es-color-bg-surface) !important;
+    color: var(--es-color-text-secondary) !important;
+    box-shadow: none !important;
+    transition:
+        background var(--es-duration-fast) var(--es-ease-standard),
+        border-color var(--es-duration-fast) var(--es-ease-standard),
+        color var(--es-duration-fast) var(--es-ease-standard),
+        box-shadow var(--es-duration-fast) var(--es-ease-standard) !important;
+}
+
+.content-wrapper--media-detail .media-viewer-toolbar-button.ant-btn,
+.content-wrapper--media-detail .studio-table-toolbar-button.ant-btn {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: var(--media-control-size) !important;
+    min-width: var(--media-control-size) !important;
+    padding: 0 !important;
+    gap: 0 !important;
+    line-height: 0 !important;
+}
+
+.content-wrapper--media-detail .media-viewer-toolbar-button .ant-btn-icon,
+.content-wrapper--media-detail .studio-table-toolbar-button .ant-btn-icon {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 100%;
+    height: 100%;
+    margin: 0 !important;
+    line-height: 0 !important;
+}
+
+.content-wrapper--media-detail .media-viewer-toolbar-button svg,
+.content-wrapper--media-detail .studio-table-toolbar-button svg,
+.content-wrapper--media-detail .media-studio-action svg,
+.content-wrapper--media-detail .player-toolbar-top .btn-toolbar--static svg {
+    display: block;
+    width: var(--media-control-icon-size);
+    height: var(--media-control-icon-size);
+    flex: 0 0 auto;
+}
+
+.content-wrapper--media-detail .media-studio-action {
+    padding: 0 var(--es-space-3) !important;
+    gap: var(--es-space-2);
+}
+
+.content-wrapper--media-detail .player-toolbar-top .btn-toolbar--static {
+    padding: 0 var(--es-space-3) !important;
+}
+
+.content-wrapper--media-detail .crumb-wrapper--studio-toolbar .crumb-btn {
+    padding-inline: var(--es-space-3) !important;
+}
+
+.content-wrapper--media-detail .crumb-wrapper--studio-toolbar .crumb-btn > svg {
+    display: block;
+    width: var(--media-control-icon-size);
+    height: var(--media-control-icon-size);
+    flex: 0 0 var(--media-control-icon-size);
+}
+
+.content-wrapper--media-detail .zoom-control-wrapper {
+    height: var(--media-control-size);
+    border: 0;
+    border-radius: var(--media-control-radius);
+    background: var(--es-color-bg-surface);
+    transition:
+        background var(--es-duration-fast) var(--es-ease-standard),
+        border-color var(--es-duration-fast) var(--es-ease-standard),
+        box-shadow var(--es-duration-fast) var(--es-ease-standard);
+}
+
+.content-wrapper--media-detail .media-viewer-toolbar-button--zoom {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: var(--media-control-size);
+    min-width: var(--media-control-size);
+    height: var(--media-control-size);
+    padding: 0;
+    border: 0;
+    border-radius: calc(var(--media-control-radius) - 1px) 0 0 calc(var(--media-control-radius) - 1px);
+    background: transparent;
+    color: var(--es-color-text-secondary);
+    box-shadow: none;
+    line-height: 0;
+}
+
+.content-wrapper--media-detail .media-viewer-toolbar-button.ant-btn:hover:not(:disabled),
+.content-wrapper--media-detail .studio-table-toolbar-button.ant-btn:hover:not(:disabled),
+.content-wrapper--media-detail .media-studio-action:hover:not(:disabled),
+.content-wrapper--media-detail .crumb-wrapper--studio-toolbar .crumb-btn:hover,
+.content-wrapper--media-detail .crumb-wrapper--studio-toolbar.active .crumb-btn,
+.content-wrapper--media-detail .media-viewer-toolbar-button--zoom:hover:not(:disabled) {
+    border-color: transparent !important;
+    background: var(--es-color-brand) !important;
+    color: var(--es-color-text-inverse) !important;
+    box-shadow: none !important;
+}
+
+.content-wrapper--media-detail .media-viewer-toolbar-button.is-active,
+.content-wrapper--media-detail .media-viewer-toolbar-button.active,
+.content-wrapper--media-detail .studio-table-toolbar-button.is-active,
+.content-wrapper--media-detail .media-studio-action.active:not(:disabled),
+.content-wrapper--media-detail .player-toolbar-top .btn-toolbar.active,
+.content-wrapper--media-detail .player-toolbar-bottom .btn-toolbar.active,
+.content-wrapper--media-detail .studio-label-tag.active {
+    border-color: transparent !important;
+    background: var(--media-control-selected-bg) !important;
+    color: var(--es-color-text-inverse) !important;
+    box-shadow: none !important;
+}
+
+.content-wrapper--media-detail .media-viewer-toolbar-button.danger:hover:not(:disabled),
+.content-wrapper--media-detail .studio-table-toolbar-button.danger:hover:not(:disabled) {
+    border-color: transparent !important;
+    background: var(--es-color-danger) !important;
+    color: var(--es-color-text-inverse) !important;
+}
+
+.content-wrapper--media-detail .media-viewer-toolbar-button:focus-visible,
+.content-wrapper--media-detail .studio-table-toolbar-button:focus-visible,
+.content-wrapper--media-detail .media-studio-action:focus-visible,
+.content-wrapper--media-detail .crumb-wrapper--studio-toolbar .crumb-btn:focus-visible,
+.content-wrapper--media-detail .zoom-control-wrapper:focus-within {
+    outline: none !important;
+    border-color: transparent !important;
+    box-shadow: var(--media-control-focus-ring) !important;
+}
+
+.content-wrapper--media-detail .media-viewer-toolbar-button:disabled,
+.content-wrapper--media-detail .studio-table-toolbar-button:disabled,
+.content-wrapper--media-detail .media-studio-action:disabled,
+.content-wrapper--media-detail .media-viewer-toolbar-button--zoom:disabled {
+    border-color: transparent !important;
+    background: var(--es-color-bg-subtle) !important;
+    color: var(--es-color-text-muted) !important;
+    opacity: 0.45;
+    box-shadow: none !important;
+}
+
+/* A selected mode remains visually selected even when repeated activation is disabled. */
+.content-wrapper--media-detail .media-viewer-toolbar-button.is-active:disabled,
+.content-wrapper--media-detail .studio-table-toolbar-button.is-active:disabled {
+    background: var(--media-control-selected-bg) !important;
+    color: var(--es-color-text-inverse) !important;
+    opacity: 1;
+}
+
+.studio-annot-taxon-search-btn {
+    background: none;
+    border: none;
+    padding: 0;
+    font: inherit;
+    font-weight: 600;
+    color: var(--es-color-brand);
+    cursor: pointer;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.studio-annot-taxon-search-btn:hover {
+    opacity: 0.88;
+}
+
+.studio-annotation-form {
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.studio-annotation-form--antd.studio-annotation-form {
+    display: block;
+    gap: 0;
+    padding: 0;
+    flex: 0 1 auto;
+    min-height: 0;
+    overflow: visible;
+}
+
+.studio-annotation-form--antd .studio-annot-form-item.ant-form-item {
+    margin-bottom: 14px;
+}
+
+.studio-annotation-form--antd .studio-annot-switch-field .ant-form-item-control-input {
+    min-height: 32px;
+}
+
+.studio-annotation-form--antd .studio-annot-switch-field .ant-form-item-control-input-content {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    min-height: 32px;
+    padding-inline-end: var(--es-space-1);
+    box-sizing: border-box;
+}
+
+.studio-annotation-form--antd .ant-input,
+.studio-annotation-form--antd .ant-input-number,
+.studio-annotation-form--antd .ant-input-affix-wrapper,
+.studio-annotation-form--antd .ant-select .ant-select-selector,
+.studio-annotation-form--antd .ant-input-number .ant-input-number-input,
+.studio-annotation-form--antd .ant-select .ant-select-selection-item,
+.studio-annotation-form--antd .ant-select .ant-select-arrow {
+    color: var(--es-color-text) !important;
+}
+
+.studio-annotation-form--antd .ant-input::placeholder,
+.studio-annotation-form--antd .ant-input-number-input::placeholder,
+.studio-annotation-form--antd .ant-select .ant-select-selection-placeholder {
+    color: var(--es-color-text-muted) !important;
+}
+
+.studio-annotation-form--antd .ant-input,
+.studio-annotation-form--antd .ant-input-number,
+.studio-annotation-form--antd .ant-input-affix-wrapper,
+.studio-annotation-form--antd .ant-select .ant-select-selector {
+    background: var(--es-color-bg-subtle) !important;
+    border-color: var(--es-color-border) !important;
+}
+
+.studio-annotation-form--antd .ant-input:hover:not(.ant-input-disabled),
+.studio-annotation-form--antd .ant-input:focus:not(.ant-input-disabled),
+.studio-annotation-form--antd .ant-input-number:hover:not(.ant-input-number-disabled),
+.studio-annotation-form--antd .ant-input-number-focused:not(.ant-input-number-disabled),
+.studio-annotation-form--antd .ant-input-affix-wrapper:hover:not(.ant-input-affix-wrapper-disabled),
+.studio-annotation-form--antd .ant-input-affix-wrapper:focus-within:not(.ant-input-affix-wrapper-disabled),
+.studio-annotation-form--antd .ant-select:hover:not(.ant-select-disabled) .ant-select-selector,
+.studio-annotation-form--antd .ant-select-focused:not(.ant-select-disabled) .ant-select-selector,
+.studio-annotation-form--antd .ant-select-open .ant-select-selector {
+    border-color: var(--es-color-brand) !important;
+    background: var(--es-color-bg-surface) !important;
+}
+
+.studio-annotation-form--antd .ant-input:focus:not(.ant-input-disabled),
+.studio-annotation-form--antd .ant-input-focused:not(.ant-input-disabled),
+.studio-annotation-form--antd .ant-input-number-focused:not(.ant-input-number-disabled),
+.studio-annotation-form--antd .ant-input-affix-wrapper:focus-within:not(.ant-input-affix-wrapper-disabled),
+.studio-annotation-form--antd .ant-select-focused:not(.ant-select-disabled) .ant-select-selector {
+    box-shadow: var(--es-shadow-focus) !important;
+}
+
+.studio-annotation-form--antd .ant-input-affix-wrapper .ant-input {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+.studio-annotation-form--antd .ant-switch.ant-switch-checked,
+.studio-annotation-form--antd .ant-switch-checked {
+    background: var(--es-color-brand) !important;
+}
+
+.studio-annotation-form--antd .ant-switch.ant-switch-checked:hover:not(.ant-switch-disabled),
+.studio-annotation-form--antd .ant-switch-checked:hover:not(.ant-switch-disabled) {
+    background: var(--es-color-brand-hover) !important;
+}
+
+.studio-annotation-form--antd .ant-form-item-label>label {
+    display: inline-flex;
+    align-items: center;
+    font-size: 0.8125rem;
+    font-weight: 700;
+    color: var(--es-color-text);
+}
+
+.studio-annotation-form--antd .ant-form-item-label > label.ant-form-item-required::before {
+    display: none !important;
+    content: none !important;
+}
+
+.studio-annotation-form--antd .form-drawer-required-prefix {
+    order: 2;
+    margin-inline: 4px 0;
+}
+
+.studio-annotation-form--antd .form-drawer-required-suffix {
+    margin-inline: 4px 0;
+}
+
+.studio-annotation-form--antd .studio-annot-form-item--taxon .ant-form-item-label > label {
+    display: inline-flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    max-width: 100%;
+}
+
+.studio-annotation-form--antd .studio-annot-form-item--taxon .ant-form-item-label > label::after {
+    display: none !important;
+    content: none !important;
+}
+
+[data-theme="dark"] .studio-annotation-form--antd .ant-form-item-label>label {
+    color: var(--es-color-text);
+}
+
+.studio-annotation-form--antd .studio-annot-form-actions {
+    margin-bottom: 10px;
+    margin-top: 14px;
+    width: 100%;
+    display: flex;
+    justify-content: flex-end;
+}
+
+.studio-annot-comments-meta-shell {
+    padding-top: 0;
+}
+
+.studio-annot-comments-meta-shell .studio-annot-form-item.ant-form-item {
+    margin-bottom: 0;
+}
+
+.studio-annot-comments-meta-shell .ant-form-item-label {
+    padding-bottom: 8px;
+}
+
+.studio-annot-comments-meta-shell .ant-form-item-label > label {
+    font-size: 0.8125rem;
+    font-weight: 700;
+    color: var(--es-color-text);
+}
+
+.studio-annot-comments-inline-row {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    min-width: 0;
+}
+
+.studio-annot-comments-inline-main {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.studio-annot-comments-inline-main .ant-input {
+    min-height: 32px;
+}
+
+[data-theme="dark"] .studio-annot-comments-meta-shell .ant-input {
+    background: rgba(148, 163, 184, 0.12);
+    border-color: rgba(148, 163, 184, 0.2);
+}
+
+.studio-annot-comments-meta-side {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    align-items: flex-end;
+    gap: 6px;
+    width: min(100%, 220px);
+    max-width: 220px;
+    min-width: 0;
+    margin-top: auto;
+    padding-bottom: 2px;
+}
+
+.studio-annot-comments-meta-col {
+    display: flex;
+    justify-content: flex-end;
+    align-items: flex-end;
+    min-height: 100%;
+}
+
+.studio-annot-comments-meta-side--row {
+    width: 100%;
+}
+
+.studio-annot-meta-card {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    align-items: flex-end;
+    gap: 6px;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+}
+
+.studio-annot-meta-row {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    justify-content: flex-end;
+    width: 100%;
+    min-width: 0;
+    gap: 2px;
+    white-space: nowrap;
+}
+
+.studio-annot-meta-row--bottom {
+    justify-content: flex-end;
+    gap: 6px;
+}
+
+.studio-annot-meta-row--bottom .studio-annot-meta-badge {
+    flex: 0 0 auto;
+}
+
+.studio-annot-meta-row--top .studio-annot-meta-by {
+    flex: 0 1 auto;
+}
+
+.studio-annot-meta-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.2px;
+    line-height: 1.2;
+    white-space: nowrap;
+    text-transform: uppercase;
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.studio-annot-meta-badge--source {
+    background: var(--es-color-bg-subtle);
+    color: var(--es-color-text-secondary);
+    border: none;
+    flex: 0 1 auto;
+    justify-content: flex-start;
+    max-width: min(96px, 52%);
+}
+
+[data-theme="dark"] .studio-annot-meta-badge--source {
+    background: var(--es-color-bg-subtle);
+    color: var(--es-color-text-secondary);
+}
+
+.studio-annot-meta-badge-fit-text {
+    display: inline-block;
+    min-width: 0;
+    max-width: none;
+    transform-origin: left center;
+    white-space: nowrap;
+}
+
+/* CONF：按数值低→高 红 / 橙 / 绿 */
+.studio-annot-meta-badge--conf-low {
+    background: rgba(239, 68, 68, 0.12);
+    color: #dc2626;
+    border: none;
+}
+
+[data-theme="dark"] .studio-annot-meta-badge--conf-low {
+    background: rgba(239, 68, 68, 0.16);
+    color: #f87171;
+}
+
+.studio-annot-meta-badge--conf-mid {
+    background: rgba(245, 158, 11, 0.12);
+    color: #d97706;
+    border: none;
+}
+
+[data-theme="dark"] .studio-annot-meta-badge--conf-mid {
+    background: rgba(245, 158, 11, 0.16);
+    color: #f59e0b;
+}
+
+.studio-annot-meta-badge--conf-high {
+    background: rgba(16, 185, 129, 0.12);
+    color: #10b981;
+    border: none;
+}
+
+[data-theme="dark"] .studio-annot-meta-badge--conf-high {
+    background: rgba(16, 185, 129, 0.16);
+    color: #6ee7b7;
+}
+
+.studio-annot-meta-by {
+    font-size: 0.75rem;
+    color: var(--es-color-text-muted);
+    line-height: 1.2;
+    white-space: nowrap;
+    min-width: 0;
+    flex: 1 1 auto;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.studio-annot-meta-by strong {
+    font-weight: 600;
+    color: var(--es-color-text);
+}
+
+[data-theme="dark"] .studio-annot-meta-by {
+    color: var(--es-color-text-muted);
+}
+
+[data-theme="dark"] .studio-annot-meta-by strong {
+    color: var(--es-color-text);
+}
+
+.studio-annot-meta-time {
+    font-size: 0.75rem;
+    color: var(--es-color-text-muted);
+    font-variant-numeric: tabular-nums;
+    line-height: 1.2;
+    flex: 0 1 auto;
+    text-align: right;
+    white-space: nowrap;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+[data-theme="dark"] .studio-annot-meta-time {
+    color: var(--es-color-text-muted);
+}
+
+.studio-annot-save-row {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+}
+.studio-annot-save-row .ant-btn {
+    height: 32px;
+    font-size: 14px;
+    font-weight: 700;
+}
+
+@media (max-width: 640px) {
+    .studio-annot-comments-meta-col {
+        justify-content: flex-start;
+        align-items: flex-start;
+    }
+
+    .studio-annot-comments-meta-side {
+        justify-content: flex-start;
+        align-items: flex-start;
+        padding-top: 0;
+    }
+
+    .studio-annot-meta-card {
+        align-items: flex-start;
+    }
+
+    .studio-annot-meta-row {
+        justify-content: flex-start;
+        flex-wrap: wrap;
+    }
+
+    .studio-annot-meta-time {
+        text-align: left;
+    }
+}
+
+.studio-annot-save-mode-trigger-icon {
+    flex-shrink: 0;
+    opacity: 0.85;
+    transition: none !important;
+    animation: none !important;
+}
+
+/* 标注表单：播放（喇叭）与 Save 使用主题色 */
+.studio-annotation-form--antd .studio-annot-save-row > .ant-btn-primary,
+.studio-annotation-form--antd .studio-annot-distance-input-compact .ant-btn-primary {
+    background: var(--es-color-brand) !important;
+    border-color: var(--es-color-brand) !important;
+    box-shadow: none;
+    color: var(--es-color-text-inverse) !important;
+}
+
+.studio-annotation-form--antd .studio-annot-save-row > .ant-btn-primary:not(:disabled):hover,
+.studio-annotation-form--antd .studio-annot-distance-input-compact .ant-btn-primary:not(:disabled):hover {
+    background: var(--es-color-brand) !important;
+    border-color: var(--es-color-brand) !important;
+    color: var(--es-color-text-inverse) !important;
+    filter: brightness(0.92);
+}
+
+.studio-annotation-form--antd .studio-annot-save-row > .ant-btn-primary:not(:disabled):active,
+.studio-annotation-form--antd .studio-annot-distance-input-compact .ant-btn-primary:not(:disabled):active {
+    filter: brightness(0.85);
+}
+
+.studio-annotation-form--antd .studio-annot-distance-input-compact .ant-btn-primary .ant-btn-icon,
+.studio-annotation-form--antd .studio-annot-distance-input-compact .ant-btn-primary svg {
+    color: var(--es-color-text-inverse) !important;
+}
+
+.studio-annotation-form--antd .studio-annot-save-row > .ant-btn-primary .ant-btn-icon,
+.studio-annotation-form--antd .studio-annot-save-row > .ant-btn-primary svg,
+.studio-annotation-form--antd .studio-annot-save-split .ant-btn-primary .ant-btn-icon,
+.studio-annotation-form--antd .studio-annot-save-split .ant-btn-primary svg {
+    color: var(--es-color-text-inverse) !important;
+}
+
+.studio-annot-save-split.ant-dropdown-button {
+    display: inline-flex;
+    width: fit-content;
+    max-width: 100%;
+    margin-left: auto;
+    align-self: flex-end;
+}
+
+/* Ant Design compact split：去掉两段按钮之间的连接白线 */
+.studio-annot-save-split.ant-dropdown-button .ant-btn-compact-item.ant-btn-variant-solid + .ant-btn-variant-solid::before {
+    display: none !important;
+    content: none !important;
+}
+
+.studio-annot-save-split.ant-dropdown-button .ant-btn {
+    height: 32px;
+    box-shadow: none;
+    transition: none !important;
+    animation: none !important;
+    transform: none !important;
+    z-index: 1 !important;
+}
+
+.studio-annot-save-split.ant-dropdown-button .ant-btn:first-child,
+.studio-annot-save-split.ant-dropdown-button .ant-btn:last-child {
+    background: var(--es-color-brand) !important;
+    border-color: var(--es-color-brand) !important;
+}
+
+.studio-annot-save-split.ant-dropdown-button .ant-btn:first-child {
+    border-radius: 50px 0 0 50px !important;
+    padding-inline: 15px;
+    white-space: nowrap;
+    font-weight: 700;
+}
+
+.studio-annot-save-split.ant-dropdown-button .ant-btn:last-child {
+    border-radius: 0 50px 50px 0 !important;
+    padding-inline: 15px;
+    border-inline-start-color: transparent !important;
+    box-shadow: none !important;
+}
+
+.studio-annot-save-split.ant-dropdown-button .ant-btn:not(:disabled):hover,
+.studio-annot-save-split.ant-dropdown-button .ant-btn:not(:disabled):focus,
+.studio-annot-save-split.ant-dropdown-button .ant-btn:not(:disabled):active {
+    background: var(--es-color-brand) !important;
+    border-color: var(--es-color-brand) !important;
+    transition: none !important;
+    animation: none !important;
+    transform: none !important;
+    filter: none !important;
+    z-index: 1 !important;
+}
+
+.studio-annot-save-split.ant-dropdown-button .ant-wave {
+    display: none !important;
+}
+
+.studio-annot-save-split.ant-dropdown-button .ant-btn:last-child:not(:disabled):hover,
+.studio-annot-save-split.ant-dropdown-button .ant-btn:last-child:not(:disabled):focus,
+.studio-annot-save-split.ant-dropdown-button .ant-btn:last-child:not(:disabled):active {
+    border-inline-start-color: transparent !important;
+}
+
+@media (max-width: 640px) {
+    .studio-annot-save-row {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .studio-annot-save-split.ant-dropdown-button {
+        width: 100%;
+    }
+
+    .studio-annot-save-split.ant-dropdown-button .ant-btn:first-child {
+        flex: 1 1 auto;
+    }
+}
+
+/* —— Edit：表单滚动区下方 REVIEW —— */
+.studio-annot-review-module {
+    flex-shrink: 0;
+    margin-top: 0;
+    padding-bottom: 6px;
+    border-top: 1px solid var(--es-color-border);
+}
+
+[data-theme="dark"] .studio-annot-review-module {
+    border-top-color: var(--es-color-border);
+}
+
+.studio-annot-review-head {
+    padding: 10px 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    height: 52px;
+}
+
+.studio-annot-review-title {
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    color: var(--es-color-text-muted);
+}
+
+.studio-annot-review-edit-btn.ant-btn-primary {
+    background: var(--es-color-brand) !important;
+    border-color: var(--es-color-brand) !important;
+    border-radius: 50px !important;
+    font-weight: 700;
+    box-shadow: none;
+}
+
+.studio-annot-review-cols {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-auto-flow: row;
+    gap: 10px;
+    align-items: start;
+    justify-items: stretch;
+}
+
+.studio-annot-review-cols--solo {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.studio-annot-review-cols > .studio-annot-review-history,
+.studio-annot-review-cols > .studio-annot-review-form-col {
+    grid-column: 1 / -1;
+    justify-self: stretch;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+}
+
+/* 表单在上、历史在下（DOM 顺序不变，用 grid order） */
+.studio-annot-review-cols:not(.studio-annot-review-cols--solo) .studio-annot-review-form-col {
+    order: 1;
+    padding-bottom: 10px;
+    margin-bottom: 0;
+    border-bottom: 1px solid var(--es-color-border);
+}
+
+[data-theme="dark"] .studio-annot-review-cols:not(.studio-annot-review-cols--solo) .studio-annot-review-form-col {
+    border-bottom-color: var(--es-color-border);
+}
+
+.studio-annot-review-cols:not(.studio-annot-review-cols--solo) .studio-annot-review-history {
+    order: 2;
+    border-right: none;
+    padding-right: 0;
+    margin-right: 0;
+    padding-bottom: 0;
+    margin-bottom: 0;
+    border-bottom: none;
+}
+
+.studio-annot-review-history {
+    min-height: 48px;
+    min-width: 0;
+    width: 100%;
+    max-width: 100%;
+}
+
+.studio-annot-review-history > .custom-scroll-area {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+}
+
+.studio-annot-review-empty {
+    margin: 8px 0 0;
+    font-size: 14px;
+    color: rgba(0, 0, 0, 0.25);
+    font-weight: 700;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+}
+
+:root[data-theme="dark"] .studio-annot-review-empty {
+    color: rgba(255, 255, 255, 0.25);
+}
+
+.studio-annot-review-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+}
+
+.studio-annot-review-list > li {
+    min-width: 0;
+    box-sizing: border-box;
+}
+
+.studio-annot-review-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    border-radius: 10px;
+    padding: 12px 12px 12px 14px;
+    background: var(--es-color-bg-subtle);
+    border: 1px solid var(--es-color-border);
+    border-left: 4px solid var(--review-stripe);
+}
+
+[data-theme="dark"] .studio-annot-review-card {
+    background: var(--es-color-bg-subtle);
+    border-color: var(--es-color-border);
+}
+
+.studio-annot-review-card--accept {
+    --review-stripe: var(--es-color-success);
+}
+
+.studio-annot-review-card--revise {
+    --review-stripe: var(--es-color-warning);
+}
+
+.studio-annot-review-card--reject {
+    --review-stripe: var(--es-color-danger);
+}
+
+.studio-annot-review-card--uncertain {
+    --review-stripe: var(--es-color-text-muted);
+}
+
+.studio-annot-review-card-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 8px;
+    min-width: 0;
+}
+
+.studio-annot-review-card-bottom {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: nowrap;
+    gap: 6px;
+    margin-top: auto;
+    min-width: 0;
+}
+
+.studio-annot-review-card-name {
+    display: block;
+    max-width: 100%;
+    min-width: 0;
+    font-size: 0.775rem;
+    font-weight: 700;
+    color: var(--es-color-text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+[data-theme="dark"] .studio-annot-review-card-name {
+    color: var(--es-color-text);
+}
+
+.studio-annot-review-card-time {
+    font-size: 0.65rem;
+    color: var(--es-color-text-muted);
+    font-variant-numeric: tabular-nums;
+    flex: 1 1 auto;
+    min-width: 0;
+    max-width: 100%;
+    text-align: right;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.studio-annot-review-delete-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border: 1px solid var(--es-color-border);
+    border-radius: 999px;
+    background: var(--es-color-bg-surface);
+    color: var(--es-color-text);
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.1);
+    cursor: pointer;
+    transition:
+        background 0.15s ease,
+        border-color 0.15s ease,
+        color 0.15s ease,
+        box-shadow 0.15s ease;
+}
+
+.studio-annot-review-delete-btn:hover {
+    border-color: var(--es-color-danger);
+    background: var(--es-color-danger);
+    color: var(--es-color-text-inverse);
+    box-shadow: 0 4px 10px color-mix(in srgb, var(--es-color-danger) 24%, transparent);
+}
+
+[data-theme="dark"] .studio-annot-review-delete-btn {
+    border-color: var(--es-color-border);
+    background: var(--es-color-bg-subtle);
+    color: var(--es-color-text);
+    box-shadow: none;
+}
+
+[data-theme="dark"] .studio-annot-review-delete-btn:hover {
+    border-color: var(--es-color-danger);
+    background: var(--es-color-danger);
+    color: var(--es-color-text-inverse);
+    box-shadow: 0 4px 10px color-mix(in srgb, var(--es-color-danger) 24%, transparent);
+}
+
+.studio-annot-review-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 0.625rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    flex: 0 0 auto;
+}
+
+.studio-annot-review-pill--accept {
+    background: var(--es-color-success-soft);
+    color: var(--es-color-success);
+}
+
+.studio-annot-review-pill--revise {
+    background: rgba(245, 158, 11, 0.18);
+    color: var(--es-color-warning);
+}
+
+.studio-annot-review-pill--reject {
+    background: var(--es-color-danger-soft);
+    color: var(--es-color-danger);
+}
+
+.studio-annot-review-pill--uncertain {
+    background: #6b728022;
+    color: var(--es-color-text-secondary);
+}
+
+[data-theme="dark"] .studio-annot-review-pill--accept {
+    background: rgba(34, 197, 94, 0.2);
+    color: var(--tone-green-200);
+}
+
+[data-theme="dark"] .studio-annot-review-pill--revise {
+    background: rgba(249, 115, 22, 0.2);
+    color: var(--tone-orange-200);
+}
+
+[data-theme="dark"] .studio-annot-review-pill--reject {
+    background: rgba(239, 68, 68, 0.2);
+    color: var(--tone-red-200);
+}
+
+[data-theme="dark"] .studio-annot-review-pill--uncertain {
+    background: var(--es-color-bg-subtle);
+    color: var(--es-color-text-secondary);
+}
+
+.studio-annot-review-card-line {
+    font-size: 0.8125rem;
+    color: var(--es-color-text-secondary);
+    line-height: 1.45;
+    word-break: break-word;
+    margin-bottom: 6px;
+}
+
+[data-theme="dark"] .studio-annot-review-card-line {
+    color: var(--es-color-text-secondary);
+}
+
+.studio-annot-review-form-col {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-width: 0;
+}
+
+.studio-annot-review-status-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 6px;
+}
+
+.studio-annot-review-status-btn {
+    appearance: none;
+    height: 32px;
+    border-radius: var(--es-radius-pill);
+    min-width: 0;
+    min-height: 32px;
+    padding: 2px 8px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    line-height: 1.15;
+    white-space: nowrap;
+    cursor: pointer;
+    border: 1px solid transparent;
+    background: var(--es-color-bg-surface);
+    transition: background var(--es-duration-fast) var(--es-ease-standard), border-color var(--es-duration-fast) var(--es-ease-standard), color var(--es-duration-fast) var(--es-ease-standard);
+}
+
+[data-theme="dark"] .studio-annot-review-status-btn {
+    background: var(--es-color-bg-subtle);
+}
+
+.studio-annot-review-status-btn--accept {
+    color: var(--es-color-success);
+    border-color: rgba(40, 167, 69, 0.45);
+}
+
+.studio-annot-review-status-btn--revise {
+    color: var(--es-color-warning);
+    border-color: rgba(255, 152, 0, 0.45);
+}
+
+.studio-annot-review-status-btn--reject {
+    color: var(--es-color-danger);
+    border-color: rgba(220, 53, 69, 0.45);
+}
+
+.studio-annot-review-status-btn--uncertain {
+    color: var(--es-color-text-muted);
+    border-color: rgba(100, 116, 139, 0.45);
+}
+
+.studio-annot-review-status-btn--selected.studio-annot-review-status-btn--accept {
+    background: var(--es-color-success);
+    color: var(--es-color-text-inverse);
+    border-color: var(--es-color-success);
+}
+
+.studio-annot-review-status-btn--selected.studio-annot-review-status-btn--revise {
+    background: var(--es-color-warning);
+    color: var(--es-color-text-inverse);
+    border-color: var(--es-color-warning);
+}
+
+.studio-annot-review-status-btn--selected.studio-annot-review-status-btn--reject {
+    background: var(--es-color-danger);
+    color: var(--es-color-text-inverse);
+    border-color: var(--es-color-danger);
+}
+
+.studio-annot-review-status-btn--selected.studio-annot-review-status-btn--uncertain {
+    background: var(--es-color-text-muted);
+    color: var(--es-color-text-inverse);
+    border-color: var(--es-color-text-muted);
+}
+
+.studio-review-form .studio-annot-form-item.ant-form-item {
+    margin-bottom: 10px;
+}
+
+.studio-review-form.ant-form-vertical .ant-form-item-label {
+    padding-bottom: 4px;
+}
+
+.studio-annot-review-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 4px;
+}
+
+.studio-annot-review-actions .ant-btn-primary {
+    background: var(--es-color-brand) !important;
+    border-color: var(--es-color-brand) !important;
+    border-radius: 50px !important;
+    height: 32px;
+    box-shadow: 0 2px 8px rgba(139, 92, 246, 0.25);
+    font-weight: 700;
+}
+
+.studio-annot-taxon-links {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0 8px;
+    font-size: 0.8125rem;
+    flex: 0 1 auto;
+    min-width: 0;
+}
+
+.studio-annot-taxon-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    min-width: 0;
+}
+
+.studio-annot-taxon-label-title {
+    min-width: 0;
+    flex-shrink: 0;
+    font-size: 0.8125rem;
+    font-weight: 700;
+    line-height: inherit;
+    color: var(--es-color-text);
+}
+
+.studio-annot-taxon-links--inline {
+    flex-wrap: nowrap;
+    flex-shrink: 1;
+    margin-left: auto;
+    justify-content: flex-end;
+    font-size: 0.75rem;
+    gap: 0 6px;
+}
+
+.studio-annot-link-sep {
+    color: var(--es-color-border);
+    user-select: none;
+    font-weight: 700;
+}
+
+.studio-annot-taxon-links a {
+    color: var(--es-color-link);
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.studio-annot-taxon-links a:hover {
+    text-decoration: underline;
+}
+
+[data-theme="dark"] .studio-annot-taxon-links a {
+    color: var(--es-color-link-hover);
+}
+
+/* Biophony：第一行标题 + Not Estimable；第二行全宽输入 + 右侧播放 */
+.studio-annot-distance-block {
+    margin-bottom: 14px;
+}
+
+.studio-annot-distance-header {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px 5px;
+    margin-bottom: 10px;
+    min-width: 0;
+    min-height: calc(0.8125rem * 1.5715);
+}
+
+.studio-annot-distance-title {
+    font-size: 0.8125rem;
+    font-weight: 700;
+    line-height: 1.5715;
+    color: var(--es-color-text);
+}
+
+[data-theme="dark"] .studio-annot-distance-title {
+    color: var(--es-color-text);
+}
+
+.studio-annot-distance-toggle-group {
+    flex-shrink: 0;
+    min-width: 0;
+    white-space: nowrap;
+}
+
+.studio-annot-distance-switch-text {
+    font-size: 0.75rem;
+    color: var(--es-color-text-muted);
+    white-space: nowrap;
+}
+
+[data-theme="dark"] .studio-annot-distance-switch-text {
+    color: var(--es-color-text-muted);
+}
+
+.studio-annot-distance-toggle-group .ant-switch {
+    transform: scale(0.92);
+    transform-origin: center;
+    box-shadow: none !important;
+    outline: none !important;
+}
+
+.studio-annot-distance-toggle-group .ant-switch:hover,
+.studio-annot-distance-toggle-group .ant-switch:active,
+.studio-annot-distance-toggle-group .ant-switch:focus,
+.studio-annot-distance-toggle-group .ant-switch:focus-visible {
+    box-shadow: none !important;
+    outline: none !important;
+}
+
+.studio-annot-distance-toggle-group .ant-switch .ant-switch-handle,
+.studio-annot-distance-toggle-group .ant-switch .ant-switch-handle::before,
+.studio-annot-distance-toggle-group .ant-switch:hover .ant-switch-handle,
+.studio-annot-distance-toggle-group .ant-switch:hover .ant-switch-handle::before,
+.studio-annot-distance-toggle-group .ant-switch:active .ant-switch-handle,
+.studio-annot-distance-toggle-group .ant-switch:active .ant-switch-handle::before,
+.studio-annot-distance-toggle-group .ant-switch:focus .ant-switch-handle,
+.studio-annot-distance-toggle-group .ant-switch:focus .ant-switch-handle::before,
+.studio-annot-distance-toggle-group .ant-switch:focus-visible .ant-switch-handle,
+.studio-annot-distance-toggle-group .ant-switch:focus-visible .ant-switch-handle::before {
+    box-shadow: none !important;
+}
+
+.studio-annot-distance-toggle-group .ant-switch[ant-click-animating-without-extra-node="true"]::after,
+.studio-annot-distance-toggle-group .ant-switch.ant-click-animating::after {
+    display: none !important;
+    box-shadow: none !important;
+    animation: none !important;
+}
+
+.studio-annot-distance-input-compact {
+    width: 100% !important;
+    display: flex !important;
+}
+
+.studio-annot-distance-input-compact .studio-annot-distance-input,
+.studio-annot-distance-input-compact .studio-annot-distance-input.ant-input-number {
+    flex: 1 1 auto;
+    min-width: 0;
+    width: 100% !important;
+}
+
+.studio-annot-distance-input-compact .ant-btn {
+    flex-shrink: 0;
+}
+
+.studio-annotation-form--antd.shared-drawer-form .studio-annot-distance-input-compact .studio-annot-distance-input,
+.studio-annotation-form--antd.shared-drawer-form .studio-annot-distance-input-compact .studio-annot-distance-input:not(.ant-input-disabled):hover,
+.studio-annotation-form--antd.shared-drawer-form .studio-annot-distance-input-compact .studio-annot-distance-input:not(.ant-input-disabled):focus,
+.studio-annotation-form--antd.shared-drawer-form .studio-annot-distance-input-compact .studio-annot-distance-input:not(.ant-input-disabled):focus-visible {
+    border-radius: 6px 0 0 6px !important;
+    border-start-end-radius: 0 !important;
+    border-end-end-radius: 0 !important;
+}
+
+.studio-annot-distance-input-compact .ant-btn {
+    border-radius: 0 6px 6px 0 !important;
+}
+
+.studio-annotation-form .annot-field {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+}
+
+.studio-annotation-form .annot-label {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--es-color-text-secondary);
+    letter-spacing: 0;
+}
+
+[data-theme="dark"] .studio-annotation-form .annot-label {
+    color: var(--es-color-text);
+}
+
+.studio-annotation-form .annot-input,
+.studio-annotation-form .annot-select {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid var(--es-color-border);
+    background: var(--es-color-bg-subtle);
+    color: var(--es-color-text);
+    font-size: 0.875rem;
+    font-family: var(--es-font-family-sans);
+    transition: border-color var(--es-duration-fast) var(--es-ease-standard), box-shadow var(--es-duration-fast) var(--es-ease-standard);
+}
+
+.studio-annotation-form .annot-input::placeholder,
+.studio-annotation-form .annot-select {
+    color: var(--es-color-text-muted);
+}
+
+.studio-annotation-form .annot-input:focus,
+.studio-annotation-form .annot-select:focus {
+    outline: none;
+    border-color: var(--es-color-link);
+    box-shadow: var(--es-shadow-focus);
+}
+
+[data-theme="dark"] .studio-annotation-form .annot-input,
+[data-theme="dark"] .studio-annotation-form .annot-select {
+    background: var(--es-color-bg-input);
+    border-color: var(--es-color-border);
+    color: var(--es-color-text);
+}
+
+/* Router Link 作为卡片/行根节点时与 div 布局一致 */
+a.media-item-card,
+a.media-item-row {
+    text-decoration: none;
+    color: inherit;
+    box-sizing: border-box;
+}
+
+a.media-item-row {
+    display: grid;
+}
+
+/* 工具栏 Audio label — Ant Design Popover */
+.studio-label-popover-overlay .ant-popover-inner {
+    padding: 12px;
+    border-radius: 12px;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+}
+
+[data-theme="dark"] .studio-label-popover-overlay .ant-popover-inner {
+    background: var(--es-color-bg-elevated);
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+}
+
+[data-theme="dark"] .studio-label-popover-overlay .ant-popover-arrow::after {
+    background: var(--es-color-bg-elevated);
+}
+
+.studio-label-popover-inner {
+    min-width: 260px;
+    max-width: 340px;
+}
+
+.studio-label-popover-spin {
+    display: flex;
+    justify-content: center;
+    padding: 20px;
+}
+
+.studio-label-popover-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding-inline-end: 10px;
+    box-sizing: border-box;
+}
+
+.studio-label-popover-row {
+    display: flex;
+    align-items: stretch;
+    gap: 4px;
+}
+
+.studio-label-popover-row .studio-label-popover-item {
+    flex: 1;
+    min-width: 0;
+}
+
+.studio-label-popover-delete-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 32px;
+    height: 32px;
+    min-height: 32px;
+    margin: 0;
+    padding: 0;
+    border: none;
+    border-radius: var(--es-radius-pill);
+    background: transparent;
+    color: var(--es-color-text);
+    cursor: pointer;
+    transition: background var(--es-duration-fast) var(--es-ease-standard), color var(--es-duration-fast) var(--es-ease-standard), opacity var(--es-duration-fast) var(--es-ease-standard);
+}
+
+.studio-label-popover-delete-btn:hover:not(:disabled) {
+    background: var(--es-color-danger);
+    color: var(--es-color-text-inverse);
+}
+
+.studio-label-popover-delete-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+[data-theme="dark"] .studio-label-popover-delete-btn:hover:not(:disabled) {
+    background: var(--es-color-danger);
+    color: var(--es-color-text-inverse);
+}
+
+.studio-label-popover-empty {
+    font-size: 14px;
+    color: rgba(0, 0, 0, 0.25);
+    font-weight: 700;
+    padding: 8px 4px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    text-align: center;
+}
+
+:root[data-theme="dark"] .studio-label-popover-empty {
+    color: rgba(255, 255, 255, 0.25);
+}
+
+.studio-label-popover-item {
+    display: block;
+    width: 100%;
+    text-align: left;
+    height: 32px;
+    min-height: 32px;
+    padding: 0 15px;
+    margin: 0;
+    border: none;
+    border-radius: var(--es-radius-pill);
+    font-size: 0.875rem;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    color: var(--es-color-text-secondary);
+    background: transparent;
+    transition: background var(--es-duration-fast) var(--es-ease-standard), color var(--es-duration-fast) var(--es-ease-standard);
+}
+
+.studio-label-popover-item:hover:not(:disabled) {
+    background: var(--es-color-bg-subtle);
+    color: var(--es-color-brand);
+}
+
+.studio-label-popover-item:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+.studio-label-popover-item.selected {
+    background: var(--es-color-brand);
+    color: var(--es-color-text-inverse);
+}
+
+[data-theme="dark"] .studio-label-popover-item {
+    color: var(--es-color-text);
+}
+
+[data-theme="dark"] .studio-label-popover-item:hover:not(:disabled) {
+    background: var(--es-color-bg-subtle);
+    color: var(--es-color-brand);
+}
+
+[data-theme="dark"] .studio-label-popover-item.selected {
+    background: var(--es-color-brand);
+    color: var(--es-color-text-inverse);
+}
+
+.studio-label-popover-add-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding-top: 4px;
+}
+
+.studio-label-popover-add-row .set-labels-input {
+    flex: 1;
+    min-width: 0;
+}
+
+.studio-label-popover-add-row .set-labels-btn-add {
+    flex-shrink: 0;
+}

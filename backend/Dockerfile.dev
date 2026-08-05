@@ -1,0 +1,67 @@
+ARG PYTHON_BASE_IMAGE=python:3.12
+FROM ${PYTHON_BASE_IMAGE}
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy \
+    PATH="/app/.venv/bin:$PATH" \
+    PYTHONPATH=/app
+
+WORKDIR /app/
+
+# Keep downloaded .deb packages so the apt cache mount below can persist them across builds
+RUN rm -f /etc/apt/apt.conf.d/docker-clean; \
+    echo 'Binary::apt::APT::Keep-Downloaded-Packages "true";' > /etc/apt/apt.conf.d/keep-cache
+
+# Install system dependencies for audio processing
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get update && apt-get install -y --no-install-recommends \
+    ffmpeg \
+    sox \
+    libsox-fmt-all \
+    lame \
+    libsndfile1 \
+    libjpeg62-turbo \
+    libopenjp2-7 \
+    curl \
+    imagemagick \
+    gcc \
+    g++ \
+    python3-dev \
+    libgdal-dev \
+    gdal-bin
+
+RUN sox --version && lame --version | head -n 1
+
+# Install uv from PyPI instead of GHCR to avoid registry EOF failures.
+RUN python -m pip install --no-cache-dir "uv==0.5.11"
+
+# Install dependencies
+COPY pyproject.toml uv.lock ./
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-install-project
+
+# Copy the rest of the application
+COPY ./scripts /app/scripts
+COPY ./alembic.ini /app/
+COPY ./app /app/app
+COPY ./tests /app/tests
+
+# Final sync (including the project itself)
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen
+
+# Keep model files outside the virtual environment so container rebuilds can reuse them.
+RUN set -eux; \
+    mkdir -p /models/birdnet; \
+    checkpoint_dir="$(.venv/bin/python -c 'from birdnet_analyzer import config; print(config.SCRIPT_DIR + "/checkpoints")')"; \
+    rm -rf "${checkpoint_dir}"; \
+    ln -s /models/birdnet "${checkpoint_dir}"
+
+# Ensure entrypoint is executable
+RUN chmod +x /app/scripts/entrypoint.sh
+
+ENTRYPOINT ["/app/scripts/entrypoint.sh"]
+CMD ["fastapi", "run", "--reload", "app/main.py"]

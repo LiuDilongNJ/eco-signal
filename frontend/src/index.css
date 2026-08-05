@@ -1,0 +1,495 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme {
+  --color-background: var(--es-color-bg-page);
+  --color-foreground: var(--es-color-text);
+  --color-card: var(--es-color-bg-surface);
+  --color-card-foreground: var(--es-color-text);
+  --color-popover: var(--es-color-bg-elevated);
+  --color-popover-foreground: var(--es-color-text);
+  --color-primary: var(--es-color-brand);
+  --color-primary-foreground: var(--es-color-text-inverse);
+  --color-secondary: var(--es-color-bg-subtle);
+  --color-secondary-foreground: var(--es-color-text);
+  --color-muted: var(--es-color-bg-subtle);
+  --color-muted-foreground: var(--es-color-text-muted);
+  --color-accent: #f5f5f5;
+  --color-accent-foreground: #171717;
+  --color-destructive: var(--es-color-danger);
+  --color-destructive-foreground: var(--es-color-text-inverse);
+  --color-border: var(--es-color-border);
+  --color-input: var(--es-color-border);
+  --color-ring: var(--es-color-brand);
+  --color-chart-1: #e76e50;
+  --color-chart-2: #2a9d90;
+  --color-chart-3: #274754;
+  --color-chart-4: #e8c468;
+  --color-chart-5: #f4a462;
+  --radius-sm: var(--es-radius-sm);
+  --radius-md: var(--es-radius-md);
+  --radius-lg: var(--es-radius-lg);
+  --radius-xl: var(--es-radius-lg);
+  --color-sidebar-background: #fafafa;
+  --color-sidebar-foreground: #3f3f46;
+  --color-sidebar-primary: #18181b;
+  --color-sidebar-primary-foreground: #fafafa;
+  --color-sidebar-accent: #f4f4f5;
+  --color-sidebar-accent-foreground: #18181b;
+  --color-sidebar-border: #e4e4e7;
+  --color-sidebar-ring: #a1a1aa;
+}
+
+:root {
+  --app-design-width: 1920px;
+  --app-design-height: 900px;
+  --app-layout-vw: 19.2px;
+  --app-layout-vh: 9px;
+  --app-stage-scale: 1;
+  --app-stage-width: 1920px;
+  --app-stage-height: 900px;
+  --app-viewport-width: 100vw;
+  --app-viewport-height: 100vh;
+  --app-browser-zoom: 1;
+  --app-browser-zoom-compensation: 1;
+  color-scheme: light;
+  scrollbar-gutter: stable;
+  /* ===== ecoSignal semantic tokens (single source of truth) ===== */
+  --brand: var(--es-color-brand);
+  --brand-rgb: var(--es-color-brand-rgb);
+  --brand-hover: var(--es-color-brand-hover);
+  --brand-tint: var(--es-color-brand-soft);
+
+  --bg-page: radial-gradient(circle at top left, #ffffff, #f8fafc);
+  --bg-body: var(--es-color-bg-page);
+  --bg-nav: rgba(255, 255, 255, 0.85);
+  --bg-header-tint: rgba(255, 255, 255, 0.4);
+  --bg-surface: var(--es-color-bg-surface);
+  --bg-surface-hover: #fcfcfc;
+  --bg-surface-secondary: var(--es-color-bg-subtle);
+  --bg-capsule: var(--es-color-bg-subtle);
+  --glass-bg: rgba(255, 255, 255, 0.9);
+  --card-bg: var(--es-color-bg-surface);
+
+  --text-main: var(--es-color-text);
+  --text-secondary: var(--es-color-text-secondary);
+  --text-muted: var(--es-color-text-muted);
+  --text-invert: var(--es-color-text-inverse);
+
+  --border-light: var(--es-color-border);
+  --border-color: var(--es-color-border);
+  --card-border: 1px solid var(--border-color);
+
+  --danger: var(--es-color-danger);
+  --warning: var(--es-color-warning);
+  --success: var(--es-color-success);
+  --danger-tint: rgba(239, 68, 68, 0.08);
+  --warning-strong: #ff8c00;
+  --tone-info-tint: #e0f2fe;
+  --tone-info-strong: #1e3a8a;
+  --tone-ink: #050505;
+  --tone-slate-900: #0f172a;
+  --tone-slate-900-70: rgba(0, 0, 0, 0.7);
+  --tone-slate-900-50: rgba(0, 0, 0, 0.5);
+  --tone-meta-bg: #1f292e;
+  --tone-border: #e5e5e5;
+  --tone-panel: #1e293b;
+  --tone-editor-bg: #1e1e1e;
+  --tone-danger-strong: #dc2626;
+  --tone-warn-bg: #fffbeb;
+  --tone-warn-border: #fcd34d;
+  --tone-warn-dark-bg: #451a03;
+  --tone-warn-dark-border: #d97706;
+  --tone-warn-fg: #b45309;
+  --tone-warn-icon: #fbbf24;
+  --tone-ai-primary-a: #8b5cf6;
+  --tone-ai-primary-b: #6366f1;
+  --tone-ai-index-a: #06b6d4;
+  --tone-ai-index-b: #0891b2;
+
+  --link: #0ea5e9;
+  --link-hover: #38bdf8;
+
+  --success-hover: #059669;
+
+  --annot-sidebar-bg: var(--bg-surface-secondary);
+  --annot-card-bg: var(--bg-surface);
+  --annot-input-border: var(--border-color);
+  --annot-input-bg: var(--bg-surface-secondary);
+  --annot-label-color: var(--text-secondary);
+  --annot-input-text: var(--text-main);
+  --annot-chevron: var(--text-muted);
+  --tone-green-200: #86efac;
+  --tone-orange-200: #fdba74;
+  --tone-red-200: #fca5a5;
+  --annot-placeholder: var(--text-muted);
+
+  --status-true-bg: #dcfce7;
+  --status-true-fg: #166534;
+  --status-false-bg: #fee2e2;
+  --status-false-fg: #991b1b;
+  --status-true-bg-dark: rgba(22, 101, 52, 0.3);
+  --status-true-fg-dark: #86efac;
+  --status-false-bg-dark: rgba(153, 27, 27, 0.3);
+  --status-false-fg-dark: #fca5a5;
+
+  --shadow-sm: var(--es-shadow-sm);
+  --shadow-md: var(--es-shadow-lg);
+  --card-shadow: var(--shadow-md);
+
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html,
+  body,
+  #root {
+    width: 100vw;
+    height: 100vh;
+    min-height: 100vh;
+    touch-action: manipulation;
+    text-size-adjust: 100%;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: "Inter", system-ui, -apple-system, sans-serif;
+    scrollbar-gutter: stable;
+    margin: 0;
+    overflow: hidden;
+  }
+}
+
+.app-fixed-shell {
+  width: var(--app-viewport-width);
+  height: var(--app-viewport-height);
+  overflow: hidden;
+  background: var(--bg-body);
+  position: fixed;
+  inset: 0;
+}
+
+.app-browser-zoom-neutralizer {
+  position: absolute;
+  transform-origin: top left;
+}
+
+.app-fixed-stage-slot {
+  position: relative;
+  flex: 0 0 auto;
+  overflow: hidden;
+}
+
+.app-fixed-viewport {
+  position: relative;
+  width: var(--app-design-width);
+  height: var(--app-design-height);
+  min-width: var(--app-design-width);
+  min-height: var(--app-design-height);
+  overflow: hidden;
+  transform-origin: top left;
+  will-change: transform;
+}
+
+.app-overlay-root {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: var(--app-design-width);
+  height: var(--app-design-height);
+  transform: scale(var(--app-stage-scale));
+  transform-origin: top left;
+  z-index: 10000;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+/* Only open overlays capture clicks; closed drawer nodes must not block the page */
+.app-overlay-root .app-stage-modal-overlay.active,
+.app-overlay-root .app-modal-overlay,
+.app-overlay-root .app-stage-drawer.ant-drawer-open,
+.app-overlay-root .ant-select-dropdown,
+.app-overlay-root .ant-picker-dropdown,
+.app-overlay-root .ant-dropdown,
+.app-overlay-root .ant-tooltip,
+.app-overlay-root .ant-popover,
+.app-overlay-root .ant-popconfirm,
+.app-overlay-root .ant-modal-root,
+.app-overlay-root .ant-cascader-dropdown,
+.app-overlay-root .ant-tree-select-dropdown,
+.app-overlay-root .ant-menu-submenu-popup,
+.app-overlay-root .ant-color-picker-dropdown {
+  pointer-events: auto;
+}
+
+.app-overlay-root .app-stage-drawer:not(.ant-drawer-open) {
+  pointer-events: none !important;
+}
+
+/* Ant Design drawers inside the fixed stage */
+.app-overlay-root .app-stage-drawer.ant-drawer {
+  position: absolute !important;
+  inset: 0 !important;
+}
+
+.app-overlay-root .app-stage-drawer .ant-drawer-mask {
+  position: absolute !important;
+  inset: 0 !important;
+}
+
+.app-overlay-root .app-stage-drawer .ant-drawer-content-wrapper {
+  position: absolute !important;
+}
+
+.dark {
+  --color-background: var(--es-color-bg-page);
+  --color-foreground: var(--es-color-text);
+  --color-card: var(--es-color-bg-surface);
+  --color-card-foreground: var(--es-color-text);
+  --color-popover: var(--es-color-bg-elevated);
+  --color-popover-foreground: var(--es-color-text);
+  --color-primary: var(--es-color-brand);
+  --color-primary-foreground: var(--es-color-text-inverse);
+  --color-secondary: var(--es-color-bg-subtle);
+  --color-secondary-foreground: var(--es-color-text);
+  --color-muted: var(--es-color-bg-subtle);
+  --color-muted-foreground: var(--es-color-text-muted);
+  --color-accent: var(--es-color-bg-subtle);
+  --color-accent-foreground: var(--es-color-text);
+  --color-destructive: var(--es-color-danger);
+  --color-destructive-foreground: var(--es-color-text-inverse);
+  --color-border: var(--es-color-border);
+  --color-input: var(--es-color-border);
+  --color-ring: var(--es-color-brand);
+  --color-chart-1: #3b82f6;
+  --color-chart-2: #10b981;
+  --color-chart-3: #f59e0b;
+  --color-chart-4: #8b5cf6;
+  --color-chart-5: #ec4899;
+  --color-sidebar-background: var(--es-color-bg-surface);
+  --color-sidebar-foreground: var(--es-color-text);
+  --color-sidebar-primary: var(--es-color-brand);
+  --color-sidebar-primary-foreground: var(--es-color-text-inverse);
+  --color-sidebar-accent: var(--es-color-bg-subtle);
+  --color-sidebar-accent-foreground: var(--es-color-text);
+  --color-sidebar-border: var(--es-color-border);
+  --color-sidebar-ring: var(--es-color-brand);
+  color-scheme: dark;
+}
+
+/* ----- Route lazy-load & HomePage 初始占位（与 project / Home 主题色一致） ----- */
+.route-suspense-fallback {
+  --rs-brand: #83cd20;
+  --rs-brand-soft: rgba(131, 205, 32, 0.22);
+  --rs-brand-mid: rgba(131, 205, 32, 0.45);
+  min-height: 100dvh;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.25rem;
+  background: radial-gradient(circle at 18% 12%, rgba(131, 205, 32, 0.08), transparent 42%),
+    radial-gradient(circle at 82% 88%, rgba(131, 205, 32, 0.06), transparent 45%),
+    radial-gradient(circle at top left, #ffffff, #f1f5f9);
+  font-family: "Inter", system-ui, -apple-system, sans-serif;
+}
+
+[data-theme="dark"] .route-suspense-fallback {
+  background: radial-gradient(circle at 18% 12%, rgba(131, 205, 32, 0.12), transparent 42%),
+    radial-gradient(circle at 82% 88%, rgba(131, 205, 32, 0.06), transparent 45%),
+    radial-gradient(circle at top left, #0f172a, #020617);
+}
+
+@keyframes route-loader-orbit {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.ui-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 120px;
+  color: var(--text-muted);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.ui-state--inline {
+  min-height: 0;
+  padding: 10px 0;
+}
+
+.ui-state--page {
+  width: 100%;
+  height: 100%;
+  min-height: 180px;
+}
+
+.ui-state--overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  min-height: 0;
+  background: var(--glass-bg);
+}
+
+.ui-state--loading {
+  color: var(--text-muted);
+  font-weight: 700;
+}
+
+.ui-state__spinner {
+  flex-shrink: 0;
+  color: var(--brand);
+  animation: route-loader-orbit 0.85s linear infinite;
+}
+
+.ui-state svg:not(.ui-state__spinner) {
+  flex-shrink: 0;
+}
+
+.ant-spin .ant-spin-dot,
+.ant-spin .ant-spin-dot-holder,
+.ant-spin .ant-spin-dot-item {
+  color: var(--brand) !important;
+}
+
+.ant-spin .ant-spin-text {
+  color: var(--text-muted) !important;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+/* ---- App-wide scrollbars: neutral gray thumb；悬停主题色见 scrollbar-brand.css ---- */
+:root {
+  --brand: var(--es-color-brand);
+  --brand-rgb: var(--es-color-brand-rgb);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(15, 23, 42, 0.28) transparent;
+}
+
+[data-theme="dark"] * {
+  scrollbar-color: rgba(255, 255, 255, 0.22) transparent;
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+  --bg-page: radial-gradient(circle at top left, #0f172a, #020617);
+  --bg-body: var(--es-color-bg-page);
+  --bg-nav: rgba(15, 23, 42, 0.85);
+  --bg-header-tint: rgba(0, 0, 0, 0.2);
+  --bg-surface: var(--es-color-bg-surface);
+  --bg-surface-hover: #334155;
+  /* 用于输入框/次级面板的底色：避免过黑影响可读性 */
+  --bg-surface-secondary: var(--es-color-bg-subtle);
+  --bg-capsule: var(--es-color-bg-subtle);
+  --glass-bg: rgba(30, 41, 59, 0.85);
+  --card-bg: var(--es-color-bg-surface);
+
+  --text-main: var(--es-color-text);
+  --text-secondary: var(--es-color-text-secondary);
+  --text-muted: var(--es-color-text-muted);
+  --text-invert: var(--es-color-text-inverse);
+
+  --border-light: var(--es-color-border-strong);
+  --border-color: var(--es-color-border);
+  --card-border: 1px solid var(--es-color-border);
+
+  --shadow-sm: var(--es-shadow-sm);
+  --shadow-md: var(--es-shadow-lg);
+  --card-shadow: var(--shadow-md);
+
+}
+
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: rgba(15, 23, 42, 0.28);
+  border-radius: 9999px;
+}
+
+[data-theme="dark"] *::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.28);
+}
+
+/* 滚动条 thumb 悬停变主题色（WebKit：Chrome / Edge / Safari） */
+*::-webkit-scrollbar-thumb:hover,
+.ant-table-body::-webkit-scrollbar-thumb:hover {
+  background: var(--brand) !important;
+}
+
+/* ===== Ant Design overlays (dark mode) =====
+   Select dropdown / DatePicker panel backgrounds should not be "pure black". */
+[data-theme="dark"] .ant-select-dropdown,
+[data-theme="dark"] .ant-picker-dropdown .ant-picker-panel-container,
+[data-theme="dark"] .ant-picker-dropdown .ant-picker-panel,
+[data-theme="dark"] .ant-picker-dropdown .ant-picker-footer,
+[data-theme="dark"] .ant-picker-dropdown .ant-picker-header {
+  background: var(--bg-surface) !important;
+  color: var(--text-main) !important;
+  border-color: var(--border-color) !important;
+}
+
+[data-theme="dark"] .ant-select-dropdown .ant-select-item-option-active:not(.ant-select-item-option-disabled),
+[data-theme="dark"] .ant-picker-dropdown .ant-picker-cell-in-view.ant-picker-cell:hover .ant-picker-cell-inner {
+  background: rgba(255, 255, 255, 0.08) !important;
+}
+
+[data-theme="dark"] .ant-select-dropdown .ant-select-item,
+[data-theme="dark"] .ant-select-dropdown .ant-select-item-option-content,
+[data-theme="dark"] .ant-picker-dropdown .ant-picker-content th,
+[data-theme="dark"] .ant-picker-dropdown .ant-picker-cell {
+  color: var(--text-main) !important;
+}
+
+/* App-wide Ant Design message/toast styling in dark mode. */
+[data-theme="dark"] .ant-message .ant-message-notice-content {
+  background: var(--bg-surface) !important;
+  color: var(--text-main) !important;
+  border: 1px solid var(--border-color);
+  box-shadow: var(--card-shadow);
+}
+
+[data-theme="dark"] .ant-message .ant-message-custom-content,
+[data-theme="dark"] .ant-message .ant-message-custom-content span {
+  color: var(--text-main) !important;
+}
+
+[data-theme="dark"] .ant-message .ant-message-warning .anticon {
+  color: var(--warning) !important;
+}
+
+[data-theme="dark"] .ant-message .ant-message-success .anticon {
+  color: var(--success) !important;
+}
+
+[data-theme="dark"] .ant-message .ant-message-error .anticon {
+  color: var(--danger) !important;
+}
+
+[data-theme="dark"] .ant-message .ant-message-info .anticon,
+[data-theme="dark"] .ant-message .ant-message-loading .anticon {
+  color: var(--brand) !important;
+}

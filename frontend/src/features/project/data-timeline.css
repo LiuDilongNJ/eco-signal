@@ -1,0 +1,1168 @@
+/**
+ * DataTab + TimelineTab 补充 CSS
+ */
+
+/* ===== DataTab Layout ===== */
+.data-layout {
+    display: flex;
+    height: 100%;
+    min-height: 0;
+    gap: 0;
+    position: relative;
+}
+
+/* keep-alive 包裹层：非激活页隐藏而不卸载，切回时无重拉闪烁 */
+.data-page-keepalive {
+    display: none;
+}
+
+.data-page-keepalive--active {
+    display: flex;
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+}
+
+/* -- TableNav 左侧导航 -- */
+.data-nav {
+    width: 240px;
+    flex-shrink: 0;
+    min-height: 0;
+    background: var(--glass-bg);
+    border: var(--card-border);
+    border-radius: var(--radius);
+    box-shadow: var(--card-shadow);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.data-nav-header {
+    padding: 20px 16px 12px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.data-nav-title {
+    font-weight: 700;
+    color: var(--text-main);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.data-nav-title__icon {
+    color: var(--brand);
+    flex-shrink: 0;
+}
+
+.data-nav-list {
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.data-nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    border-radius: 999px;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: var(--font-sans);
+    text-align: left;
+    width: 100%;
+    justify-content: flex-start;
+
+}
+
+.data-nav-item .data-count-badge {
+    margin-left: auto;
+}
+
+.data-nav-item:hover {
+    background: var(--brand-tint);
+    color: var(--text-main);
+}
+
+/* 选中态立即着色：避免 0.2s 渐变让点击反馈显得滞后 */
+.data-nav-item.active {
+    transition: none;
+    background: var(--brand);
+    color: white;
+    font-weight: 700;
+}
+
+/* -- Data Content -- */
+.data-content {
+    flex: 1;
+    min-width: 0;
+    background: var(--glass-bg);
+    border: var(--card-border);
+    border-radius: var(--radius);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    margin-left: 20px;
+}
+
+.data-content-media-detail {
+    margin-left: 0px !important;
+    border-radius: 0px !important;
+}
+
+.data-count-badge {
+    background: var(--bg-capsule);
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--text-secondary);
+}
+
+/* -- Nav Center Toggle -- */
+.nav-center {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    background: var(--bg-capsule);
+    border-radius: 30px;
+    padding: 0;
+    height: 32px;
+    box-sizing: border-box;
+}
+
+.project-nav-bar .nav-center {
+    padding: 0px;
+}
+
+.nav-center-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 32px;
+    padding: 6px 12px;
+    border-radius: 999px;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 20px;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: var(--font-sans);
+    box-sizing: border-box;
+}
+
+.nav-center-btn:hover {
+    color: var(--text-main);
+}
+
+.nav-center-btn.active {
+    background: var(--brand);
+    color: white;
+    font-weight: 700;
+}
+
+/* Legacy timeline — 勿与 DataPageLayout 的 .data-table-wrapper 混用 */
+.data-timeline-panel .data-table-wrapper {
+    flex: 1;
+    overflow: auto;
+    min-height: 0;
+}
+
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+}
+
+.data-table thead {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.data-table th {
+    padding: 12px 14px;
+    text-align: left;
+    font-weight: 700;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-muted);
+    background: var(--bg-surface-secondary);
+    border-bottom: 1px solid var(--border-color);
+    white-space: nowrap;
+    user-select: none;
+}
+
+.data-table th.sortable {
+    cursor: pointer;
+    transition: color 0.2s;
+}
+
+.data-table th.sortable:hover {
+    color: var(--brand);
+}
+
+.th-inner {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.sort-icon {
+    opacity: 0.4;
+    display: flex;
+    align-items: center;
+}
+
+.data-table th.sortable:hover .sort-icon {
+    opacity: 0.8;
+}
+
+.data-th-check,
+.data-td-check {
+    width: 40px;
+    text-align: center;
+}
+
+.data-table td {
+    padding: 12px 14px;
+    color: var(--text-secondary);
+    border-bottom: 1px solid var(--border-color);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 300px;
+}
+
+.data-table tbody tr {
+    transition: background 0.15s;
+}
+
+.data-table tbody tr:hover {
+    background: var(--brand-tint);
+}
+
+.data-table tbody tr.selected {
+    background: rgba(var(--brand-rgb), 0.08);
+}
+
+.data-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 92px;
+    padding: 4px 12px;
+    border-radius: 16px;
+    border: 1px solid rgba(var(--brand-rgb), 0.35);
+    background: rgba(var(--brand-rgb), 0.08);
+    color: var(--brand);
+    font-size: 0.7rem;
+    font-weight: 700;
+    line-height: 1.1;
+    white-space: nowrap;
+    box-shadow: none;
+}
+
+.data-row-actions {
+    display: flex;
+    gap: 4px;
+}
+
+.row-action-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 999px;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.row-action-btn:hover {
+    background: var(--brand-tint);
+    color: var(--brand);
+}
+
+.data-empty {
+    text-align: center;
+    padding: 60px !important;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+}
+
+/* -- Pagination -- */
+.data-pagination {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 20px;
+    border-top: 1px solid var(--border-color);
+    flex-shrink: 0;
+}
+
+.pagination-info {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    font-weight: 600;
+}
+
+.pagination-controls {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.page-info {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    font-weight: 600;
+    margin-right: 8px;
+}
+
+.page-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 999px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-surface);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.page-btn:hover:not(:disabled) {
+    border-color: var(--brand);
+    color: var(--text-invert);
+    background: var(--brand);
+}
+
+.page-btn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
+/* ===== TimelineTab ===== */
+.timeline-layout {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.timeline-header-bar {
+    flex-shrink: 0;
+    padding: 0 0 15px;
+}
+
+.timeline-title {
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: var(--text-main);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0;
+}
+
+.timeline-count-badge {
+    background: var(--bg-capsule);
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--text-secondary);
+}
+
+.timeline-scroll-area {
+    flex: 1;
+    overflow-y: hidden;
+    min-height: 0;
+}
+
+.timeline-track {
+    position: relative;
+    padding-left: 40px;
+}
+
+.timeline-track::before {
+    content: '';
+    position: absolute;
+    left: 17px;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: var(--border-color);
+}
+
+.timeline-day-group {
+    margin-bottom: 24px;
+}
+
+.timeline-date-label {
+    font-size: 0.75rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-muted);
+    margin-bottom: 12px;
+    position: relative;
+    left: -40px;
+    padding-left: 40px;
+}
+
+.timeline-event {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 12px;
+    position: relative;
+}
+
+.timeline-dot {
+    position: absolute;
+    left: -40px;
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    border: 2px solid;
+    background: var(--bg-surface);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2;
+    flex-shrink: 0;
+}
+
+.timeline-event-card {
+    flex: 1;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 14px 18px;
+    transition: all 0.2s;
+}
+
+.timeline-event-card:hover {
+    border-color: rgba(var(--brand-rgb), 0.3);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.timeline-event-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+}
+
+.timeline-event-title {
+    font-weight: 700;
+    font-size: 0.9rem;
+    color: var(--text-main);
+}
+
+.timeline-event-time {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    font-weight: 600;
+    font-family: "JetBrains Mono", monospace;
+}
+
+.timeline-event-desc {
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+    margin: 0 0 6px;
+    line-height: 1.4;
+}
+
+.timeline-event-user {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    font-weight: 600;
+}
+
+/* -- Toolbar separator -- */
+.data-action-sep {
+    width: 1px;
+    height: 20px;
+    background: var(--border-color);
+    margin: 0 4px;
+}
+
+/* ===== Acoustic Timeline (collection media Gantt) ===== */
+.tab-page.active>.acoustic-timeline {
+    height: 100%;
+}
+
+.acoustic-timeline {
+    --timeline-table-border-color: #0000000f;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+    font-family: var(--font-sans);
+}
+
+
+
+/* Timeline 顶栏与 Media 一致：使用 project.css 中 .card-header + .media-header / .media-title */
+
+.acoustic-timeline.dashboard-card > .acoustic-timeline-body {
+    flex: 1;
+    min-height: 0;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+    background: var(--bg-surface);
+}
+
+.timeline-show-all-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    height: 32px;
+    padding: 6px 12px;
+    border-radius: 999px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-surface);
+    color: var(--text-main);
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: var(--font-sans);
+    box-sizing: border-box;
+    transition: all 0.2s;
+}
+
+[data-theme="dark"] .timeline-show-all-btn {
+    box-shadow: none;
+}
+
+[data-theme="dark"] .acoustic-timeline {
+    --timeline-table-border-color: var(--es-color-border);
+}
+
+.timeline-show-all-btn:hover {
+    border-color: var(--media-accent, var(--brand));
+    color: var(--text-invert);
+    background: var(--media-accent, var(--brand));
+}
+
+.acoustic-timeline-body {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    background: var(--glass-bg);
+    border: var(--card-border);
+    border-radius: var(--radius);
+    box-shadow: var(--card-shadow);
+    overflow: hidden;
+}
+
+.acoustic-timeline-stage {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+}
+
+.acoustic-timeline-stage__content {
+    height: 100%;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.acoustic-timeline-state {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    color: var(--text-secondary);
+    text-align: center;
+    animation: media-state-fade-in 0.24s ease;
+}
+
+.acoustic-timeline-state__card {
+    min-width: 220px;
+    min-height: 132px;
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 28px 34px;
+    border-radius: 24px;
+    background: color-mix(in srgb, var(--glass-bg) 88%, transparent);
+    backdrop-filter: blur(16px);
+    font-weight: 700;
+}
+
+.acoustic-timeline-state--overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 20;
+    background: var(--glass-bg);
+}
+
+.acoustic-timeline-state:not(.acoustic-timeline-state--loading) .acoustic-timeline-state__card {
+    color: rgba(0, 0, 0, 0.25);
+    font-size: 14px;
+    font-weight: 700;
+}
+
+:root[data-theme="dark"] .acoustic-timeline-state:not(.acoustic-timeline-state--loading) .acoustic-timeline-state__card {
+    color: rgba(255, 255, 255, 0.25);
+}
+
+.acoustic-timeline-state--loading .acoustic-timeline-state__card {
+    color: var(--text-main);
+}
+
+.acoustic-timeline-detail-state {
+    position: absolute;
+    inset: 0;
+    z-index: 8;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+}
+
+.acoustic-timeline-detail-state__card {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-width: 160px;
+    min-height: 44px;
+    padding: 10px 16px;
+    border-radius: 999px;
+    border: var(--card-border);
+    background: color-mix(in srgb, var(--glass-bg) 92%, transparent);
+    box-shadow: var(--card-shadow);
+    backdrop-filter: blur(14px);
+    color: var(--text-main);
+    font-size: 0.88rem;
+    font-weight: 700;
+}
+
+/* Sticky 时间轴需要盖住内容，但不应遮住主滚动区滚动条轨道
+   只作用于外层主滚动区自己的轨道（direct child），避免影响行内滚动条。 */
+.acoustic-timeline-body .ats-main-scroll > .custom-scroll-area__track {
+    z-index: 1305;
+    /* 让竖向滚动条从时间轴下方开始 */
+    top: calc(var(--ats-sticky-header-h, 48px) + 2px);
+}
+
+.acoustic-timeline-body .ats-main-scroll > .custom-scroll-area__main > .custom-scroll-area__track--horizontal {
+    z-index: 1305;
+}
+
+.acoustic-timeline-loading,
+.acoustic-timeline-error {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    color: var(--text-secondary);
+    font-weight: 600;
+}
+
+.acoustic-timeline-error {
+    color: var(--danger);
+    padding: 24px;
+    text-align: center;
+}
+
+.acoustic-timeline-spin {
+    animation: acoustic-spin 0.85s linear infinite;
+}
+
+@keyframes acoustic-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.acoustic-timeline-hscroll {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    display: flex;
+    flex-direction: column;
+}
+
+.acoustic-timeline-matrix {
+    display: grid;
+    box-sizing: border-box;
+    background: var(--card-bg, var(--bg-surface));
+    align-self: stretch;
+    width: 100%;
+    min-width: 0;
+    min-height: 0;
+    /* 不要把少量行“拉伸”铺满整屏；额外空间留在底部 */
+    align-content: start;
+}
+
+.ats-matrix-row {
+    display: contents;
+}
+
+.ats-corner {
+    box-sizing: border-box;
+    min-height: 44px;
+    border-bottom: 1px solid var(--timeline-table-border-color);
+    background: var(--bg-header-tint, var(--bg-surface));
+}
+
+.ats-sticky-header {
+    position: sticky;
+    top: 0;
+    z-index: 1200;
+    display: grid;
+    grid-template-columns: var(--ats-corner-w, 200px) minmax(0, 1fr);
+    background: var(--bg-surface);
+    border-bottom: 1px solid var(--timeline-table-border-color);
+    --ats-sticky-header-h: 48px;
+}
+
+.ats-sticky-header .ats-corner {
+    position: sticky;
+    left: 0;
+    z-index: 1201;
+    min-height: 48px;
+    border-bottom: none;
+    background: var(--bg-surface);
+    overflow: hidden;
+}
+
+.ats-corner-site-head {
+    height: 48px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0 12px;
+}
+
+.ats-corner-site-back {
+    width: 28px;
+    height: 28px;
+    flex-shrink: 0;
+    border-radius: 999px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-surface);
+    color: var(--text-secondary);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.ats-corner-site-back:hover {
+    border-color: var(--media-accent, var(--brand));
+    color: var(--text-invert);
+    background: var(--media-accent, var(--brand));
+}
+
+.ats-corner-site-title {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--text-main);
+}
+
+/* 由外层 .ats-sticky-header 统一 sticky，避免在自定义滚动容器里被“顶上去” */
+.ats-sticky-header .ats-chart-pane--header {
+    position: relative;
+    top: auto;
+    z-index: auto;
+    border-bottom: none;
+}
+
+.ats-corner--sticky {
+    position: sticky;
+    left: 0;
+    z-index: 9;
+}
+
+.ats-chart-pane {
+    position: relative;
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    border-bottom: 1px solid var(--timeline-table-border-color);
+    background: var(--card-bg, var(--bg-surface));
+}
+
+/* 条形 left/width 分属可视窗与全量跨度，允许略出视窗时需裁剪 */
+.ats-chart-pane:not(.ats-chart-pane--header) {
+    overflow: hidden;
+}
+
+.ats-chart-pane--header {
+    position: sticky;
+    top: 0;
+    z-index: 1100;
+    background: var(--bg-header-tint, var(--bg-surface));
+    min-height: 48px;
+    border-bottom: 1px solid var(--timeline-table-border-color);
+}
+
+.ats-axis {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    min-height: 48px;
+}
+
+.ats-axis-track {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    min-height: 48px;
+}
+
+.ats-axis--top .ats-time-tick {
+    flex-direction: column;
+}
+
+.ats-time-tick {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: stretch;
+    pointer-events: none;
+}
+
+.ats-axis--top .ats-time-tick-line {
+    width: 1px;
+    flex: 1;
+    min-height: 10px;
+    background: var(--timeline-table-border-color);
+    opacity: 0.9;
+}
+
+.ats-axis--top .ats-time-tick-label {
+    font-size: 0.68rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    white-space: nowrap;
+    padding: 4px 0 2px;
+}
+
+.ats-vgrid {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+}
+
+.ats-vline {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    height: 100%;
+    border-left: 1px solid var(--timeline-table-border-color);
+    opacity: 0.3;
+    transform: translateX(-50%);
+}
+
+.ats-site-name {
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 6px;
+    padding: 0 10px 0 8px;
+    border-right: 1px solid var(--timeline-table-border-color);
+    background: var(--bg-surface);
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--text-main);
+    text-align: left;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.ats-site-name--sticky {
+    position: sticky;
+    left: 0;
+    z-index: 8;
+    border-bottom: 1px solid var(--timeline-table-border-color);
+}
+
+.ats-site-name:hover {
+    background: var(--media-accent-tint, var(--brand-tint));
+}
+
+.ats-site-chevron {
+    flex-shrink: 0;
+    color: var(--text-muted);
+}
+
+.ats-site-name-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ats-site-detail {
+    position: sticky;
+    left: 0;
+    z-index: 8;
+    border-right: 1px solid var(--timeline-table-border-color);
+    border-bottom: 1px solid var(--timeline-table-border-color);
+    background: var(--bg-surface);
+    overflow: hidden;
+}
+
+.ats-site-detail-viewport {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+}
+
+.ats-site-detail-list {
+    position: relative;
+    width: 100%;
+    will-change: transform;
+}
+
+.ats-row-scroll {
+    flex: 1;
+    min-width: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    background: var(--card-bg, var(--bg-surface));
+}
+
+.ats-row-inner {
+    position: relative;
+    box-sizing: border-box;
+}
+
+.ats-row-collapsed {
+    position: relative;
+    z-index: 1;
+    box-sizing: border-box;
+    width: 100%;
+}
+
+.ats-cluster {
+    position: absolute;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    padding: 0;
+    margin: 0;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+}
+
+.ats-cluster-bar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 6px;
+    min-width: 6px;
+    height: 22px;
+    border-radius: 2px;
+    border: 1px solid;
+    box-sizing: border-box;
+    position: relative;
+    overflow: visible;
+}
+
+.ats-cluster-bar--photo {
+    width: 8px;
+    min-width: 8px;
+    height: 8px;
+    border-radius: 999px;
+}
+
+.ats-cluster-count {
+    position: absolute;
+    top: 50%;
+    left: 100%;
+    transform: translateY(-50%);
+    margin-left: 4px;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    line-height: 1;
+    white-space: nowrap;
+    pointer-events: none;
+}
+
+.ats-cluster-hover-name {
+    display: none;
+    position: absolute;
+    top: 50%;
+    left: 100%;
+    transform: translateY(-50%);
+    margin-left: 4px;
+    padding: 2px 8px;
+    background: var(--bg-surface);
+    border: 1px solid;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: var(--text-main);
+    white-space: nowrap;
+    z-index: 100;
+    pointer-events: none;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.ats-cluster:hover {
+    z-index: 200;
+}
+
+.ats-cluster:hover .ats-cluster-count {
+    opacity: 0;
+}
+
+.ats-cluster:hover .ats-cluster-hover-name {
+    display: block;
+}
+
+.ats-row-expanded {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    padding: 4px 0;
+    min-height: 32px;
+    box-sizing: border-box;
+}
+
+.ats-bar {
+    position: absolute;
+    box-sizing: border-box;
+    min-height: 0;
+    border: 1px solid;
+    border-radius: 4px;
+    padding: 0 0px;
+    display: flex;
+    align-items: center;
+    overflow: visible;
+    text-align: left;
+    transition: filter 0.15s, box-shadow 0.15s;
+}
+
+.ats-bar--metadata {
+    color: var(--text-main);
+}
+
+.ats-bar--photo {
+    width: 8px;
+    min-width: 8px;
+    border-radius: 999px;
+    padding: 0;
+}
+
+.ats-bar:not(:disabled):hover {
+    filter: brightness(0.97);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.ats-bar:disabled {
+    opacity: 0.85;
+}
+
+.ats-bar-label {
+    position: absolute;
+    top: 50%;
+    left: 100%;
+    transform: translateY(-50%);
+    margin-left: 4px;
+    padding: 2px 8px;
+    background: var(--bg-surface);
+    border: 1px solid;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: var(--text-main);
+    white-space: nowrap;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    pointer-events: auto;
+    cursor: zoom-in;
+}
+
+.ats-bar-label--inside {
+    position: relative;
+    left: auto;
+    top: auto;
+    transform: none;
+    margin-left: 0;
+    padding: 0;
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    color: var(--text-main);
+}
+
+/* -- Sublabel Item (Recording name in expanded site row) -- */
+.ats-sublabel-item {
+    position: absolute;
+    left: 0;
+    width: 100%;
+    min-height: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    padding: 0 10px;
+    overflow: hidden;
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid var(--timeline-table-border-color);
+    cursor: pointer;
+    transition: all 0.2s;
+    box-sizing: border-box;
+    text-align: left;
+}
+
+.ats-sublabel-item:hover {
+    color: var(--media-accent, var(--brand));
+    background: var(--media-accent-tint, var(--bg-surface-hover));
+}
+
+
+.ats-sublabel-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    width: 100%;
+    white-space: nowrap;
+}

@@ -1,0 +1,274 @@
+.photo-media-drawer-form {
+    height: 100%;
+    min-height: 100%;
+    padding: 24px;
+    box-sizing: border-box;
+}
+
+.photo-media-drawer-layout {
+    align-items: stretch;
+    height: 100%;
+    min-height: 0;
+}
+
+.photo-media-drawer-layout--add {
+    align-items: stretch;
+    height: auto;
+    min-height: 0;
+}
+
+.photo-media-drawer-actions {
+    display: flex;
+    gap: 12px;
+}
+
+.photo-media-drawer-upload-col {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    height: 100%;
+    min-height: 0;
+    min-width: 0;
+}
+
+.photo-media-drawer-layout--add .photo-media-drawer-upload-col {
+    align-self: stretch;
+    height: 576px;
+}
+
+.photo-media-drawer-queue-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 4px;
+}
+
+.photo-media-drawer-queue-total {
+    flex-shrink: 0;
+    font-size: 12px;
+}
+
+.photo-media-drawer-queue-scroll {
+    flex: 1;
+    min-height: 0;
+}
+
+.photo-media-drawer-layout--add .photo-media-drawer-queue-scroll {
+    flex: 1;
+    min-height: 0;
+}
+
+.photo-media-drawer-queue-scroll__body {
+    padding-right: 6px;
+}
+
+.photo-media-drawer-queue-scroll > .custom-scroll-area__track {
+    position: relative;
+    left: 5px;
+}
+
+.photo-media-drawer-queue-scroll > .custom-scroll-area__track[data-shown="true"] {
+    opacity: 0;
+    pointer-events: none;
+}
+
+.photo-media-drawer-queue-scroll:not(:hover) > .custom-scroll-area__track[data-shown="true"] {
+    opacity: 0 !important;
+    pointer-events: none !important;
+}
+
+.photo-media-drawer-queue-scroll:hover > .custom-scroll-area__track[data-shown="true"] {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.photo-media-drawer-queue-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.photo-media-drawer-queue-item {
+    position: relative;
+    padding: 10px 14px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background: var(--bg-surface);
+}
+
+.photo-media-drawer-queue-item-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+}
+
+.photo-media-drawer-queue-file-name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    font-size: 13px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.photo-media-drawer-queue-status {
+    display: block;
+    font-size: 11px;
+}
+
+.photo-media-drawer-queue-error {
+    display: block;
+    margin-top: 4px;
+    color: var(--danger);
+    font-size: 11px;
+}
+
+.photo-media-drawer-queue-retry {
+    display: flex;
+    align-items: center;
+    margin-left: 8px;
+    padding: 0;
+    border: none;
+    background: none;
+    color: var(--text-muted);
+    cursor: pointer;
+}
+
+.photo-media-drawer-upload-action {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: auto;
+}
+
+.photo-media-drawer-upload-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    height: 32px;
+    padding: 0 15px;
+    border: 1px solid var(--border-color) !important;
+    border-radius: 999px;
+    background: var(--bg-surface) !important;
+    color: var(--text-main) !important;
+    font-size: 14px;
+    font-weight: 700;
+    box-shadow: none !important;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.photo-media-drawer-upload-btn:hover:not(:disabled) {
+    border-color: var(--brand) !important;
+    background: var(--brand) !important;
+    color: var(--text-invert) !important;
+}
+
+.photo-media-drawer-upload-btn svg {
+    flex-shrink: 0;
+    color: currentColor;
+}
+
+.photo-media-drawer-upload-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.photo-media-drawer-preview {
+    display: block;
+    width: 100%;
+    height: 220px;
+    max-height: 220px;
+    margin-bottom: 24px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background: var(--bg-surface-secondary);
+    object-fit: contain;
+}
+
+.photo-media-drawer-preview.unified-image-fallback {
+    display: flex;
+}
+
+.photo-media-drawer-save-btn.ant-btn-primary:not(:disabled) {
+    border-color: var(--brand);
+    background: var(--brand);
+}
+
+.photo-media-drawer-save-btn.ant-btn-primary:not(:disabled):hover {
+    border-color: var(--brand-hover, var(--brand));
+    background: var(--brand-hover, var(--brand));
+}
+
+/* Date Time 选择框全宽，与音频添加页一致 */
+.photo-media-drawer-form .ant-picker {
+    width: 100%;
+}
+
+.photo-media-drawer-layout--add .photo-media-drawer-note-item {
+    margin-bottom: 0;
+}
+
+/* Date Time 标签行：标题在左，From filename 开关在右 */
+.photo-media-drawer-datetime-item .ant-form-item-label {
+    width: 100%;
+}
+
+.photo-media-drawer-datetime-item .ant-form-item-label > label {
+    width: 100%;
+    display: flex !important;
+    align-items: center;
+}
+
+.photo-media-drawer-datetime-item .ant-form-item-label > label::after {
+    display: none !important;
+    content: none !important;
+}
+
+.photo-media-drawer-label-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    min-width: 0;
+    gap: 8px;
+}
+
+.photo-media-drawer-label-title {
+    display: inline-flex;
+    align-items: center;
+    min-width: 0;
+}
+
+.photo-media-drawer-label-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px;
+    min-width: 0;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.photo-media-drawer-label-toggle-text {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--ant-color-text-description);
+    white-space: nowrap;
+}
+
+.photo-media-drawer-label-toggle-sep {
+    color: var(--border-color);
+    user-select: none;
+    font-weight: 700;
+}
+
+.photo-media-drawer-label-toggle .ant-switch,
+.photo-media-drawer-label-toggle .ant-switch:hover,
+.photo-media-drawer-label-toggle .ant-switch:active,
+.photo-media-drawer-label-toggle .ant-switch:focus,
+.photo-media-drawer-label-toggle .ant-switch:focus-visible {
+    box-shadow: none !important;
+    outline: none !important;
+}

@@ -1,0 +1,285 @@
+.upd-drawer-title-container {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    flex-wrap: wrap;
+}
+
+.upd-drawer-title-text {
+    font-weight: 600;
+    font-size: 18px;
+    color: var(--text-main);
+}
+
+.upd-drawer-admin-container {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.upd-drawer-admin-text {
+    font-size: 14px;
+    color: var(--text-muted);
+    font-weight: 700;
+}
+
+
+.upd-drawer-loading {
+    padding: 100px;
+    display: flex;
+    justify-content: center;
+}
+
+.upd-drawer-admin-view {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 100px 0;
+    gap: 16px;
+}
+
+.upd-drawer-admin-icon {
+    background: var(--brand);
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-invert);
+}
+
+.upd-drawer-admin-title {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text-main);
+}
+
+.upd-drawer-admin-desc {
+    color: var(--text-muted);
+    font-size: 14px;
+}
+
+.upd-drawer-list-container {
+    margin: 16px;
+}
+
+.upd-card {
+    border: 1px solid var(--border-light);
+    border-radius: 8px;
+    margin-bottom: 12px;
+    overflow: hidden;
+    background: var(--bg-surface);
+}
+
+.upd-row {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    flex-wrap: nowrap;
+    padding: 10px 24px;
+    border-bottom: 1px solid var(--border-light);
+    gap: 16px;
+}
+
+.upd-card .upd-row:last-child {
+    border-bottom: none;
+}
+
+.upd-collection-row {
+    background: var(--bg-surface);
+    padding-left: 64px;
+}
+
+/* Manager / User：可点击的标签块 */
+.upd-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    min-width: 76px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    user-select: none;
+    text-align: center;
+    border: 1px solid var(--border-light);
+    background: var(--bg-capsule);
+    color: var(--text-main);
+    transition: border-color 0.15s, background 0.15s, box-shadow 0.15s, transform 0.1s;
+}
+
+.upd-badge:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px var(--brand-tint);
+}
+
+.upd-badge--manager {
+    border-color: var(--brand);
+    background: var(--brand-tint);
+    color: var(--brand);
+}
+
+.upd-badge--user {
+    border-color: var(--border-light);
+    background: var(--bg-surface-secondary);
+    color: var(--text-muted);
+}
+
+.upd-badge:hover {
+    border-color: var(--brand);
+    box-shadow: 0 1px 0 rgba(0, 0, 0, 0.04);
+}
+
+.upd-badge--user:hover {
+    color: var(--text-main);
+    background: var(--bg-capsule);
+}
+
+.upd-badge:active {
+    transform: scale(0.98);
+}
+
+.upd-project-info {
+    flex: 0 0 280px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    min-width: 0;
+}
+
+.upd-checkbox-checked {
+    width: 16px;
+    height: 16px;
+    background: var(--brand);
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-invert);
+}
+
+.upd-checkbox-unchecked {
+    width: 16px;
+    height: 16px;
+    border: 1.5px solid var(--border-color);
+    border-radius: 4px;
+    background: transparent;
+}
+
+.upd-project-name {
+    font-weight: 600;
+    color: var(--text-main);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.upd-tree-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+}
+
+.upd-tree-toggle-icon {
+    flex-shrink: 0;
+    color: var(--text-muted);
+}
+
+.upd-divider {
+    width: 1px;
+    height: 20px;
+    background: var(--border-light);
+    margin: 0;
+}
+
+.upd-role-container {
+    flex: 0 0 80px;
+    display: flex;
+    justify-content: center;
+}
+
+.upd-actions-container {
+    flex: 1;
+    display: flex;
+    justify-content: flex-end;
+}
+
+.upd-full-access-text {
+    color: var(--brand);
+    font-weight: 600;
+    font-size: 14px;
+    margin-right: 12px;
+}
+
+.upd-collection-info {
+    flex: 0 0 240px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    position: relative;
+}
+
+.upd-tree-line-v {
+    position: absolute;
+    left: -28px;
+    top: -24px;
+    bottom: 0;
+    width: 1px;
+    background: var(--border-light);
+}
+
+.upd-tree-line-h {
+    position: absolute;
+    left: -28px;
+    top: 20px;
+    width: 16px;
+    height: 1px;
+    background: var(--border-light);
+}
+
+.upd-collection-name {
+        font-size: 14px;
+    color: var(--text-main);
+}
+
+.upd-icons-container {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.upd-icon-item {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    border: none;
+    padding: 4px;
+    border-radius: 4px;
+}
+
+.upd-icon-item--inherited {
+    border-style: dashed !important;
+    background-image: repeating-linear-gradient(
+        -45deg,
+        transparent 0,
+        transparent 4px,
+        rgba(0, 0, 0, 0.04) 4px,
+        rgba(0, 0, 0, 0.04) 8px
+    );
+}
+
+.upd-icon-item:hover {
+    background: rgba(0, 0, 0, 0.04);
+}

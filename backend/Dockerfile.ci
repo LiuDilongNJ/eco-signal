@@ -1,0 +1,86 @@
+ARG PYTHON_BASE_IMAGE=python:3.12-slim
+FROM ${PYTHON_BASE_IMAGE}
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    UV_LINK_MODE=copy \
+    PATH="/app/.venv/bin:$PATH" \
+    PYTHONPATH=/app
+
+WORKDIR /app/
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ffmpeg \
+    libsndfile1 \
+    libjpeg62-turbo \
+    libopenjp2-7 \
+    curl \
+    imagemagick \
+    sox \
+    libsox-fmt-all \
+    lame \
+    libgdal-dev \
+    gdal-bin \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN sox --version && lame --version | head -n 1
+
+RUN python -m pip install --no-cache-dir "uv==0.5.11"
+
+COPY pyproject.toml uv.lock ./
+
+# Trim AI-only dependencies from the copied metadata so hosted CI never
+# resolves the torch/CUDA-heavy analysis stack.
+RUN python - <<'PY'
+from pathlib import Path
+
+def drop_exact_lines(path: str, lines: tuple[str, ...]) -> None:
+    content = Path(path).read_text()
+    for line in lines:
+        content = content.replace(line, "")
+    Path(path).write_text(content)
+
+drop_exact_lines(
+    "pyproject.toml",
+    (
+        '    "scikit-maad>=1.4.0",\n',
+        '    "batdetect2>=0.1.0",\n',
+        '    "resampy>=0.4.3",\n',
+        '    "tensorflow>=2.20.0",\n',
+        '    "autrainer>=0.8.2",\n',
+    ),
+)
+
+drop_exact_lines(
+    "uv.lock",
+    (
+        '    { name = "autrainer", version = "0.8.2", source = { registry = "https://pypi.org/simple" }, marker = "platform_machine == \'x86_64\' and sys_platform == \'darwin\'" },\n',
+        '    { name = "autrainer", version = "0.10.0", source = { registry = "https://pypi.org/simple" }, marker = "platform_machine != \'x86_64\' or sys_platform != \'darwin\'" },\n',
+        '    { name = "batdetect2" },\n',
+        '    { name = "resampy" },\n',
+        '    { name = "scikit-maad" },\n',
+        '    { name = "tensorflow" },\n',
+        '    { name = "autrainer", specifier = ">=0.8.2" },\n',
+        '    { name = "batdetect2", specifier = ">=0.1.0" },\n',
+        '    { name = "resampy", specifier = ">=0.4.3" },\n',
+        '    { name = "scikit-maad", specifier = ">=1.4.0" },\n',
+        '    { name = "tensorflow", specifier = ">=2.20.0" },\n',
+    ),
+)
+PY
+
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-install-project
+
+COPY ./scripts /app/scripts
+COPY ./alembic.ini /app/
+COPY ./app /app/app
+COPY ./tests /app/tests
+
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen
+
+RUN chmod +x /app/scripts/entrypoint.sh
+
+ENTRYPOINT ["/app/scripts/entrypoint.sh"]
+CMD ["fastapi", "run", "--reload", "app/main.py"]

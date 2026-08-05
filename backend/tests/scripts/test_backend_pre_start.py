@@ -1,0 +1,34 @@
+from unittest.mock import MagicMock, patch
+
+from app.backend_pre_start import init, logger
+
+
+def test_init_successful_connection() -> None:
+    engine_mock = MagicMock()
+
+    session_mock = MagicMock()
+    exec_mock = MagicMock(return_value=True)
+    session_mock.exec = exec_mock
+
+    with (
+        patch("app.backend_pre_start.Session") as session_class_mock,
+        patch.object(logger, "info"),
+        patch.object(logger, "error"),
+        patch.object(logger, "warn"),
+    ):
+        # Configure Session to return session_mock when used as context manager
+        session_class_mock.return_value.__enter__ = MagicMock(return_value=session_mock)
+        session_class_mock.return_value.__exit__ = MagicMock(return_value=False)
+
+        try:
+            init(engine_mock)
+            connection_successful = True
+        except Exception:
+            connection_successful = False
+
+        assert (
+            connection_successful
+        ), "The database connection should be successful and not raise an exception."
+
+        session_mock.exec.assert_called_once()
+

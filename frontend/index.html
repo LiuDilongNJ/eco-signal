@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/images/ecosignal_favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="description" content="ecoSignal 企业级管理平台" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <script>
+        (function() {
+            let savedTheme = null;
+            try {
+                const store = localStorage.getItem('eco-app-store');
+                if (store) {
+                    const parsed = JSON.parse(store);
+                    savedTheme = parsed?.state?.theme;
+                }
+            } catch (e) {}
+            
+            const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            let theme = savedTheme === 'light' || savedTheme === 'dark' || savedTheme === 'auto'
+                ? savedTheme
+                : 'auto';
+            if (theme === 'auto') {
+                theme = systemDark ? 'dark' : 'light';
+            }
+            
+            document.documentElement.setAttribute('data-theme', theme);
+            if (theme === 'dark') document.documentElement.classList.add('dark');
+        })();
+    </script>
+    <title>ecoSignal</title>
+</head>
+
+<body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+</body>
+
+</html>

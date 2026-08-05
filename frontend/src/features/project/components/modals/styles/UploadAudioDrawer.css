@@ -1,0 +1,201 @@
+/* Specific overrides for UploadAudioDrawer */
+
+.upload-audio-form.shared-drawer-form .ant-form-item-label > label {
+    width: 100%;
+    display: flex !important;
+    align-items: center;
+}
+
+.upload-audio-form.shared-drawer-form .ant-form-item-label > label::after {
+    display: none !important;
+    content: none !important;
+}
+
+.upload-audio-drawer-layout {
+    align-items: stretch;
+    height: 100%;
+    min-height: 0;
+    box-sizing: border-box;
+}
+
+.upload-audio-drawer-queue-col {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    height: 100%;
+    min-height: 0;
+    min-width: 0;
+}
+
+.upload-audio-form {
+    height: 100%;
+}
+
+.upload-audio-drawer-queue-scroll {
+    flex: 1;
+    min-height: 0;
+}
+
+.upload-audio-drawer-queue-scroll__body {
+    padding-right: 6px;
+}
+
+/* 仅本抽屉队列滚动条：向内偏移 */
+.upload-audio-drawer-queue-scroll > .custom-scroll-area__track {
+    position: relative;
+    left: 5px;
+}
+
+/* 仅本抽屉队列滚动条：默认隐藏，hover 才显示 */
+.upload-audio-drawer-queue-scroll > .custom-scroll-area__track[data-shown="true"] {
+    opacity: 0;
+    pointer-events: none;
+}
+
+.upload-audio-drawer-queue-scroll:not(:hover) > .custom-scroll-area__track[data-shown="true"] {
+    opacity: 0 !important;
+    pointer-events: none !important;
+}
+
+.upload-audio-drawer-queue-scroll:hover > .custom-scroll-area__track[data-shown="true"] {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.upload-audio-drawer-queue-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.upload-audio-drawer-upload-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    height: 32px;
+    padding: 0 15px;
+    font-size: 14px;
+    font-weight: 700;
+    background: var(--bg-surface) !important;
+    border: 1px solid var(--border-color) !important;
+    border-radius: 999px;
+    color: var(--text-main) !important;
+    cursor: pointer;
+    box-shadow: none !important;
+    transition: all 0.2s;
+}
+
+.upload-audio-drawer-upload-btn:hover:not(:disabled) {
+    border-color: var(--brand) !important;
+    color: var(--text-invert) !important;
+    background: var(--brand) !important;
+}
+
+.upload-audio-drawer-upload-btn svg {
+    flex-shrink: 0;
+    color: currentColor;
+}
+
+.upload-audio-drawer-upload-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.upload-audio-drawer-form-col {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+    min-width: 0;
+}
+
+.upload-audio-form-label-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    min-width: 0;
+    gap: 8px;
+}
+
+.upload-audio-form-label-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px;
+    min-width: 0;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.upload-audio-form-label-toggle-text {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--ant-color-text-description);
+    white-space: nowrap;
+}
+
+[data-theme="dark"] .upload-audio-form-label-toggle-text {
+    color: var(--ant-color-text-description);
+}
+
+.upload-audio-form-label-toggle-sep {
+    color: var(--border-color);
+    user-select: none;
+    font-weight: 700;
+}
+
+.upload-audio-form-label-toggle .ant-switch,
+.upload-audio-form-label-toggle .ant-switch:hover,
+.upload-audio-form-label-toggle .ant-switch:active,
+.upload-audio-form-label-toggle .ant-switch:focus,
+.upload-audio-form-label-toggle .ant-switch:focus-visible {
+    box-shadow: none !important;
+    outline: none !important;
+}
+
+.upload-audio-form-label-toggle .ant-switch .ant-switch-handle,
+.upload-audio-form-label-toggle .ant-switch .ant-switch-handle::before,
+.upload-audio-form-label-toggle .ant-switch:hover .ant-switch-handle,
+.upload-audio-form-label-toggle .ant-switch:hover .ant-switch-handle::before,
+.upload-audio-form-label-toggle .ant-switch:active .ant-switch-handle,
+.upload-audio-form-label-toggle .ant-switch:active .ant-switch-handle::before,
+.upload-audio-form-label-toggle .ant-switch:focus .ant-switch-handle,
+.upload-audio-form-label-toggle .ant-switch:focus .ant-switch-handle::before,
+.upload-audio-form-label-toggle .ant-switch:focus-visible .ant-switch-handle,
+.upload-audio-form-label-toggle .ant-switch:focus-visible .ant-switch-handle::before {
+    box-shadow: none !important;
+}
+
+.upload-audio-form-label-toggle .ant-switch[ant-click-animating-without-extra-node="true"]::after,
+.upload-audio-form-label-toggle .ant-switch.ant-click-animating::after {
+    display: none !important;
+    box-shadow: none !important;
+    animation: none !important;
+}
+
+.upload-audio-drawer-save-btn.ant-btn-primary:not(:disabled) {
+    background: var(--brand);
+    border-color: var(--brand);
+}
+
+.upload-audio-drawer-save-btn.ant-btn-primary:not(:disabled):hover {
+    background: var(--brand);
+    border-color: var(--brand);
+    filter: brightness(0.95);
+}
+
+.upload-audio-drawer-save-btn.ant-btn-primary:disabled,
+.upload-audio-drawer-save-btn.ant-btn-primary:disabled:hover,
+.upload-audio-drawer-save-btn.ant-btn-primary:disabled:focus,
+.upload-audio-drawer-save-btn.ant-btn-primary:disabled:active,
+.ant-drawer .ant-drawer-header .ant-drawer-extra .upload-audio-drawer-save-btn.ant-btn-primary:disabled:hover,
+.ant-drawer .ant-drawer-header .ant-drawer-extra .upload-audio-drawer-save-btn.ant-btn-primary:disabled:focus-visible {
+    background: var(--bg-surface) !important;
+    border-color: var(--border-color) !important;
+    color: var(--text-main) !important;
+    opacity: 0.5;
+    cursor: not-allowed !important;
+    box-shadow: none !important;
+    filter: none !important;
+}

@@ -1,0 +1,9 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.ci
+
+networks:
+  traefik-public:
+    external: false

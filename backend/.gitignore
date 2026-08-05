@@ -1,0 +1,15 @@
+__pycache__
+app.egg-info
+*.pyc
+.mypy_cache
+.coverage
+htmlcov
+.cache
+.venv
+
+
+# 上传文件
+uploads/
+
+# XR import runtime artifacts
+data/col/

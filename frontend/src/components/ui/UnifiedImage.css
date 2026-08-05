@@ -1,0 +1,33 @@
+.unified-image-fallback {
+    display: flex !important;
+    width: 100%;
+    height: 100%;
+    min-width: 0;
+    min-height: 0;
+    box-sizing: border-box;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 8px;
+    padding: 16px;
+    overflow: hidden;
+    background: color-mix(in srgb, var(--bg-surface-secondary, var(--bg-surface)) 92%, var(--text-secondary) 8%);
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    font-weight: 700;
+    line-height: 1.2;
+    text-align: center;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+}
+
+.unified-image-fallback svg {
+    width: 32px;
+    height: 32px;
+    flex: 0 0 auto;
+    opacity: 0.75;
+}
+
+[data-theme="dark"] .unified-image-fallback {
+    background: color-mix(in srgb, var(--bg-surface-secondary, var(--bg-surface)) 90%, black 10%);
+}

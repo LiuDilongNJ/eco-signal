@@ -1,0 +1,15 @@
+.vscode
+.env
+node_modules/
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+.DS_Store
+.idea
+# Geo raw data files and database storage (large files, do not commit)
+/data/*
+.upgrade-backup/*
+migration-reports/
+ecoSound-web
+.deploy/

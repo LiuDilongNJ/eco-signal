@@ -1,0 +1,64 @@
+.sound-settings-instructions {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    color: var(--text-main);
+}
+
+.sound-settings-instructions p {
+    margin: 0;
+    color: var(--text-secondary);
+    line-height: 1.6;
+}
+
+.sound-settings-instructions__code {
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+    padding: 10px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background: var(--bg-surface-secondary, var(--bg-surface));
+    color: var(--text-main);
+    overflow-wrap: anywhere;
+}
+
+.sound-settings-instructions__rules {
+    margin: 0;
+    padding-left: 20px;
+    color: var(--text-secondary);
+    font-size: 13px;
+    line-height: 1.6;
+}
+
+.sound-settings-instructions__download {
+    padding-inline: 4px !important;
+    color: var(--brand) !important;
+}
+
+.sound-settings-instructions__download:hover {
+    color: var(--brand-hover, var(--brand)) !important;
+}
+
+.csv-upload-instructions-drawer .ant-drawer-header {
+    border-bottom: none !important;
+}
+
+.csv-upload-instructions-drawer .ant-drawer-extra .ant-btn-primary {
+    border-color: var(--brand) !important;
+    border-radius: 999px;
+    background: var(--brand) !important;
+    color: #fff !important;
+    box-shadow: none;
+}
+
+.csv-upload-instructions-drawer .ant-drawer-extra .ant-btn-primary:hover,
+.csv-upload-instructions-drawer .ant-drawer-extra .ant-btn-primary:focus-visible {
+    border-color: var(--brand-hover, var(--brand)) !important;
+    background: var(--brand-hover, var(--brand)) !important;
+    color: #fff !important;
+}
+
+.csv-upload-instructions-drawer .sound-settings-instructions__download {
+    border-radius: 999px;
+}

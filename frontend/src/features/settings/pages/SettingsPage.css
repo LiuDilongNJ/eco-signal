@@ -1,0 +1,180 @@
+.settings-page,
+.settings-stage-drawer,
+.settings-stage-modal,
+.settings-form-modal-root {
+    --brand: #83cd20;
+    --brand-rgb: 131, 205, 32;
+    --brand-hover: #72b51b;
+    --brand-tint: rgba(131, 205, 32, 0.08);
+    --es-color-brand: #83cd20;
+    --es-color-brand-rgb: 131, 205, 32;
+    --es-color-brand-hover: #72b51b;
+    --es-color-brand-active: #609b16;
+    --es-color-brand-soft: rgba(131, 205, 32, 0.1);
+    --es-color-focus: rgba(131, 205, 32, 0.28);
+}
+
+.settings-page {
+    --radius: 24px;
+    --font-sans: "Inter", sans-serif;
+    --settings-section-header-height: 56px;
+
+    min-height: var(--app-design-height);
+    height: var(--app-design-height);
+    max-height: var(--app-design-height);
+    width: var(--app-design-width);
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-sizing: border-box;
+}
+
+.settings-page.es-page {
+    padding: 0;
+    background: var(--bg-body);
+}
+
+.settings-page > .content-wrapper.es-page-content {
+    width: 100%;
+    max-width: none;
+    margin-inline: 0;
+}
+
+.settings-page__nav-skeleton {
+    padding: 8px 12px;
+}
+
+.settings-page__content-skeleton {
+    padding: 24px;
+}
+
+.settings-page__content {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+    margin-left: 20px;
+    background: var(--glass-bg);
+    border: var(--card-border);
+    border-radius: var(--radius);
+    box-shadow: var(--card-shadow);
+}
+
+.settings-page__content.data-content {
+    margin-left: 20px;
+}
+
+.settings-page__content--form .data-toolbar {
+    flex-shrink: 0;
+}
+
+.settings-page .data-nav-header {
+    display: flex;
+    align-items: center;
+    height: var(--settings-section-header-height);
+    min-height: var(--settings-section-header-height);
+    padding: 0 16px;
+    box-sizing: border-box;
+}
+
+.settings-page .data-content > .data-toolbar {
+    min-height: var(--settings-section-header-height);
+}
+
+/* Left nav — same tokens as Data module (.data-nav in data-timeline.css) */
+.settings-page .data-nav {
+    border-radius: var(--radius);
+    font-family: var(--font-sans);
+}
+
+.settings-page .data-nav-item {
+    position: relative;
+    font-size: 0.85rem;
+    font-weight: 600;
+    font-family: var(--font-sans);
+    border-radius: 999px;
+}
+
+.settings-page .data-nav-item--group-start {
+    margin-top: 12px;
+}
+
+.settings-page .data-nav-item--group-start::before {
+    content: "";
+    position: absolute;
+    left: 12px;
+    right: 12px;
+    top: -7px;
+    height: 1px;
+    background: var(--border-color);
+    pointer-events: none;
+}
+
+.settings-page .data-nav-item.active {
+    font-weight: 700;
+}
+
+.settings-page__content-inner {
+    flex: 1;
+    min-height: 0;
+    min-width: 0;
+}
+
+.settings-page__content-scroll-body {
+    padding: 24px;
+    flex: 1;
+    min-height: 0;
+}
+
+/**
+ * Camera / Lenses / Sensor / Copyright / Taxon：表格占满右侧可视区域高度（非随内容变矮）
+ * 与 DataPageLayout 内 ResizeObserver + scroll.y 配合
+ * 去掉外层 padding，表格与右侧白底卡片边缘对齐（工具栏/表体仍用 DataPageLayout 内边距）
+ */
+.settings-page__content-inner--table-fill {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    padding: 0;
+}
+
+.settings-page__content-inner--table-fill .data-content {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Copyright 等：仅有标题+占位文案时保留侧向留白 */
+.settings-page__content-inner--table-fill .settings-page__panel-title {
+    padding: 24px 24px 0;
+    margin-bottom: 16px;
+}
+
+.settings-page__content-inner--table-fill .settings-tab-placeholder {
+    padding: 0 24px 24px;
+}
+
+.settings-page__panel-title {
+    display: none;
+}
+
+.settings-page__panel-title-icon {
+    color: var(--text-main);
+    flex-shrink: 0;
+}
+
+.settings-page .nav-logo {
+    text-decoration: none;
+}
+
+.settings-tab-placeholder {
+    margin: 0;
+    max-width: 520px;
+    font-size: 0.95rem;
+    line-height: 1.55;
+    color: var(--text-secondary);
+}

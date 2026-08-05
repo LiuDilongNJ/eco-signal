@@ -1,0 +1,197 @@
+.link-collections-drawer .ant-drawer-content-wrapper,
+.link-collections-drawer .ant-drawer-content,
+.link-collections-drawer .ant-drawer-section {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    height: 100%;
+}
+
+.link-collections-drawer .ant-drawer-section {
+    overflow: hidden !important;
+}
+
+.link-collections-drawer .ant-drawer-body {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    height: 0;
+    min-height: 0;
+    overflow: hidden !important;
+}
+
+.link-collections-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    padding: 16px 24px;
+}
+
+.link-collections-btn-cancel {
+    border-radius: 999px;
+    height: 32px;
+    padding: 0 15px;
+    background: var(--bg-surface);
+    border-color: var(--border-color);
+    color: var(--text-main);
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.link-collections-btn-save {
+    border-radius: 999px;
+    height: 32px;
+    padding: 0 15px;
+    background: var(--brand);
+    border-color: var(--brand);
+    color: var(--text-invert);
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.link-collections-btn-cancel:hover {
+    border-color: var(--brand) !important;
+    color: var(--brand) !important;
+    background: var(--brand-tint) !important;
+}
+
+.link-collections-btn-save:hover {
+    background: var(--brand-hover, var(--brand)) !important;
+    border-color: var(--brand-hover, var(--brand)) !important;
+    color: var(--text-invert) !important;
+}
+
+.link-collections-loading {
+    display: flex;
+    justify-content: center;
+    padding-top: 40px;
+}
+
+.link-collections-scroll-shell {
+    position: relative;
+    flex: 1 1 auto;
+    min-height: 0;
+    height: 100%;
+}
+
+.link-collections-scroll-body {
+    height: 100%;
+    overflow-y: auto;
+    overflow-x: hidden;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+.link-collections-scroll-body::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
+}
+
+.link-collections-scroll-content {
+    min-height: 100%;
+    width: 100%;
+    padding: 24px 28px 24px 24px;
+    box-sizing: border-box;
+}
+
+.link-collections-scrollbar-track {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    bottom: 2px;
+    width: 6px;
+    z-index: 10;
+    border-radius: 999px;
+    transition: opacity 0.2s ease, background 0.15s ease;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.link-collections-scroll-shell:hover .link-collections-scrollbar-track,
+.link-collections-scrollbar-track.is-active {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.link-collections-scroll-shell:hover .link-collections-scrollbar-track {
+    background: rgba(15, 23, 42, 0.04);
+}
+
+[data-theme="dark"] .link-collections-scroll-shell:hover .link-collections-scrollbar-track {
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.link-collections-scrollbar-thumb {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    background: rgba(15, 23, 42, 0.28);
+    border-radius: 999px;
+    cursor: grab;
+    transition: background 0.15s ease;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+[data-theme="dark"] .link-collections-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.28);
+}
+
+.link-collections-scrollbar-track:hover .link-collections-scrollbar-thumb,
+.link-collections-scrollbar-thumb:hover,
+.link-collections-scrollbar-thumb.is-dragging {
+    background: var(--brand);
+}
+
+.link-collections-scrollbar-thumb.is-dragging {
+    cursor: grabbing;
+}
+
+/* Collapse Component Overrides */
+.link-collapse {
+    background: transparent !important;
+    border: none !important;
+}
+
+.link-collapse .ant-collapse-item {
+    border-bottom: none !important;
+    margin-bottom: 0px;
+}
+
+.link-collapse .ant-collapse-header {
+    padding: 10px 0 !important;
+    font-weight: 600;
+    color: var(--text-main) !important;
+    border-bottom: 1px solid var(--border-light);
+}
+
+:root[data-theme="dark"] .link-collapse .ant-collapse-header {
+    border-bottom-color: var(--border-color);
+}
+
+.link-collapse .ant-collapse-content-box {
+    padding: 0 0 15px 0 !important;
+    padding-block: 0 !important;
+    border-top: 1px solid var(--border-light);
+}
+
+:where(.ant-collapse-ghost)>.ant-collapse-item>.ant-collapse-panel>.ant-collapse-body,
+:where(.ant-collapse-ghost)>.ant-collapse-item>.ant-collapse-content>.ant-collapse-content-box {
+    padding-block: 0 !important;
+}
+
+.collection-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    border-bottom: 1px dashed var(--border-light);
+}
+
+.collection-name {
+    color: var(--text-main);
+    font-size: 14px;
+}

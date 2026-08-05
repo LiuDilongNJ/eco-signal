@@ -1,0 +1,31 @@
+.analysis-result-modal-root,
+.analysis-result-modal-root .ant-modal-wrap,
+.analysis-result-modal-root .ant-modal-mask {
+    pointer-events: auto;
+}
+
+.analysis-result-modal-root .ant-modal-mask {
+    z-index: 10020 !important;
+}
+
+.analysis-result-modal-root .ant-modal-wrap {
+    z-index: 10021 !important;
+}
+
+.analysis-result-context {
+    color: var(--text-muted);
+    font-size: 13px;
+}
+
+.analysis-result-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.analysis-result-row strong {
+    color: var(--text-main);
+    font-weight: 700;
+    text-align: right;
+}

@@ -1,0 +1,523 @@
+@import "../../common/styles/AntdSelectPopup.css";
+
+/* Shared Form Drawer Styles for CRUD modals */
+
+.form-drawer-title {
+    display: inline-flex;
+    align-items: center;
+    margin: 0;
+    color: var(--text-main);
+    font-size: 16px;
+    font-weight: 600;
+    line-height: 1.5;
+}
+
+.shared-drawer-form .ant-form-item-label>label {
+    color: var(--text-main) !important;
+    font-weight: 500;
+}
+
+/* Validation feedback must remain visible against the themed form text color. */
+.shared-drawer-form .ant-form-item-explain-error {
+    color: var(--danger) !important;
+}
+
+/* Drawer 右上角 Save（primary）按钮：hover 变色（覆盖 inline background） */
+.ant-drawer .ant-drawer-header .ant-drawer-extra .ant-btn {
+    font-weight: 700 !important;
+}
+
+.ant-drawer .ant-drawer-header .ant-drawer-extra .ant-btn-primary:hover,
+.ant-drawer .ant-drawer-header .ant-drawer-extra .ant-btn-primary:focus-visible {
+    background: var(--brand-hover, var(--brand)) !important;
+    border-color: var(--brand-hover, var(--brand)) !important;
+}
+
+/* 必填红色 *（Form requiredMark 自定义渲染） */
+.form-drawer-required-suffix {
+    display: inline-block;
+    margin-inline-start: 2px;
+    color: var(--danger);
+    font-family: inherit;
+    font-weight: inherit;
+    line-height: 1;
+}
+
+/* 隐藏 Ant Design 默认必填星号，统一用自定义渲染 */
+.shared-drawer-form .ant-form-item-label > label.ant-form-item-required:not(.ant-form-item-required-mark-optional)::before {
+    display: none !important;
+    margin: 0 !important;
+    content: none !important;
+}
+
+/* .shared-drawer-form .ant-input,
+.shared-drawer-form .ant-picker,
+.shared-drawer-form .ant-select-selector {
+    background-color: var(--bg-capsule) !important;
+    color: var(--text-main) !important;
+    border-color: var(--border-light) !important;
+    min-height: 32px;
+}
+
+.shared-drawer-form .ant-input,
+.shared-drawer-form .ant-picker,
+.shared-drawer-form .ant-select-show-arrow {
+    background-color: var(--bg-capsule) !important;
+    color: var(--text-main) !important;
+    border-color: var(--border-light) !important;
+    min-height: 32px;
+} */
+
+.shared-drawer-form .ant-select-selection-item,
+.shared-drawer-form .ant-select-selection-placeholder,
+.shared-drawer-form .ant-select-selection-search-input {
+    color: var(--text-main) !important;
+}
+
+
+.shared-drawer-form .ant-input-number-input {
+    color: var(--text-main) !important;
+}
+
+.shared-drawer-form .ant-input::placeholder,
+.shared-drawer-form .ant-picker-input>input::placeholder {
+    color: var(--text-muted) !important;
+}
+
+.shared-drawer-form .ant-input:not(.ant-input-disabled):focus,
+.shared-drawer-form .ant-input:not(.ant-input-disabled):hover,
+.shared-drawer-form .ant-input-number:not(.ant-input-number-disabled):focus,
+.shared-drawer-form .ant-input-number:not(.ant-input-number-disabled):hover,
+.shared-drawer-form .ant-picker:not(.ant-picker-disabled):hover,
+.shared-drawer-form .ant-picker-focused:not(.ant-picker-disabled) {
+    border-color: var(--brand) !important;
+    background-color: var(--bg-surface) !important;
+    border-radius: 6px !important;
+}
+
+.shared-drawer-form .ant-input:not(.ant-input-disabled):focus,
+.shared-drawer-form .ant-input-number:not(.ant-input-number-disabled):focus,
+.shared-drawer-form .ant-picker-focused:not(.ant-picker-disabled) {
+    box-shadow: var(--es-shadow-focus) !important;
+}
+
+/* Input.Password / 带前后缀：边框与背景在 affix 容器上，需与普通 Input 同高、同色 */
+.shared-drawer-form .ant-input-affix-wrapper {
+    color: var(--text-main) !important;
+    border-color: var(--border-light) !important;
+    min-height: 32px !important;
+    padding-block: 0 !important;
+    align-items: center;
+}
+
+.shared-drawer-form .ant-input-affix-wrapper .ant-input {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    min-height: 0 !important;
+}
+
+.shared-drawer-form .ant-input-affix-wrapper:hover:not(.ant-input-affix-wrapper-disabled),
+.shared-drawer-form .ant-input-affix-wrapper:focus-within:not(.ant-input-affix-wrapper-disabled) {
+    border-color: var(--brand) !important;
+    background-color: var(--bg-surface) !important;
+    border-radius: 6px !important;
+}
+
+.shared-drawer-form .ant-input-affix-wrapper:focus-within:not(.ant-input-affix-wrapper-disabled) {
+    box-shadow: var(--es-shadow-focus) !important;
+}
+
+.shared-drawer-form .ant-input-affix-wrapper .ant-input-suffix .anticon {
+    color: var(--text-muted) !important;
+}
+
+/*
+ * 浏览器自动填充（密码管理器）默认浅蓝底且高度不齐：用 inset shadow 铺满并与主题背景一致
+ */
+.shared-drawer-form input:-webkit-autofill,
+.shared-drawer-form input:-webkit-autofill:hover {
+    -webkit-text-fill-color: var(--text-main) !important;
+    caret-color: var(--text-main);
+    -webkit-box-shadow: 0 0 0 1000px var(--bg-capsule) inset !important;
+    box-shadow: 0 0 0 1000px var(--bg-capsule) inset !important;
+}
+
+.shared-drawer-form input:-webkit-autofill:focus {
+    -webkit-text-fill-color: var(--text-main) !important;
+    -webkit-box-shadow: 0 0 0 1000px var(--bg-capsule) inset !important;
+    box-shadow: 0 0 0 1000px var(--bg-capsule) inset !important;
+}
+
+.shared-drawer-form .ant-input-affix-wrapper:focus-within input:-webkit-autofill,
+.shared-drawer-form .ant-input-affix-wrapper:focus-within input:-webkit-autofill:hover,
+.shared-drawer-form .ant-input-affix-wrapper:focus-within input:-webkit-autofill:focus {
+    -webkit-box-shadow: 0 0 0 1000px var(--bg-surface) inset !important;
+    box-shadow: 0 0 0 1000px var(--bg-surface) inset !important;
+}
+
+/* Select：聚焦/展开边框与光晕用主题色，避免默认蓝 */
+.shared-drawer-form .ant-select:not(.ant-select-disabled):hover .ant-select-selector,
+.shared-drawer-form .ant-select-focused:not(.ant-select-disabled) .ant-select-selector {
+    border-color: var(--brand) !important;
+    border-radius: 6px !important;
+}
+
+.shared-drawer-form .ant-select-focused:not(.ant-select-disabled) .ant-select-selector {
+    box-shadow: var(--es-shadow-focus) !important;
+}
+
+.shared-drawer-form .ant-select-open .ant-select-selector {
+    border-color: var(--brand) !important;
+    border-radius: 6px !important;
+}
+
+.shared-drawer-form .form-drawer-select.ant-select .ant-select-selector {
+    background-color: var(--bg-capsule) !important;
+    border-color: var(--border-light) !important;
+    color: var(--text-main) !important;
+}
+
+.shared-drawer-form .form-drawer-select.ant-select .ant-select-selection-item,
+.shared-drawer-form .form-drawer-select.ant-select .ant-select-selection-placeholder,
+.shared-drawer-form .form-drawer-select.ant-select .ant-select-selection-search-input,
+.shared-drawer-form .form-drawer-select.ant-select .ant-select-arrow {
+    color: var(--text-main) !important;
+}
+
+.shared-drawer-form .ant-form-item-has-error .ant-input:not(.ant-input-disabled),
+.shared-drawer-form .ant-form-item-has-error .ant-input-affix-wrapper:not(.ant-input-affix-wrapper-disabled),
+.shared-drawer-form .ant-form-item-has-error .ant-input-number:not(.ant-input-number-disabled),
+.shared-drawer-form .ant-form-item-has-error .ant-picker:not(.ant-picker-disabled) {
+    border-color: var(--danger) !important;
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--danger) 18%, transparent) !important;
+}
+
+/* Keep validation styling above the normal Select hover/focus rules. */
+.shared-drawer-form .ant-form-item-has-error .ant-select:not(.ant-select-disabled),
+.shared-drawer-form .ant-select-status-error:not(.ant-select-disabled),
+.shared-drawer-form .ant-form-item-has-error .ant-select:not(.ant-select-disabled) .ant-select-selector,
+.shared-drawer-form .ant-select-status-error:not(.ant-select-disabled) .ant-select-selector {
+    border-color: var(--danger) !important;
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--danger) 18%, transparent) !important;
+}
+
+.form-drawer-select-popup .form-drawer-select-empty {
+    grid-column: auto;
+}
+
+/* Switch / Checkbox：激活态用主题色 */
+.shared-drawer-form .ant-switch.ant-switch-checked,
+.shared-drawer-form .ant-switch-checked {
+    background: var(--brand) !important;
+}
+
+.shared-drawer-form .ant-switch.ant-switch-checked:hover:not(.ant-switch-disabled),
+.shared-drawer-form .ant-switch-checked:hover:not(.ant-switch-disabled) {
+    background: var(--brand-hover, var(--brand)) !important;
+}
+
+.shared-drawer-form .ant-checkbox-checked {
+    background-color: var(--brand) !important;
+    border-color: var(--brand) !important;
+}
+
+.shared-drawer-form .ant-checkbox-wrapper:hover .ant-checkbox,
+.shared-drawer-form .ant-checkbox:hover {
+    border-color: var(--brand) !important;
+}
+
+.shared-drawer-form .ant-checkbox:focus-within {
+    outline: 2px solid var(--brand-tint);
+    outline-offset: 2px;
+}
+
+.shared-drawer-form .ant-checkbox-checked::after {
+    border-color: var(--text-invert) !important;
+}
+
+.shared-drawer-form .ant-checkbox-indeterminate {
+    background-color: var(--brand) !important;
+    border-color: var(--brand) !important;
+}
+
+.shared-drawer-form .ant-checkbox-indeterminate::after {
+    background-color: var(--text-invert) !important;
+}
+
+.shared-drawer-form .ant-picker-input>input {
+    color: var(--text-main) !important;
+}
+
+.shared-drawer-form .ant-picker-suffix {
+    color: var(--text-muted) !important;
+}
+
+.shared-drawer-form .ant-input[readonly],
+.shared-drawer-form textarea.ant-input[readonly] {
+    cursor: default;
+}
+
+.shared-drawer-form .ant-input-disabled,
+.shared-drawer-form .ant-input[disabled],
+.shared-drawer-form .ant-input-affix-wrapper-disabled,
+.shared-drawer-form .ant-input-number-disabled,
+.shared-drawer-form .ant-picker-disabled,
+.shared-drawer-form .ant-select-disabled .ant-select-selector {
+    background-color: var(--bg-surface-secondary) !important;
+    border: 1px solid var(--border-color) !important;
+    box-shadow: none !important;
+    cursor: default !important;
+    color: var(--text-secondary) !important;
+    opacity: 0.6 !important;
+}
+
+.shared-drawer-form .ant-input-disabled *,
+.shared-drawer-form .ant-input[disabled] *,
+.shared-drawer-form .ant-input-affix-wrapper-disabled *,
+.shared-drawer-form .ant-input-number-disabled *,
+.shared-drawer-form .ant-picker-disabled *,
+.shared-drawer-form .ant-select-disabled * {
+    cursor: default !important;
+}
+
+/* Layout classes */
+.form-drawer-layout {
+    display: flex;
+    gap: 24px;
+}
+
+.form-drawer-main-col {
+    flex: 1;
+    min-width: 0;
+}
+
+.form-drawer-side-col {
+    flex: 1;
+    min-width: 0;
+    padding-left: 24px;
+    border-left: 1px solid var(--border-light);
+}
+
+/* Rich Text Input — 与 .ant-input 悬停/聚焦一致 */
+.shared-drawer-form .rich-text-input-wrapper-container {
+    border-radius: 6px;
+    /* background-color: var(--bg-capsule) !important; */
+    border: 1px solid var(--border-light) !important;
+    transition: border-color 0.2s, background-color 0.2s;
+}
+
+.shared-drawer-form .rich-text-input-wrapper-container:hover {
+    border-color: var(--brand) !important;
+    background-color: var(--bg-surface) !important;
+}
+
+.shared-drawer-form .rich-text-input-wrapper-container:focus-within {
+    outline: none;
+    border-color: var(--brand) !important;
+    /* background-color: var(--bg-surface) !important; */
+    box-shadow: 0 0 0 2px var(--brand-tint);
+}
+
+.shared-drawer-form .rich-text-input-wrapper {
+    min-height: 80px;
+    border-radius: 6px;
+    display: block;
+    padding: 10px 12px;
+    box-sizing: border-box;
+    background: transparent !important;
+    border: none !important;
+}
+
+.rich-text-input-content {
+    display: block;
+    width: 100%;
+    color: var(--text-main);
+    line-height: 1.6;
+    overflow-wrap: anywhere;
+}
+
+.rich-text-input-content> :first-child {
+    margin-top: 0;
+}
+
+.rich-text-input-content> :last-child {
+    margin-bottom: 0;
+}
+
+/* Label + Switch 同一行，开关靠右 */
+.shared-drawer-form .form-drawer-switch-row.ant-form-item .ant-form-item-row {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+}
+
+.shared-drawer-form .form-drawer-switch-row .ant-form-item-label {
+    padding-bottom: 0 !important;
+    flex: 1;
+    text-align: left;
+}
+
+.shared-drawer-form .form-drawer-switch-row .ant-form-item-label>label {
+    height: auto;
+}
+
+.shared-drawer-form .form-drawer-switch-row .ant-form-item-control {
+    flex: 0 0 auto;
+    width: auto;
+    max-width: none;
+}
+
+.shared-drawer-form .form-drawer-switch-row .ant-switch {
+    min-width: 44px;
+}
+
+/* Inline row layout: Label and control on the same line */
+.shared-drawer-form .form-drawer-inline-row.ant-form-item .ant-form-item-row {
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+    /* Ensure label doesn't move when list grows */
+    justify-content: space-between;
+    width: 100%;
+}
+
+.shared-drawer-form .form-drawer-inline-row .ant-form-item-label {
+    padding-bottom: 0 !important;
+    flex: 1;
+    text-align: left;
+    min-height: 32px;
+    /* Match button height */
+    display: flex;
+    align-items: center;
+}
+
+.shared-drawer-form .form-drawer-inline-row .ant-form-item-label>label {
+    height: auto;
+}
+
+.shared-drawer-form .form-drawer-inline-row .ant-form-item-control {
+    flex: 0 0 auto;
+    width: auto;
+    max-width: none;
+}
+
+/* Picture Upload specific: Button on right, list below it also on right */
+.shared-drawer-form .form-drawer-picture-upload {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+}
+
+.shared-drawer-form .form-drawer-picture-upload .ant-upload-list {
+    width: 100%;
+    text-align: right;
+}
+
+.shared-drawer-form .form-drawer-picture-upload-btn.ant-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    height: 32px;
+    padding: 0 15px;
+    font-size: 14px;
+    font-weight: 700;
+    background: var(--bg-surface) !important;
+    border: 1px solid var(--border-color) !important;
+    border-radius: 999px;
+    color: var(--text-main) !important;
+    box-shadow: none !important;
+    transition: all 0.2s;
+}
+
+.shared-drawer-form .form-drawer-picture-upload-btn.ant-btn:hover,
+.shared-drawer-form .form-drawer-picture-upload-btn.ant-btn:focus {
+    background: var(--brand) !important;
+    border-color: var(--brand) !important;
+    color: var(--text-invert) !important;
+}
+
+.shared-drawer-form .form-drawer-picture-upload-btn.ant-btn svg {
+    flex-shrink: 0;
+    color: currentColor;
+}
+
+/* Biophony：Distance (m) + Not Estimable 开关 */
+.form-drawer-distance-block {
+    margin-bottom: 24px;
+}
+
+.form-drawer-distance-header {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px 16px;
+    margin-bottom: 8px;
+    min-width: 0;
+    min-height: calc(0.8125rem * 1.5715);
+}
+
+.form-drawer-distance-title {
+    font-size: 0.8125rem;
+    font-weight: 700;
+    line-height: 1.5715;
+    color: var(--text-main);
+}
+
+.form-drawer-distance-toggle-group {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+    min-width: 0;
+    white-space: nowrap;
+}
+
+.form-drawer-distance-switch-text {
+    font-size: 0.75rem;
+    color: var(--ant-color-text-description);
+    white-space: nowrap;
+}
+
+.form-drawer-link-sep {
+    color: var(--border-light);
+    user-select: none;
+}
+
+.form-drawer-distance-toggle-group .ant-switch {
+    transform: scale(0.92);
+    transform-origin: center;
+    box-shadow: none !important;
+    outline: none !important;
+}
+
+.form-drawer-distance-toggle-group .ant-switch:hover,
+.form-drawer-distance-toggle-group .ant-switch:active,
+.form-drawer-distance-toggle-group .ant-switch:focus,
+.form-drawer-distance-toggle-group .ant-switch:focus-visible {
+    box-shadow: none !important;
+    outline: none !important;
+}
+
+.form-drawer-distance-toggle-group .ant-switch .ant-switch-handle,
+.form-drawer-distance-toggle-group .ant-switch .ant-switch-handle::before,
+.form-drawer-distance-toggle-group .ant-switch:hover .ant-switch-handle,
+.form-drawer-distance-toggle-group .ant-switch:hover .ant-switch-handle::before,
+.form-drawer-distance-toggle-group .ant-switch:active .ant-switch-handle,
+.form-drawer-distance-toggle-group .ant-switch:active .ant-switch-handle::before,
+.form-drawer-distance-toggle-group .ant-switch:focus .ant-switch-handle,
+.form-drawer-distance-toggle-group .ant-switch:focus .ant-switch-handle::before,
+.form-drawer-distance-toggle-group .ant-switch:focus-visible .ant-switch-handle,
+.form-drawer-distance-toggle-group .ant-switch:focus-visible .ant-switch-handle::before {
+    box-shadow: none !important;
+}
+
+.form-drawer-distance-toggle-group .ant-switch[ant-click-animating-without-extra-node="true"]::after,
+.form-drawer-distance-toggle-group .ant-switch.ant-click-animating::after {
+    display: none !important;
+    box-shadow: none !important;
+    animation: none !important;
+}

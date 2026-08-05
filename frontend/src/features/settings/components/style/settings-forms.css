@@ -1,0 +1,497 @@
+/* Shared form layout for settings tabs — aligned with Data / FormDrawer */
+
+.settings-form {
+    max-width: 460px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+.settings-drawer-title {
+    display: inline-flex;
+    align-items: center;
+    margin: 0;
+    color: var(--text-main);
+    font-size: 16px;
+    font-weight: 600;
+    line-height: 1.5;
+}
+
+.settings-form__field {
+    display: flex;
+    flex-direction: column;
+}
+
+.settings-form__label {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-main);
+    margin-bottom: 6px;
+}
+
+.settings-form__error {
+    margin-top: 4px;
+    font-size: 14px;
+    color: var(--danger);
+}
+
+.settings-form__input--error,
+.settings-form__select--error {
+    border-color: var(--danger) !important;
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--danger) 18%, transparent);
+}
+
+.settings-form__input,
+.settings-form__select {
+    height: 32px;
+    padding: 0 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background-color: var(--bg-surface-secondary);
+    color: var(--text-main);
+    font-size: 14px;
+    outline: none;
+    transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+    width: 100%;
+    box-sizing: border-box;
+    font-family: inherit;
+}
+
+.settings-form__select-control.ant-select {
+    width: 100%;
+    height: 32px;
+    font-family: inherit;
+}
+
+.settings-form__select-control.ant-select .ant-select-selector {
+    height: 32px !important;
+    min-height: 32px !important;
+    border: 1px solid var(--border-color) !important;
+    border-radius: 6px !important;
+    background-color: var(--bg-surface-secondary) !important;
+    color: var(--text-main) !important;
+    box-shadow: none !important;
+    transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.settings-form__select-control.ant-select-single .ant-select-selector .ant-select-selection-item,
+.settings-form__select-control.ant-select-single .ant-select-selector .ant-select-selection-placeholder {
+    line-height: 30px !important;
+    color: var(--text-main) !important;
+}
+
+.settings-form__select-control.ant-select:not(.ant-select-disabled):hover .ant-select-selector,
+.settings-form__select-control.ant-select-focused:not(.ant-select-disabled) .ant-select-selector,
+.settings-form__select-control.ant-select-open .ant-select-selector {
+    border-color: var(--brand) !important;
+    background-color: var(--bg-surface) !important;
+}
+
+.settings-form__select-control.ant-select-focused:not(.ant-select-disabled) .ant-select-selector {
+    box-shadow: 0 0 0 2px var(--brand-tint) !important;
+}
+
+.settings-form__select-control--error.ant-select .ant-select-selector {
+    border-color: var(--danger) !important;
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--danger) 18%, transparent) !important;
+}
+
+.settings-form__select {
+    cursor: pointer;
+    appearance: none;
+    padding-right: 40px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+}
+
+.settings-form__input:hover:not(:disabled):not(.settings-form__input--error),
+.settings-form__select:hover:not(:disabled):not(.settings-form__select--error) {
+    background: var(--bg-surface);
+    border-color: var(--brand);
+}
+
+.settings-form__input:focus {
+    background: var(--bg-surface);
+    border-color: var(--brand);
+    box-shadow: 0 0 0 2px var(--brand-tint);
+}
+
+.settings-form__select:focus {
+    background-color: var(--bg-surface);
+    border-color: var(--brand);
+    box-shadow: 0 0 0 2px var(--brand-tint);
+}
+
+.settings-form__input:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.settings-form__input--mono {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    font-size: 14px;
+}
+
+.settings-form__hint {
+    margin: 8px 0 0;
+    font-size: 14px;
+    line-height: 1.45;
+    color: var(--text-secondary);
+}
+
+.settings-form__color-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.settings-form__color-input {
+    width: 44px;
+    height: 32px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background: var(--bg-surface-secondary);
+    padding: 4px;
+    cursor: pointer;
+    box-sizing: border-box;
+}
+
+.settings-form__color-input:hover {
+    border-color: var(--brand);
+}
+
+.settings-form__color-input:focus {
+    border-color: var(--brand);
+    box-shadow: 0 0 0 2px var(--brand-tint);
+}
+
+.settings-form__check {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    font-size: 14px;
+    line-height: 1.45;
+    color: var(--text-main);
+    cursor: pointer;
+    margin: 0;
+}
+
+.settings-form__check input {
+    margin-top: 3px;
+    flex-shrink: 0;
+    accent-color: var(--brand);
+}
+
+.settings-form__switch-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    min-width: 0;
+}
+
+.settings-form__switch-row .settings-form__label {
+    margin-bottom: 0;
+}
+
+.settings-form__grid-2 {
+    display: flex;
+    gap: 20px;
+}
+
+.settings-form__grid-2 > .settings-form__field {
+    flex: 1;
+    min-width: 0;
+}
+
+.settings-form__actions {
+    margin-top: 0;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+/* Primary save — matches Data toolbar active / drawer Save */
+.settings-form__btn-primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 32px;
+    padding: 0 15px;
+    border-radius: 999px;
+    background: var(--brand);
+    color: var(--text-invert);
+    font-size: 14px;
+    font-weight: 700;
+    border: 1px solid var(--brand);
+    cursor: pointer;
+    transition: background 0.2s ease, border-color 0.2s ease, opacity 0.2s ease;
+    font-family: inherit;
+}
+
+.settings-form__btn-primary:hover:not(:disabled) {
+    background: var(--brand-hover);
+    border-color: var(--brand-hover);
+    color: var(--text-invert);
+}
+
+.settings-form__btn-primary:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+/* Secondary — matches Data .data-btn */
+.settings-form__btn-secondary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 32px;
+    padding: 0 12px;
+    border-radius: 999px;
+    background: var(--bg-surface);
+    color: var(--text-main);
+    font-size: 14px;
+    font-weight: 700;
+    border: 1px solid var(--border-color);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-family: inherit;
+}
+
+.settings-form__btn-secondary:hover:not(:disabled) {
+    border-color: var(--brand);
+    color: var(--text-invert);
+    background: var(--brand);
+}
+
+.settings-form__btn-secondary:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+.settings-form__status {
+    padding: 20px;
+    font-size: 14px;
+    color: var(--text-muted);
+}
+
+.settings-form__status--error {
+    color: var(--danger);
+}
+
+.settings-drawer-loading-frame {
+    position: relative;
+    min-height: 220px;
+}
+
+.settings-drawer-loading-overlay {
+    z-index: 2;
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--bg-surface) 86%, transparent);
+}
+
+/* Ant Design modal + password fields */
+.settings-form-modal-fields {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin-top: 20px;
+}
+
+.settings-form-modal-field-label {
+    margin-bottom: 8px;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.settings-form-password-input.ant-input-affix-wrapper {
+    border-radius: 6px;
+    padding: 4px 12px;
+}
+
+.settings-form-password-input.ant-input-affix-wrapper:hover:not(.ant-input-affix-wrapper-disabled),
+.settings-form-password-input.ant-input-affix-wrapper:focus-within:not(.ant-input-affix-wrapper-disabled) {
+    border-color: var(--brand) !important;
+    background-color: var(--bg-surface) !important;
+}
+
+.settings-form-password-input.ant-input-affix-wrapper:focus-within:not(.ant-input-affix-wrapper-disabled) {
+    box-shadow: 0 0 0 2px var(--brand-tint);
+}
+
+.settings-form-modal-ok.ant-btn-primary:not(:disabled):not(.ant-btn-disabled) {
+    background: #83cd20 !important;
+    border-color: #83cd20 !important;
+    border-radius: 999px !important;
+    font-weight: 700 !important;
+}
+
+.settings-form-modal-ok.ant-btn-primary:not(:disabled):not(.ant-btn-disabled):hover {
+    background: #6fb018 !important;
+    border-color: #6fb018 !important;
+}
+
+.settings-form-modal-cancel {
+    border-radius: 999px !important;
+    font-weight: 700 !important;
+}
+
+.settings-form-modal-cancel:not(:disabled):not(.ant-btn-disabled):hover,
+.settings-form-modal-cancel:not(:disabled):not(.ant-btn-disabled):focus-visible {
+    background: #83cd20 !important;
+    border-color: #83cd20 !important;
+    color: #fff !important;
+}
+
+.csv-import-result {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.csv-import-result__outcome {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 12px 14px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg-subtle);
+    color: var(--text);
+}
+
+.csv-import-result__outcome svg {
+    flex: 0 0 auto;
+    margin-top: 1px;
+}
+
+.csv-import-result__outcome > div {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.csv-import-result__outcome.is-success svg {
+    color: var(--success);
+}
+
+.csv-import-result__outcome.is-warning svg {
+    color: var(--warning);
+}
+
+.csv-import-result__summary {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.csv-import-result__summary div {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg-surface);
+}
+
+.csv-import-result__summary span {
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.csv-import-result__summary strong {
+    font-size: 18px;
+    line-height: 1.2;
+}
+
+.csv-import-result__global-errors {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.csv-import-result__global-errors div {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border: 1px solid color-mix(in srgb, var(--danger) 35%, var(--border));
+    border-radius: 8px;
+    color: var(--danger);
+    background: color-mix(in srgb, var(--danger) 8%, var(--bg-surface));
+}
+
+.csv-import-result__rows-title {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.csv-import-result__rows-title span {
+    color: var(--text-muted);
+    font-size: 12px;
+}
+
+.csv-import-result__rows {
+    display: flex;
+    flex-direction: column;
+    max-height: 320px;
+    overflow: auto;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+}
+
+.csv-import-result__row {
+    display: grid;
+    grid-template-columns: 84px 104px minmax(90px, 130px) minmax(0, 1fr);
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+}
+
+.csv-import-result__row:last-child {
+    border-bottom: 0;
+}
+
+.csv-import-result__row-number,
+.csv-import-result__field {
+    color: var(--text-muted);
+}
+
+.csv-import-result__reason {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.csv-import-result__status {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-weight: 700;
+}
+
+.csv-import-result__status--success {
+    color: var(--success);
+}
+
+.csv-import-result__status--skipped {
+    color: var(--warning);
+}
+
+.csv-import-result__status--failed {
+    color: var(--danger);
+}
+
+.csv-import-result__empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 96px;
+    color: var(--text-muted);
+}

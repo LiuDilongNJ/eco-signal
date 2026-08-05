@@ -1,0 +1,61 @@
+/* Cameras / Sensors in Settings: DataPageLayout uses .data-content; cancel Data tab side margin + 圆角（外层 content 已有圆角） */
+.settings-page__content-inner .data-content {
+    margin-left: 0;
+    border-radius: 0;
+}
+
+.sensor-settings__name-cell {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    width: 100%;
+    min-width: 0;
+}
+
+.sensor-settings__name {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.sensor-settings__default-pill {
+    flex-shrink: 0;
+    padding: 2px 10px;
+    border-radius: 999px;
+    background: var(--brand);
+    color: var(--text-invert);
+    font-size: 0.72rem;
+    font-weight: 600;
+    line-height: 1.25;
+}
+
+.camera-settings__detail-meta {
+    margin-bottom: 16px;
+}
+
+.camera-settings__detail-meta .ant-descriptions-item-label {
+    width: 128px;
+    min-width: 128px;
+    max-width: 128px;
+}
+
+.camera-settings__lens-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.camera-settings__lens-row:last-child {
+    border-bottom: none;
+}
+
+.camera-settings__muted {
+    color: var(--text-muted);
+    font-size: 14px;
+}

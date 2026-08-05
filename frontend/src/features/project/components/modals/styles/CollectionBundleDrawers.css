@@ -1,0 +1,206 @@
+.collection-bundle-drawer .ant-drawer-section,
+.collection-bundle-drawer .ant-drawer-header,
+.collection-bundle-drawer .ant-drawer-body {
+    background: var(--bg-surface);
+    color: var(--text-main);
+}
+
+.collection-bundle-drawer .ant-drawer-title {
+    color: var(--text-main);
+    font-size: 16px;
+    font-weight: 600;
+    line-height: 1.5;
+}
+
+.collection-bundle-drawer .ant-drawer-header {
+    border-bottom-color: var(--border-color);
+}
+
+.collection-bundle-drawer .ant-drawer-extra .ant-btn,
+.collection-bundle-drawer .ant-drawer-body .ant-btn {
+    min-height: 32px;
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.collection-bundle-drawer .ant-btn-primary {
+    background: var(--brand);
+    border-color: var(--brand);
+    color: var(--text-invert);
+}
+
+.collection-bundle-drawer .ant-btn-primary:hover:not(:disabled),
+.collection-bundle-drawer .ant-btn-primary:focus-visible:not(:disabled) {
+    background: var(--brand-hover);
+    border-color: var(--brand-hover);
+}
+
+.collection-bundle-drawer .ant-btn-default {
+    background: var(--bg-surface);
+    border-color: var(--border-color);
+    color: var(--text-main);
+}
+
+.collection-bundle-drawer .ant-btn-default:hover:not(:disabled),
+.collection-bundle-drawer .ant-btn-default:focus-visible:not(:disabled) {
+    background: var(--brand);
+    border-color: var(--brand);
+    color: var(--text-invert);
+}
+
+.collection-bundle-drawer .ant-btn:disabled {
+    background: var(--bg-surface) !important;
+    border-color: var(--border-color) !important;
+    color: var(--text-main) !important;
+    opacity: 0.5;
+}
+
+.collection-bundle-drawer__content {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    min-height: 100%;
+    box-sizing: border-box;
+    padding: 24px;
+    color: var(--text-main);
+}
+
+.collection-bundle-drawer__file-picker {
+    display: inline-flex;
+    align-self: flex-start;
+}
+
+.collection-bundle-drawer__file-picker > input {
+    display: none;
+}
+
+.collection-bundle-drawer__progress {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.collection-bundle-drawer .ant-progress-inner {
+    background: var(--bg-surface-secondary);
+}
+
+.collection-bundle-drawer .ant-progress-bg {
+    background: var(--brand) !important;
+}
+
+.collection-bundle-drawer .ant-progress-status-exception .ant-progress-bg {
+    background: var(--danger) !important;
+}
+
+.collection-bundle-drawer .ant-progress-text {
+    color: var(--text-main);
+}
+
+.collection-bundle-drawer .ant-divider {
+    margin: 0;
+    border-color: var(--border-color);
+}
+
+.collection-bundle-drawer .ant-alert-description {
+    white-space: pre-line;
+}
+
+.collection-bundle-drawer .ant-descriptions,
+.collection-bundle-drawer .ant-descriptions-title,
+.collection-bundle-drawer .ant-descriptions-item-content {
+    color: var(--text-main);
+}
+
+.collection-bundle-drawer .ant-descriptions-bordered .ant-descriptions-item-label {
+    background: var(--bg-surface-secondary);
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
+.collection-bundle-drawer .ant-descriptions-bordered .ant-descriptions-row,
+.collection-bundle-drawer .ant-descriptions-bordered .ant-descriptions-item-label,
+.collection-bundle-drawer .ant-descriptions-bordered .ant-descriptions-item-content {
+    border-color: var(--border-color);
+}
+
+.collection-bundle-drawer__status.ant-tag {
+    margin: 0;
+    padding: 2px 10px;
+    background: var(--bg-surface-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 999px;
+    color: var(--text-secondary);
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 20px;
+    text-transform: capitalize;
+}
+
+.collection-bundle-drawer__status--processing.ant-tag {
+    background: var(--brand-tint);
+    border-color: var(--brand);
+    color: var(--brand);
+}
+
+.collection-bundle-drawer__status--success.ant-tag {
+    background: color-mix(in srgb, var(--success) 10%, transparent);
+    border-color: var(--success);
+    color: var(--success);
+}
+
+.collection-bundle-drawer__status--error.ant-tag {
+    background: var(--danger-tint);
+    border-color: var(--danger);
+    color: var(--danger);
+}
+
+.collection-bundle-drawer__section-title.ant-typography {
+    margin: 0;
+    color: var(--text-main);
+    font-size: 16px;
+    font-weight: 600;
+    line-height: 1.5;
+}
+
+.collection-bundle-drawer__records {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.collection-bundle-drawer__record {
+    padding: 12px;
+    background: var(--bg-surface-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+}
+
+.collection-bundle-drawer__record-content {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+}
+
+.collection-bundle-drawer .ant-alert-error {
+    background: var(--es-color-danger-soft) !important;
+    border-color: var(--danger) !important;
+}
+
+.collection-bundle-drawer .ant-alert-error .ant-alert-message,
+.collection-bundle-drawer .ant-alert-error .ant-alert-description {
+    color: var(--text-main) !important;
+}
+
+.collection-bundle-drawer .ant-alert-error .ant-alert-icon {
+    color: var(--danger) !important;
+}
+
+.collection-bundle-drawer .ant-typography,
+.collection-bundle-drawer .ant-typography-secondary {
+    color: var(--text-main);
+}
+
+.collection-bundle-drawer .ant-typography-secondary {
+    color: var(--text-secondary);
+}

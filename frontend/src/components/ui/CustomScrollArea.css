@@ -1,0 +1,174 @@
+/* 通用自定义滚动：DOM 轨道 + 滑块，隐藏原生条；与 index.css 中全局细滚动条视觉一致 */
+
+.custom-scroll-area {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  min-height: 0;
+  box-sizing: border-box;
+  position: relative;
+}
+
+.custom-scroll-area--fill {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.custom-scroll-area__main {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+.custom-scroll-area__body {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-x: contain;
+  overscroll-behavior-y: contain;
+  touch-action: pan-y;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.custom-scroll-area__body::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+.custom-scroll-area__content {
+  min-width: 0;
+}
+
+.custom-scroll-area__content--allow-horizontal {
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.custom-scroll-area__content--allow-horizontal::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+.custom-scroll-area__track {
+  flex-shrink: 0;
+  position: absolute;
+  right: 2px;
+  top: 2px;
+  bottom: 2px;
+  width: 6px;
+  z-index: 10;
+  border-radius: 999px;
+  transition: opacity 0.2s ease, background 0.15s ease;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.custom-scroll-area__track[data-shown="true"] {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* 只有当轨道可见且鼠标悬停在滚动区域时，才显示极淡的轨道背景 */
+.custom-scroll-area:hover .custom-scroll-area__track[data-shown="true"] {
+  background: rgba(15, 23, 42, 0.04);
+}
+
+[data-theme="dark"] .custom-scroll-area:hover .custom-scroll-area__track[data-shown="true"] {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.custom-scroll-area__thumb {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 6px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.28);
+  transition: background 0.15s ease;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.custom-scroll-area__thumb--horizontal {
+  width: 0;
+  height: 6px;
+}
+
+.custom-scroll-area__thumb--dragging {
+  cursor: grabbing;
+}
+
+[data-theme="dark"] .custom-scroll-area__thumb {
+  background: rgba(255, 255, 255, 0.28);
+}
+
+.custom-scroll-area__thumb--dragging {
+  cursor: grabbing;
+}
+
+/* 鼠标悬停到 6px 轨道区域（或滑块本身）时变主题色 */
+.custom-scroll-area__thumb:hover,
+.custom-scroll-area__thumb--dragging,
+.custom-scroll-area__track:hover .custom-scroll-area__thumb {
+  background: var(--brand);
+}
+
+[data-theme="dark"] .custom-scroll-area__thumb:hover,
+[data-theme="dark"] .custom-scroll-area__thumb--dragging,
+[data-theme="dark"] .custom-scroll-area__track:hover .custom-scroll-area__thumb {
+  background: var(--brand);
+}
+
+.custom-scroll-area__track--horizontal {
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  /* 覆盖纵向轨道的默认定位，确保横条在底部 */
+  top: auto;
+  bottom: 2px;
+  width: auto;
+  height: 0;
+  margin-left: 0;
+  margin-top: 0;
+}
+
+.custom-scroll-area__track--horizontal[data-shown="true"] {
+  height: 6px;
+}
+
+/* 鼠标移出不显示滚动条（仅对支持 hover 的设备生效） */
+@media (hover: hover) and (pointer: fine) {
+  .custom-scroll-area__track[data-shown="true"] {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .custom-scroll-area:hover .custom-scroll-area__track[data-shown="true"] {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .custom-scroll-area__track--horizontal[data-shown="true"] {
+    height: 0;
+  }
+
+  .custom-scroll-area:hover .custom-scroll-area__track--horizontal[data-shown="true"] {
+    height: 6px;
+  }
+}

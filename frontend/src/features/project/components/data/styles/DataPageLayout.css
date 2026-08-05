@@ -1,0 +1,1186 @@
+@import "../../common/styles/AntdSelectPopup.css";
+
+/* DataPageLayout.css */
+.data-search-input {
+    width: 200px;
+    height: 32px;
+    font-size: 14px;
+    border-radius: 6px;
+    background: var(--es-color-bg-input) !important;
+    border: 1px solid var(--border-color) !important;
+}
+
+
+.data-search-input:hover,
+.data-search-input:focus,
+.data-search-input-focused {
+    border-color: var(--brand) !important;
+    background: var(--es-color-bg-input) !important;
+}
+
+/* Toolbar Layout */
+.data-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    /* 与表格表头背景一致 */
+    /* background: var(--bg-surface-secondary); */
+    border-bottom: 1px solid var(--border-color);
+    gap: 12px 16px;
+    flex-wrap: wrap;
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+.data-toolbar-left {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex: 0 1 auto;
+    min-width: 0;
+}
+
+.data-table-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--text-main);
+}
+
+.data-toolbar-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
+    /* 允许在窄屏下收缩，否则按钮区 min-content 会把整行撑出视口 */
+    flex: 1 1 200px;
+    min-width: 0;
+    max-width: 100%;
+    justify-content: flex-end;
+}
+
+.data-action-group {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 8px;
+    row-gap: 8px;
+    max-width: 100%;
+}
+
+.data-toolbar .nav-center {
+    height: 32px;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+.data-toolbar .nav-center-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 32px;
+    padding: 6px 12px;
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 20px;
+    box-sizing: border-box;
+}
+
+.data-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    height: 32px;
+    font-size: 14px;
+    font-weight: 700;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: 999px;
+    color: var(--text-main);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.data-btn:hover:not(:disabled) {
+    border-color: var(--brand);
+    color: var(--text-invert);
+    background: var(--brand);
+}
+
+.data-btn.active {
+    border-color: var(--brand);
+    color: var(--text-invert);
+    background: var(--brand);
+}
+
+
+
+.data-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.data-btn svg {
+    flex-shrink: 0;
+}
+
+.data-add-dropdown .ant-dropdown-menu-item:hover,
+.data-add-dropdown .ant-dropdown-menu-submenu-title:hover,
+.data-add-dropdown .ant-dropdown-menu-item-active,
+.data-add-dropdown .ant-dropdown-menu-submenu-title-active {
+    background: var(--brand-tint) !important;
+}
+
+.data-table-wrapper {
+    --dpl-selection-col-width: 50px;
+    --data-table-border-color: #0000000f;
+    --data-table-filter-bg: #f8fafc;
+    position: relative;
+}
+
+[data-theme="dark"] .data-table-wrapper {
+    --data-table-border-color: var(--es-color-border);
+    --data-table-filter-bg: var(--es-color-bg-subtle);
+}
+
+/* 占满右侧内容区；具体表体高度由 TSX 中 scroll.y + ResizeObserver 计算 */
+.data-content .data-table-wrapper {
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+    background: var(--card-bg);
+}
+
+.data-content .data-table-shell {
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+}
+
+.data-content .data-table-shell > .es-data-table {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.data-table-loading-overlay {
+    z-index: 30;
+    background: color-mix(in srgb, var(--card-bg) 88%, transparent);
+    backdrop-filter: blur(1px);
+}
+
+.data-content .data-table-wrapper .ant-table-wrapper {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: visible;
+    position: static;
+}
+
+.data-content .data-table-wrapper .ant-spin-nested-loading {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.data-content .data-table-wrapper .ant-spin-container {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.data-content .data-table-pagination {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    min-height: 28px;
+    margin: 0 20px;
+}
+
+.data-content .data-table-pagination .ant-pagination {
+    display: flex !important;
+    margin: 0 !important;
+    align-items: center;
+    justify-content: flex-end;
+    flex-wrap: nowrap;
+    overflow: visible;
+    white-space: nowrap;
+}
+
+.data-content .data-table-pagination .ant-pagination-total-text,
+.data-content .data-table-pagination .ant-pagination-options {
+    flex-shrink: 0;
+    white-space: nowrap;
+}
+
+.data-content .data-table-pagination .ant-pagination-item,
+.data-content .data-table-pagination .ant-pagination-prev,
+.data-content .data-table-pagination .ant-pagination-next {
+    flex-shrink: 0;
+}
+
+.data-content .data-table-pagination .ant-pagination-item,
+.data-content .data-table-pagination .ant-pagination-prev,
+.data-content .data-table-pagination .ant-pagination-next {
+    min-width: 28px;
+    height: 28px;
+    line-height: 26px;
+}
+
+.data-content .data-table-pagination .ant-pagination-item {
+    width: auto;
+    padding-inline: 6px;
+}
+
+.data-content .data-table-pagination .ant-pagination-prev .ant-pagination-item-link,
+.data-content .data-table-pagination .ant-pagination-next .ant-pagination-item-link {
+    min-width: 28px;
+    width: 28px;
+    height: 28px;
+    line-height: 26px;
+}
+
+.data-content .data-table-pagination .ant-pagination-item a {
+    display: block;
+    min-width: 100%;
+    line-height: 26px;
+}
+
+.data-content .data-table-pagination .ant-pagination-options {
+    margin-inline-start: 8px;
+}
+
+.data-content .data-table-pagination .ant-pagination-options .ant-select-selector,
+.data-content .data-table-pagination .ant-pagination-options-size-changer.ant-select .ant-select-selector {
+    height: 28px !important;
+    min-height: 28px !important;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+}
+
+.data-content .data-table-pagination .ant-pagination-options .ant-select-selection-item,
+.data-content .data-table-pagination .ant-pagination-options .ant-select-selection-placeholder {
+    line-height: 26px !important;
+}
+
+.data-content .data-table-pagination .ant-pagination-options-quick-jumper input {
+    height: 28px;
+}
+
+.data-table-pagination .ant-pagination-item,
+.data-table-pagination .ant-pagination-prev,
+.data-table-pagination .ant-pagination-next {
+    min-width: 28px;
+    height: 28px;
+    line-height: 26px;
+}
+
+.data-table-pagination .ant-pagination-item {
+    width: auto;
+    padding-inline: 6px;
+}
+
+.data-table-pagination .ant-pagination-prev .ant-pagination-item-link,
+.data-table-pagination .ant-pagination-next .ant-pagination-item-link {
+    min-width: 28px;
+    width: 28px;
+    height: 28px;
+    line-height: 26px;
+}
+
+.data-table-pagination .ant-pagination-item a {
+    display: block;
+    min-width: 100%;
+    line-height: 26px;
+}
+
+/*
+ * antd Table 对 scroll.y 使用 max-height，内容不足时表体高度会收缩，横向滚动条会贴在最后一行下面。
+ * 用与 scroll.y 相同的固定 height，让表体区域始终占满，横条落在区域最下沿（分页上方）。
+ */
+.data-content .data-table-wrapper .ant-table-body {
+    height: var(--dpl-scroll-y) !important;
+    min-height: var(--dpl-scroll-y) !important;
+    max-height: var(--dpl-scroll-y) !important;
+    overflow: auto !important;
+    scrollbar-width: none;
+    /* Firefox */
+    -ms-overflow-style: none;
+    /* IE / Edge */
+}
+
+.data-content .data-table-wrapper .ant-table-body::-webkit-scrollbar,
+.data-content .data-table-wrapper .ant-table-header::-webkit-scrollbar {
+    display: none;
+    /* Chrome / Safari / Webkit */
+    width: 0;
+    height: 0;
+}
+
+/* 与 data-timeline 中非 antd 表格一致的可读字号（避免 ConfigProvider 误用 12px 全局 token） */
+.data-content .data-table-wrapper .ant-table {
+    font-size: 0.85rem;
+}
+
+.data-content .data-table-wrapper .ant-table-tbody>tr>td {
+    font-size: 0.85rem;
+}
+
+.dpl-th-layout {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+}
+
+.dpl-th-title {
+    flex: 1 1 auto;
+    min-width: 0;
+    line-height: 24px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.th-filter {
+    margin-top: 4px;
+    font-weight: normal;
+    width: 100%;
+    min-width: 0;
+}
+
+.dpl-filter-range {
+    width: 100%;
+    font-size: 12px;
+}
+
+/* 表头筛选控件统一使用紧凑的 28px 高度。 */
+.data-table-wrapper .dpl-filter-range.ant-picker {
+    height: 28px !important;
+    padding: 0 8px !important;
+    align-items: center;
+    box-sizing: border-box;
+    background: var(--data-table-filter-bg) !important;
+}
+
+.data-table-wrapper .dpl-filter-range.ant-picker .ant-picker-input > input {
+    height: 26px !important;
+    line-height: 26px !important;
+    font-size: 12px !important;
+}
+
+.dpl-filter-number-group {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    width: 100%;
+    min-width: 0;
+}
+
+.dpl-filter-input,
+.dpl-filter-select {
+    width: 100%;
+    font-size: 12px;
+    height: 28px;
+}
+
+.dpl-filter-number-input {
+    flex: 1 1 0;
+    min-width: 0;
+    font-size: 12px;
+    height: 28px;
+}
+
+/* 表头筛选：输入框与下拉选项字号一致 */
+.data-table-wrapper .dpl-filter-select.ant-select .ant-select-selector,
+.data-table-wrapper .dpl-filter-input.ant-input,
+.data-table-wrapper .dpl-filter-number-input.ant-input,
+.data-table-wrapper .dpl-filter-range.ant-picker {
+    height: 28px !important;
+    min-height: 28px !important;
+    font-size: 12px !important;
+    background: var(--data-table-filter-bg) !important;
+}
+
+.data-table-wrapper .dpl-filter-select.ant-select .ant-select-selector {
+    display: flex;
+    align-items: center;
+    padding-inline: 10px 30px !important;
+    border-radius: var(--es-radius-pill) !important;
+    border-color: var(--es-color-border) !important;
+    background: var(--data-table-filter-bg) !important;
+}
+
+.data-table-wrapper .dpl-filter-select.ant-select .ant-select-selection-wrap {
+    height: 100%;
+    align-items: center;
+}
+
+.data-table-wrapper .dpl-filter-select.ant-select .ant-select-arrow {
+    inset-inline-end: 10px;
+    color: var(--es-color-text-muted);
+}
+
+/* Ant 6 applies the control surface to the Select root; keep the descendant rule for
+ * compatibility with the older selector-based DOM used elsewhere in the project. */
+.data-table-wrapper--data-module .dpl-filter-select.ant-select,
+.data-table-wrapper--data-module .dpl-filter-select.ant-select .ant-select-selector,
+.data-table-wrapper--media-detail .dpl-filter-select.ant-select,
+.data-table-wrapper--media-detail .dpl-filter-select.ant-select .ant-select-selector {
+    background: var(--data-table-filter-bg) !important;
+    border-color: var(--es-color-border) !important;
+    border-radius: 4px !important;
+    color: var(--es-color-text) !important;
+}
+
+.data-table-wrapper--data-module .dpl-filter-select.ant-select .ant-select-content,
+.data-table-wrapper--data-module .dpl-filter-select.ant-select .ant-select-selection-item,
+.data-table-wrapper--data-module .dpl-filter-select.ant-select .ant-select-selection-placeholder,
+.data-table-wrapper--data-module .dpl-filter-select.ant-select .ant-select-input,
+.data-table-wrapper--media-detail .dpl-filter-select.ant-select .ant-select-content,
+.data-table-wrapper--media-detail .dpl-filter-select.ant-select .ant-select-selection-item,
+.data-table-wrapper--media-detail .dpl-filter-select.ant-select .ant-select-selection-placeholder,
+.data-table-wrapper--media-detail .dpl-filter-select.ant-select .ant-select-input {
+    color: var(--es-color-text) !important;
+}
+
+.data-table-wrapper--data-module .dpl-filter-select.ant-select .ant-select-suffix,
+.data-table-wrapper--data-module .dpl-filter-select.ant-select .ant-select-arrow,
+.data-table-wrapper--media-detail .dpl-filter-select.ant-select .ant-select-suffix,
+.data-table-wrapper--media-detail .dpl-filter-select.ant-select .ant-select-arrow {
+    color: var(--es-color-text-muted) !important;
+}
+
+
+[data-theme="light"].data-table-wrapper .ant-select.ant-select-outlined:not(.ant-select-customize-input) .ant-select-selector {
+    background-color: var(--data-table-filter-bg) !important;
+    border-color: var(--es-color-border) !important;
+    color: var(--es-color-text) !important;
+}
+
+
+
+[data-theme="dark"] .data-table-wrapper .ant-select.ant-select-outlined .ant-select-selection-item,
+[data-theme="dark"] .data-table-wrapper .ant-select.ant-select-outlined .ant-select-selection-placeholder {
+    color: var(--text-main) !important;
+}
+
+.data-table-wrapper .dpl-filter-select.ant-select-single .ant-select-selector .ant-select-selection-item,
+.data-table-wrapper .dpl-filter-select.ant-select-single .ant-select-selector .ant-select-selection-placeholder {
+    line-height: 26px !important;
+    font-size: 12px !important;
+}
+
+/* Hide native number input spinners to fix detached rendering bugs in sticky headers */
+.dpl-filter-number-input::-webkit-inner-spin-button,
+.dpl-filter-number-input::-webkit-outer-spin-button,
+input[type="number"].dpl-filter-input::-webkit-inner-spin-button,
+input[type="number"].dpl-filter-input::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    appearance: none;
+    margin: 0;
+}
+
+.data-content--theme-override {
+    --brand: #83cd20;
+    --brand-rgb: 131, 205, 32;
+    --brand-hover: #72b51b;
+    --brand-tint: rgba(131, 205, 32, 0.08);
+}
+
+.dpl-filter-number-input,
+input[type="number"].dpl-filter-input {
+    -moz-appearance: textfield;
+    appearance: textfield;
+}
+
+.dpl-filter-dash {
+    font-size: 12px;
+    color: var(--text-muted);
+    flex-shrink: 0;
+}
+
+.data-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 92px;
+    padding: 4px 12px;
+    border-radius: 6px;
+    border: 1px solid transparent;
+    background: var(--bg-surface);
+    color: var(--text-main);
+    font-size: 0.75rem;
+    font-weight: 600;
+    line-height: 1.1;
+    white-space: nowrap;
+    text-align: center;
+    box-shadow: none !important;
+    box-sizing: border-box;
+    line-height: 18px;
+}
+
+[data-theme="dark"] .data-badge {
+    background: var(--bg-capsule);
+}
+
+.data-badge-success {
+    background: rgba(16, 185, 129, 0.08) !important;
+    border-color: rgba(16, 185, 129, 0.4) !important;
+    color: #10b981 !important;
+}
+
+.data-badge-info {
+    background: rgba(245, 158, 11, 0.08) !important;
+    border-color: rgba(245, 158, 11, 0.45) !important;
+    color: #f59e0b !important;
+}
+
+.data-badge-warning {
+    background: rgba(245, 158, 11, 0.08) !important;
+    border-color: rgba(245, 158, 11, 0.45) !important;
+    color: #f59e0b !important;
+}
+
+.data-badge-neutral {
+    background: var(--bg-surface-secondary) !important;
+    color: #94a3b8 !important;
+    border: 1px solid var(--border-color) !important;
+}
+
+.data-badge-danger {
+    background: rgba(239, 68, 68, 0.06) !important;
+    border-color: rgba(239, 68, 68, 0.35) !important;
+    color: #ef4444 !important;
+}
+
+.data-badge-label-private {
+    background: rgba(37, 99, 235, 0.08) !important;
+    border-color: rgba(37, 99, 235, 0.35) !important;
+    color: #2563eb !important;
+}
+
+[data-theme="dark"] .data-badge-info,
+[data-theme="dark"] .data-badge-warning {
+    background: rgba(245, 158, 11, 0.12) !important;
+}
+
+[data-theme="dark"] .data-badge-success {
+    background: rgba(16, 185, 129, 0.12) !important;
+    border-color: rgba(16, 185, 129, 0.42) !important;
+    color: #34d399 !important;
+}
+
+[data-theme="dark"] .data-badge-danger {
+    background: rgba(239, 68, 68, 0.1) !important;
+}
+
+/* Ant Design Table Overrides previously in <style> block */
+
+/* 复选框列：自定义列 + colgroup 锁定 50px（表头/表体两张 table 均生效） */
+.data-table-wrapper .ant-table-header table,
+.data-table-wrapper .ant-table-body table {
+    width: 100% !important;
+    min-width: var(--dpl-table-scroll-x, 100%) !important;
+    table-layout: fixed !important;
+}
+
+.data-table-wrapper col.dpl-col-selection,
+.data-table-wrapper table colgroup > col:first-child {
+    width: var(--dpl-selection-col-width, 50px) !important;
+    min-width: var(--dpl-selection-col-width, 50px) !important;
+    max-width: var(--dpl-selection-col-width, 50px) !important;
+}
+
+.data-table-wrapper .dpl-th-selection,
+.data-table-wrapper .dpl-td-selection {
+    width: var(--dpl-selection-col-width, 50px) !important;
+    min-width: var(--dpl-selection-col-width, 50px) !important;
+    max-width: var(--dpl-selection-col-width, 50px) !important;
+    padding: 0 !important;
+    text-align: center;
+    vertical-align: middle;
+    box-sizing: border-box;
+    border-right: 1px solid var(--data-table-border-color) !important;
+}
+
+/* The explicit selection divider replaces Ant 6's fixed-column shadow line. */
+.data-table-wrapper .ant-table-cell-fix-start::after,
+.data-table-wrapper .ant-table-cell-fix-left-last::after,
+.data-table-wrapper .ant-table-container::before {
+    display: none !important;
+    content: none !important;
+    box-shadow: none !important;
+}
+
+/* Custom selection headers are not recognized by Ant's selection-column exclusion. */
+.data-table-wrapper .ant-table-thead > tr > th.dpl-th-selection::before,
+.data-table-wrapper .ant-table-thead > tr > th.studio-annot-th-selection::before {
+    display: none !important;
+    content: none !important;
+    background: transparent !important;
+}
+
+/* 勾选列横向滚动时冻结在左侧 */
+.data-table-wrapper .ant-table-thead > tr > th.dpl-th-selection,
+.data-table-wrapper .ant-table-tbody > tr > td.dpl-td-selection,
+.data-table-wrapper .ant-table-thead > tr > th.ant-table-cell-fix-left,
+.data-table-wrapper .ant-table-tbody > tr > td.ant-table-cell-fix-left {
+    position: sticky !important;
+    left: 0 !important;
+}
+
+.data-table-wrapper .ant-table-thead > tr > th.dpl-th-selection,
+.data-table-wrapper .ant-table-thead > tr > th.ant-table-cell-fix-left {
+    z-index: 5 !important;
+    background: var(--es-color-bg-subtle) !important;
+}
+
+.data-table-wrapper .ant-table-tbody > tr > td.dpl-td-selection,
+.data-table-wrapper .ant-table-tbody > tr > td.ant-table-cell-fix-left {
+    z-index: 2 !important;
+    background: var(--card-bg) !important;
+}
+
+.data-table-wrapper .ant-table-tbody > tr:hover > td.dpl-td-selection,
+.data-table-wrapper .ant-table-tbody > tr:hover > td.ant-table-cell-fix-left {
+    background: var(--bg-surface-secondary) !important;
+}
+
+.data-table-wrapper .dpl-select-head,
+.data-table-wrapper .dpl-select-cell {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+}
+
+.data-table-wrapper .ant-table-measure-row > td:first-child {
+    width: var(--dpl-selection-col-width, 50px) !important;
+    min-width: var(--dpl-selection-col-width, 50px) !important;
+    max-width: var(--dpl-selection-col-width, 50px) !important;
+    box-sizing: border-box;
+}
+
+.data-table-wrapper .ant-table-wrapper .ant-table-thead > tr > th.dpl-th-selection {
+    padding: 0 !important;
+    vertical-align: middle;
+}
+
+.data-table-wrapper .ant-table-wrapper .ant-table-thead>tr>th {
+    padding: 8px;
+    vertical-align: top;
+    overflow: hidden;
+    /* 排序图标在 .ant-table-column-sorter 上为 position:absolute；th 需为定位包含块，否则会相对滚动区定位叠到首行数据格 */
+    position: relative;
+}
+
+.data-table-wrapper .ant-table-column-sorters {
+    display: none !important;
+}
+
+.dpl-th-title-container {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    width: 100%;
+    min-width: 0;
+    user-select: none;
+}
+
+.dpl-th-title-container.sortable {
+    cursor: pointer;
+}
+
+.dpl-th-sort-icon {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    color: var(--text-muted);
+    transition: all 0.2s;
+}
+
+.dpl-th-sort-icon.active {
+    color: var(--brand);
+    opacity: 1;
+}
+
+.dpl-th-title-container.sortable:hover .dpl-th-sort-icon {
+    opacity: 1;
+    color: var(--brand);
+}
+
+.data-table-wrapper .ant-table-column-title {
+    flex: 1 1 100%;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    width: 100%;
+}
+
+
+/* Force table body rows to 50px height */
+.data-table-wrapper .ant-table-tbody>tr>td {
+    height: 50px;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+}
+
+/* Prevent text wrapping in table body cells */
+.data-table-wrapper .ant-table-tbody .ant-table-cell {
+    white-space: nowrap;
+}
+
+.data-table-wrapper .ant-table-tbody > tr > td.ant-table-cell,
+.data-table-wrapper .ant-table-cell-ellipsis,
+.data-table-wrapper .ant-table-cell-ellipsis > * {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.dpl-cell-text {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.dpl-cell-text--full {
+    width: max-content;
+    overflow: visible;
+    text-overflow: clip;
+}
+
+/* Ensure table header + body follow the app theme via CSS variables */
+.data-table-wrapper .ant-table {
+    background: var(--card-bg) !important;
+    border-radius: 0 !important;
+}
+
+.data-table-wrapper .ant-table-container {
+    border-radius: 0 !important;
+}
+
+.data-table-wrapper .ant-table-thead>tr>th,
+.data-table-wrapper .ant-table-thead>tr>td {
+    background: var(--es-color-bg-subtle) !important;
+    color: var(--es-color-text-secondary) !important;
+    border-bottom-color: var(--data-table-border-color) !important;
+    border-radius: 0 !important;
+}
+
+.data-table-wrapper .ant-table-tbody>tr>td {
+    background: var(--card-bg) !important;
+    color: var(--text-main) !important;
+    border-bottom-color: var(--data-table-border-color) !important;
+}
+
+.data-table-wrapper .ant-table-tbody>tr:hover>td {
+    background: var(--bg-surface-secondary) !important;
+}
+
+.data-table-wrapper .ant-table-placeholder {
+    pointer-events: none !important;
+}
+
+.data-table-wrapper .ant-table-placeholder>td {
+    background: var(--card-bg) !important;
+    border-bottom: none !important;
+}
+
+.data-table-wrapper .ant-table-empty .ant-table-tbody>tr.ant-table-placeholder>td {
+    border-bottom: none !important;
+}
+
+.data-table-empty-state {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    margin: 32px 0;
+    color: rgba(0, 0, 0, 0.25);
+    font-size: 14px;
+    line-height: 1.5715;
+}
+
+.data-table-empty-state svg {
+    display: block;
+    width: 64px;
+    height: 41px;
+    margin-bottom: 8px;
+}
+
+:root[data-theme="dark"] .data-table-empty-state {
+    color: rgba(255, 255, 255, 0.25);
+}
+
+
+
+.data-table-wrapper .ant-pagination-item-active,
+.data-table-pagination .ant-pagination-item-active {
+    border-color: var(--brand) !important;
+}
+
+.data-table-wrapper .ant-pagination-item-active a,
+.data-table-pagination .ant-pagination-item-active a {
+    color: var(--brand) !important;
+}
+
+.data-content-media-detail .data-table-pagination {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    min-height: 36px;
+    margin: 0 20px;
+}
+
+.data-content-media-detail .data-table-pagination .ant-pagination {
+    display: flex !important;
+    align-items: center;
+    justify-content: flex-end;
+    flex-wrap: nowrap;
+    gap: 8px;
+    margin: 0 !important;
+    white-space: nowrap;
+}
+
+.data-content-media-detail .data-table-pagination .ant-pagination-total-text {
+    flex-shrink: 0;
+    margin-inline-end: 0;
+}
+
+.data-content-media-detail .data-table-pagination .ant-pagination-item,
+.data-content-media-detail .data-table-pagination .ant-pagination-prev,
+.data-content-media-detail .data-table-pagination .ant-pagination-next {
+    flex-shrink: 0;
+    min-width: 28px !important;
+    height: 28px !important;
+    line-height: 26px !important;
+}
+
+.data-content-media-detail .data-table-pagination .ant-pagination-item {
+    padding-inline: 6px !important;
+    border-radius: 6px !important;
+}
+
+.data-content-media-detail .data-table-pagination .ant-pagination-item a {
+    line-height: 26px !important;
+}
+
+.data-content-media-detail .data-table-pagination .ant-pagination-item-active {
+    border-color: var(--brand) !important;
+    background: var(--bg-surface) !important;
+}
+
+.data-content-media-detail .data-table-pagination .ant-pagination-item-active a {
+    color: var(--brand) !important;
+}
+
+.data-content-media-detail .data-table-pagination .ant-pagination-prev .ant-pagination-item-link,
+.data-content-media-detail .data-table-pagination .ant-pagination-next .ant-pagination-item-link {
+    min-width: 28px !important;
+    width: 28px !important;
+    height: 28px !important;
+    line-height: 26px !important;
+    border-radius: 6px !important;
+}
+
+.data-content-media-detail .data-table-pagination .ant-pagination-options {
+    flex-shrink: 0;
+    margin-inline-start: 0 !important;
+}
+
+.data-content-media-detail .data-table-pagination .ant-pagination-options .ant-select-selector,
+.data-content-media-detail .data-table-pagination .ant-pagination-options-size-changer.ant-select .ant-select-selector {
+    height: 28px !important;
+    min-height: 28px !important;
+    border-radius: 6px !important;
+}
+
+.data-content-media-detail .data-table-pagination .ant-pagination-options .ant-select-selection-item {
+    line-height: 26px !important;
+}
+
+
+/* 表头筛选：聚焦环与边框使用主题色 */
+.data-table-wrapper .ant-input-affix-wrapper-focused,
+.data-table-wrapper .ant-input:focus,
+.data-table-wrapper .ant-input-focused {
+    border-color: var(--brand) !important;
+    box-shadow: 0 0 0 2px var(--brand-tint) !important;
+}
+
+.data-table-wrapper .dpl-filter-select.ant-select:hover,
+.data-table-wrapper .dpl-filter-select.ant-select-focused,
+.data-table-wrapper .dpl-filter-select.ant-select-open,
+.data-table-wrapper .ant-select-focused .ant-select-selector,
+.data-table-wrapper .ant-select-open .ant-select-selector {
+    background: var(--data-table-filter-bg) !important;
+    border-color: var(--brand) !important;
+    box-shadow: 0 0 0 2px var(--brand-tint) !important;
+    outline: none !important;
+}
+
+/* 日期范围：边框、激活格、今天标记 */
+.data-table-wrapper .ant-picker:hover,
+.data-table-wrapper .ant-picker-focused {
+    border-color: var(--brand) !important;
+}
+
+.data-table-wrapper .ant-picker-focused {
+    box-shadow: 0 0 0 2px var(--brand-tint) !important;
+}
+
+.data-table-wrapper .ant-picker-cell-in-view.ant-picker-cell-selected .ant-picker-cell-inner,
+.data-table-wrapper .ant-picker-cell-in-view.ant-picker-cell-range-start .ant-picker-cell-inner,
+.data-table-wrapper .ant-picker-cell-in-view.ant-picker-cell-range-end .ant-picker-cell-inner {
+    background: var(--brand) !important;
+}
+
+.data-table-wrapper .ant-picker-cell-in-view.ant-picker-cell-today .ant-picker-cell-inner::before {
+    border-color: var(--brand) !important;
+}
+
+.data-table-wrapper .ant-picker-range .ant-picker-active-bar {
+    background: var(--brand) !important;
+}
+
+/* 行选：复选框主题色；对勾/横线为白色，勿覆盖 AntD 的 ::after 勾线样式为品牌色 */
+.data-table-wrapper .ant-checkbox-checked .ant-checkbox-inner {
+    background-color: var(--brand) !important;
+    border-color: var(--brand) !important;
+}
+
+.data-table-wrapper .ant-checkbox-checked .ant-checkbox-inner::after {
+    border-color: var(--text-invert) !important;
+    border-top: 0 !important;
+    border-left: 0 !important;
+}
+
+.data-table-wrapper .ant-checkbox-indeterminate .ant-checkbox-inner {
+    background-color: var(--brand) !important;
+    border-color: var(--brand) !important;
+}
+
+.data-table-wrapper .ant-checkbox-indeterminate .ant-checkbox-inner::after {
+    background-color: var(--text-invert) !important;
+}
+
+.data-table-wrapper .ant-checkbox-wrapper:hover .ant-checkbox-inner,
+.data-table-wrapper .ant-checkbox:hover .ant-checkbox-inner {
+    border-color: var(--brand) !important;
+}
+
+.data-table-wrapper .ant-checkbox-input:focus-visible+.ant-checkbox-inner {
+    border-color: var(--brand) !important;
+}
+
+/* 分页跳转等链接色 */
+.data-table-wrapper .ant-pagination-options-quick-jumper input:focus,
+.data-table-pagination .ant-pagination-options-quick-jumper input:focus {
+    border-color: var(--brand) !important;
+    box-shadow: 0 0 0 2px var(--brand-tint) !important;
+}
+
+/* 日期/时间浮层挂在 body，需单独类名 */
+.settings-stage-drawer,
+.data-dpl-picker-popup--theme-override,
+.data-dpl-select-popup--theme-override {
+    --brand: #83cd20;
+    --brand-rgb: 131, 205, 32;
+    --brand-hover: #72b51b;
+    --brand-tint: rgba(131, 205, 32, 0.08);
+}
+
+.data-dpl-picker-popup .ant-picker-cell-in-view.ant-picker-cell-selected .ant-picker-cell-inner,
+.data-dpl-picker-popup .ant-picker-cell-in-view.ant-picker-cell-range-start .ant-picker-cell-inner,
+.data-dpl-picker-popup .ant-picker-cell-in-view.ant-picker-cell-range-end .ant-picker-cell-inner {
+    background: var(--brand) !important;
+}
+
+.data-dpl-picker-popup .ant-picker-cell-in-view.ant-picker-cell-today .ant-picker-cell-inner::before {
+    border-color: var(--brand) !important;
+}
+
+.data-dpl-picker-popup .ant-picker-time-panel-column>li.ant-picker-time-panel-cell-selected .ant-picker-time-panel-cell-inner {
+    background: var(--brand-tint) !important;
+    color: var(--brand) !important;
+}
+
+.data-dpl-picker-popup .ant-btn-primary {
+    background: var(--brand) !important;
+    border-color: var(--brand) !important;
+}
+
+/* All 模式下「当前」行：ID 靠左，Current 标签贴单元格右侧 */
+.data-cell-with-current {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+}
+
+.data-cell-with-current .num-cell {
+    flex-shrink: 0;
+    white-space: nowrap;
+}
+
+.data-current-pill {
+    display: inline-block;
+    flex-shrink: 0;
+    padding: 2px 10px;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    line-height: 1.25;
+    color: var(--text-invert);
+    background: var(--brand);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+}
+
+/* Task 标签：与 Current 药丸一致，使用主题色 */
+.data-task-pill {
+    display: inline-block;
+    flex-shrink: 0;
+    padding: 2px 10px;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    line-height: 1.25;
+    color: var(--text-invert);
+    background: var(--brand);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+}
+
+.collection-taxon-pills {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+}
+
+.collection-taxon-pills--scroll {
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+.collection-taxon-pills--scroll::-webkit-scrollbar {
+    display: none;
+}
+
+.data-table-wrapper .ant-table-cell-ellipsis > .collection-taxon-pills--scroll {
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    text-overflow: clip !important;
+}
+
+.collection-taxon-pill {
+    display: inline-flex;
+    align-items: center;
+    flex: 0 0 auto;
+    max-width: none;
+    min-width: 0;
+    padding: 3px 10px;
+    border-radius: 999px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-surface-secondary);
+    color: var(--text-main);
+    font-size: 0.75rem;
+    font-weight: 600;
+    line-height: 18px;
+    overflow: visible;
+    text-overflow: clip;
+    white-space: nowrap;
+}
+
+/* ── DOM 自定义水平滚动条 ── */
+.dpl-hscroll-track {
+    flex-shrink: 0;
+    width: 100%;
+    height: 6px;
+    background: transparent;
+    border-radius: 4px;
+    position: relative;
+}
+
+[data-theme="dark"] .dpl-hscroll-track {
+    background: transparent;
+}
+
+.dpl-hscroll-thumb {
+    position: absolute;
+    left: 0;
+    top: 0;
+    height: 100%;
+    border-radius: 4px;
+    background: rgba(15, 23, 42, 0.22);
+    transition: background 0.2s ease;
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+[data-theme="dark"] .dpl-hscroll-thumb {
+    background: rgba(255, 255, 255, 0.25);
+}
+
+.dpl-hscroll-thumb:hover,
+.dpl-hscroll-thumb--dragging {
+    background: var(--brand) !important;
+}
+
+.dpl-hscroll-thumb--dragging {
+    cursor: grabbing;
+}
+
+/* 主题切换全屏遮罩：复用 index.css 中的 spinner 样式 */
+.dpl-theme-loader-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-page);
+    backdrop-filter: blur(4px);
+    animation: dplFadeIn 0.2s ease-out;
+}
+
+@keyframes dplFadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}

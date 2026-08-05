@@ -1,0 +1,298 @@
+services:
+
+  db:
+    image: ${DOCKER_IMAGE_POSTGIS:-imresamu/postgis:17-3.5}
+    restart: always
+    ports:
+      - "25432:5432"
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}" ]
+      interval: 10s
+      retries: 5
+      start_period: 30s
+      timeout: 10s
+    volumes:
+      - app-db-data:/var/lib/postgresql/data/pgdata
+    env_file:
+      - .env
+    environment:
+      - PGDATA=/var/lib/postgresql/data/pgdata
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD?Variable not set}
+      - POSTGRES_USER=${POSTGRES_USER?Variable not set}
+      - POSTGRES_DB=${POSTGRES_DB?Variable not set}
+
+  geo_db:
+    build:
+      context: ./geo_db
+      args:
+        POSTGIS_BASE_IMAGE: ${POSTGIS_BASE_IMAGE:-imresamu/postgis:17-3.5}
+    restart: always
+    ports:
+      - "25433:5432"
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d geo_db" ]
+      interval: 10s
+      retries: 5
+      start_period: 30s
+      timeout: 10s
+    volumes:
+      - geo_db_data:/var/lib/postgresql/data/pgdata
+      - ./data:/data
+    environment:
+      - PGDATA=/var/lib/postgresql/data/pgdata
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD?Variable not set}
+      - POSTGRES_USER=${POSTGRES_USER?Variable not set}
+      - POSTGRES_DB=geo_db
+      - GEO_DB_AUTO_DOWNLOAD=${GEO_DB_AUTO_DOWNLOAD:-false}
+      - GEO_DB_READY_URL=${GEO_DB_READY_URL}
+      - GEO_DB_XR_SEED_URL=${GEO_DB_XR_SEED_URL}
+    # Start postgres and then run geo_init.sh in the background
+    command: bash -c "docker-entrypoint.sh postgres & sleep 5 && /usr/local/bin/geo_init.sh && wait"
+
+  redis:
+    image: ${DOCKER_IMAGE_REDIS:-redis:7-alpine}
+    restart: always
+    # Refresh sessions live only in Redis: keep AOF persistence and never expose it
+    # to the host network without auth (host port mapping is dev-only, see override).
+    command: redis-server --appendonly yes --appendfsync everysec --requirepass "${REDIS_PASSWORD:-}"
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+    healthcheck:
+      test: [ "CMD-SHELL", "redis-cli ${REDIS_PASSWORD:+-a $$REDIS_PASSWORD} --no-auth-warning ping | grep -q PONG" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - redis-data:/data
+
+  rabbitmq:
+    image: ${DOCKER_IMAGE_RABBITMQ:-rabbitmq:3-management}
+    restart: always
+    healthcheck:
+      test: [ "CMD", "rabbitmq-diagnostics", "-q", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    environment:
+      - RABBITMQ_DEFAULT_USER=${RABBITMQ_USER:-ecosignal}
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASSWORD:-ecosignal}
+      - RABBITMQ_DEFAULT_VHOST=${RABBITMQ_VHOST:-/}
+    ports:
+      - "25672:15672"
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+
+  backend:
+    image: '${DOCKER_IMAGE_BACKEND?Variable not set}:${TAG-latest}'
+    restart: always
+    ports:
+      - "28000:8000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      db:
+        condition: service_healthy
+        restart: true
+      geo_db:
+        condition: service_healthy
+        restart: true
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      - DOMAIN=${DOMAIN}
+      - ENVIRONMENT=${ENVIRONMENT}
+      - BACKEND_CORS_ORIGINS=${BACKEND_CORS_ORIGINS}
+      - SECRET_KEY=${SECRET_KEY?Variable not set}
+      - FIRST_SUPERUSER=${FIRST_SUPERUSER?Variable not set}
+      - FIRST_SUPERUSER_PASSWORD=${FIRST_SUPERUSER_PASSWORD?Variable not set}
+      - POSTGRES_SERVER=db
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_USER=${POSTGRES_USER?Variable not set}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD?Variable not set}
+      - SENTRY_DSN=${SENTRY_DSN}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
+      - RABBITMQ_USER=${RABBITMQ_USER:-ecosignal}
+      - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD:-ecosignal}
+      - RABBITMQ_VHOST=${RABBITMQ_VHOST:-/}
+      - GEO_DB_SERVER=geo_db
+      - GEO_DB_PORT=5432
+      - GEO_DB_NAME=geo_db
+      - SKIP_PRESTART=true
+      - PROMETHEUS_MULTIPROC_DIR=/tmp/prometheus
+      - PROMETHEUS_MULTIPROC_CLEANUP=true
+
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8000/api/v1/health" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+    build:
+      context: ./backend
+      args:
+        PYTHON_BASE_IMAGE: ${PYTHON_BASE_IMAGE:-python:3.12-slim}
+
+    # Using entrypoint.sh to handle prestart and command execution
+    command:
+      - /bin/sh
+      - -c
+      - >-
+        exec gunicorn app.main:app
+        -k uvicorn.workers.UvicornWorker
+        --bind 0.0.0.0:8000
+        --workers "${WEB_CONCURRENCY:-2}"
+        --timeout "${GUNICORN_TIMEOUT:-120}"
+        --graceful-timeout "${GUNICORN_GRACEFUL_TIMEOUT:-30}"
+        --keep-alive "${GUNICORN_KEEPALIVE:-5}"
+        --max-requests "${GUNICORN_MAX_REQUESTS:-1000}"
+        --max-requests-jitter "${GUNICORN_MAX_REQUESTS_JITTER:-100}"
+        --config /app/app/core/gunicorn.py
+        --access-logfile -
+        --error-logfile -
+    volumes:
+      - app-media-data:/app/sounds
+      - ${LEGACY_PROJECT_DIR:-./ecoSound-web}/sounds:/app/sounds/sounds
+      - ${LEGACY_PROJECT_DIR:-./ecoSound-web}/sound_images:/app/sounds/images
+      - ${LEGACY_PROJECT_DIR:-./ecoSound-web}/project_images:/app/sounds/projects
+      - prometheus-metrics:/tmp/prometheus
+    cpus: 2.0
+
+  worker:
+    image: '${DOCKER_IMAGE_BACKEND?Variable not set}:${TAG-latest}'
+    restart: always
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      backend:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+        restart: true
+      geo_db:
+        condition: service_healthy
+        restart: true
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      - DOMAIN=${DOMAIN}
+      - ENVIRONMENT=${ENVIRONMENT}
+      - BACKEND_CORS_ORIGINS=${BACKEND_CORS_ORIGINS}
+      - SECRET_KEY=${SECRET_KEY?Variable not set}
+      - FIRST_SUPERUSER=${FIRST_SUPERUSER?Variable not set}
+      - FIRST_SUPERUSER_PASSWORD=${FIRST_SUPERUSER_PASSWORD?Variable not set}
+      - POSTGRES_SERVER=db
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_USER=${POSTGRES_USER?Variable not set}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD?Variable not set}
+      - SENTRY_DSN=${SENTRY_DSN}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
+      - RABBITMQ_USER=${RABBITMQ_USER:-ecosignal}
+      - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD:-ecosignal}
+      - RABBITMQ_VHOST=${RABBITMQ_VHOST:-/}
+      - GEO_DB_SERVER=geo_db
+      - GEO_DB_PORT=5432
+      - GEO_DB_NAME=geo_db
+      - SKIP_PRESTART=true
+      - PYTHONWARNINGS=ignore:.*np.object.*:FutureWarning
+      - WORKER_PREFETCH_COUNT=1
+      - WORKER_QUEUE=interactive
+      - PROMETHEUS_MULTIPROC_DIR=/tmp/prometheus
+    # Using entrypoint.sh with SKIP_PRESTART=true
+    command: python -m app.workers.rabbitmq_worker
+    volumes:
+      - app-media-data:/app/sounds
+      - ${LEGACY_PROJECT_DIR:-./ecoSound-web}/sounds:/app/sounds/sounds
+      - ${LEGACY_PROJECT_DIR:-./ecoSound-web}/sound_images:/app/sounds/images
+      - ${LEGACY_PROJECT_DIR:-./ecoSound-web}/project_images:/app/sounds/projects
+      - prometheus-metrics:/tmp/prometheus
+    cpus: 1.0
+
+  worker-analysis:
+    profiles: ["production"]
+    image: '${DOCKER_IMAGE_BACKEND?Variable not set}:${TAG-latest}'
+    restart: always
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      backend:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      - POSTGRES_SERVER=db
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_USER=${POSTGRES_USER?Variable not set}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD?Variable not set}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
+      - RABBITMQ_USER=${RABBITMQ_USER:-ecosignal}
+      - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD:-ecosignal}
+      - RABBITMQ_VHOST=${RABBITMQ_VHOST:-/}
+      - SKIP_PRESTART=true
+      - WORKER_PREFETCH_COUNT=1
+      - WORKER_QUEUE=analysis
+      - PROMETHEUS_MULTIPROC_DIR=/tmp/prometheus
+    command: python -m app.workers.rabbitmq_worker
+    volumes:
+      - app-media-data:/app/sounds
+      - ${LEGACY_PROJECT_DIR:-./ecoSound-web}/sounds:/app/sounds/sounds
+      - ${LEGACY_PROJECT_DIR:-./ecoSound-web}/sound_images:/app/sounds/images
+      - ${LEGACY_PROJECT_DIR:-./ecoSound-web}/project_images:/app/sounds/projects
+      - prometheus-metrics:/tmp/prometheus
+    cpus: 1.0
+
+  frontend:
+    image: '${DOCKER_IMAGE_FRONTEND?Variable not set}:${TAG-latest}'
+    restart: always
+    depends_on:
+      backend:
+        condition: service_started
+    build:
+      context: ./frontend
+      args:
+        NODE_BASE_IMAGE: ${NODE_BASE_IMAGE:-node:22-alpine}
+        NGINX_BASE_IMAGE: ${NGINX_BASE_IMAGE:-nginx:alpine}
+        VITE_API_BASE_URL: /api
+        NODE_ENV: production
+    ports:
+      - "${FRONTEND_PORT:-80}:80"
+    volumes:
+      - app-media-data:/usr/share/nginx/media:ro
+      - ${LEGACY_PROJECT_DIR:-./ecoSound-web}/sounds:/usr/share/nginx/media/sounds:ro
+      - ${LEGACY_PROJECT_DIR:-./ecoSound-web}/sound_images:/usr/share/nginx/media/images:ro
+      - ${LEGACY_PROJECT_DIR:-./ecoSound-web}/project_images:/usr/share/nginx/media/projects:ro
+volumes:
+  app-db-data:
+  redis-data:
+  rabbitmq-data:
+  app-media-data:
+  geo_db_data:
+  prometheus-metrics:

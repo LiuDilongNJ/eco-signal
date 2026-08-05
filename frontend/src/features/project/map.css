@@ -1,0 +1,934 @@
+/**
+ * MapTab 专用补充 CSS
+ * 
+ * 原始 project.css 中已有 map 相关样式，此文件添加 React 版本特有的组件样式
+ *
+ * 层叠（z-index，自下而上）:
+ *   1  — 地图容器（Leaflet 瓦片 / 标记 / 多边形在容器内自洽）
+ *   10 — 左上筛选条 / 筛选抽屉
+ *   20 — 右侧站点详情侧栏（高于筛选，宽屏展开时与左侧重叠也能操作关闭）
+ *   面板内 Realm 下拉：遮罩与菜单再抬高一级
+ */
+
+/* ----- Map Layout ----- */
+.map-layout {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  isolation: isolate;
+}
+
+.map-filter-bar {
+  position: absolute;
+  top: 20px;
+  left: 24px;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  opacity: 0;
+  transform: translateX(-20px);
+  pointer-events: none;
+  transition: all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.map-filter-bar.visible {
+  opacity: 1;
+  transform: translateX(0);
+  pointer-events: auto;
+}
+
+.map-filter-toggle {
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  background: var(--bg-capsule);
+  border: 1px solid transparent;
+  box-shadow: inset 1px 1px 3px rgba(0, 0, 0, 0.04), inset -1px -1px 3px rgba(255, 255, 255, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--text-secondary);
+  transition: all 0.2s ease;
+  padding: 0;
+}
+
+[data-theme="dark"] .map-filter-toggle {
+  box-shadow: inset 1px 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.filter-icon-svg {
+  stroke-width: 2.5px;
+}
+
+.map-filter-toggle:hover {
+  /* 与顶部导航按钮 hover 一致：不位移，只变色 */
+  transform: none;
+  background: var(--brand);
+  color: white;
+  border-color: var(--brand);
+  box-shadow: 0 4px 12px rgba(var(--brand-rgb), 0.3);
+}
+
+.map-filter-panel {
+  position: absolute;
+  top: 20px;
+  left: 24px;
+  bottom: 20px;
+  z-index: 10;
+  width: 300px;
+  background: var(--card-bg);
+  border-radius: 20px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+  display: flex;
+  flex-direction: column;
+  overflow: visible;
+  border: 1px solid var(--border-color);
+
+  /* Transition for show/hide */
+  opacity: 0;
+  transform: translateX(-30px);
+  pointer-events: none;
+  transition: all 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.map-filter-panel.visible {
+  opacity: 1;
+  transform: translateX(0);
+  pointer-events: auto;
+}
+
+@keyframes slideInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.map-filter-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--border-color);
+  flex-shrink: 0;
+}
+
+.map-filter-panel-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-weight: 800;
+  font-size: 1.1rem;
+  color: var(--text-main);
+}
+
+.map-filter-panel-title svg {
+  color: var(--brand);
+}
+
+.map-filter-close {
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  background: var(--bg-capsule);
+  border: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.map-filter-close:hover {
+  /* 与 “All Realms” 下拉触发器 hover 一致 */
+  background: var(--bg-surface-hover);
+  border-color: var(--brand);
+  color: var(--text-main);
+}
+
+.map-filter-close:focus-visible {
+  background: var(--bg-surface-hover);
+  border-color: var(--brand);
+  outline: none;
+  box-shadow: 0 0 0 2px var(--brand-tint);
+}
+
+.map-filter-panel-body {
+  padding: 24px;
+  padding-bottom: 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  flex: 1;
+  min-height: 0;
+  /* 与面板一致用 visible，避免绝对定位的下拉列表被裁切；选项过多时由 .filter-dropdown-menu 内部滚动 */
+  overflow: visible;
+}
+
+.map-media-type-segment {
+  width: 100%;
+  height: 32px;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+.map-media-type-segment .nav-center-btn {
+  flex: 1 1 0;
+  min-width: 0;
+  height: 32px;
+  padding: 6px 12px;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 20px;
+  text-align: center;
+  box-sizing: border-box;
+}
+
+.filter-select-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.filter-select {
+  width: 100%;
+  height: 32px;
+  appearance: none;
+  -webkit-appearance: none;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  padding: 6px 40px 6px 12px;
+  border-radius: 24px;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 20px;
+  color: var(--text-main);
+  cursor: pointer;
+  outline: none;
+  transition: all 0.2s;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.02);
+}
+
+.filter-select:hover:not(.disabled) {
+  border-color: var(--border-light);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+  background: var(--card-bg);
+}
+
+.filter-select:focus-visible:not(.disabled) {
+  border-color: var(--border-light);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+}
+
+/* Custom Dropdown Styles */
+.custom-dropdown-wrapper {
+  position: relative;
+  z-index: 2;
+}
+
+/* 展开时整行抬高，避免下方兄弟按钮盖住当前下拉菜单 */
+.custom-dropdown-wrapper:has(.filter-select-btn.open) {
+  z-index: 50;
+}
+
+.filter-select-btn {
+  width: 100%;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  background: var(--bg-capsule);
+  border: 1px solid var(--border-color);
+  padding: 6px 12px !important;
+  border-radius: 999px;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 20px;
+  color: var(--text-main);
+  cursor: pointer;
+  outline: none;
+  transition: all 0.2s;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.02);
+  box-sizing: border-box;
+}
+
+.filter-select-btn:hover:not(:disabled),
+.filter-select-btn.open:not(:disabled) {
+  border-color: var(--brand);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+  background: var(--bg-surface-hover);
+}
+
+.filter-select-btn:disabled {
+  opacity: 0.72;
+  cursor: not-allowed;
+  box-shadow: none;
+  color: var(--text-muted);
+}
+
+.filter-select-btn:disabled .filter-select-btn-icon {
+  color: var(--text-muted);
+}
+
+.filter-select-placeholder {
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.filter-select-value {
+  display: flex;
+  align-items: center;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.filter-select-label,
+.filter-dropdown-label {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.filter-select-btn-icon {
+  color: var(--text-main);
+  flex-shrink: 0;
+}
+
+.dropdown-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: transparent;
+}
+
+.filter-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  width: 100%;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 280px;
+  overflow: hidden;
+  z-index: 110;
+}
+
+.filter-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 6px 12px;
+  background: transparent;
+  border: none !important;
+  border-top: none !important;
+  border-radius: 6px;
+  font-family: var(--font-sans);
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-main);
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s;
+}
+
+.filter-dropdown-item:hover {
+  /* Match data module Antd Select popup hover background. */
+  background: var(--brand-tint);
+  color: var(--text-main);
+}
+
+.filter-dropdown-item.selected {
+  background: rgba(var(--brand-rgb), 0.18);
+  color: var(--text-main);
+  font-weight: 600;
+}
+
+.filter-dropdown-item.selected:hover {
+  background: rgba(var(--brand-rgb), 0.18);
+}
+
+/* 暗色模式：hover / selected 与 data 模块一致（克制高亮） */
+[data-theme="dark"] .filter-dropdown-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-main);
+}
+
+[data-theme="dark"] .filter-dropdown-item.selected {
+  background: rgba(var(--brand-rgb), 0.18);
+  color: var(--text-main);
+}
+
+.filter-dropdown-item .filter-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.filter-select.disabled {
+  background: var(--bg-body);
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+.filter-select-icon {
+  position: absolute;
+  right: 14px;
+  pointer-events: none;
+  color: var(--text-main);
+}
+
+.filter-select-icon.disabled-icon {
+  color: var(--text-muted);
+}
+
+.filter-reset-btn {
+  margin-top: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  height: 32px;
+  padding: 6px 12px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--text-main);
+  cursor: pointer;
+  transition: all 0.2s;
+  box-sizing: border-box;
+}
+
+.filter-reset-btn:hover {
+  border-color: var(--brand);
+  background: var(--brand);
+  color: var(--text-invert);
+}
+
+/* ----- Map Container ----- */
+.map-container-wrapper {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1;
+  overflow: hidden;
+  box-shadow: var(--card-shadow);
+}
+
+.map-loading-state {
+  background: var(--bg-surface);
+}
+
+/* ----- Site Sidebar Panel ----- */
+.site-sidebar-panel {
+  position: absolute;
+  top: 20px;
+  bottom: 20px;
+  right: 20px;
+  width: 375px;
+  background: var(--card-bg);
+  border-radius: var(--radius);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+
+  /* Transition for show/hide */
+  opacity: 0;
+  transform: translateX(30px);
+  pointer-events: none;
+  transition: opacity 0.4s cubic-bezier(0.2, 0.8, 0.2, 1),
+    transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1),
+    width 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.site-sidebar-panel.visible {
+  opacity: 1;
+  transform: translateX(0);
+  pointer-events: auto;
+}
+
+/* Wide enough for 3 media cards per row (matches Sites sidebar expanded ~1080px) */
+.site-sidebar-panel--wide {
+  width: min(1080px, calc(100vw - 40px));
+}
+
+/* ----- Site sidebar: map click detail (hero + recordings) ----- */
+.site-sidebar-hero {
+  flex-shrink: 0;
+  padding: 16px 18px 18px;
+  color: var(--text-invert);
+}
+
+.site-sidebar-hero-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.site-sidebar-hero-text {
+  min-width: 0;
+}
+
+.site-sidebar-hero-title {
+  font-weight: 800;
+  font-size: 1.6rem;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+}
+
+.site-sidebar-hero-sub {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  opacity: 0.95;
+}
+
+.site-sidebar-hero-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.site-sidebar-icon-btn {
+  border: none;
+  border-radius: 999px;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s, transform 0.15s;
+}
+
+.site-sidebar-icon-btn--on-hero {
+  background: rgba(255, 255, 255, 0.2);
+  color: var(--text-invert);
+}
+
+.site-sidebar-icon-btn--on-hero:hover {
+  background: rgba(255, 255, 255, 0.32);
+  transform: scale(1.04);
+}
+
+/* Dark theme: avoid bright hover tint on night mode */
+[data-theme="dark"] .site-sidebar-icon-btn--on-hero {
+  background: rgba(0, 0, 0, 0.28);
+  color: rgba(255, 255, 255, 0.92);
+}
+
+[data-theme="dark"] .site-sidebar-icon-btn--on-hero:hover {
+  background: rgba(0, 0, 0, 0.42);
+}
+
+.site-sidebar-body--detail {
+  gap: 0;
+  padding: 0;
+}
+
+.site-sidebar-info-block {
+  flex-shrink: 0;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.site-sidebar-info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  font-size: 0.875rem;
+}
+
+.site-sidebar-info-label {
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.site-sidebar-info-value {
+  color: var(--text-main);
+  text-align: right;
+}
+
+.site-sidebar-info-divider {
+  height: 1px;
+  background: var(--border-color);
+  margin: 10px 0;
+}
+
+.site-sidebar-media-section {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  margin-top: 10px;
+  padding: 0 20px 16px;
+}
+
+.site-sidebar-media-heading {
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+}
+
+.site-sidebar-media-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.site-sidebar-media-empty {
+  color: rgba(0, 0, 0, 0.25);
+  padding: 12px 0;
+}
+
+:root[data-theme="dark"] .site-sidebar-media-empty {
+  color: rgba(255, 255, 255, 0.25);
+}
+
+.site-sidebar-media-list-item {
+  width: 100%;
+  flex-shrink: 0;
+  min-width: 0;
+}
+
+.site-sidebar-panel--wide .site-sidebar-media-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  align-content: start;
+  grid-auto-rows: max-content;
+}
+
+.site-sidebar-panel--wide .site-sidebar-media-list-item {
+  width: auto;
+}
+
+.site-sidebar-coords {
+  padding: 14px 18px 18px;
+  border-top: 1px solid var(--border-color);
+  margin-top: auto;
+}
+
+.site-sidebar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  flex-shrink: 0;
+}
+
+.site-sidebar-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 800;
+  font-size: 1.05rem;
+  color: var(--text-main);
+}
+
+.site-sidebar-close {
+  background: var(--bg-surface-secondary);
+  border: none;
+  border-radius: 999px;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--text-secondary);
+  transition: all 0.2s;
+}
+
+.site-sidebar-close:hover {
+  background: var(--brand-tint);
+  color: var(--brand);
+}
+
+.site-sidebar-body {
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Fill panel below hero; min-height:0 so nested overflow-y scroll works */
+.site-sidebar-panel>.site-sidebar-body {
+  flex: 1;
+  min-height: 0;
+}
+
+.site-sidebar-body.site-sidebar-body--detail {
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.site-sidebar-scroll-area {
+  flex: 1;
+  min-height: 0;
+}
+
+.site-sidebar-scroll-content {
+  /* 不在滚动内容根上加 padding，避免 sticky 区域滚动时产生位移观感 */
+  padding: 0;
+  box-sizing: border-box;
+}
+
+/* 侧边栏滚动条：默认隐藏，hover 才显示 */
+.site-sidebar-scroll-area .custom-scroll-area__track[data-shown="true"] {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.site-sidebar-scroll-area:hover .custom-scroll-area__track[data-shown="true"] {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.site-sidebar-fixed-info {
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--bg-surface);
+  padding: 16px 20px 0;
+  z-index: 99;
+}
+
+
+.site-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.site-stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.site-stat-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  background: var(--bg-surface-secondary);
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+}
+
+.site-stat-icon {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-surface);
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+}
+
+.site-stat-val {
+  font-weight: 800;
+  font-size: 1rem;
+  color: var(--text-main);
+}
+
+.site-stat-label {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.site-detail-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.site-detail-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  letter-spacing: 0.5px;
+}
+
+.site-detail-value {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  font-weight: 600;
+  font-family: "JetBrains Mono", monospace;
+}
+
+.site-sensor-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.site-sensor-tag {
+  background: var(--bg-surface-secondary);
+  border: 1px solid var(--border-color);
+  padding: 4px 10px;
+  border-radius: 8px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+/* ----- Site Marker (Leaflet custom)；--leaflet 避免与 project.css 通用 .site-marker-pin 冲突 ----- */
+.site-marker-pin.site-marker-pin--leaflet {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: var(--sm-size, 40px);
+  height: var(--sm-size, 40px);
+  border-radius: 50%;
+  border: 3.5px solid;
+  background: var(--bg-surface);
+  box-sizing: border-box;
+  font-family: var(--font-sans);
+  transition: all 0.2s ease;
+  cursor: pointer;
+  line-height: 1.1;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.site-marker-val {
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: var(--text-main);
+  line-height: 1;
+  max-width: 100%;
+  min-width: 0;
+  padding: 0 3px;
+  box-sizing: border-box;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.site-marker-lbl {
+  font-size: 7px;
+  font-weight: 800;
+  color: var(--text-secondary);
+  margin-top: 1px;
+  line-height: 1;
+}
+
+.site-marker-pin.site-marker-pin--leaflet:hover {
+  transform: scale(1.15);
+}
+
+/* 聚合簇：外圈 proportional ring（conic-gradient 由内联 style 注入） */
+.site-marker-cluster.site-marker-cluster--leaflet {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--sm-size, 40px);
+  height: var(--sm-size, 40px);
+  border-radius: 50%;
+  box-sizing: border-box;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+.site-marker-cluster--leaflet .site-marker-cluster-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  /* inner 越大，外圈(聚合边框)越细 */
+  width: calc(var(--sm-size, 40px) * 0.8);
+  height: calc(var(--sm-size, 40px) * 0.8);
+  min-width: 0;
+  border-radius: 50%;
+  background: var(--bg-surface);
+  box-sizing: border-box;
+}
+
+.site-marker-cluster--leaflet .site-marker-val {
+  color: var(--text-main);
+  font-size: 0.75rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.site-marker-cluster--leaflet .site-marker-lbl {
+  font-size: 7px;
+  font-weight: 800;
+  color: var(--text-secondary);
+  margin-top: 1px;
+  line-height: 1;
+  letter-spacing: 0.4px;
+}
+
+.site-marker-cluster.site-marker-cluster--leaflet:hover {
+  transform: scale(1.15);
+}
+
+/* fix leaflet popup style */
+.leaflet-popup-content-wrapper {
+  background: var(--card-bg) !important;
+  color: var(--text-main) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15) !important;
+  font-family: var(--font-sans) !important;
+}
+
+.leaflet-popup-tip {
+  background: var(--card-bg) !important;
+}

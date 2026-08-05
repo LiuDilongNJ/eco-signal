@@ -1,0 +1,137 @@
+/**
+ * Eco-Signal semantic design tokens.
+ *
+ * Components consume only --es-* names. Theme variants override values, never
+ * token names. Legacy aliases live in index.css while business styles migrate.
+ */
+:root {
+  /* Color */
+  --es-color-brand: #83cd20;
+  --es-color-brand-rgb: 131, 205, 32;
+  --es-color-brand-hover: #72b51b;
+  --es-color-brand-active: #609b16;
+  --es-color-brand-soft: rgba(var(--es-color-brand-rgb), 0.1);
+  --es-color-bg-page: #f8fafc;
+  --es-color-bg-surface: #ffffff;
+  --es-color-bg-subtle: #f8fafc;
+  --es-color-bg-input: #ffffff;
+  --es-color-bg-elevated: #ffffff;
+  --es-color-bg-overlay: rgba(15, 23, 42, 0.45);
+  --es-color-text: #334155;
+  --es-color-text-secondary: #334155;
+  --es-color-text-muted: #94a3b8;
+  --es-color-text-empty: rgba(0, 0, 0, 0.25);
+  --es-color-text-inverse: #ffffff;
+  --es-color-border: #0000000f;
+  --es-color-border-strong: #cbd5e1;
+  --es-color-focus: rgba(var(--es-color-brand-rgb), 0.28);
+  --es-color-success: #059669;
+  --es-color-warning: #d97706;
+  --es-color-danger: #dc2626;
+  --es-color-info: #0284c7;
+  --es-color-link: #0ea5e9;
+  --es-color-link-hover: #0284c7;
+  --es-color-success-soft: #dcfce7;
+  --es-color-danger-soft: #fee2e2;
+  --es-color-editor: #1e1e1e;
+  --es-color-skeleton-shimmer: rgba(148, 163, 184, 0.2);
+
+  /* Typography */
+  --es-font-family-sans: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --es-font-family-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  --es-font-size-xs: 12px;
+  --es-font-size-sm: 14px;
+  --es-font-size-md: 16px;
+  --es-font-size-lg: 18px;
+  --es-font-size-xl: 24px;
+  --es-font-weight-regular: 400;
+  --es-font-weight-medium: 500;
+  --es-font-weight-semibold: 600;
+  --es-line-height-tight: 1.25;
+  --es-line-height-normal: 1.5;
+
+  /* Spacing: 4px base grid */
+  --es-space-0: 0;
+  --es-space-1: 4px;
+  --es-space-2: 8px;
+  --es-space-3: 12px;
+  --es-space-4: 16px;
+  --es-space-5: 20px;
+  --es-space-6: 24px;
+  --es-space-8: 32px;
+  --es-space-10: 40px;
+  --es-space-12: 48px;
+
+  /* Radius */
+  --es-radius-xs: 2px;
+  --es-radius-sm: 4px;
+  --es-radius-md: 6px;
+  --es-radius-lg: 8px;
+  --es-radius-pill: 999px;
+
+  /* Elevation */
+  --es-shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.08);
+  --es-shadow-md: 0 8px 24px rgba(15, 23, 42, 0.12);
+  --es-shadow-lg: 0 20px 40px -10px #00000014, 0 10px 20px -8px #0000000f;
+  --es-shadow-focus: 0 0 0 3px var(--es-color-focus);
+
+  /* Motion */
+  --es-duration-fast: 120ms;
+  --es-duration-normal: 200ms;
+  --es-duration-slow: 320ms;
+  --es-ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --es-ease-emphasized: cubic-bezier(0.2, 0, 0, 1.2);
+
+  /* Component contracts */
+  --es-control-height-sm: 28px;
+  --es-control-height-md: 32px;
+  --es-control-height-lg: 44px;
+  --es-page-max-width: 1440px;
+  --es-page-gutter: var(--es-space-6);
+  --es-tooltip-delay: 500ms;
+  --es-tooltip-padding: var(--es-space-2) var(--es-space-3);
+  --es-popover-padding: var(--es-space-3);
+}
+
+.dark,
+[data-theme="dark"] {
+  --es-color-bg-page: #020617;
+  --es-color-bg-surface: #172033;
+  --es-color-bg-subtle: #111c2f;
+  --es-color-bg-input: #111c2f;
+  --es-color-bg-elevated: #1e293b;
+  --es-color-bg-overlay: rgba(2, 6, 23, 0.72);
+  --es-color-text: #f8fafc;
+  --es-color-text-secondary: #F8FAFC;
+  --es-color-text-muted: #94a3b8;
+  --es-color-text-empty: rgba(255, 255, 255, 0.25);
+  --es-color-border: rgba(255, 255, 255, 0.12);
+  --es-color-border-strong: rgba(255, 255, 255, 0.2);
+  --es-color-focus: rgba(var(--es-color-brand-rgb), 0.34);
+  --es-color-success: #34d399;
+  --es-color-warning: #fbbf24;
+  --es-color-danger: #f87171;
+  --es-color-info: #38bdf8;
+  --es-color-link: #38bdf8;
+  --es-color-link-hover: #7dd3fc;
+  --es-color-success-soft: rgba(34, 197, 94, 0.2);
+  --es-color-danger-soft: rgba(239, 68, 68, 0.2);
+  --es-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --es-shadow-md: 0 8px 24px rgba(0, 0, 0, 0.38);
+  --es-shadow-lg: 0 20px 40px rgba(0, 0, 0, 0.5);
+  --es-color-skeleton-shimmer: rgba(255, 255, 255, 0.12);
+}
+
+@media (max-width: 767px) {
+  :root {
+    --es-page-gutter: var(--es-space-4);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --es-duration-fast: 0ms;
+    --es-duration-normal: 0ms;
+    --es-duration-slow: 0ms;
+  }
+}

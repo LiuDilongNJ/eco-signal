@@ -1,0 +1,148 @@
+services:
+
+  db:
+    restart: "no"
+
+  geo_db:
+    restart: "no"
+    volumes:
+      - ./geo_db/geo_init.sh:/usr/local/bin/geo_init.sh
+
+  rabbitmq:
+    restart: "no"
+    ports:
+      - "25672:15672"
+
+  redis:
+    restart: "no"
+    # Local-only debug access; production compose does not expose Redis to the host.
+    ports:
+      - "127.0.0.1:6379:6379"
+
+  backend:
+    restart: "no"
+    image: ecosignal-backend-dev:local
+    environment:
+      - POSTGRES_PORT=5432
+      - SKIP_PRESTART=false
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev # 使用开发专用 Dockerfile，跳过 AI 模型下载
+    # command: sleep infinity  # Infinite loop to keep container alive doing nothing
+    command:
+      - uvicorn
+      - app.main:app
+      - --host
+      - "0.0.0.0"
+      - --port
+      - "8000"
+      - --reload
+      - --reload-dir
+      - app
+    develop:
+      watch:
+        - path: ./backend/app
+          action: sync
+          target: /app/app
+          ignore:
+            - "**/.DS_Store"
+            - "**/__pycache__"
+            - "**/*.pyc"
+        - path: ./backend/scripts
+          action: sync
+          target: /app/scripts
+          ignore:
+            - "**/.DS_Store"
+            - "**/__pycache__"
+            - "**/*.pyc"
+        - path: ./backend/tests
+          action: sync
+          target: /app/tests
+          ignore:
+            - "**/.DS_Store"
+            - "**/__pycache__"
+            - "**/*.pyc"
+        - path: ./backend/alembic.ini
+          action: sync
+          target: /app/alembic.ini
+        - path: ./backend/pyproject.toml
+          action: rebuild
+        - path: ./backend/uv.lock
+          action: rebuild
+    volumes:
+      - app-media-data:/app/sounds
+      - birdnet-model-data:/models/birdnet:ro
+      - ./data:/app/data # Mount raw geo data files for one-time import
+      - ${LEGACY_PROJECT_DIR:-./ecoSound-web}/sounds:/app/sounds/sounds
+      - ${LEGACY_PROJECT_DIR:-./ecoSound-web}/sound_images:/app/sounds/images
+      - ${LEGACY_PROJECT_DIR:-./ecoSound-web}/project_images:/app/sounds/projects
+
+  worker:
+    restart: "on-failure:3"
+    image: ecosignal-backend-dev:local
+    environment:
+      - POSTGRES_PORT=5432
+      - WORKER_QUEUE=all
+    command:
+      - /bin/sh
+      - -c
+      - python /app/scripts/setup_birdnet_model.py && exec python -m app.workers.rabbitmq_worker
+    develop:
+      watch:
+        - path: ./backend/app
+          action: sync
+          target: /app/app
+          ignore:
+            - "**/.DS_Store"
+            - "**/__pycache__"
+            - "**/*.pyc"
+        - path: ./backend/scripts
+          action: sync
+          target: /app/scripts
+          ignore:
+            - "**/.DS_Store"
+            - "**/__pycache__"
+            - "**/*.pyc"
+    volumes:
+      - app-media-data:/app/sounds
+      - birdnet-model-data:/models/birdnet
+      - ${LEGACY_PROJECT_DIR:-./ecoSound-web}/sounds:/app/sounds/sounds
+      - ${LEGACY_PROJECT_DIR:-./ecoSound-web}/sound_images:/app/sounds/images
+      - ${LEGACY_PROJECT_DIR:-./ecoSound-web}/project_images:/app/sounds/projects
+
+  frontend:
+    restart: "no"
+    ports: !override
+      - "${FRONTEND_PORT:-80}:5173"
+    build:
+      context: ./frontend
+      target: development
+      args:
+        - VITE_API_BASE_URL=/api
+        - NODE_ENV=development
+    environment:
+      - VITE_API_PROXY_TARGET=http://backend:8000
+    develop:
+      watch:
+        - path: ./frontend/package.json
+          action: rebuild
+        - path: ./frontend/package-lock.json
+          action: rebuild
+        - path: ./frontend/vite.config.ts
+          action: rebuild
+        - path: ./frontend/index.html
+          action: sync
+          target: /app/index.html
+        - path: ./frontend/public
+          action: sync
+          target: /app/public
+          ignore:
+            - "**/.DS_Store"
+        - path: ./frontend/src
+          action: sync
+          target: /app/src
+          ignore:
+            - "**/.DS_Store"
+
+volumes:
+  birdnet-model-data:
