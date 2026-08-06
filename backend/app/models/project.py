@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 class ProjectBase(SQLModel):
     """Base properties for Project."""
     name: str = Field(max_length=100)
-    url: str = Field(max_length=255)
+    url: str = Field(default="", max_length=255)
     picture_id: Optional[str] = Field(default=None, max_length=255)
     description: Optional[str] = Field(default=None)
     description_short: Optional[str] = Field(default=None)

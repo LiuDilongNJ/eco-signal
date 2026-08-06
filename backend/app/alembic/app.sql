@@ -111,7 +111,7 @@ CREATE TABLE project (
   uuid UUID UNIQUE NOT NULL DEFAULT uuid_generate_v4(),
   name VARCHAR(100) NOT NULL,
   creator_id INTEGER NOT NULL REFERENCES "user"(user_id) ON DELETE RESTRICT ON UPDATE CASCADE,
-  url VARCHAR(255) NOT NULL,
+  url VARCHAR(255) NOT NULL DEFAULT '',
   picture_id VARCHAR(255),
   description TEXT,
   description_short TEXT,

@@ -21,6 +21,7 @@ services:
 
   backend:
     restart: "no"
+    pull_policy: never
     image: ecosignal-backend-dev:local
     environment:
       - POSTGRES_PORT=5432
@@ -79,6 +80,7 @@ services:
 
   worker:
     restart: "on-failure:3"
+    pull_policy: never
     image: ecosignal-backend-dev:local
     environment:
       - POSTGRES_PORT=5432

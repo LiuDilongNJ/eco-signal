@@ -46,8 +46,24 @@ services:
       - GEO_DB_AUTO_DOWNLOAD=${GEO_DB_AUTO_DOWNLOAD:-false}
       - GEO_DB_READY_URL=${GEO_DB_READY_URL}
       - GEO_DB_XR_SEED_URL=${GEO_DB_XR_SEED_URL}
-    # Start postgres and then run geo_init.sh in the background
-    command: bash -c "docker-entrypoint.sh postgres & sleep 5 && /usr/local/bin/geo_init.sh && wait"
+    entrypoint:
+      - /bin/bash
+      - -c
+    command:
+      - |
+        set -e
+        if [ -x /usr/local/bin/docker-entrypoint.sh ]; then
+          /usr/local/bin/docker-entrypoint.sh postgres &
+        elif [ -x /docker-entrypoint.sh ]; then
+          /docker-entrypoint.sh postgres &
+        else
+          echo "No postgres entrypoint found; trying postgres binary directly" >&2
+          postgres -D /var/lib/postgresql/data/pgdata &
+        fi
+        sleep 5
+        chmod 755 /usr/local/bin/geo_init.sh || true
+        bash /usr/local/bin/geo_init.sh
+        wait
 
   redis:
     image: ${DOCKER_IMAGE_REDIS:-redis:7-alpine}
