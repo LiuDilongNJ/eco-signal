@@ -1,12 +1,12 @@
-# EcoSignal
+# ecoSignal
 
 [中文文档](README_ZH.md)
 
-**EcoSignal** is a modern refactor of [ecoSound-web](https://github.com/nperezg/biosounds), built with high-performance modern web technologies.
+**ecoSignal** is a modern refactor of [ecoSound-web](https://github.com/nperezg/biosounds), built with high-performance modern web technologies. It adds support for images.
 
 ## Description
 
-Web application for ecoacoustics to manage, navigate, visualise, annotate, and analyse soundscape recordings.
+Web application for ecoacoustics to manage, navigate, visualise, annotate, and analyse soundscape recordings and photographs.
 
 ## Technology Stack
 
@@ -26,6 +26,7 @@ This project is completely automated. Geographical data and database migrations 
 
 ### Prerequisites
 
+-   cloned repository
 -   [Docker](https://docs.docker.com/get-docker/)
 -   [Docker Compose](https://docs.docker.com/compose/install/)
 
@@ -33,6 +34,7 @@ This project is completely automated. Geographical data and database migrations 
 
 1.  **Initialize the environment file**:
 
+    From the cloned repository root:
     ```bash
     cp .env.example .env
     ```
@@ -43,7 +45,7 @@ This project is completely automated. Geographical data and database migrations 
 
     `.env.example` is the committed template for project setup. `.env` is for local or deployment-specific secrets and must not be committed.
 
-2.  **Start the stack**:
+3.  **Start the stack**:
 
     ```bash
     docker compose watch
@@ -66,14 +68,14 @@ This project is completely automated. Geographical data and database migrations 
     DOCKER_IMAGE_RABBITMQ=docker.m.daocloud.io/library/rabbitmq:3-management
     ```
 
-3.  **Geographical Data Initialization**:
+4.  **Geographical Data Initialization**:
     On the first boot, the `geo_db` container automatically downloads and imports spatial data (IHO/GADM) in the background. You can monitor progress with:
     ```bash
     docker compose logs -f geo_db
     ```
     *Note: The backend will start immediately and will connect to these tables once the background import completes.*
 
-4.  **Access the services**:
+5.  **Access the services**:
 
     **Default (`FRONTEND_PORT=80`)**:
 
@@ -86,18 +88,18 @@ This project is completely automated. Geographical data and database migrations 
 
     Change `FRONTEND_PORT` in the root `.env` if you want the Dockerized frontend on another host port, for example `http://localhost:3001`.
 
-5.  **Stop the stack**:
+6.  **Stop the stack**:
     ```bash
     docker compose down
     ```
 
 ## Offline Field Work
 
-EcoSignal supports offline field work through a signed collection bundle containing audio, photos, annotations, reviews, and labels.
+ecoSignal supports offline field work through a signed collection bundle containing audio, photos, annotations, reviews, and labels.
 
 ### Export a collection bundle
 
-Open `Data > Collections` in the web interface, select one collection, and click `Export Bundle`. EcoSignal generates a complete bundle containing all media in the background. The export drawer provides the download when ready, and the file remains available for 24 hours.
+Open `Data > Collections` in the web interface, select one collection, and click `Export Bundle`. ecoSignal generates a complete bundle containing all media in the background. The export drawer provides the download when ready, and the file remains available for 24 hours.
 
 ### Import a collection bundle
 
