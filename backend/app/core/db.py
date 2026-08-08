@@ -20,7 +20,7 @@ engine = create_engine(
 
 
 def init_db(session: Session) -> None:
-    """Initialize database with default superuser if not exists."""
+    """Initialize database with the configured superuser account."""
     admin_role: Role = session.exec(
         select(Role).where(Role.name == settings.ADMIN_ROLE_NAME)
     ).first()
@@ -28,14 +28,15 @@ def init_db(session: Session) -> None:
         role_in = RoleCreate(name=settings.ADMIN_ROLE_NAME)
         admin_role: Role = role_repository.create(session=session, obj_in=role_in)
 
-    user: User = session.exec(
+    user: User | None = session.exec(
         select(User).where(User.username == settings.FIRST_SUPERUSER)
     ).first()
     if not user:
-        user: User | None = session.get(User, 1)
-        if user:
-            user.username = settings.FIRST_SUPERUSER
-            user.password = get_password_hash(settings.FIRST_SUPERUSER_PASSWORD)
-            user.role_id = admin_role.role_id
-            session.add(user)
-            session.commit()
+        user = session.get(User, 1)
+
+    if user:
+        user.username = settings.FIRST_SUPERUSER
+        user.password = get_password_hash(settings.FIRST_SUPERUSER_PASSWORD)
+        user.role_id = admin_role.role_id
+        session.add(user)
+        session.commit()

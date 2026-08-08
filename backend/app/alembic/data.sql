@@ -422,7 +422,7 @@ SELECT setval('microphone_microphone_id_seq', (SELECT MAX(microphone_id) FROM mi
 -- project - Projects
 -- --------------------------------------------------------
 INSERT INTO project (project_id, name, creator_id, url, description, description_short, public, active)
-VALUES (1, 'Demo Project', 1, NULL, 'This is a demo project. You can set this up via the administration page.', 'Demo project for testing', TRUE, TRUE);
+VALUES (1, 'Demo Project', 1, '', 'This is a demo project. You can set this up via the administration page.', 'Demo project for testing', TRUE, TRUE);
 
 SELECT setval('project_project_id_seq', (SELECT MAX(project_id) FROM project));
 

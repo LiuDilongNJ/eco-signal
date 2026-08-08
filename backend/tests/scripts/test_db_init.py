@@ -57,6 +57,29 @@ def test_init_db_updates_existing_user1_when_superuser_missing():
     mock_session.commit.assert_called()
 
 
+def test_init_db_updates_existing_superuser_to_configured_password():
+    """When the seeded admin user already exists, init_db should update it with the configured superuser credentials."""
+    mock_session = MagicMock()
+    existing_role = MagicMock()
+    existing_role.role_id = 1
+    existing_user = MagicMock()
+
+    mock_session.exec.return_value.first.side_effect = [existing_role, existing_user]
+
+    with patch("app.core.db.role_repository"):
+        with patch("app.core.db.settings.FIRST_SUPERUSER", "admin"):
+            with patch("app.core.db.settings.FIRST_SUPERUSER_PASSWORD", "new-secret"):
+                with patch("app.core.db.get_password_hash", return_value="hashed_pw") as mock_hash:
+                    init_db(mock_session)
+
+    mock_hash.assert_called_once_with("new-secret")
+    assert existing_user.username == "admin"
+    assert existing_user.password == "hashed_pw"
+    assert existing_user.role_id == 1
+    mock_session.add.assert_called_with(existing_user)
+    mock_session.commit.assert_called_once()
+
+
 def test_init_db_does_nothing_when_both_missing():
     """When superuser not found and no user id=1, no updates are made."""
     mock_session = MagicMock()
