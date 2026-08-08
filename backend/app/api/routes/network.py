@@ -128,9 +128,11 @@ def update_settings(
     session: SessionDep, data: NetworkSettingsUpdate, _admin: ActiveAdmin
 ) -> Any:
     """
-    更新网络配置。保存后会自动刷新本实例节点信息，并（若已配置 host_url）向 HOST 同步注册/隐藏状态。
-    Update federation settings. Automatically refreshes the local node row
-    and syncs registration/visibility with HOST if host_url is configured.
+    更新网络配置。首次初始化本实例节点时，server_name 和 app_url 必填；
+    节点创建后支持部分更新，并（若已配置 host_url）向 HOST 同步注册/隐藏状态。
+    Update federation settings. server_name and app_url are required when the
+    local node is initialized; partial updates are supported afterward. The
+    node is synced with HOST when host_url is configured.
 
     仅管理员可访问。 / Admin only.
     """
@@ -171,10 +173,7 @@ def generate_secret(session: SessionDep, _admin: ActiveAdmin) -> Any:
 
     仅管理员可访问。 / Admin only.
     """
-    new_secret = network_service.generate_federation_secret()
-    cfg = network_service.update_network_settings(
-        session, NetworkSettingsUpdate(federation_secret=new_secret)
-    )
+    cfg = network_service.rotate_federation_secret(session)
     return api_success(data=cfg, message="New federation secret generated")
 
 

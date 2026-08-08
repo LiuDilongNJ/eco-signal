@@ -134,6 +134,13 @@ def generate_federation_secret() -> str:
     return secrets.token_hex(32)  # 256-bit secret, hex-encoded
 
 
+def rotate_federation_secret(session: Session) -> NetworkSettings:
+    """Generate and store a federation secret without initializing a local node."""
+    _write_setting(session, _KEY_FEDERATION_SECRET, generate_federation_secret())
+    session.commit()
+    return get_network_settings(session)
+
+
 # Federation settings
 
 def get_network_settings(session: Session) -> NetworkSettings:
@@ -161,9 +168,37 @@ def update_network_settings(
     Persist updated federation settings, then:
     1. Refresh the local node row with latest config + real-time stats.
     2. If host_url is set (child node), sync the visible/hidden state to HOST.
+
+    The first local node requires a non-empty server name and app URL. Once the
+    node exists, callers may continue using partial updates.
     """
-    current = get_network_settings(session)
+    local_node = network_repository.get_local_node(session)
     fields = data.model_fields_set
+    blank_fields = [
+        field
+        for field in ("server_name", "app_url")
+        if field in fields and not (getattr(data, field) or "").strip()
+    ]
+    missing_fields = []
+    if local_node is None:
+        missing_fields = [
+            field
+            for field in ("server_name", "app_url")
+            if field not in fields or not (getattr(data, field) or "").strip()
+        ]
+    invalid_fields = sorted(set(blank_fields + missing_fields))
+    if invalid_fields:
+        requirement = (
+            "required when initializing the local network node"
+            if local_node is None
+            else "cannot be empty"
+        )
+        raise HTTPException(
+            status_code=422,
+            detail=f"The following fields are {requirement}: {', '.join(invalid_fields)}",
+        )
+
+    current = get_network_settings(session)
     next_cfg = NetworkSettings(
         server_name=(data.server_name or "") if "server_name" in fields else current.server_name,
         app_url=(data.app_url or "") if "app_url" in fields else current.app_url,
@@ -177,6 +212,13 @@ def update_network_settings(
             else current.federation_secret
         ),
     )
+    if next_cfg.shared and (
+        next_cfg.latitude is None or next_cfg.longitude is None
+    ):
+        raise HTTPException(
+            status_code=422,
+            detail="latitude and longitude are required when the local node is public",
+        )
 
     if "host_url" in fields:
         _write_setting(session, _KEY_HOST_URL, data.host_url or "")

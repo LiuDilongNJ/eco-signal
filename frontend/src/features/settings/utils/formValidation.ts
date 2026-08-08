@@ -104,6 +104,12 @@ export function validateFederationUrl(value: string, label: string): string | nu
     return validateOptionalHttpUrl(value, label)
 }
 
+export function validateRequiredFederationUrl(value: string, label: string): string | null {
+    const trimmed = value.trim()
+    if (!trimmed) return `${label} is required`
+    return validateOptionalHttpUrl(trimmed, label)
+}
+
 export function validateOptionalCoord(value: string, label: string): string | null {
     const trimmed = value.trim()
     if (!trimmed) return null
@@ -122,6 +128,11 @@ export function validateOptionalCoordRange(value: string, label: string, min: nu
         return `${label} must be between ${min} and ${max}`
     }
     return null
+}
+
+export function validateRequiredCoordRange(value: string, label: string, min: number, max: number): string | null {
+    if (!value.trim()) return `${label} is required`
+    return validateOptionalCoordRange(value, label, min, max)
 }
 
 export function validateFftSize(value: string): string | null {

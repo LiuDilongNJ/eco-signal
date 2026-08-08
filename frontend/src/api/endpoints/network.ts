@@ -39,7 +39,7 @@ export interface NetworkSettings {
     federation_secret: string
 }
 
-/** PUT /v1/network-settings — 字段均为可选，与后端 NetworkSettingsUpdate 一致 */
+/** PUT /v1/network-settings — 首次初始化时 server_name/app_url 必填，之后支持部分更新 */
 export interface NetworkSettingsUpdate {
     server_name?: string
     app_url?: string

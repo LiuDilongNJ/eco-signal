@@ -233,309 +233,55 @@ class TestMediaCreate:
         assert r.status_code == 200
         data = r.json()["data"]
         assert set(data["queued"]) == set(fids)
-        assert data["failed"] == []
-
-    def test_create_photo_single_file_uses_sync_fast_path(
+    def test_create_photo_batch_enqueues_all_staged_files(
         self, client: TestClient, superuser_token_headers: dict, db: Session
     ) -> None:
-        fu = FileUpload(
-            path="/tmp/pending/1/photo_single.jpg",
-            filename="photo_single.jpg",
-            name="photo_single.jpg",
-            directory=1,
-            uploader_id=1,
-            status=1,
-        )
-        db.add(fu)
-        db.commit()
-        db.refresh(fu)
-
-        redis_mock = AsyncMock()
-
-        async def mock_redis():
-            yield redis_mock
-
-        app.dependency_overrides[get_task_publisher] = mock_redis
-        try:
-            with patch(
-                "app.services.media_service._process_single_media_now",
-                new=AsyncMock(return_value={"status": "completed", "media_id": 321}),
-            ) as mock_sync:
-                r = client.post(
-                    f"{settings.API_V1_STR}/media",
-                    headers=superuser_token_headers,
-                    json={
-                        "collection_id": 1,
-                        "file_upload_ids": [fu.file_upload_id],
-                        "media_type": "photo",
-                        "date_from_filename": True,
-                    },
-                )
-        finally:
-            app.dependency_overrides.pop(get_task_publisher, None)
-
-        assert r.status_code == 200
-        data = r.json()["data"]
-        assert data["queued"] == [fu.file_upload_id]
-        assert data["failed"] == []
-        assert mock_sync.await_count == 1
-        sync_kwargs = mock_sync.await_args.kwargs
-        assert "recording_gain_db" not in sync_kwargs
-        assert "duty_cycle_recording" not in sync_kwargs
-        assert "duty_cycle_period" not in sync_kwargs
-        redis_mock.enqueue_task.assert_not_called()
-
-    def test_create_photo_multi_files_use_sync_processing(
-        self, client: TestClient, superuser_token_headers: dict, db: Session
-    ) -> None:
-        fids = []
-        for i in range(2):
-            fu = FileUpload(
-                path=f"/tmp/pending/1/photo_multi_{i}.jpg",
-                filename=f"photo_multi_{i}.jpg",
-                name=f"photo_multi_{i}.jpg",
+        """Photo uploads use the same single batch queue as audio uploads."""
+        uploads = []
+        for index in range(2):
+            upload = FileUpload(
+                path="",
+                filename=f"photo_{index}.jpg",
+                name=f"photo_{index}.jpg",
                 directory=1,
                 uploader_id=1,
                 status=1,
             )
-            db.add(fu)
+            db.add(upload)
             db.flush()
-            fids.append(fu.file_upload_id)
-        db.commit()
-
-        redis_mock = AsyncMock()
-
-        async def mock_redis():
-            yield redis_mock
-
-        app.dependency_overrides[get_task_publisher] = mock_redis
-        try:
-            with patch(
-                "app.services.media_service._process_single_media_now",
-                new=AsyncMock(return_value={"status": "completed", "media_id": 999}),
-            ) as mock_sync:
-                r = client.post(
-                    f"{settings.API_V1_STR}/media",
-                    headers=superuser_token_headers,
-                    json={
-                        "collection_id": 1,
-                        "file_upload_ids": fids,
-                        "media_type": "photo",
-                        "date_from_filename": True,
-                    },
-                )
-        finally:
-            app.dependency_overrides.pop(get_task_publisher, None)
-
-        assert r.status_code == 200
-        data = r.json()["data"]
-        assert set(data["queued"]) == set(fids)
-        assert data["failed"] == []
-        assert mock_sync.await_count == 2
-        redis_mock.enqueue_task.assert_not_awaited()
-
-    def test_create_photo_batch_keeps_successes_when_one_item_fails(
-        self, client: TestClient, superuser_token_headers: dict, db: Session
-    ) -> None:
-        file_upload_ids = []
-        for suffix in ("success", "failure"):
-            file_upload = FileUpload(
-                path=f"/tmp/pending/1/photo_{suffix}.jpg",
-                filename=f"photo_{suffix}.jpg",
-                name=f"photo_{suffix}.jpg",
-                directory=1,
-                uploader_id=1,
-                status=1,
-            )
-            db.add(file_upload)
-            db.flush()
-            file_upload_ids.append(file_upload.file_upload_id)
+            uploads.append(upload)
         db.commit()
 
         publisher = AsyncMock()
         app.dependency_overrides[get_task_publisher] = lambda: publisher
         try:
-            with patch(
-                "app.services.media_service._process_single_media_now",
-                new=AsyncMock(
-                    side_effect=[
-                        {"status": "completed", "media_id": 321},
-                        {"error": "invalid_file_content"},
-                    ]
-                ),
-            ):
-                response = client.post(
-                    f"{settings.API_V1_STR}/media",
-                    headers=superuser_token_headers,
-                    json={
-                        "collection_id": 1,
-                        "file_upload_ids": file_upload_ids,
-                        "media_type": "photo",
-                    },
-                )
-        finally:
-            app.dependency_overrides.pop(get_task_publisher, None)
-
-        assert response.status_code == 200
-        assert response.json()["data"]["queued"] == [file_upload_ids[0]]
-        failed = response.json()["data"]["failed"]
-        assert failed == [
-            {
-                "file_upload_id": file_upload_ids[1],
-                "reason": "Process error: invalid_file_content",
-            }
-        ]
-        publisher.enqueue_task.assert_not_awaited()
-
-    def test_create_photo_all_duplicates_returns_409(
-        self, client: TestClient, superuser_token_headers: dict, db: Session
-    ) -> None:
-        """When every uploaded photo is a duplicate, nothing is queued and the
-        route must not report a plain success: it should surface HTTP 409 with
-        the duplicate filename(s) in the message."""
-        fu = FileUpload(
-            path="/tmp/pending/1/photo_dup.jpg",
-            filename="photo_dup.jpg",
-            name="photo_dup.jpg",
-            directory=1,
-            uploader_id=1,
-            status=1,
-        )
-        db.add(fu)
-        db.commit()
-        db.refresh(fu)
-
-        publisher = AsyncMock()
-        app.dependency_overrides[get_task_publisher] = lambda: publisher
-        try:
-            with patch(
-                "app.services.media_service._process_single_media_now",
-                new=AsyncMock(
-                    return_value={
-                        "status": "duplicate",
-                        "file_upload_id": fu.file_upload_id,
-                        "filename": "photo_dup.jpg",
-                        "existing_media_id": 555,
-                    }
-                ),
-            ):
-                response = client.post(
-                    f"{settings.API_V1_STR}/media",
-                    headers=superuser_token_headers,
-                    json={
-                        "collection_id": 1,
-                        "file_upload_ids": [fu.file_upload_id],
-                        "media_type": "photo",
-                    },
-                )
-        finally:
-            app.dependency_overrides.pop(get_task_publisher, None)
-
-        assert response.status_code == 409
-        body = response.json()
-        assert body["code"] == 409
-        assert "photo_dup.jpg" in body["message"]
-        assert "data" not in body or body.get("data") is None
-        publisher.enqueue_task.assert_not_awaited()
-
-    def test_create_photo_partial_duplicates_still_succeeds(
-        self, client: TestClient, superuser_token_headers: dict, db: Session
-    ) -> None:
-        """When only some photos in the batch are duplicates, the request still
-        succeeds (HTTP 200) for the non-duplicate items, with the duplicate(s)
-        reported separately in `data.duplicates` so the caller can warn the user."""
-        file_upload_ids = []
-        for suffix in ("new", "dup"):
-            file_upload = FileUpload(
-                path=f"/tmp/pending/1/photo_{suffix}.jpg",
-                filename=f"photo_{suffix}.jpg",
-                name=f"photo_{suffix}.jpg",
-                directory=1,
-                uploader_id=1,
-                status=1,
+            response = client.post(
+                f"{settings.API_V1_STR}/media",
+                headers=superuser_token_headers,
+                json={
+                    "collection_id": 1,
+                    "file_upload_ids": [upload.file_upload_id for upload in uploads],
+                    "media_type": "photo",
+                },
             )
-            db.add(file_upload)
-            db.flush()
-            file_upload_ids.append(file_upload.file_upload_id)
-        db.commit()
-
-        publisher = AsyncMock()
-        app.dependency_overrides[get_task_publisher] = lambda: publisher
-        try:
-            with patch(
-                "app.services.media_service._process_single_media_now",
-                new=AsyncMock(
-                    side_effect=[
-                        {"status": "completed", "media_id": 321},
-                        {
-                            "status": "duplicate",
-                            "file_upload_id": file_upload_ids[1],
-                            "filename": "photo_dup.jpg",
-                            "existing_media_id": 555,
-                        },
-                    ]
-                ),
-            ):
-                response = client.post(
-                    f"{settings.API_V1_STR}/media",
-                    headers=superuser_token_headers,
-                    json={
-                        "collection_id": 1,
-                        "file_upload_ids": file_upload_ids,
-                        "media_type": "photo",
-                    },
-                )
         finally:
             app.dependency_overrides.pop(get_task_publisher, None)
 
         assert response.status_code == 200
         data = response.json()["data"]
-        assert data["queued"] == [file_upload_ids[0]]
+        assert set(data["queued"]) == {upload.file_upload_id for upload in uploads}
         assert data["failed"] == []
-        assert data["duplicates"] == [
-            {"file_upload_id": file_upload_ids[1], "filename": "photo_dup.jpg"}
+        publisher.enqueue_task.assert_awaited_once()
+        _, kwargs = publisher.enqueue_task.call_args
+        assert kwargs["items"] == [
+            {
+                "file_upload_id": upload.file_upload_id,
+                "file_date": None,
+                "file_time": None,
+                "display_filename": upload.filename,
+            }
+            for upload in uploads
         ]
-        publisher.enqueue_task.assert_not_awaited()
-
-    def test_create_photo_without_merged_path_returns_failed_item(
-        self, client: TestClient, superuser_token_headers: dict, db: Session
-    ) -> None:
-        fu = FileUpload(
-            path="",
-            filename="photo_waiting.jpg",
-            name="photo_waiting.jpg",
-            directory=1,
-            uploader_id=1,
-            status=1,
-        )
-        db.add(fu)
-        db.commit()
-        db.refresh(fu)
-
-        publisher = AsyncMock()
-        app.dependency_overrides[get_task_publisher] = lambda: publisher
-        try:
-            with patch(
-                "app.services.media_service._process_single_media_now",
-                new=AsyncMock(side_effect=AssertionError("sync path must not run")),
-            ):
-                response = client.post(
-                    f"{settings.API_V1_STR}/media",
-                    headers=superuser_token_headers,
-                    json={
-                        "collection_id": 1,
-                        "file_upload_ids": [fu.file_upload_id],
-                        "media_type": "photo",
-                    },
-                )
-        finally:
-            app.dependency_overrides.pop(get_task_publisher, None)
-
-        # Nothing queued (photo upload incomplete), so the request reports failure (HTTP 409).
-        assert response.status_code == 409
-        assert "Photo upload is incomplete" in response.json()["message"]
-        publisher.enqueue_task.assert_not_awaited()
-
     def test_create_media_with_filename_prefix(
         self, client: TestClient, superuser_token_headers: dict, db: Session
     ) -> None:
@@ -579,7 +325,14 @@ class TestMediaCreate:
             app.dependency_overrides.pop(get_task_publisher, None)
 
         assert r.status_code == 200
-        assert captured_kwargs["display_filename"] == "LEGACY_prefix_case.wav"
+        assert captured_kwargs["items"] == [
+            {
+                "file_upload_id": fu.file_upload_id,
+                "file_date": "1970-01-01",
+                "file_time": "00:00:00",
+                "display_filename": "LEGACY_prefix_case.wav",
+            }
+        ]
 
     def test_create_media_invalid_filename_prefix_rejected(
         self, client: TestClient, superuser_token_headers: dict
@@ -809,8 +562,8 @@ class TestMediaCreate:
         assert r.status_code == 200
         mock_enqueue.assert_called_once()
         kwargs = mock_enqueue.call_args.kwargs
-        assert kwargs["file_date"] == "2024-03-10"
-        assert kwargs["file_time"] == "19:45:53"
+        assert kwargs["items"][0]["file_date"] == "2024-03-10"
+        assert kwargs["items"][0]["file_time"] == "19:45:53"
 
     def test_create_media_from_filename_falls_back_to_default_datetime(
         self, client: TestClient, superuser_token_headers: dict, db: Session
@@ -854,8 +607,8 @@ class TestMediaCreate:
         assert r.status_code == 200
         mock_enqueue.assert_called_once()
         kwargs = mock_enqueue.call_args.kwargs
-        assert kwargs["file_date"] == "1970-01-01"
-        assert kwargs["file_time"] == "00:00:00"
+        assert kwargs["items"][0]["file_date"] == "1970-01-01"
+        assert kwargs["items"][0]["file_time"] == "00:00:00"
 
 
 class TestMediaList:

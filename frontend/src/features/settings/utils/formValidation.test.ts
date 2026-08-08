@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest"
 
-import { optionalOrcidRule, taxonHierarchyCreateRule, validateOptionalOrcid } from "./formValidation"
+import {
+    optionalOrcidRule,
+    taxonHierarchyCreateRule,
+    validateOptionalOrcid,
+    validateRequiredCoordRange,
+    validateRequiredFederationUrl,
+} from "./formValidation"
 
 describe("taxon hierarchy validation", () => {
     it("requires at least one hierarchy level", async () => {
@@ -56,5 +62,31 @@ describe("optional ORCID validation", () => {
         await expect(validate({}, "")).resolves.toBeUndefined()
         await expect(validate({}, "0000-0002-1825-0097")).resolves.toBeUndefined()
         await expect(validate({}, "bad")).rejects.toThrow("Enter a valid ORCID")
+    })
+})
+
+describe("required federation URL validation", () => {
+    it("rejects empty values", () => {
+        expect(validateRequiredFederationUrl("", "App URL")).toBe("App URL is required")
+        expect(validateRequiredFederationUrl("   ", "App URL")).toBe("App URL is required")
+    })
+
+    it("accepts HTTP(S) URLs and rejects other schemes", () => {
+        expect(validateRequiredFederationUrl(" https://node.example ", "App URL")).toBeNull()
+        expect(validateRequiredFederationUrl("file:///tmp/node", "App URL")).toBe("App URL must be a valid URL")
+    })
+})
+
+describe("required coordinate range validation", () => {
+    it("requires coordinates when a public node is being configured", () => {
+        expect(validateRequiredCoordRange("", "Latitude", -90, 90)).toBe("Latitude is required")
+        expect(validateRequiredCoordRange("  ", "Longitude", -180, 180)).toBe("Longitude is required")
+    })
+
+    it("preserves numeric and range validation", () => {
+        expect(validateRequiredCoordRange("45.5", "Latitude", -90, 90)).toBeNull()
+        expect(validateRequiredCoordRange("181", "Longitude", -180, 180)).toBe(
+            "Longitude must be between -180 and 180",
+        )
     })
 })

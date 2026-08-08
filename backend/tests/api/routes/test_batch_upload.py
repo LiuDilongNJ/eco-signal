@@ -14,7 +14,6 @@ from sqlmodel import Session
 from app.api.deps import get_redis_client, get_task_publisher
 from app.core.config import settings
 from app.main import app
-from app.media_paths import primary_media_path
 from app.models import Collection, FileUpload, Media, MediaCollection, PhotoSetting, Project
 
 
@@ -101,7 +100,7 @@ def test_chunk_upload_and_media_create_with_batch(
             data = r.json()["data"]
             assert data["is_complete"] is True
             assert "file_upload_id" in data
-            assert "queue_id" in data
+            assert "queue_id" not in data
             file_upload_ids.append(data["file_upload_id"])
 
         # Step 3: Call POST /media with both file_upload_ids
@@ -210,7 +209,7 @@ def test_photo_chunk_upload_merges_and_validates_synchronously(
     file_upload = db.get(FileUpload, response.json()["data"]["file_upload_id"])
     assert file_upload is not None
     assert file_upload.status == 1
-    assert file_upload.path
+    assert file_upload.path == ""
 
 
 def test_photo_chunk_upload_accepts_mpo_with_jpeg_extension(
@@ -250,17 +249,15 @@ def test_photo_chunk_upload_accepts_mpo_with_jpeg_extension(
     file_upload = db.get(FileUpload, response.json()["data"]["file_upload_id"])
     assert file_upload is not None
     assert file_upload.filename.endswith(".jpg")
-    assert file_upload.path
+    assert file_upload.path == ""
 
 
-def test_photo_chunk_upload_detects_duplicate_in_collection(
+def test_photo_chunk_upload_defers_duplicate_detection_until_media_processing(
     client: TestClient,
     superuser_token_headers: dict,
     db: Session,
 ) -> None:
-    """When `collection_id` is provided, a photo whose MD5 already matches a
-    Media in that collection is flagged as a duplicate right after merge,
-    without waiting for POST /v1/media."""
+    """Chunk upload only stages photos; duplicate handling runs in the media job."""
     collection = Collection(name=f"Dup Detect Col {uuid.uuid4().hex[:6]}", creator_id=1)
     db.add(collection)
     db.commit()
@@ -320,24 +317,21 @@ def test_photo_chunk_upload_detects_duplicate_in_collection(
 
     assert response.status_code == 200
     data = response.json()["data"]
-    assert data["is_duplicate"] is True
-    assert data["existing_media_id"] == existing_media.media_id
+    assert "is_duplicate" not in data
 
     file_upload = db.get(FileUpload, data["file_upload_id"])
     assert file_upload is not None
-    assert file_upload.status == 5
-    assert file_upload.media_id == existing_media.media_id
-    # The merged file should have been removed instead of left orphaned on disk.
-    assert not primary_media_path(file_upload.path).exists()
+    assert file_upload.status == 1
+    assert file_upload.media_id is None
+    assert file_upload.path == ""
 
 
-def test_photo_chunk_upload_no_duplicate_when_different_collection(
+def test_photo_chunk_upload_stages_photo_for_any_collection(
     client: TestClient,
     superuser_token_headers: dict,
     db: Session,
 ) -> None:
-    """Duplicate detection at upload time is scoped to the target collection:
-    identical bytes uploaded to a different collection are not flagged."""
+    """The collection does not alter the staging result before media processing."""
     matching_collection = Collection(name=f"Dup Col A {uuid.uuid4().hex[:6]}", creator_id=1)
     other_collection = Collection(name=f"Dup Col B {uuid.uuid4().hex[:6]}", creator_id=1)
     db.add_all([matching_collection, other_collection])
@@ -404,7 +398,7 @@ def test_photo_chunk_upload_no_duplicate_when_different_collection(
     file_upload = db.get(FileUpload, data["file_upload_id"])
     assert file_upload is not None
     assert file_upload.status == 1
-    assert primary_media_path(file_upload.path).exists()
+    assert file_upload.path == ""
 
 
 def test_photo_chunk_upload_rejects_audio_extension(

@@ -5,12 +5,15 @@ import { message, Modal, Switch } from "@/components/ui"
 import { ApiError } from "../../../../api/client"
 import { networkApi, type NetworkSettings } from "../../../../api/endpoints/network"
 import {
+    renderRequiredLabel,
     validateFederationUrl,
+    validateRequiredFederationUrl,
     validateOptionalCoordRange,
+    validateRequiredCoordRange,
 } from "../../utils/formValidation"
 import "../style/settings-forms.css"
 
-type FederationField = "app_url" | "host_url" | "latStr" | "lonStr"
+type FederationField = "server_name" | "app_url" | "host_url" | "latStr" | "lonStr"
 
 function parseOptionalCoord(s: string): number | null {
     const t = s.trim()
@@ -73,15 +76,19 @@ export function FederationSettingsTab() {
 
     const validateForm = (): boolean => {
         const nextErrors: Partial<Record<FederationField, string>> = {}
-        const appUrlError = validateFederationUrl(form.app_url, "App URL")
+        const serverNameError = form.server_name.trim() ? null : "Server name is required"
+        const appUrlError = validateRequiredFederationUrl(form.app_url, "App URL")
         const hostUrlError = validateFederationUrl(form.host_url, "Host URL")
-        const latError = validateOptionalCoordRange(form.latStr, "Latitude", -90, 90)
-        const lonError = validateOptionalCoordRange(form.lonStr, "Longitude", -180, 180)
+        const validateCoord = form.shared ? validateRequiredCoordRange : validateOptionalCoordRange
+        const latError = validateCoord(form.latStr, "Latitude", -90, 90)
+        const lonError = validateCoord(form.lonStr, "Longitude", -180, 180)
 
+        if (serverNameError) nextErrors.server_name = serverNameError
         if (appUrlError) nextErrors.app_url = appUrlError
-        if (hostUrlError) nextErrors.host_url = hostUrlError
         if (latError) nextErrors.latStr = latError
         if (lonError) nextErrors.lonStr = lonError
+
+        if (hostUrlError) nextErrors.host_url = hostUrlError
 
         setFieldErrors(nextErrors)
         return Object.keys(nextErrors).length === 0
@@ -175,26 +182,33 @@ export function FederationSettingsTab() {
         <div className="settings-form">
             <div className="settings-form__field">
                 <Label className="settings-form__label" htmlFor="fed-server-name">
-                    Server name
+                    {renderRequiredLabel("Server name")}
                 </Label>
                 <ESInput appearance="unstyled"
                     id="fed-server-name"
-                    className="settings-form__input"
+                    className={`settings-form__input${
+                        fieldErrors.server_name ? " settings-form__input--error" : ""
+                    }`}
                     type="text"
                     value={form.server_name}
+                    aria-required="true"
                     onChange={(e) => updateField("server_name", e.target.value)}
                 />
+                {fieldErrors.server_name ? (
+                    <div className="settings-form__error">{fieldErrors.server_name}</div>
+                ) : null}
             </div>
 
             <div className="settings-form__field">
                 <Label className="settings-form__label" htmlFor="fed-app-url">
-                    App URL
+                    {renderRequiredLabel("App URL")}
                 </Label>
                 <ESInput appearance="unstyled"
                     id="fed-app-url"
                     className={`settings-form__input${fieldErrors.app_url ? " settings-form__input--error" : ""}`}
                     type="url"
                     value={form.app_url}
+                    aria-required="true"
                     onChange={(e) => updateField("app_url", e.target.value)}
                 />
                 {fieldErrors.app_url ? <div className="settings-form__error">{fieldErrors.app_url}</div> : null}
@@ -217,7 +231,7 @@ export function FederationSettingsTab() {
             <div className="settings-form__grid-2">
                 <div className="settings-form__field">
                     <Label className="settings-form__label" htmlFor="fed-lat">
-                        Latitude
+                        {form.shared ? renderRequiredLabel("Latitude") : "Latitude"}
                     </Label>
                     <ESInput appearance="unstyled"
                         id="fed-lat"
@@ -228,13 +242,14 @@ export function FederationSettingsTab() {
                         max={90}
                         step="any"
                         value={form.latStr}
+                        aria-required={form.shared}
                         onChange={(e) => updateField("latStr", e.target.value)}
                     />
                     {fieldErrors.latStr ? <div className="settings-form__error">{fieldErrors.latStr}</div> : null}
                 </div>
                 <div className="settings-form__field">
                     <Label className="settings-form__label" htmlFor="fed-lon">
-                        Longitude
+                        {form.shared ? renderRequiredLabel("Longitude") : "Longitude"}
                     </Label>
                     <ESInput appearance="unstyled"
                         id="fed-lon"
@@ -245,6 +260,7 @@ export function FederationSettingsTab() {
                         max={180}
                         step="any"
                         value={form.lonStr}
+                        aria-required={form.shared}
                         onChange={(e) => updateField("lonStr", e.target.value)}
                     />
                     {fieldErrors.lonStr ? <div className="settings-form__error">{fieldErrors.lonStr}</div> : null}

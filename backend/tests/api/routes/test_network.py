@@ -74,7 +74,11 @@ def test_network_urls_are_validated_and_private_http_is_supported(
     normalized = client.put(
         f"{settings.API_V1_STR}/network-settings",
         headers=superuser_token_headers,
-        json={"app_url": "  http://192.168.1.20:8080  ", "host_url": ""},
+        json={
+            "server_name": "Private Node",
+            "app_url": "  http://192.168.1.20:8080  ",
+            "host_url": "",
+        },
     )
     assert normalized.status_code == 200
     assert normalized.json()["data"]["app_url"] == "http://192.168.1.20:8080"
@@ -177,6 +181,7 @@ def test_register_node_accepts_coordinate_boundaries(
 
 def test_generate_secret_admin_only(
     client: TestClient,
+    db: Session,
     superuser_token_headers: dict[str, str],
     normal_user_token_headers: dict[str, str],
 ) -> None:
@@ -195,6 +200,7 @@ def test_generate_secret_admin_only(
     payload = ok.json()
     assert payload["code"] == 0
     assert payload["data"]["federation_secret"]
+    assert db.exec(select(NetworkNode).where(NetworkNode.is_local == True)).first() is None  # noqa: E712
     # token_hex(32) -> 64 hex chars
     assert len(payload["data"]["federation_secret"]) == 64
 
@@ -227,6 +233,8 @@ def test_admin_settings_and_sync_endpoints(
             "server_name": "Admin Updated Node",
             "app_url": "https://local-admin.example",
             "host_url": "https://local-admin.example",
+            "latitude": 30.0,
+            "longitude": 120.0,
             "shared": True,
         },
     )
@@ -247,6 +255,74 @@ def test_admin_settings_and_sync_endpoints(
     assert local is not None
     # Time format must be: YYYY-MM-DD HH:mm:ss
     assert re.match(r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}", local["last_synced_at"])
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"server_name": "Only Name"},
+        {"app_url": "https://only-url.example"},
+        {"server_name": "", "app_url": ""},
+    ],
+)
+def test_initial_network_settings_require_server_name_and_app_url(
+    client: TestClient,
+    superuser_token_headers: dict[str, str],
+    payload: dict[str, str],
+) -> None:
+    """Initial local node creation requires both identity fields."""
+    response = client.put(
+        f"{settings.API_V1_STR}/network-settings",
+        headers=superuser_token_headers,
+        json=payload,
+    )
+
+    assert response.status_code == 422
+    assert "required" in response.json()["message"].lower()
+
+
+def test_initial_network_settings_create_local_node_with_identity_fields(
+    client: TestClient,
+    db: Session,
+    superuser_token_headers: dict[str, str],
+) -> None:
+    """A valid initial configuration persists the local node."""
+    response = client.put(
+        f"{settings.API_V1_STR}/network-settings",
+        headers=superuser_token_headers,
+        json={"server_name": "Initial Node", "app_url": "https://initial.example"},
+    )
+
+    assert response.status_code == 200
+    node = db.exec(select(NetworkNode).where(NetworkNode.is_local == True)).first()  # noqa: E712
+    assert node is not None
+    assert node.name == "Initial Node"
+    assert node.app_url == "https://initial.example"
+
+
+def test_existing_local_node_allows_partial_server_name_update(
+    client: TestClient,
+    db: Session,
+    superuser_token_headers: dict[str, str],
+) -> None:
+    """Existing local nodes retain partial update behavior."""
+    network_service.update_network_settings(
+        db,
+        network_service.NetworkSettingsUpdate(
+            server_name="Before Update", app_url="https://partial.example"
+        ),
+    )
+
+    response = client.put(
+        f"{settings.API_V1_STR}/network-settings",
+        headers=superuser_token_headers,
+        json={"server_name": "After Update"},
+    )
+
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert data["server_name"] == "After Update"
+    assert data["app_url"] == "https://partial.example"
 
 
 @pytest.mark.parametrize(
@@ -289,6 +365,7 @@ def test_update_network_settings_accepts_coordinate_boundaries(
         f"{settings.API_V1_STR}/network-settings",
         headers=superuser_token_headers,
         json={
+            "server_name": "Boundary Node",
             "app_url": f"https://local-boundary-{latitude}.example",
             "host_url": f"https://local-boundary-{latitude}.example",
             "longitude": longitude,
@@ -299,6 +376,60 @@ def test_update_network_settings_accepts_coordinate_boundaries(
     assert response.status_code == 200
     assert response.json()["data"]["longitude"] == longitude
     assert response.json()["data"]["latitude"] == latitude
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"shared": True},
+        {"shared": True, "latitude": 30.0},
+        {"shared": True, "longitude": 120.0},
+    ],
+)
+def test_public_network_settings_require_both_coordinates(
+    client: TestClient,
+    superuser_token_headers: dict[str, str],
+    payload: dict[str, bool | float],
+) -> None:
+    """Public nodes must provide both coordinates."""
+    response = client.put(
+        f"{settings.API_V1_STR}/network-settings",
+        headers=superuser_token_headers,
+        json={
+            "server_name": "Public Node",
+            "app_url": "https://public-node.example",
+            **payload,
+        },
+    )
+
+    assert response.status_code == 422
+    assert "latitude and longitude" in response.json()["message"]
+
+
+def test_public_network_settings_reject_coordinate_removal(
+    client: TestClient,
+    db: Session,
+    superuser_token_headers: dict[str, str],
+) -> None:
+    """Public nodes cannot clear either coordinate through a partial update."""
+    network_service.update_network_settings(
+        db,
+        network_service.NetworkSettingsUpdate(
+            server_name="Public Node",
+            app_url="https://public-node.example",
+            latitude=30.0,
+            longitude=120.0,
+            shared=True,
+        ),
+    )
+
+    response = client.put(
+        f"{settings.API_V1_STR}/network-settings",
+        headers=superuser_token_headers,
+        json={"latitude": None},
+    )
+
+    assert response.status_code == 422
 
 
 def test_delete_node_endpoint_variants(

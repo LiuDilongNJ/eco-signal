@@ -143,6 +143,8 @@ def test_get_public_nodes_uses_local_stats_when_local_row_exists(db: Session) ->
             server_name="Local Existing",
             app_url="https://local-existing.example",
             host_url="https://local-existing.example",
+            latitude=30.0,
+            longitude=120.0,
             shared=True,
         ),
     )
@@ -154,6 +156,7 @@ def test_sync_from_host_returns_early_for_host_mode(db: Session) -> None:
     network_service.update_network_settings(
         db,
         network_service.NetworkSettingsUpdate(
+            server_name="Host Self",
             app_url="https://host-self.example",
             host_url="https://host-self.example",
         ),
@@ -166,6 +169,7 @@ def test_sync_from_host_handles_unreachable_host(monkeypatch: pytest.MonkeyPatch
     network_service.update_network_settings(
         db,
         network_service.NetworkSettingsUpdate(
+            server_name="Unreachable Child",
             app_url="https://child-unreachable.example",
             host_url="https://host-unreachable.example",
         ),
@@ -184,6 +188,7 @@ def test_sync_from_host_success(monkeypatch: pytest.MonkeyPatch, db: Session) ->
     network_service.update_network_settings(
         db,
         network_service.NetworkSettingsUpdate(
+            server_name="Sync Child",
             app_url="https://child-sync.example",
             host_url="https://host-sync.example",
         ),
@@ -381,6 +386,8 @@ def test_update_network_settings_syncs_hidden_registration_when_shared_switched_
             server_name="Child Shared",
             app_url="https://child-shared.example",
             host_url="https://host-shared.example",
+            latitude=30.0,
+            longitude=120.0,
             shared=True,
         ),
     )
