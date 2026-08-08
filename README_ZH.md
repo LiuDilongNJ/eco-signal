@@ -1,12 +1,12 @@
-# EcoSignal
+# ecoSignal
 
 [English](README.md)
 
-**EcoSignal** 是 [ecoSound-web](https://github.com/nperezg/biosounds) 的现代化重构版本，使用高性能的现代 Web 技术构建。
+**ecoSignal** 是 [ecoSound-web](https://github.com/nperezg/biosounds) 的现代化重构版本，使用高性能的现代 Web 技术构建，并支持图片。
 
 ## 描述
 
-用于生态声学的 Web 应用程序，用于管理、导航、可视化、注释和分析声景录音。
+用于生态声学的 Web 应用程序，用于管理、导航、可视化、注释和分析声景录音与照片。
 
 ## 技术栈
 
@@ -26,6 +26,7 @@
 
 ### 先决条件
 
+-   已克隆的代码仓库
 -   [Docker](https://docs.docker.com/get-docker/)
 -   [Docker Compose](https://docs.docker.com/compose/install/)
 
@@ -33,6 +34,7 @@
 
 1.  **初始化环境变量文件**:
 
+    请在已克隆的代码仓库根目录执行：
     ```bash
     cp .env.example .env
     ```
@@ -52,6 +54,19 @@
     *或者使用 `docker compose up --build -d` 进行标准的后台启动。*
 
     首次启动时，由 `worker` 容器把 BirdNET 所需模型下载到共享的 `app-ai-models` volume 中。`backend` 会跳过这一步，避免健康检查被模型下载阻塞。后续重新构建或重启会直接复用该 volume；只要所需模型文件仍然存在，就不会重复下载。
+
+    如果当前网络无法访问 Docker Hub，请在启动前于 `.env` 中配置镜像源。例如：
+
+    ```bash
+    PYTHON_BASE_IMAGE=docker.m.daocloud.io/library/python:3.12-slim
+    PYTHON_DEV_BASE_IMAGE=docker.m.daocloud.io/library/python:3.12
+    NODE_BASE_IMAGE=docker.m.daocloud.io/library/node:22-alpine
+    NGINX_BASE_IMAGE=docker.m.daocloud.io/library/nginx:alpine
+    POSTGIS_BASE_IMAGE=docker.m.daocloud.io/imresamu/postgis:17-3.5
+    DOCKER_IMAGE_POSTGIS=docker.m.daocloud.io/imresamu/postgis:17-3.5
+    DOCKER_IMAGE_REDIS=docker.m.daocloud.io/library/redis:7-alpine
+    DOCKER_IMAGE_RABBITMQ=docker.m.daocloud.io/library/rabbitmq:3-management
+    ```
 
 3.  **地理数据初始化**:
     首次启动时，`geo_db` 容器会在后台自动下载并导入地理空间数据（IHO/GADM）。您可以通过以下命令查看进度：
