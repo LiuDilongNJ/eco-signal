@@ -2,11 +2,11 @@
 
 [中文文档](README_ZH.md)
 
-**ecoSignal** is a modern refactor of [ecoSound-web](https://github.com/nperezg/biosounds), built with high-performance modern web technologies. It adds support for images.
+**ecoSignal** is a modern refactor of [ecoSound-web]([https://github.com/nperezg/biosounds](https://github.com/ecomontec/ecoSound-web/)), built with high-performance modern web technologies. It adds support for images.
 
 ## Description
 
-Web application for ecoacoustics to manage, navigate, visualise, annotate, and analyse soundscape recordings and photographs.
+Web application for managing, navigating, visualising, annotating, and analysing audios and photos from biodiversity monitoring surveys.
 
 ## Technology Stack
 
