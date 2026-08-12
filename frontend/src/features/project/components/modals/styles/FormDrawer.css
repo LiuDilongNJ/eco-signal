@@ -416,6 +416,33 @@
     text-align: right;
 }
 
+/* Keep the real filename within the form column without hiding its remove action. */
+.shared-drawer-form .form-drawer-inline-row:has(.form-drawer-picture-upload) .ant-form-item-control {
+    flex: 1 1 0;
+    min-width: 0;
+}
+
+.shared-drawer-form .form-drawer-picture-upload {
+    width: 100%;
+}
+
+.shared-drawer-form .form-drawer-picture-upload .ant-upload {
+    display: flex;
+    justify-content: flex-end;
+}
+
+.shared-drawer-form .form-drawer-picture-upload .ant-upload-list-item-container,
+.shared-drawer-form .form-drawer-picture-upload .ant-upload-list-item {
+    width: 100%;
+    max-width: 100%;
+}
+
+.shared-drawer-form .form-drawer-picture-upload .ant-upload-list-item-name {
+    white-space: normal;
+    overflow-wrap: anywhere;
+    text-align: right;
+}
+
 .shared-drawer-form .form-drawer-picture-upload-btn.ant-btn {
     display: flex;
     align-items: center;

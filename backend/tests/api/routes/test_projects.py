@@ -2,10 +2,12 @@
 Test cases for project API routes.
 """
 import re
+from io import BytesIO
 from datetime import datetime, timedelta, timezone
 
 import jwt as pyjwt
 from fastapi.testclient import TestClient
+from PIL import Image
 from sqlmodel import Session, select
 from sqlmodel import select as sql_select
 
@@ -25,6 +27,7 @@ from app.models import (
     UserPermission,
 )
 from app.models.media import AudioSetting, Media, MediaCollection, PhotoSetting
+from app.services.file_service import file_service
 from tests.utils.csv import read_csv_header
 from tests.utils.user import create_random_user
 from tests.utils.utils import random_lower_string
@@ -47,6 +50,13 @@ def create_test_project(db: Session, creator_id: int = 1, **kwargs) -> Project:
     db.commit()
     db.refresh(project)
     return project
+
+
+def image_upload(name: str, image_format: str, content_type: str) -> tuple[str, BytesIO, str]:
+    buffer = BytesIO()
+    Image.new("RGB", (2, 2), "green").save(buffer, image_format)
+    buffer.seek(0)
+    return name, buffer, content_type
 
 
 class TestProjectList:
@@ -355,7 +365,7 @@ class TestProjectCards:
         assert card["name"] == "Amazon Rainfall Search"
         assert card["description_short"] == "BioTeam Alpha"
         assert card["doi"] == "10.1000/rainfall-search"
-        assert card["image_url"] == f"{settings.media_base_url}/projects/rainfall.jpg"
+        assert card["image_url"] == "/sounds/projects/rainfall.jpg"
         assert card["can_access"] is True
         assert "creator" in card
         assert "contributors" in card
@@ -468,9 +478,9 @@ class TestProjectGet:
         assert r.status_code == 200
         data = r.json()["data"]
         
-        # Should build url using the derived public media base URL
+        # Project cover URLs are rooted at the current site.
         assert "picture_url" in data
-        assert data["picture_url"] == f"{settings.media_base_url}/projects/test_pic.jpg"
+        assert data["picture_url"] == "/sounds/projects/test_pic.jpg"
     
     def test_get_project_not_found(
         self, client: TestClient, superuser_token_headers: dict[str, str]
@@ -1077,10 +1087,111 @@ class TestProjectCreate:
         assert r.status_code == 201
         json_resp = r.json()
         assert json_resp["code"] == 0
-        assert json_resp["data"] is None
+        assert isinstance(json_resp["data"]["project_id"], int)
         proj = db.exec(select(Project).where(Project.name == data["name"])).first()
         assert proj is not None
+        assert json_resp["data"]["project_id"] == proj.project_id
         assert proj.url == data["url"]
+
+    def test_create_project_ignores_picture_id_payload(
+        self, client: TestClient, superuser_token_headers: dict[str, str], db: Session
+    ) -> None:
+        data = {
+            "name": f"No Direct Picture {random_lower_string()[:10]}",
+            "url": "https://example.com/no-direct-picture",
+            "picture_id": "unmanaged.png",
+        }
+
+        r = client.post(f"{settings.API_V1_STR}/projects/", headers=superuser_token_headers, json=data)
+
+        assert r.status_code == 201
+        project = db.get(Project, r.json()["data"]["project_id"])
+        assert project is not None
+        assert project.picture_id is None
+
+
+class TestProjectPictureUpload:
+    def test_upload_project_picture_uses_uuid_filename_and_replaces_old_picture(
+        self, client: TestClient, superuser_token_headers: dict[str, str], db: Session, tmp_path, monkeypatch
+    ) -> None:
+        project = create_test_project(db, picture_id="legacy-random.png")
+        project_dir = tmp_path / "projects"
+        project_dir.mkdir()
+        old_path = project_dir / "legacy-random.png"
+        old_path.write_bytes(b"old-picture")
+        monkeypatch.setattr(file_service, "base_dir", tmp_path)
+
+        r = client.put(
+            f"{settings.API_V1_STR}/projects/{project.project_id}/picture",
+            headers=superuser_token_headers,
+            files={"file": image_upload("cover.png", "PNG", "image/png")},
+        )
+
+        assert r.status_code == 200
+        data = r.json()["data"]
+        expected_name = f"{project.uuid.hex}.png"
+        assert data == {"picture_id": expected_name, "path": f"projects/{expected_name}"}
+        assert (project_dir / expected_name).is_file()
+        assert not old_path.exists()
+        db.refresh(project)
+        assert project.picture_id == expected_name
+
+    def test_upload_project_picture_rejects_invalid_content_without_changing_existing_picture(
+        self, client: TestClient, superuser_token_headers: dict[str, str], db: Session, tmp_path, monkeypatch
+    ) -> None:
+        project = create_test_project(db, picture_id="existing.png")
+        project_dir = tmp_path / "projects"
+        project_dir.mkdir()
+        old_path = project_dir / "existing.png"
+        old_path.write_bytes(b"existing-picture")
+        monkeypatch.setattr(file_service, "base_dir", tmp_path)
+
+        response = client.put(
+            f"{settings.API_V1_STR}/projects/{project.project_id}/picture",
+            headers=superuser_token_headers,
+            files={"file": ("invalid.png", BytesIO(b"not-an-image"), "image/png")},
+        )
+
+        assert response.status_code == 400
+        assert old_path.read_bytes() == b"existing-picture"
+        assert project.picture_id == "existing.png"
+
+    def test_upload_project_picture_replaces_same_and_cross_extension_files(
+        self, client: TestClient, superuser_token_headers: dict[str, str], db: Session, tmp_path, monkeypatch
+    ) -> None:
+        project = create_test_project(db)
+        monkeypatch.setattr(file_service, "base_dir", tmp_path)
+        project_dir = tmp_path / "projects"
+
+        first = client.put(
+            f"{settings.API_V1_STR}/projects/{project.project_id}/picture",
+            headers=superuser_token_headers,
+            files={"file": image_upload("first.png", "PNG", "image/png")},
+        )
+        assert first.status_code == 200
+        png_name = f"{project.uuid.hex}.png"
+        png_path = project_dir / png_name
+        second = client.put(
+            f"{settings.API_V1_STR}/projects/{project.project_id}/picture",
+            headers=superuser_token_headers,
+            files={"file": image_upload("second.png", "PNG", "image/png")},
+        )
+        assert second.status_code == 200
+        assert png_path.is_file()
+        assert not (project_dir / f".{png_name}.new").exists()
+        assert not (project_dir / f".{png_name}.backup").exists()
+
+        third = client.put(
+            f"{settings.API_V1_STR}/projects/{project.project_id}/picture",
+            headers=superuser_token_headers,
+            files={"file": image_upload("cover.jpg", "JPEG", "image/jpeg")},
+        )
+        assert third.status_code == 200
+        jpg_name = f"{project.uuid.hex}.jpg"
+        assert not png_path.exists()
+        assert (project_dir / jpg_name).is_file()
+        db.refresh(project)
+        assert project.picture_id == jpg_name
 
     def test_create_project_empty_doi_persists_null(
         self, client: TestClient, superuser_token_headers: dict[str, str], db: Session

@@ -1613,7 +1613,7 @@ class TestMediaBrowse:
         assert "Terrestrial" in realm_names
         assert "site_name" not in first
         if first.get("preview_url"):
-            assert first["preview_url"].startswith(f"{settings.media_base_url}/")
+            assert first["preview_url"].startswith("/sounds/")
             assert "/media/previews/" not in first["preview_url"]
 
     def test_browse_media_metadata_with_audio_setting_exposes_technical_fields(
@@ -1673,10 +1673,10 @@ class TestMediaBrowse:
         assert metadata_item["bit_depth"] == 24
         assert metadata_item["channel_num"] == 2
 
-    def test_browse_media_gallery_preview_url_uses_absolute_url(
+    def test_browse_media_gallery_preview_url_uses_site_root_relative_url(
         self, client: TestClient, superuser_token_headers: dict, db: Session
     ) -> None:
-        """Gallery preview_url should be a normalized absolute URL."""
+        """Gallery preview_url should be a normalized site-root-relative URL."""
         project_id, _, _ = self._setup_browse_data(db)
 
         r = client.get(
@@ -1688,7 +1688,7 @@ class TestMediaBrowse:
         data = r.json()["data"]
         preview_urls = [item.get("preview_url") for item in data if item.get("preview_url")]
         assert preview_urls
-        assert all(url.startswith(f"{settings.media_base_url}/") for url in preview_urls)
+        assert all(url.startswith("/sounds/") for url in preview_urls)
         assert all("/media/previews/" not in url for url in preview_urls)
         assert all("\\" not in url for url in preview_urls)
         assert all("/sounds/sounds/sounds/" not in url for url in preview_urls)
@@ -1771,7 +1771,7 @@ class TestMediaBrowse:
         assert by_id[private_media_id]["duty_cycle_period"] == 90
         assert by_id[private_media_id]["duty_cycle_recording"] == 30
         if first.get("preview_url"):
-            assert first["preview_url"].startswith(f"{settings.media_base_url}/")
+            assert first["preview_url"].startswith("/sounds/")
         realms = {item["realm_name"] for item in by_id.values()}
         assert "Terrestrial" in realms
         assert "Marine" in realms
@@ -2402,10 +2402,10 @@ class TestMediaGet:
         assert empty_data["theme_value"] is None
         assert empty_data["theme_source"] is None
 
-    def test_get_media_preview_urls_use_absolute_static_paths(
+    def test_get_media_preview_urls_use_site_root_relative_static_paths(
         self, client: TestClient, superuser_token_headers: dict, db: Session
     ) -> None:
-        """Media detail previews should return normalized absolute static URLs."""
+        """Media detail previews should return normalized site-root-relative URLs."""
         project_id, public_media_id, _ = TestMediaBrowse._setup_browse_data(db)
         db.add(
             Preview(
@@ -2437,7 +2437,7 @@ class TestMediaGet:
         assert previews
 
         detail_urls = [p["url"] for p in previews]
-        assert all(u.startswith(f"{settings.media_base_url}/") for u in detail_urls)
+        assert all(u.startswith("/sounds/") for u in detail_urls)
         assert all("/api/v1/media/" not in u for u in detail_urls)
         assert all("/media/previews/" not in u for u in detail_urls)
         assert all("\\" not in u for u in detail_urls)

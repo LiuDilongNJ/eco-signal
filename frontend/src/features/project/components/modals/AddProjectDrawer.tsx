@@ -107,13 +107,15 @@ export function AddProjectDrawer({ open, editId, onClose, onSubmit }: AddProject
             values.creation_date = values.creation_date.toISOString()
         }
 
-        // Extract filename for picture_id
+        // A new project has no ID until its details have been created, so defer
+        // its cover upload to the parent save flow.
         if (values.picture_id && values.picture_id.length > 0) {
             const file = values.picture_id[0]
-            values.picture_id = file.response?.filename || file.name
-        } else {
-            values.picture_id = undefined
+            if (!editId && file.originFileObj instanceof File) {
+                values.picture_file = file.originFileObj
+            }
         }
+        delete values.picture_id
 
         onSubmit(values)
     }
@@ -131,28 +133,42 @@ export function AddProjectDrawer({ open, editId, onClose, onSubmit }: AddProject
             // Optional: fake progress for UX
             onProgress({ percent: 50 })
 
-            const res = await filesApi.uploadImage("projects", file as File)
+            if (editId) {
+                const res = await filesApi.uploadProjectPicture(editId, file as File)
+                if (res.code !== 0 && res.code !== 200) {
+                    onError(new Error(res.message || "Upload failed"))
+                    return
+                }
 
-            if (res.code === 0 || res.code === 200) {
                 onProgress({ percent: 100 })
                 onSuccess(res.data)
-
-                // Form.Item "valuePropName" is "fileList", we need to update the file in the "fileList" to indicate it's complete
                 const currentFiles = form.getFieldValue("picture_id") || []
-
-                // Generate a local preview URL from the file object to ensure it is immediately visible
-                const previewUrl = URL.createObjectURL(file as unknown as Blob)
-
-                const updatedFiles = currentFiles.map((f: any) => {
-                    if (f.uid === file.uid) {
-                        return { ...f, status: 'done', url: previewUrl, response: res.data }
+                const updatedFiles = currentFiles.map((item: any) => {
+                    if (item.uid === file.uid) {
+                        return {
+                            ...item,
+                            name: res.data.picture_id,
+                            status: "done",
+                            url: `/sounds/projects/${res.data.picture_id}`,
+                            response: res.data,
+                        }
                     }
-                    return f
+                    return item
                 })
                 form.setFieldValue("picture_id", updatedFiles)
-            } else {
-                onError(new Error(res.message || "Upload failed"))
+                return
             }
+
+            const previewUrl = URL.createObjectURL(file as unknown as Blob)
+            onProgress({ percent: 100 })
+            onSuccess({ local: true })
+            const currentFiles = form.getFieldValue("picture_id") || []
+            const updatedFiles = currentFiles.map((item: any) => (
+                item.uid === file.uid
+                    ? { ...item, name: file.name, status: "done", url: previewUrl }
+                    : item
+            ))
+            form.setFieldValue("picture_id", updatedFiles)
         } catch (error) {
             console.error("Upload error:", error)
             onError(error)

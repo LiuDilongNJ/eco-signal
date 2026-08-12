@@ -9,6 +9,15 @@ export interface UploadImageResponse {
     }
 }
 
+export interface UploadProjectPictureResponse {
+    code: number
+    message: string
+    data: {
+        picture_id: string
+        path: string
+    }
+}
+
 export interface BatchInitResponse {
     code: number
     message: string
@@ -32,6 +41,12 @@ export interface UploadChunkResponse {
 }
 
 export const filesApi = {
+    uploadProjectPicture(projectId: number, file: File) {
+        const formData = new FormData()
+        formData.append("file", file)
+        return apiClient.put<UploadProjectPictureResponse>(`/v1/projects/${projectId}/picture`, formData)
+    },
+
     uploadImage(category: string, file: File) {
         const formData = new FormData()
         formData.append("file", file)

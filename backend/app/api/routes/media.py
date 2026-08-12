@@ -113,8 +113,8 @@ def browse_media(
     - 未登录用户 (Anonymous)：仅返回公开集合中的媒体 / Returns media from public collections only
     - 登录用户 (Authenticated)：按权限返回（管理员全量，普通用户为可访问集合 + 公开集合） /
       Returns by permission (admin: all, regular user: accessible collections + public collections)
-    - `preview_url`：返回带后端推导媒体公开前缀的可直连地址（若有预览图） /
-      `preview_url`: absolute URL with the derived public media base prefix (when preview exists)
+    - `preview_url`：返回站点根相对的媒体地址（若有预览图），例如 `/sounds/...` /
+      `preview_url`: site-root-relative media URL (when preview exists), for example `/sounds/...`
     - `view_type=list` 时包含站点 `freshwater_depth_m`（米，可选） /
       When `view_type=list`, each item includes site `freshwater_depth_m` (meters, optional)
     """
@@ -273,8 +273,8 @@ def get_media(
     / Anonymous can access media linked to at least one public_access collection; non-public media returns 403.
     返回包含 previews、关联实体名称、集合/项目信息和当前用户标签状态的完整响应。
     Returns full response with previews, related entity names, collection/project info, and user label status.
-    - `previews[].url` 返回带后端推导媒体公开前缀的静态可直连地址。 /
-      `previews[].url` is an absolute static URL prefixed with the derived public media base.
+    - `previews[].url` 返回站点根相对的静态媒体地址，例如 `/sounds/...`。 /
+      `previews[].url` is a site-root-relative static media URL, for example `/sounds/...`.
     """
     media_public = media_service.get_media(session, project_id, media_id, current_user)
     return api_success(data=media_public)

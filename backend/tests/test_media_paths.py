@@ -20,7 +20,7 @@ def test_normalize_media_relative_path_handles_supported_variants() -> None:
 
 def test_build_media_public_url_uses_normalized_relative_path() -> None:
     url = build_media_public_url("sounds/sounds/12/88/demo_thumbnail.png")
-    assert url.endswith("/sounds/12/88/demo_thumbnail.png")
+    assert url == "/sounds/sounds/12/88/demo_thumbnail.png"
     assert "/sounds/sounds/sounds/" not in url
 
 
@@ -29,7 +29,7 @@ def test_logical_audio_media_path_builds_public_storage_url() -> None:
     assert rel == Path("sounds/12/88/demo.flac")
 
     url = build_media_public_url(rel)
-    assert url.endswith("/sounds/sounds/12/88/demo.flac")
+    assert url == "/sounds/sounds/12/88/demo.flac"
     assert "/sounds/sounds/sounds/" not in url
 
 
@@ -39,7 +39,6 @@ def test_public_origin_omits_default_http_port(monkeypatch) -> None:
     monkeypatch.setattr(settings, "ENABLE_HTTPS", False)
 
     assert settings.public_origin == "http://ecoSignal.local"
-    assert settings.media_base_url == "http://ecoSignal.local/sounds"
 
 
 def test_public_origin_keeps_non_default_port(monkeypatch) -> None:
@@ -48,7 +47,6 @@ def test_public_origin_keeps_non_default_port(monkeypatch) -> None:
     monkeypatch.setattr(settings, "ENABLE_HTTPS", False)
 
     assert settings.public_origin == "http://ecoSignal.local:3001"
-    assert settings.media_base_url == "http://ecoSignal.local:3001/sounds"
 
 
 def test_public_origin_uses_https_and_omits_default_port(monkeypatch) -> None:
@@ -57,7 +55,6 @@ def test_public_origin_uses_https_and_omits_default_port(monkeypatch) -> None:
     monkeypatch.setattr(settings, "ENABLE_HTTPS", True)
 
     assert settings.public_origin == "https://ecoSignal.local"
-    assert settings.media_base_url == "https://ecoSignal.local/sounds"
 
 
 def test_public_origin_keeps_non_default_https_port(monkeypatch) -> None:
@@ -66,7 +63,20 @@ def test_public_origin_keeps_non_default_https_port(monkeypatch) -> None:
     monkeypatch.setattr(settings, "ENABLE_HTTPS", True)
 
     assert settings.public_origin == "https://ecoSignal.local:8443"
-    assert settings.media_base_url == "https://ecoSignal.local:8443/sounds"
+
+
+def test_build_media_public_url_uses_site_root_relative_path_regardless_of_origin(monkeypatch) -> None:
+    monkeypatch.setattr(settings, "DOMAIN", "media.example")
+    monkeypatch.setattr(settings, "FRONTEND_PORT", 8443)
+    monkeypatch.setattr(settings, "ENABLE_HTTPS", True)
+
+    assert build_media_public_url("projects/cover.png") == "/sounds/projects/cover.png"
+
+
+def test_build_media_public_url_preserves_external_url() -> None:
+    url = "https://cdn.example/projects/cover.png"
+
+    assert build_media_public_url(url) == url
 
 
 def test_resolve_existing_media_path_returns_none_when_primary_missing(tmp_path, monkeypatch) -> None:

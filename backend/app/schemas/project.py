@@ -13,7 +13,6 @@ class ProjectCreate(SQLModel):
     """Schema for creating a new project."""
     name: str = Field(..., max_length=100, description="Project name")
     url: Optional[str] = Field(None, max_length=255, description="Project URL")
-    picture_id: Optional[str] = Field(None, max_length=255, description="Picture ID")
     description: Optional[str] = Field(None, description="Full description")
     description_short: Optional[str] = Field(None, description="Short description")
     doi: Optional[str] = Field(None, max_length=255, description="DOI")
@@ -30,7 +29,6 @@ class ProjectUpdate(SQLModel):
     """Schema for updating a project (all fields optional)."""
     name: Optional[str] = Field(None, max_length=100)
     url: Optional[str] = Field(None, max_length=255)
-    picture_id: Optional[str] = Field(None, max_length=255)
     description: Optional[str] = None
     description_short: Optional[str] = None
     doi: Optional[str] = Field(None, max_length=255)

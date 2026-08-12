@@ -195,11 +195,53 @@ class FileService:
             if not has_perm:
                 raise HTTPException(status_code=403, detail="No permission to upload")
 
-        picture_id = await self.upload_image(file, "projects", str(project_id))
+        original_filename = validate_filename(file.filename or "")
+        ext = self._validate_file_type(original_filename, "image")
+        picture_id = f"{project.uuid.hex}.{ext}"
+        target_dir = self.base_dir / "projects"
+        self._ensure_directory(target_dir)
+        target_path = target_dir / picture_id
+        staging_path = target_path.with_name(f".{target_path.name}.new")
+        backup_path = target_path.with_name(f".{target_path.name}.backup")
+        previous_picture_id = project.picture_id
+        published = False
 
-        project.picture_id = picture_id
-        session.add(project)
-        session.commit()
+        try:
+            await self._write_upload_stream(
+                file,
+                staging_path,
+                max_size=settings.MAX_IMAGE_SIZE,
+                label="Image file",
+            )
+            sanitize_image(staging_path, original_filename, file.content_type)
+
+            if target_path.exists():
+                backup_path.unlink(missing_ok=True)
+                target_path.replace(backup_path)
+            staging_path.replace(target_path)
+            published = True
+
+            project.picture_id = picture_id
+            session.add(project)
+            session.commit()
+        except Exception:
+            session.rollback()
+            project.picture_id = previous_picture_id
+            staging_path.unlink(missing_ok=True)
+            if backup_path.exists():
+                target_path.unlink(missing_ok=True)
+                backup_path.replace(target_path)
+            elif published:
+                target_path.unlink(missing_ok=True)
+            raise
+
+        backup_path.unlink(missing_ok=True)
+        if previous_picture_id and previous_picture_id != picture_id:
+            try:
+                previous_filename = validate_filename(previous_picture_id)
+                (target_dir / previous_filename).unlink(missing_ok=True)
+            except HTTPException:
+                logger.warning("Skipped unsafe previous project picture filename for project %s", project_id)
 
         return {
             "picture_id": picture_id,

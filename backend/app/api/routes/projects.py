@@ -272,7 +272,7 @@ def get_project(
 
 @router.post(
     "",
-    response_model=ApiResponse[None],
+    response_model=ApiResponse[dict[str, int]],
     status_code=201,
     summary="创建项目 / Create Project"
 )
@@ -286,8 +286,8 @@ def create_project(
 
     仅限管理员。 / Admin only.
     """
-    project_service.create_project(session, project_in, current_user)
-    return api_success()
+    project_id = project_service.create_project(session, project_in, current_user)
+    return api_success(data={"project_id": project_id})
 
 
 @router.patch(

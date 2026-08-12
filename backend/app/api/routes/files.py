@@ -50,11 +50,11 @@ async def upload_project_picture(
     上传项目图片。 / Upload a project picture.
 
     - 管理员或拥有 project:write 权限的用户可以上传 / Admins or users with project:write permission can upload
-    - 文件保存在 sounds/projects/{project_id}.{extension} / File is saved to sounds/projects/{project_id}.{extension}
-    - 返回用于创建/更新项目的文件名 (picture_id) / Returns the filename (picture_id) to be used when creating/updating project
+    - 文件保存在 sounds/projects/{project_uuid_without_hyphens}.{extension} / File is saved to sounds/projects/{project_uuid_without_hyphens}.{extension}
+    - 上传成功后自动更新项目图片 / The project picture is updated automatically after a successful upload
 
     Returns:
-        {"picture_id": "123.png", "path": "sounds/projects/123.png"}
+        {"picture_id": "550e8400e29b41d4a716446655440000.png", "path": "projects/550e8400e29b41d4a716446655440000.png"}
     """
 
     data = await file_service.upload_project_picture(session, project_id, current_user, file)

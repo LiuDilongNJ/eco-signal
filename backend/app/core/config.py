@@ -87,11 +87,6 @@ class Settings(BaseSettings):
             return f"{scheme}://{self.DOMAIN}"
         return f"{scheme}://{self.DOMAIN}:{self.FRONTEND_PORT}"
 
-    @computed_field  # type: ignore[prop-decorator]
-    @property
-    def media_base_url(self) -> str:
-        return f"{self.public_origin.rstrip('/')}/sounds"
-
     PROJECT_NAME: str
     SENTRY_DSN: HttpUrl | None = None
     SENTRY_ENABLED: bool = True

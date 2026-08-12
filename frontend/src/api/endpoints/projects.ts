@@ -66,12 +66,17 @@ export interface GetProjectsParams {
 export interface CreateProjectPayload {
     name: string
     url?: string
-    picture_id?: string
     description?: string
     description_short?: string
     doi?: string
     public: boolean
     active: boolean
+}
+
+export interface CreateProjectResponse {
+    code: number
+    message: string
+    data: { project_id: number }
 }
 
 export interface ProjectOverviewParams {
@@ -101,7 +106,7 @@ export const projectsApi = {
 
     /** 创建项目 */
     createProject(payload: CreateProjectPayload) {
-        return apiClient.post<{ code: number; message: string; data: any }>("/v1/projects", payload)
+        return apiClient.post<CreateProjectResponse>("/v1/projects", payload)
     },
 
     /** 获取项目详情 */

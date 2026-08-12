@@ -357,7 +357,7 @@ def _preview_priority(preview: Preview) -> tuple[int, int]:
 
 
 def _get_preview_url(media: Media) -> str | None:
-    """Build normalized absolute preview URL from the preferred available preview."""
+    """Build a normalized site-root-relative URL for the preferred preview."""
     if not media.previews:
         return None
     for preview in sorted(media.previews, key=_preview_priority):

@@ -60,8 +60,7 @@ def build_media_public_url(value: str | Path | None) -> str:
     if relative is None:
         return ""
 
-    base = settings.media_base_url.rstrip("/")
-    return f"{base}/{relative.as_posix()}"
+    return f"/sounds/{relative.as_posix()}"
 
 
 def logical_audio_media_path(collection_id: int | str, directory: int | str, filename: str) -> Path:

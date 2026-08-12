@@ -9,6 +9,7 @@ import { DataPageLayout } from "../DataPageLayout"
 import { AddProjectDrawer } from "../../modals/AddProjectDrawer"
 import { LinkCollectionsDrawer } from "../../modals/LinkCollectionsDrawer"
 import { projectsApi } from "../../../../../api/endpoints/projects"
+import { filesApi } from "../../../../../api/endpoints/files"
 import { usersApi } from "../../../../../api/endpoints/users"
 
 import type { ColumnDef, FormFieldDef, RowData, TableState } from "../DataPageLayout"
@@ -161,7 +162,6 @@ export function ProjectsPage() {
             const payload = {
                 name: values.name,
                 url: values.url,
-                picture_id: values.picture_id,
                 description: values.description,
                 description_short: values.description_short,
                 doi: values.doi,
@@ -176,6 +176,20 @@ export function ProjectsPage() {
                 : await projectsApi.createProject(payload)
 
             if (res.code === 0 || res.code === 200) {
+                if (!isEdit && values.picture_file instanceof File) {
+                    try {
+                        const uploadResult = await filesApi.uploadProjectPicture(
+                            res.data.project_id,
+                            values.picture_file,
+                        )
+                        if (uploadResult.code !== 0 && uploadResult.code !== 200) {
+                            message.error(uploadResult.message || "Project created, but picture upload failed")
+                        }
+                    } catch (uploadError: any) {
+                        console.error("Upload project picture error:", uploadError)
+                        message.error(uploadError?.message || "Project created, but picture upload failed")
+                    }
+                }
                 message.success(`Project ${isEdit ? 'updated' : 'created'} successfully`)
                 setAddDrawerOpen(false)
                 setEditProjectId(null)

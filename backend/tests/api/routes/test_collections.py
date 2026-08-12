@@ -510,7 +510,7 @@ class TestCollectionView:
         data = payload["data"]
         assert data["project_id"] == project.project_id
         assert data["project_name"] == "Canopy Audio - Phase D"
-        assert data["project_picture_url"] == f"{settings.media_base_url}/projects/phase-d.jpg"
+        assert data["project_picture_url"] == "/sounds/projects/phase-d.jpg"
         assert data["collection_id"] == collection.collection_id
         assert data["collection_name"] == "Phase D Collection"
         assert data["collection_code"] == f"col.{collection.collection_id}"
@@ -574,7 +574,7 @@ class TestCollectionView:
         assert r.status_code == 200
         data = r.json()["data"]
         assert data["description"] == "Private description from collection field."
-        assert data["project_picture_url"] == f"{settings.media_base_url}/projects/private-phase.jpg"
+        assert data["project_picture_url"] == "/sounds/projects/private-phase.jpg"
         assert data["sphere"] == "hydrosphere"
         assert data["external_media_url"] == "https://private.example/media"
         assert data["project_url"] == "https://private.example/project"
