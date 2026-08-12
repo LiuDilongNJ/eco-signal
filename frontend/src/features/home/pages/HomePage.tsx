@@ -980,12 +980,24 @@ export default function HomePage() {
                             </p>
                         </div>
                         <div className="logo-grid">
-                            <a className="sponsor-card" href="https://www.inrae.fr/en" target="_blank" rel="noopener noreferrer"><img src="/images/sponsors/inrae.png" alt="INRAE" /></a>
-                            <a className="sponsor-card" href="https://en.westlake.edu.cn/" target="_blank" rel="noopener noreferrer"><img src="/images/sponsors/westlake_univ.png" alt="Westlake" /></a>
-                            <a className="sponsor-card" href="https://www.dfg.de/en/" target="_blank" rel="noopener noreferrer"><img src="/images/sponsors/dfg_logo.png" alt="DFG" /></a>
-                            <a className="sponsor-card" href="https://www.uni-goettingen.de/en/74726.html" target="_blank" rel="noopener noreferrer"><img src="/images/sponsors/fly_bee.png" alt="FlyBee" /></a>
-                            <a className="sponsor-card" href="https://www.nfdi4earth.de/" target="_blank" rel="noopener noreferrer"><img src="/images/sponsors/NFDI4Earth_logo.png" alt="NFDI" /></a>
-                            <a className="sponsor-card" href="https://www.tomcwanger.com/" target="_blank" rel="noopener noreferrer"><img src="/images/sponsors/sealab_logo.png" alt="SeaLab" /></a>
+                            <a
+                                className="sponsor-card sponsor-card--inrae"
+                                href="https://www.inrae.fr/en"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                aria-label="Visit the INRAE website"
+                            >
+                                <img src="/images/sponsors/inrae.png" alt="INRAE" />
+                            </a>
+                            <a
+                                className="sponsor-card sponsor-card--cnrs"
+                                href="https://www.cnrs.fr/en"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                aria-label="Visit the CNRS website"
+                            >
+                                <img src="/images/sponsors/cnrs.png" alt="CNRS" />
+                            </a>
                         </div>
                         <div className="sponsors-footer-action">
                             <a href="mailto:contact@ecosignal.org" className="join-btn">
