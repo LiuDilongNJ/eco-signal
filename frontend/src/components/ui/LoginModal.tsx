@@ -10,9 +10,17 @@ interface LoginModalProps {
     isOpen: boolean;
     onClose: () => void;
     onSuccess: (username: string) => void;
+    sessionExpired?: boolean;
+    idleTimeoutSeconds?: number;
 }
 
-export function LoginModal({ isOpen, onClose, onSuccess }: LoginModalProps) {
+export function LoginModal({
+    isOpen,
+    onClose,
+    onSuccess,
+    sessionExpired = false,
+    idleTimeoutSeconds = 30 * 60,
+}: LoginModalProps) {
     const [loginInput, setLoginInput] = useState("");
     const [passwordInput, setPasswordInput] = useState("");
     const [loginError, setLoginError] = useState("");
@@ -42,6 +50,7 @@ export function LoginModal({ isOpen, onClose, onSuccess }: LoginModalProps) {
 
             const raw = await apiClient.post<{
                 access_token?: string
+                session_idle_timeout_seconds?: number
             }>("/v1/auth-tokens", formData)
             const accessToken = raw?.access_token
 
@@ -51,6 +60,7 @@ export function LoginModal({ isOpen, onClose, onSuccess }: LoginModalProps) {
             }
 
             authUtils.setToken(accessToken)
+            authUtils.setIdleTimeoutSeconds(raw.session_idle_timeout_seconds ?? 0)
             let displayName = loginInput
             try {
                 const me = await apiClient.get<{
@@ -84,6 +94,11 @@ export function LoginModal({ isOpen, onClose, onSuccess }: LoginModalProps) {
     return (
         <Dialog open={isOpen} onClose={onClose} title="Welcome Back" width={450} rootClassName="login-modal">
             <form className="login-form" onSubmit={handleLoginSubmit} noValidate>
+                {sessionExpired ? (
+                    <div className="login-session-expired" role="status">
+                        Your session expired after {Math.round((idleTimeoutSeconds > 0 ? idleTimeoutSeconds : 30 * 60) / 60)} minutes of inactivity. Please log in again.
+                    </div>
+                ) : null}
                 {loginError ? <div className="login-error" role="alert">{loginError}</div> : null}
                 <div className="login-form-field">
                     <Input

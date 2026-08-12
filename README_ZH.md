@@ -2,11 +2,11 @@
 
 [English](README.md)
 
-**ecoSignal** 是 [ecoSound-web](https://github.com/nperezg/biosounds) 的现代化重构版本，使用高性能的现代 Web 技术构建，并支持图片。
+**ecoSignal** 是 [ecoSound-web](https://github.com/ecomontec/ecoSound-web/) 的现代化重构版本，使用高性能的现代 Web 技术构建，支持照片和离线在线同步。
 
 ## 描述
 
-用于生态声学的 Web 应用程序，用于管理、导航、可视化、注释和分析声景录音与照片。
+用于协作管理、浏览、可视化、标注和分析生物多样性监测调查中音频与照片的 Web 应用程序。
 
 ## 技术栈
 
@@ -27,6 +27,7 @@
 ### 先决条件
 
 -   已克隆的代码仓库
+-   首次安装时请确保至少有 50 GB 可用磁盘空间，以避免构建失败；若同一主机还保留用于后续迁移的 `ecoSound-web` 目录，则需要额外预留空间。
 -   [Docker](https://docs.docker.com/get-docker/)
 -   [Docker Compose](https://docs.docker.com/compose/install/)
 
@@ -93,6 +94,15 @@
     docker compose down
     ```
 
+## 媒体上传处理
+
+普通音频和照片上传时，可选择一个或多个文件；所有分块上传完成后，即可在上传抽屉中保存该批文件。
+
+- 分块上传仅创建暂存记录，不会为每个文件单独创建 Queue 记录。
+- 保存后会为本次受理的文件创建一条 `upload` Queue 记录。`total` 为提交文件总数，`completed` 仅统计成功创建媒体的数量。
+- 文件合并、内容校验、重复检测、媒体创建和预览生成会在该后台批处理中按顺序执行。
+- 只有重复文件的批次会以 warning 结束；任一文件处理失败时会以 error 结束。请在 Queue 页面查看每次提交的最终结果。
+
 ## 离线实地工作
 
 EcoSignal 支持基于签名集合包的离线实地工作流，离线包可包含音频、图片、标注、审核和标签。
@@ -117,15 +127,6 @@ EcoSignal 支持基于签名集合包的离线实地工作流，离线包可包�
 - 导入后重新生成音频与图片预览；预览生成失败只记录警告，不会丢弃已导入媒体。
 - 底层导出接口为 `POST /api/v1/collection-bundle-exports`，导入会话接口为 `POST /api/v1/data-imports`。
 
-## 媒体上传处理
-
-普通音频和照片上传时，可选择一个或多个文件；所有分块上传完成后，即可在上传抽屉中保存该批文件。
-
-- 分块上传仅创建暂存记录，不会为每个文件单独创建 Queue 记录。
-- 保存后会为本次受理的文件创建一条 `upload` Queue 记录。`total` 为提交文件总数，`completed` 仅统计成功创建媒体的数量。
-- 文件合并、内容校验、重复检测、媒体创建和预览生成会在该后台批处理中按顺序执行。
-- 只有重复文件的批次会以 warning 结束；任一文件处理失败时会以 error 结束。请在 Queue 页面查看每次提交的最终结果。
-
 ## 数据迁移与回滚脚本
 
 如需将老项目 `ecoSound-web` 的数据一次性迁移到 `ecoSignal`，请使用仓库根目录脚本。
@@ -140,7 +141,8 @@ EcoSignal 支持基于签名集合包的离线实地工作流，离线包可包�
 ### 迁移老数据到 ecoSignal
 
 ```bash
-./migrate-data.sh <old-project-dir> [options]
+chmod +x ./migrate-data.sh
+sudo ./migrate-data.sh <old-project-dir> [options]
 ```
 
 示例：
@@ -255,12 +257,31 @@ docker compose exec -T frontend npm run build
    请重点确认 `SECRET_KEY`、`FIRST_SUPERUSER`、`FIRST_SUPERUSER_PASSWORD`、`POSTGRES_PASSWORD`、`REDIS_PASSWORD`，以及当前环境需要的域名、邮箱、Sentry、旧项目路径等变量。
    HTTP 模式使用 `DOMAIN` 和 `FRONTEND_PORT` 在同一来源提供前端、API 与媒体。仅在公网部署时设置 `ENABLE_HTTPS=true`：前端使用 `dashboard.DOMAIN`，API 使用 `api.DOMAIN`，并要求配置 `EMAIL`、域名解析及公网 80/443 入站端口。
 
+   `./deploy.sh` 从根目录 `.env` 读取 `ENVIRONMENT`。允许值为 `local`、`staging`、`production`；`.env.example` 与后端代码的默认值都是 `local`。测试服务器应明确设置为 `staging`，正式服务器应明确设置为 `production`。`local` 环境始终关闭登录空闲超时；`staging` 和 `production` 使用 `AUTH_SESSION_IDLE_EXPIRE_MINUTES` 控制超时时间，默认 30 分钟。
+
+   部署前可检查 Compose 最终解析的值：
+
+   ```bash
+   docker compose -f docker-compose.yml config --environment | grep '^ENVIRONMENT='
+   ```
+
    `.env.example` 用于版本管理中的模板分发；`.env` 属于环境专用文件，必须保持未提交状态。
 
-2. **使用带保护的生产部署脚本**。脚本会串行化发布、等待依赖就绪、单次执行初始化，并等待服务健康：
+2. **使用带保护的生产部署脚本**。脚本需要先授予执行权限；随后会串行化发布、等待依赖就绪、单次执行初始化，并等待服务健康：
    ```bash
-   ./deploy.sh
+   chmod +x ./deploy.sh ./rollback.sh
+   sudo ./deploy.sh
    ```
+
+   部署后可在后端容器中确认实际环境和有效空闲超时时间：
+
+   ```bash
+   STACK_NAME="$(docker compose -f docker-compose.yml config --environment | awk -F= '$1 == "STACK_NAME" { print tolower($2); exit }')"
+   docker compose --project-name "${STACK_NAME:-ecosignal}" --profile production -f docker-compose.yml exec backend python -c \
+   'from app.core.config import settings; print(settings.ENVIRONMENT, settings.auth_session_idle_timeout_seconds)'
+   ```
+
+   当 `ENVIRONMENT=production` 且使用默认超时时间时，预期输出为 `production 1800`。
 
    Windows PowerShell 请运行 `.\deploy.ps1`；命令提示符可使用 `deploy.bat`。macOS 和 Linux 使用 `./deploy.sh`，两者均不再依赖 `flock`。
 
@@ -276,6 +297,8 @@ docker compose exec -T frontend npm run build
 | ------------------------- | -------------------- | ----------------------------------------- |
 | **预发布 (Staging)**      | 推送到 `main` 分支   | `.github/workflows/deploy-staging.yml`    |
 | **生产环境 (Production)** | 发布新的 Release     | `.github/workflows/deploy-production.yml` |
+
+工作流会直接设置 `ENVIRONMENT`：staging 工作流使用 `staging`，production 工作流使用 `production`，无需将 `ENVIRONMENT` 配置为 GitHub Variable。
 
 #### 必需的 GitHub Secrets
 
@@ -296,6 +319,7 @@ docker compose exec -T frontend npm run build
 | `FRONTEND_PORT`        | `80`              | 前端宿主机端口          |
 | `STACK_NAME`           | 无                | Docker Compose 项目名   |
 | `BACKEND_CORS_ORIGINS` | 无                | 后端 CORS 来源          |
+| `AUTH_SESSION_IDLE_EXPIRE_MINUTES` | `30` | staging/production 登录空闲超时分钟数；设为 `0` 可关闭 |
 | `PROJECT_NAME`         | `ecoSignal`       | 应用名称                |
 | `POSTGRES_USER`        | `postgres`        | PostgreSQL 用户名       |
 | `POSTGRES_DB`          | `ecosignal`       | PostgreSQL 数据库名     |

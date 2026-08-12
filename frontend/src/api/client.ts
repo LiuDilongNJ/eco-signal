@@ -148,14 +148,29 @@ function shouldAttemptRefresh(endpoint: string): boolean {
 
 type AccessTokenResponse = {
     access_token?: string
+    session_idle_timeout_seconds?: number
     data?: {
         access_token?: string
+        session_idle_timeout_seconds?: number
     }
 }
 
 function extractAccessToken(payload: AccessTokenResponse | null): string | null {
     const token = payload?.data?.access_token ?? payload?.access_token
     return typeof token === "string" && token.length > 0 ? token : null
+}
+
+function storeAccessTokenResponse(payload: AccessTokenResponse | null): string | null {
+    const token = extractAccessToken(payload)
+    if (!token) return null
+    const timeout = payload?.data?.session_idle_timeout_seconds ?? payload?.session_idle_timeout_seconds ?? 0
+    authUtils.setToken(token)
+    authUtils.setIdleTimeoutSeconds(timeout)
+    return token
+}
+
+function isIdleTimeoutResponse(response: Response): boolean {
+    return response.headers.get("X-Auth-Reason") === "idle_timeout"
 }
 
 export async function refreshAccessToken(): Promise<string | null> {
@@ -165,12 +180,14 @@ export async function refreshAccessToken(): Promise<string | null> {
                 method: "POST",
                 credentials: "include",
             })
-            if (!response.ok) return null
+            if (!response.ok) {
+                if (response.status === 401 && isIdleTimeoutResponse(response)) {
+                    dispatchLoginRequired("idle_timeout")
+                }
+                return null
+            }
             const payload = (await response.json().catch(() => null)) as AccessTokenResponse | null
-            const token = extractAccessToken(payload)
-            if (!token) return null
-            authUtils.setToken(token)
-            return token
+            return storeAccessTokenResponse(payload)
         })().finally(() => {
             refreshAccessTokenPromise = null
         })
@@ -220,7 +237,11 @@ function handleUnauthorizedAndThrow(
     ignoreUnauthorized?: boolean
 ): never {
     if (response.status === 401 || response.status === 403) {
-        onUnauthorized(response.status, endpoint, ignoreUnauthorized)
+        if (response.status === 401 && isIdleTimeoutResponse(response) && !ignoreUnauthorized) {
+            dispatchLoginRequired("idle_timeout")
+        } else {
+            onUnauthorized(response.status, endpoint, ignoreUnauthorized)
+        }
     }
     throw new ApiError(response.status, response.statusText, data)
 }
@@ -269,6 +290,9 @@ async function request<T>(
         })
     }
 
+    if (token) {
+        authUtils.markSessionActivity()
+    }
     let response = await doFetch(token ?? undefined)
     let alreadyHandledUnauthorized = false
 
@@ -277,7 +301,7 @@ async function request<T>(
         if (refreshedToken) {
             response = await doFetch(refreshedToken)
         } else {
-        dispatchLoginRequired()
+            dispatchLoginRequired()
             alreadyHandledUnauthorized = true
         }
     }
@@ -329,6 +353,9 @@ async function requestBlob(
         })
     }
 
+    if (token) {
+        authUtils.markSessionActivity()
+    }
     let response = await doFetch(token ?? undefined)
     let alreadyHandledUnauthorized = false
 
@@ -337,7 +364,7 @@ async function requestBlob(
         if (refreshedToken) {
             response = await doFetch(refreshedToken)
         } else {
-        dispatchLoginRequired()
+            dispatchLoginRequired()
             alreadyHandledUnauthorized = true
         }
     }

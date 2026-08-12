@@ -1,6 +1,6 @@
 import json
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Literal
 
 from redis.asyncio import Redis
 
@@ -9,6 +9,21 @@ _FAMILY_PREFIX = "auth:rt_family"
 _USER_PREFIX = "auth:rt_user"
 _REPLACEMENT_TOKEN_PREFIX = "auth:rt_replacement"
 _REPLACEMENT_CHAIN_MAX_DEPTH = 5
+
+_TOUCH_FAMILY_ACTIVITY_SCRIPT = """
+local revoked_key = KEYS[1]
+local activity_key = KEYS[2]
+local timeout_seconds = tonumber(ARGV[1])
+
+if redis.call('EXISTS', revoked_key) == 1 then
+    return -1
+end
+if redis.call('EXISTS', activity_key) == 0 then
+    return 0
+end
+redis.call('SET', activity_key, '1', 'EX', timeout_seconds)
+return 1
+"""
 
 
 def _session_key(jti: str) -> str:
@@ -29,6 +44,10 @@ def _family_revoked_key(family_id: str) -> str:
 
 def _user_families_key(user_id: int) -> str:
     return f"{_USER_PREFIX}:{user_id}:families"
+
+
+def _family_activity_key(family_id: str) -> str:
+    return f"{_FAMILY_PREFIX}:{family_id}:activity"
 
 
 def _now_utc_naive() -> datetime:
@@ -68,6 +87,33 @@ def _dumps_session(data: dict[str, Any]) -> str:
 
 
 class AuthRefreshSessionRepository:
+    async def initialize_family_activity(
+        self, redis: Redis, family_id: str, *, timeout_seconds: int
+    ) -> None:
+        """Start the sliding inactivity window for a newly authenticated family."""
+        if timeout_seconds <= 0:
+            return
+        await redis.set(
+            _family_activity_key(family_id),
+            "1",
+            ex=timeout_seconds,
+        )
+
+    async def touch_family_activity(
+        self, redis: Redis, family_id: str, *, timeout_seconds: int
+    ) -> Literal["active", "expired", "revoked"]:
+        """Atomically validate and extend a session family's inactivity window."""
+        if timeout_seconds <= 0:
+            return "active"
+        result = await redis.eval(
+            _TOUCH_FAMILY_ACTIVITY_SCRIPT,
+            2,
+            _family_revoked_key(family_id),
+            _family_activity_key(family_id),
+            timeout_seconds,
+        )
+        return {1: "active", 0: "expired", -1: "revoked"}[int(result)]
+
     async def create_session(
         self,
         redis: Redis,
@@ -145,6 +191,7 @@ class AuthRefreshSessionRepository:
         for token_id in token_ids:
             jti = token_id.decode("utf-8") if isinstance(token_id, bytes) else str(token_id)
             await self.revoke_session(redis, jti)
+        await redis.delete(_family_activity_key(family_id))
 
     async def revoke_user_sessions(self, redis: Redis, user_id: int) -> None:
         families = await redis.smembers(_user_families_key(user_id))

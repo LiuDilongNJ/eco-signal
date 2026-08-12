@@ -1,7 +1,12 @@
+from datetime import timedelta
+
+import jwt
 import pytest
 from fastapi.testclient import TestClient
+from redis import Redis
 from sqlmodel import Session
 
+from app.core import security
 from app.core.config import settings
 from app.core.security import verify_password
 from app.repositories import user_repository
@@ -24,7 +29,82 @@ def test_get_access_token(client: TestClient) -> None:
     assert payload["access_token"]
     assert payload["expires_in"] == settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
     assert payload["token_type"] == "bearer"
+    assert payload["session_idle_timeout_seconds"] == 0
     assert settings.AUTH_REFRESH_COOKIE_NAME in r.cookies
+
+
+def test_idle_timeout_rejects_access_token_with_reason_header(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(settings, "ENVIRONMENT", "staging")
+    monkeypatch.setattr(settings, "AUTH_SESSION_IDLE_EXPIRE_MINUTES", 30)
+    login_resp = client.post(
+        f"{settings.API_V1_STR}/auth-tokens",
+        data={
+            "username": settings.FIRST_SUPERUSER,
+            "password": settings.FIRST_SUPERUSER_PASSWORD,
+        },
+    )
+    assert login_resp.status_code == 200
+    payload = login_resp.json()
+    assert payload["session_idle_timeout_seconds"] == 1800
+    claims = jwt.decode(payload["access_token"], options={"verify_signature": False})
+    family_id = claims["family_id"]
+
+    redis = Redis(
+        host=settings.REDIS_HOST,
+        port=settings.REDIS_PORT,
+        password=settings.REDIS_PASSWORD or None,
+    )
+    try:
+        redis.delete(f"auth:rt_family:{family_id}:activity")
+    finally:
+        redis.close()
+
+    response = client.get(
+        f"{settings.API_V1_STR}/current-user",
+        headers={"Authorization": f"Bearer {payload['access_token']}"},
+    )
+
+    assert response.status_code == 401
+    assert response.headers["X-Auth-Reason"] == "idle_timeout"
+    assert response.headers["WWW-Authenticate"] == "Bearer"
+
+    optional_auth_response = client.get(
+        f"{settings.API_V1_STR}/project-directory-items",
+        headers={"Authorization": f"Bearer {payload['access_token']}"},
+    )
+    assert optional_auth_response.status_code == 401
+
+
+def test_authenticated_routes_reject_invalid_token_shapes(client: TestClient) -> None:
+    invalid = client.get(
+        f"{settings.API_V1_STR}/current-user",
+        headers={"Authorization": "Bearer invalid-token"},
+    )
+    assert invalid.status_code == 401
+
+    refresh_token = security.create_refresh_token(
+        subject=1,
+        expires_delta=timedelta(minutes=5),
+        jti="refresh-jti",
+        family_id="refresh-family",
+    )
+    wrong_type = client.get(
+        f"{settings.API_V1_STR}/current-user",
+        headers={"Authorization": f"Bearer {refresh_token}"},
+    )
+    assert wrong_type.status_code == 401
+
+    missing_user_token = security.create_access_token(
+        subject=2_147_483_647,
+        expires_delta=timedelta(minutes=5),
+    )
+    missing_user = client.get(
+        f"{settings.API_V1_STR}/current-user",
+        headers={"Authorization": f"Bearer {missing_user_token}"},
+    )
+    assert missing_user.status_code == 401
 
 
 def test_get_access_token_incorrect_password(client: TestClient) -> None:
@@ -58,7 +138,7 @@ def test_refresh_access_token_rotates_cookie(client: TestClient) -> None:
 
 
 def test_refresh_reuse_detected_revokes_family(
-    client: TestClient, db: Session, monkeypatch: pytest.MonkeyPatch
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     # Disable grace period so any replay is immediately treated as an attack.
     monkeypatch.setattr(auth_service.settings, "REFRESH_GRACE_PERIOD_SECONDS", 0)

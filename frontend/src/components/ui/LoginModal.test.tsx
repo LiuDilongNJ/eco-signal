@@ -31,4 +31,24 @@ describe("LoginModal validation", () => {
         expect(screen.getByText("Password is required")).toBeInTheDocument()
         expect(screen.getByRole("textbox", { name: "Username" })).toHaveClass("login-form-input--error")
     })
+
+    it("explains when the login is required by inactivity timeout", () => {
+        const overlay = document.createElement("div")
+        overlay.id = APP_OVERLAY_ROOT_ID
+        document.body.append(overlay)
+
+        render(
+            <LoginModal
+                isOpen
+                sessionExpired
+                idleTimeoutSeconds={1800}
+                onClose={vi.fn()}
+                onSuccess={vi.fn()}
+            />,
+        )
+
+        expect(screen.getByRole("status")).toHaveTextContent(
+            "Your session expired after 30 minutes of inactivity. Please log in again.",
+        )
+    })
 })
