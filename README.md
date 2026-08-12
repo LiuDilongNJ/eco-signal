@@ -258,10 +258,12 @@ This project uses Docker Compose for deployment. HTTP is the default; setting `E
 
    `.env.example` is safe to commit as a template. `.env` is environment-specific and must stay uncommitted.
 
-2. **Deploy with the guarded production script**. The script serializes releases, waits for dependencies, applies setup once, and waits for service health:
+2. **Deploy with the guarded production script**. The script needs to be made executable. It serializes releases, waits for dependencies, applies setup once, and waits for service health:
    ```bash
-   ./deploy.sh
+   chmod +x ./deploy.sh ./rollback.sh
+   sudo ./deploy.sh
    ```
+   
 
    On Windows PowerShell, run `.\deploy.ps1`; Command Prompt users can run `deploy.bat`. On macOS and Linux, use `./deploy.sh`; neither platform requires `flock`.
 
