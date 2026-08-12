@@ -1499,7 +1499,7 @@ body.home-route::-webkit-scrollbar {
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 36vh;
+  height: 100%;
 }
 
 .footer-content {
@@ -1522,6 +1522,20 @@ body.home-route::-webkit-scrollbar {
 
 .footer-logo span {
   color: var(--brand);
+}
+
+.footer-resource-links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+  max-width: min(720px, calc(100% - 48px));
+  margin: 18px 0 12px;
+}
+
+.footer-resource-links .pill-btn {
+  padding: 10px 18px;
+  font-size: 0.9rem;
 }
 
 .footer-actions {

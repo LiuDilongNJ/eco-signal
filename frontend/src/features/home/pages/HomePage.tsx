@@ -648,12 +648,6 @@ export default function HomePage() {
                         <div className="brand-logo"><Activity size={48} /> <span>ecoSignal</span></div>
                         <div className="hero-title">Open-source online<br />platform for ecoacoustics</div>
                         <div className="hero-desc">Use ecoSignal to manage, navigate, visualize, annotate, and analyze soundscape recordings.</div>
-                        <div className="btn-group">
-                            <a href="#" className="pill-btn"><Github size={20} /> GitHub</a>
-                            <a href="https://f1000research.com/articles/9-1224/v3" target="_blank" rel="noopener noreferrer" className="pill-btn"><FileText size={20} /> F1000Research</a>
-                            <a href="https://scholar.google.com/scholar?cites=5906516760297568833&as_sdt=2005&sciodt=0,5&hl=en" target="_blank" rel="noopener noreferrer" className="pill-btn"><GraduationCap size={20} /> Scholar</a>
-                            <a href="mailto:contact@ecosignal.org" className="pill-btn"><Mail size={20} /> Email</a>
-                        </div>
                     </div>
                 </SwiperSlide>
 
@@ -999,11 +993,6 @@ export default function HomePage() {
                                 <img src="/images/sponsors/cnrs.png" alt="CNRS" />
                             </a>
                         </div>
-                        <div className="sponsors-footer-action">
-                            <a href="mailto:contact@ecosignal.org" className="join-btn">
-                                <Mail size={18} /> Contact Us
-                            </a>
-                        </div>
                     </div>
                 </SwiperSlide>
 
@@ -1012,6 +1001,12 @@ export default function HomePage() {
                     <div className="footer-content">
                         <div className="footer-logo"><span>ecoSignal</span></div>
                         <p>&copy; 2025 ecoSignal. All rights reserved.</p>
+                        <div className="footer-resource-links">
+                            <a href="#" className="pill-btn"><Github size={18} /> GitHub</a>
+                            <a href="https://f1000research.com/articles/9-1224/v3" target="_blank" rel="noopener noreferrer" className="pill-btn"><FileText size={18} /> F1000Research</a>
+                            <a href="https://scholar.google.com/scholar?cites=5906516760297568833&as_sdt=2005&sciodt=0,5&hl=en" target="_blank" rel="noopener noreferrer" className="pill-btn"><GraduationCap size={18} /> Scholar</a>
+                            <a href="mailto:contact@ecosignal.org" className="pill-btn"><Mail size={18} /> Contact Us</a>
+                        </div>
                         <div className="footer-actions">
                             <ESButton appearance="unstyled"
                                 type="button"
