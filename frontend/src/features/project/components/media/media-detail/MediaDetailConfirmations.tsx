@@ -33,7 +33,7 @@ export function MediaDetailConfirmations({
                 open={annotationExport.open}
                 onClose={annotationExport.onClose}
                 title="Export Records"
-                message={`Estimated records to export: ${annotationExport.count.toLocaleString()}. Continue?`}
+                message={`Records to export: ${annotationExport.count.toLocaleString()}. Continue?`}
                 confirmLabel="Export"
                 cancelLabel="Cancel"
                 onConfirm={() => void annotationExport.onConfirm()}

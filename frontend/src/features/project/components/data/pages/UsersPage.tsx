@@ -375,14 +375,14 @@ export function UsersPage() {
                 onExportCustom={handleExport}
                 renderCustomActions={(selectedRows) => (
                     <>
-                        <ESButton appearance="unstyled" className="data-btn" title="Permission" disabled={selectedRows.size === 0} onClick={() => {
+                        <ESButton appearance="unstyled" className="data-btn" title="Permissions" disabled={selectedRows.size === 0} onClick={() => {
                             const userIds = Array.from(selectedRows)
                                 .map((id) => Number(id))
                                 .filter((id) => Number.isFinite(id) && id > 0)
                             setPermissionUserIds(userIds)
                             setPermissionDrawerOpen(true)
                         }}>
-                            <Shield size={14} /> Permission
+                            <Shield size={14} /> Permissions
                         </ESButton>
 
                         <ESButton appearance="unstyled" className="data-btn" title="Contributor" disabled={selectedRows.size === 0} onClick={() => {

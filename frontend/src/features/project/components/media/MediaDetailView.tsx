@@ -2290,7 +2290,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                     },
                 true,
             )
-            const estimatedCount = countResponse.pageInfo.total
+            const recordCount = countResponse.pageInfo.total
             annotationExportActionRef.current = async () => {
                 const loadingId = openLoadingMessage("Exporting CSV…")
                 try {
@@ -2315,10 +2315,10 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                     closeLoadingMessage(loadingId)
                 }
             }
-            setAnnotationExportConfirmCount(estimatedCount)
+            setAnnotationExportConfirmCount(recordCount)
             setAnnotationExportConfirmOpen(true)
         } catch (e: unknown) {
-            message.error(e instanceof Error ? e.message : "Unable to estimate export size")
+            message.error(e instanceof Error ? e.message : "Unable to count records for export")
         }
     }, [media, mediaId, currentProjectId, spectrogramLayout, specFreqMinHz, specFreqMaxHz, isPhoto])
 
@@ -8019,7 +8019,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                 setAnnotationExportConfirmOpen(false)
             }}
             title="Export Records"
-            message={`Estimated records to export: ${annotationExportConfirmCount.toLocaleString()}. Continue?`}
+            message={`Records to export: ${annotationExportConfirmCount.toLocaleString()}. Continue?`}
             confirmLabel="Export"
             cancelLabel="Cancel"
             onConfirm={() => {

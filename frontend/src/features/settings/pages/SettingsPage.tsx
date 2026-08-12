@@ -143,7 +143,7 @@ const SETTINGS_TABS: SettingsTabConfig[] = [
     },
     {
         id: "camera",
-        label: "Camera",
+        label: "Cameras",
         icon: Camera,
         adminOnly: true,
         tableFill: true,
@@ -159,7 +159,7 @@ const SETTINGS_TABS: SettingsTabConfig[] = [
     },
     {
         id: "taxon",
-        label: "Taxon",
+        label: "Taxa",
         icon: GitBranch,
         adminOnly: true,
         tableFill: true,

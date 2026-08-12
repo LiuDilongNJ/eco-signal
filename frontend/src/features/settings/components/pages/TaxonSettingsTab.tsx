@@ -469,7 +469,7 @@ export function TaxonSettingsTab() {
     if (forbidden) {
         return (
             <div className="settings-form__status settings-form__status--error">
-                You do not have permission to manage taxon (superuser required). Contact an administrator if you need
+                You do not have permission to manage taxa (superuser required). Contact an administrator if you need
                 access.
             </div>
         )
@@ -479,7 +479,7 @@ export function TaxonSettingsTab() {
         <ConfigProvider theme={drawerTheme}>
             {csvImport.input}
             <DataPageLayout
-                title="Taxon"
+                title="Taxa"
                 icon={GitBranch}
                 columns={COLUMNS}
                 rows={rows}

@@ -1424,7 +1424,7 @@ export function DataPageLayout({
                     open={exportConfirmOpen}
                     onClose={() => setExportConfirmOpen(false)}
                     title="Export Records"
-                    message={`Estimated records to export: ${exportConfirmCount.toLocaleString()}. Continue?`}
+                    message={`Records to export: ${exportConfirmCount.toLocaleString()}. Continue?`}
                     confirmLabel="Export"
                     cancelLabel="Cancel"
                     onConfirm={() => onExportCustom?.()}
