@@ -274,6 +274,11 @@ export interface DataPageLayoutProps {
     onEditCustom?: (selectedKeys: any[]) => void
     /** Custom handler for Delete sequence - if provided, handles the deletion process with the selected keys */
     onDeleteCustom?: (selectedKeys: any[]) => void
+    /** Require the selected record name before deleting high-impact entities. */
+    deleteConfirmation?: {
+        entityLabel: string
+        nameField: string
+    }
     /** Render function for custom actions inserted after Edit */
     renderCustomActions?: (selectedRows: Set<Key>) => React.ReactNode
     /** Custom handler for Export CSV button */
@@ -349,6 +354,7 @@ export function DataPageLayout({
     onAddCustom,
     onEditCustom,
     onDeleteCustom,
+    deleteConfirmation,
     renderCustomActions,
     onExportCustom,
     renderAfterExportActions,
@@ -409,7 +415,8 @@ export function DataPageLayout({
                     controlHeight: 32,
                 },
                 Input: {
-                    colorBgContainer: "var(--es-color-bg-surface)",
+                    colorBorder: "var(--es-color-border)",
+                    colorBgContainer: "var(--es-color-bg-subtle)",
                     controlHeight: 32,
                 },
                 DatePicker: {
@@ -702,6 +709,14 @@ export function DataPageLayout({
         if (typeof rowKey === "function") return rowKey(record)
         return record[rowKey as string] as Key
     }, [rowKey])
+
+    const deleteConfirmationName = useMemo(() => {
+        if (!deleteConfirmation || selectedRows.size !== 1) return null
+        const selectedKey = Array.from(selectedRows)[0]
+        const selectedRow = allRows.find((row) => String(getRecordKey(row)) === String(selectedKey))
+        const name = selectedRow?.[deleteConfirmation.nameField]
+        return name == null ? null : String(name).trim() || null
+    }, [allRows, deleteConfirmation, getRecordKey, selectedRows])
 
     const toggleRowSelected = useCallback((key: Key, selected: boolean) => {
         setSelectedRows((prev) => {
@@ -1286,7 +1301,17 @@ export function DataPageLayout({
 
                             {renderCustomActions && renderCustomActions(selectedRows)}
                             {!hideDelete && (
-                                <ESButton appearance="unstyled" className="data-btn danger" title="Delete" disabled={selectedRows.size === 0} onClick={() => setDeleteConfirmOpen(true)}>
+                                <ESButton
+                                    appearance="unstyled"
+                                    className="data-btn danger"
+                                    title={deleteConfirmation && selectedRows.size !== 1
+                                        ? "Select one record to delete"
+                                        : deleteConfirmation && !deleteConfirmationName
+                                            ? "This record has no name to confirm"
+                                            : "Delete"}
+                                    disabled={selectedRows.size === 0 || Boolean(deleteConfirmation && (selectedRows.size !== 1 || !deleteConfirmationName))}
+                                    onClick={() => setDeleteConfirmOpen(true)}
+                                >
                                     <Trash2 size={14} /> Delete
                                 </ESButton>
                             )}
@@ -1405,10 +1430,13 @@ export function DataPageLayout({
                 <ConfirmDialog
                     open={deleteConfirmOpen}
                     onClose={() => setDeleteConfirmOpen(false)}
-                    title="Delete Records"
-                    message={`Are you sure you want to delete ${selectedRows.size} selected record${selectedRows.size > 1 ? "s" : ""}? This action cannot be undone.`}
+                    title={deleteConfirmation ? `Delete ${deleteConfirmation.entityLabel}` : "Delete Records"}
+                    message={deleteConfirmation && deleteConfirmationName
+                        ? `Are you sure you want to delete the ${deleteConfirmation.entityLabel} "${deleteConfirmationName}"? This action cannot be undone.`
+                        : `Are you sure you want to delete ${selectedRows.size} selected record${selectedRows.size > 1 ? "s" : ""}? This action cannot be undone.`}
                     confirmLabel="Delete"
                     variant="danger"
+                    confirmationText={deleteConfirmationName ?? undefined}
                     onConfirm={() => {
                         if (onDeleteCustom) {
                             onDeleteCustom(Array.from(selectedRows))

@@ -372,6 +372,7 @@ export function CollectionsPage() {
                     }
                 }}
                 onDeleteCustom={handleDeleteSubmit}
+                deleteConfirmation={{ entityLabel: "collection", nameField: "name" }}
                 onExportCustom={handleExport}
                 renderCustomActions={(selectedRows) => (
                     <>

@@ -5,8 +5,9 @@
  */
 
 import { Modal } from "./Modal"
+import { useEffect, useId, useState } from "react"
 import { AlertTriangle } from "lucide-react"
-import { Button } from "@/components/ui"
+import { Button, Input, Label } from "@/components/ui"
 
 interface ConfirmDialogProps {
     open: boolean
@@ -16,6 +17,7 @@ interface ConfirmDialogProps {
     confirmLabel?: string
     cancelLabel?: string
     variant?: "danger" | "warning" | "default"
+    confirmationText?: string
     onConfirm: () => void
 }
 
@@ -27,9 +29,24 @@ export function ConfirmDialog({
     confirmLabel = "Confirm",
     cancelLabel = "Cancel",
     variant = "default",
+    confirmationText,
     onConfirm,
 }: ConfirmDialogProps) {
+    const [typedConfirmation, setTypedConfirmation] = useState("")
+    const confirmationInputId = useId()
+    const requiresTypedConfirmation = Boolean(confirmationText)
+    const confirmationMatches = !requiresTypedConfirmation || typedConfirmation === confirmationText
+
+    useEffect(() => {
+        if (!open) setTypedConfirmation("")
+    }, [open])
+
+    useEffect(() => {
+        setTypedConfirmation("")
+    }, [confirmationText])
+
     const handleConfirm = () => {
+        if (!confirmationMatches) return
         onConfirm()
         onClose()
     }
@@ -46,6 +63,7 @@ export function ConfirmDialog({
                     <Button
                         className={`app-modal-btn ${variant === "danger" ? "danger" : "primary"}`}
                         onClick={handleConfirm}
+                        disabled={!confirmationMatches}
                     >
                         {confirmLabel}
                     </Button>
@@ -64,6 +82,20 @@ export function ConfirmDialog({
                     </div>
                 )}
                 <p className="confirm-message">{message}</p>
+                {confirmationText ? (
+                    <div className="confirm-text-verification">
+                        <Label htmlFor={confirmationInputId}>
+                            Type <strong>{confirmationText}</strong> to confirm
+                        </Label>
+                        <Input
+                            id={confirmationInputId}
+                            value={typedConfirmation}
+                            onChange={(event) => setTypedConfirmation(event.target.value)}
+                            autoComplete="off"
+                            spellCheck={false}
+                        />
+                    </div>
+                ) : null}
             </div>
         </Modal>
     )

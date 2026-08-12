@@ -164,6 +164,24 @@
     cursor: not-allowed;
 }
 
+.confirm-text-verification {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+}
+
+.confirm-text-verification label {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    line-height: 1.4;
+    overflow-wrap: anywhere;
+}
+
+.confirm-text-verification strong {
+    color: var(--text-main);
+}
+
 /* ===== CRUD Form ===== */
 .crud-form {
     display: flex;

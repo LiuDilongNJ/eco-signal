@@ -329,6 +329,7 @@ export function ProjectsPage() {
                     }
                 }}
                 onDeleteCustom={handleDeleteSubmit}
+                deleteConfirmation={{ entityLabel: "project", nameField: "name" }}
                 onExportCustom={handleExport}
                 onViewCustom={handleViewProject}
                 hideAdd={!meIsAdmin}
