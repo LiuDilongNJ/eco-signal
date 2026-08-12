@@ -27,6 +27,7 @@ This project is completely automated. Geographical data and database migrations 
 ### Prerequisites
 
 -   cloned repository
+-   For a first-time install, ensure 50 GB of free disk space to avoid build failures, plus extra free space if you also keep a legacy `ecoSound-web` directory on the same host for later migration.
 -   [Docker](https://docs.docker.com/get-docker/)
 -   [Docker Compose](https://docs.docker.com/compose/install/)
 
