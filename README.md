@@ -141,7 +141,8 @@ For one-time migration from legacy `ecoSound-web` to `ecoSignal`, use the root-l
 ### Migrate legacy data into ecoSignal
 
 ```bash
-./migrate-data.sh <old-project-dir> [options]
+chmod +x ./migrate.sh
+sudo ./migrate-data.sh <old-project-dir> [options]
 ```
 
 Examples:
