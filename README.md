@@ -2,11 +2,11 @@
 
 [中文文档](README_ZH.md)
 
-**ecoSignal** is a modern refactor of [ecoSound-web](https://github.com/ecomontec/ecoSound-web/), built with high-performance modern web technologies. It adds support for images.
+**ecoSignal** is a modern refactor of [ecoSound-web](https://github.com/ecomontec/ecoSound-web/), built with high-performance modern web technologies. It adds support for photos and offline-online synchronisation.
 
 ## Description
 
-Web application for managing, navigating, visualising, annotating, and analysing audios and photos from biodiversity monitoring surveys.
+Web application for collaboratively managing, navigating, visualising, annotating, and analysing audios and photos from biodiversity monitoring surveys.
 
 ## Technology Stack
 
@@ -94,6 +94,15 @@ This project is completely automated. Geographical data and database migrations 
     docker compose down
     ```
 
+## Media Upload Processing
+
+For standard audio and photo uploads, select one or more files and wait for their chunks to finish uploading. The upload drawer then allows you to save the batch.
+
+- Chunk upload creates staging records only; it does not create a Queue item for each file.
+- Saving creates one `upload` Queue item for the accepted batch. Its `total` is the number of submitted files, and `completed` counts only media created successfully.
+- File merging, content validation, duplicate detection, media creation, and preview generation run sequentially in that background batch.
+- A batch with duplicates finishes with a warning. A batch with any failed file finishes with an error. Review the Queue page for the outcome of every submitted batch.
+
 ## Offline Field Work
 
 ecoSignal supports offline field work through a signed collection bundle containing audio, photos, annotations, reviews, and labels.
@@ -118,15 +127,6 @@ Rules:
 - Audio and photo previews are regenerated after import; preview failures are reported as warnings without discarding imported media.
 - The underlying export endpoint is `POST /api/v1/collection-bundle-exports`; import sessions use `POST /api/v1/data-imports`.
 
-## Media Upload Processing
-
-For standard audio and photo uploads, select one or more files and wait for their chunks to finish uploading. The upload drawer then allows you to save the batch.
-
-- Chunk upload creates staging records only; it does not create a Queue item for each file.
-- Saving creates one `upload` Queue item for the accepted batch. Its `total` is the number of submitted files, and `completed` counts only media created successfully.
-- File merging, content validation, duplicate detection, media creation, and preview generation run sequentially in that background batch.
-- A batch with duplicates finishes with a warning. A batch with any failed file finishes with an error. Review the Queue page for the outcome of every submitted batch.
-
 ## Data Migration and Rollback Scripts
 
 For one-time migration from legacy `ecoSound-web` to `ecoSignal`, use the root-level scripts below.
@@ -141,7 +141,8 @@ For one-time migration from legacy `ecoSound-web` to `ecoSignal`, use the root-l
 ### Migrate legacy data into ecoSignal
 
 ```bash
-./migrate-data.sh <old-project-dir> [options]
+chmod +x ./migrate.sh
+sudo ./migrate-data.sh <old-project-dir> [options]
 ```
 
 Examples:
@@ -258,10 +259,12 @@ This project uses Docker Compose for deployment. HTTP is the default; setting `E
 
    `.env.example` is safe to commit as a template. `.env` is environment-specific and must stay uncommitted.
 
-2. **Deploy with the guarded production script**. The script serializes releases, waits for dependencies, applies setup once, and waits for service health:
+2. **Deploy with the guarded production script**. The script needs to be made executable. It serializes releases, waits for dependencies, applies setup once, and waits for service health:
    ```bash
-   ./deploy.sh
+   chmod +x ./deploy.sh ./rollback.sh
+   sudo ./deploy.sh
    ```
+   
 
    On Windows PowerShell, run `.\deploy.ps1`; Command Prompt users can run `deploy.bat`. On macOS and Linux, use `./deploy.sh`; neither platform requires `flock`.
 
