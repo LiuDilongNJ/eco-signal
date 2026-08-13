@@ -2919,10 +2919,21 @@ def _resolve_local_network_url(
         return candidates[0]["app_url"], "unique server name/coordinate match"
 
     candidate_urls = ", ".join(sorted(item["app_url"] for item in candidates)) or "none"
-    raise RuntimeError(
-        "Cannot safely identify the source local federation node "
-        f"(candidates: {candidate_urls}). Re-run with --legacy-app-url <url>."
+    message = (
+        "Cannot safely identify the local federation node of the source instance "
+        f"(server name: {normalized_name or '<not set>'}, "
+        f"latitude: {latitude if latitude not in (None, '') else '<not set>'}, "
+        f"longitude: {longitude if longitude not in (None, '') else '<not set>'}, "
+        f"candidates: {candidate_urls}). "
+        "Set LEGACY_APP_URL in .env or pass --legacy-app-url <url>."
     )
+    if normalized_host:
+        # HOST_URL points at the federation hub, which is the local URL only for the hub itself.
+        message += (
+            f" The source HOST_URL is {normalized_host}; use that value only if this "
+            "instance is the hub rather than one of its child nodes."
+        )
+    raise RuntimeError(message)
 
 
 def _legacy_network_inputs(
@@ -3002,17 +3013,17 @@ def _write_network_host_url(pg_conn, host_url: str | None) -> None:
     )
 
 
-def migrate_network_federation(mysql_conn, pg_conn, dry_run: bool) -> int:
-    """Map source API and settings data into network_node rows."""
-    legacy_settings = {
+def _legacy_federation_settings(mysql_conn) -> dict[str, Any]:
+    return {
         str(row["name"]): row["value"]
         for row in fetch_all(mysql_conn, "SELECT name, value FROM setting")
     }
-    local_server_name = (legacy_settings.get("server_name") or "").strip()
-    local_latitude = _coordinate_or_none(legacy_settings.get("latitude"), context="setting.latitude")
-    local_longitude = _coordinate_or_none(legacy_settings.get("longitude"), context="setting.longitude")
-    local_shared = int(legacy_settings.get("shared") or 0) == 1
 
+
+def _collect_legacy_federation_nodes(
+    mysql_conn,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Return shared peer nodes deduplicated by URL, plus the rows whose URL could not be decoded."""
     rows = fetch_all(
         mysql_conn,
         """SELECT api_id, api, server_name, longitude, latitude, shared, last_updated
@@ -3021,58 +3032,85 @@ def migrate_network_federation(mysql_conn, pg_conn, dry_run: bool) -> int:
     )
 
     chosen_by_url: dict[str, dict[str, Any]] = {}
-    migrated_count = 0
+    undecodable_rows: list[dict[str, Any]] = []
     for row in rows:
         if int(row.get("shared") or 0) != 1:
             continue
 
         app_url = _decode_legacy_api_url(row.get("api"))
         if not app_url:
-            log.warning("Skipping source API row with invalid encoded URL: api_id=%s", row.get("api_id"))
-            audit_issue(
-                source_table="api", source_id=row.get("api_id"), target_table="network_node",
-                issue_type="unsupported_value", severity="error", field_name="api", source_value=row.get("api"),
-                reason="The source network URL is invalid and was skipped.",
-                recommended_action="Correct the source URL and rerun the federation migration.",
-            )
+            undecodable_rows.append(row)
             continue
 
         server_name = (row.get("server_name") or "").strip() or app_url
         latitude = _coordinate_or_none(row.get("latitude"), context=f"api.latitude api_id={row.get('api_id')}")
         longitude = _coordinate_or_none(row.get("longitude"), context=f"api.longitude api_id={row.get('api_id')}")
         existing = chosen_by_url.get(app_url)
-        if existing is None:
-            chosen_by_url[app_url] = {
-                "app_url": app_url,
-                "name": server_name,
-                "latitude": latitude,
-                "longitude": longitude,
-                "last_updated": row.get("last_updated"),
-            }
-            continue
-
         current_ts = row.get("last_updated")
-        existing_ts = existing.get("last_updated")
-        if existing_ts is None or (current_ts is not None and current_ts >= existing_ts):
-            chosen_by_url[app_url] = {
-                "app_url": app_url,
-                "name": server_name,
-                "latitude": latitude,
-                "longitude": longitude,
-                "last_updated": current_ts,
-            }
+        if existing is not None:
+            existing_ts = existing.get("last_updated")
+            if existing_ts is not None and (current_ts is None or current_ts < existing_ts):
+                continue
 
-    local_app_url, local_source, host_url, local_server_name = _legacy_network_inputs(
-        legacy_settings, list(chosen_by_url.values())
-    )
-    log.info(
-        "Local federation resolution: app_url=%s source=%s host_url=%s",
-        local_app_url or "<not configured>",
-        local_source,
-        host_url or "<not configured>",
+        chosen_by_url[app_url] = {
+            "app_url": app_url,
+            "name": server_name,
+            "latitude": latitude,
+            "longitude": longitude,
+            "last_updated": current_ts,
+        }
+
+    return list(chosen_by_url.values()), undecodable_rows
+
+
+def preflight_network_federation(mysql_conn) -> None:
+    """
+    Resolve the local federation node before the first write.
+
+    The federation step runs near the end of the migration, so an unresolvable URL used to
+    surface only after earlier phases had been committed, forcing a --reset-target rerun.
+    """
+    settings = _legacy_federation_settings(mysql_conn)
+    nodes, _ = _collect_legacy_federation_nodes(mysql_conn)
+    app_url, source, host_url, _ = _legacy_network_inputs(settings, nodes)
+    if app_url:
+        log.info(
+            "Local federation node resolved: app_url=%s source=%s host_url=%s",
+            app_url,
+            source,
+            host_url or "<not configured>",
+        )
+        return
+    log.warning(
+        "The source instance has no federation configuration, so no local network node "
+        "will be created. Set LEGACY_APP_URL in .env or pass --legacy-app-url <url> to "
+        "register this instance in the network."
     )
 
-    for item in chosen_by_url.values():
+
+def migrate_network_federation(mysql_conn, pg_conn, dry_run: bool) -> int:
+    """Map source API and settings data into network_node rows."""
+    legacy_settings = _legacy_federation_settings(mysql_conn)
+    local_latitude = _coordinate_or_none(legacy_settings.get("latitude"), context="setting.latitude")
+    local_longitude = _coordinate_or_none(legacy_settings.get("longitude"), context="setting.longitude")
+    local_shared = int(legacy_settings.get("shared") or 0) == 1
+
+    nodes, undecodable_rows = _collect_legacy_federation_nodes(mysql_conn)
+    migrated_count = 0
+    for row in undecodable_rows:
+        log.warning("Skipping source API row with invalid encoded URL: api_id=%s", row.get("api_id"))
+        audit_issue(
+            source_table="api", source_id=row.get("api_id"), target_table="network_node",
+            issue_type="unsupported_value", severity="error", field_name="api", source_value=row.get("api"),
+            reason="The source network URL is invalid and was skipped.",
+            recommended_action="Correct the source URL and rerun the federation migration.",
+        )
+
+    local_app_url, _local_source, host_url, local_server_name = _legacy_network_inputs(
+        legacy_settings, nodes
+    )
+
+    for item in nodes:
         migrated_count += 1
         if dry_run:
             continue
@@ -4400,6 +4438,9 @@ def run_migration(
         log.info("DRY-RUN mode: no data will be written to PostgreSQL")
 
     try:
+        # Runs before the optional target reset so an unresolvable URL cannot destroy target data.
+        preflight_network_federation(mysql_conn)
+
         if target_has_business_data(pg_conn):
             if not reset_target:
                 raise RuntimeError(

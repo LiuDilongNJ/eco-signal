@@ -12,7 +12,10 @@
 #   --reset-target   Required after a fresh deploy (Demo Project/collection/site
 #                    seed data). Backup current ecoSignal DB/media, clear
 #                    business data, then migrate
-#   --legacy-app-url Explicit public URL for legacy instances using dynamic APP_URL
+#   --legacy-app-url Public URL of the legacy instance. Legacy installs leave APP_URL
+#                    empty and resolve the hostname per request, so set this whenever
+#                    the URL cannot be derived from the legacy database. It can also be
+#                    persisted as LEGACY_APP_URL in .env.
 #   --repair-network-federation
 #                     Repair only federation settings in an already migrated target
 #   -h, --help       Show help
@@ -44,24 +47,17 @@ RESET_TARGET=false
 REPAIR_NETWORK_FEDERATION=false
 LEGACY_APP_URL_OVERRIDE=""
 
-resolve_environment() {
-    local configured="${ENVIRONMENT:-}"
+# Shell environment wins over .env so one-off runs can override persisted settings.
+resolve_setting() {
+    local key="$1"
+    local fallback="${2:-}"
+    local configured="${!key:-}"
     if [[ -z "$configured" && -f "${PROJECT_ROOT}/.env" ]]; then
-        configured=$(grep -E '^ENVIRONMENT=' "${PROJECT_ROOT}/.env" | tail -1 | cut -d= -f2- || true)
+        configured=$(grep -E "^${key}=" "${PROJECT_ROOT}/.env" | tail -1 | cut -d= -f2- || true)
     fi
     configured="${configured%\"}"
     configured="${configured#\"}"
-    printf '%s\n' "${configured:-local}"
-}
-
-resolve_stack_name() {
-    local configured="${STACK_NAME:-}"
-    if [[ -z "$configured" && -f "${PROJECT_ROOT}/.env" ]]; then
-        configured=$(grep -E '^STACK_NAME=' "${PROJECT_ROOT}/.env" | tail -1 | cut -d= -f2- || true)
-    fi
-    configured="${configured%\"}"
-    configured="${configured#\"}"
-    printf '%s\n' "${configured:-ecosignal}"
+    printf '%s\n' "${configured:-$fallback}"
 }
 
 # Same normalization as deploy.sh so both scripts target the same compose project.
@@ -89,11 +85,8 @@ media_mode() {
 }
 
 resolve_old_project_dir() {
-    local configured="${LEGACY_PROJECT_DIR:-}"
-    if [[ -z "$configured" && -f "${PROJECT_ROOT}/.env" ]]; then
-        configured=$(grep -E '^LEGACY_PROJECT_DIR=' "${PROJECT_ROOT}/.env" | tail -1 | cut -d= -f2- || true)
-    fi
-    configured="${configured:-./ecoSound-web}"
+    local configured
+    configured="$(resolve_setting LEGACY_PROJECT_DIR ./ecoSound-web)"
     if [[ "$configured" == /* ]]; then
         printf '%s\n' "$configured"
     else
@@ -108,6 +101,17 @@ parse_legacy_ini() {
         return 0
     fi
     grep -E "^${key}[[:space:]]*=" "$ini_file" | tail -1 | sed -E "s/^[^=]+= *'?([^']*)'?.*/\1/" || true
+}
+
+is_public_url() {
+    [[ "$1" =~ ^https?://[^[:space:]]+$ ]]
+}
+
+# An unusable value the operator typed is a typo, not a signal to fall back silently.
+reject_invalid_url() {
+    if [[ -n "$2" ]] && ! is_public_url "$2"; then
+        die "$1 must be an http:// or https:// URL, got: $2"
+    fi
 }
 
 parse_legacy_compose_port() {
@@ -144,8 +148,8 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-CURRENT_ENVIRONMENT="$(resolve_environment)"
-COMPOSE_PROJECT="$(normalize_project_name "$(resolve_stack_name)")"
+CURRENT_ENVIRONMENT="$(resolve_setting ENVIRONMENT local)"
+COMPOSE_PROJECT="$(normalize_project_name "$(resolve_setting STACK_NAME ecosignal)")"
 DOCKER_COMPOSE=(docker compose --project-name "$COMPOSE_PROJECT")
 if [[ "$CURRENT_ENVIRONMENT" == "staging" || "$CURRENT_ENVIRONMENT" == "production" ]]; then
     DOCKER_COMPOSE=(docker compose --project-name "$COMPOSE_PROJECT" -f docker-compose.yml)
@@ -163,10 +167,50 @@ fi
 MEDIA_MODE="$(media_mode)"
 LEGACY_CONFIG_APP_URL="$(parse_legacy_ini APP_URL)"
 LEGACY_CONFIG_HOST_URL="$(parse_legacy_ini HOST_URL)"
-LEGACY_APP_URL_VALUE="${LEGACY_APP_URL_OVERRIDE:-$LEGACY_CONFIG_APP_URL}"
+LEGACY_ENV_APP_URL="$(resolve_setting LEGACY_APP_URL)"
+LEGACY_ENV_HOST_URL="$(resolve_setting LEGACY_HOST_URL)"
+
+reject_invalid_url "--legacy-app-url" "$LEGACY_APP_URL_OVERRIDE"
+reject_invalid_url "LEGACY_APP_URL" "$LEGACY_ENV_APP_URL"
+reject_invalid_url "LEGACY_HOST_URL" "$LEGACY_ENV_HOST_URL"
+
+# Legacy installs ship an empty APP_URL and detect the hostname per request,
+# so an operator-provided value has to outrank config.ini.
+LEGACY_APP_URL_ORIGIN=""
+if [[ -n "$LEGACY_APP_URL_OVERRIDE" ]]; then
+    LEGACY_APP_URL_VALUE="$LEGACY_APP_URL_OVERRIDE"
+    LEGACY_APP_URL_ORIGIN="--legacy-app-url"
+elif [[ -n "$LEGACY_ENV_APP_URL" ]]; then
+    LEGACY_APP_URL_VALUE="$LEGACY_ENV_APP_URL"
+    LEGACY_APP_URL_ORIGIN="LEGACY_APP_URL environment or .env"
+elif is_public_url "$LEGACY_CONFIG_APP_URL"; then
+    LEGACY_APP_URL_VALUE="$LEGACY_CONFIG_APP_URL"
+    LEGACY_APP_URL_ORIGIN="legacy config.ini APP_URL"
+else
+    LEGACY_APP_URL_VALUE=""
+    if [[ -n "$LEGACY_CONFIG_APP_URL" ]]; then
+        warn "Ignoring legacy config.ini APP_URL because it is not an http:// or https:// URL: $LEGACY_CONFIG_APP_URL"
+    fi
+fi
+
+if [[ -n "$LEGACY_ENV_HOST_URL" ]]; then
+    LEGACY_HOST_URL_VALUE="$LEGACY_ENV_HOST_URL"
+elif is_public_url "$LEGACY_CONFIG_HOST_URL"; then
+    LEGACY_HOST_URL_VALUE="$LEGACY_CONFIG_HOST_URL"
+else
+    LEGACY_HOST_URL_VALUE=""
+    if [[ -n "$LEGACY_CONFIG_HOST_URL" ]]; then
+        warn "Ignoring legacy config.ini HOST_URL because it is not an http:// or https:// URL: $LEGACY_CONFIG_HOST_URL"
+    fi
+fi
 
 info "Selected media migration mode: $MEDIA_MODE"
 info "Resolved legacy project directory: $OLD_PROJECT_DIR"
+if [[ -n "$LEGACY_APP_URL_VALUE" ]]; then
+    info "Legacy app URL: $LEGACY_APP_URL_VALUE (from $LEGACY_APP_URL_ORIGIN)"
+else
+    info "Legacy app URL not provided; it will be detected from the legacy database."
+fi
 info "Detected environment: $CURRENT_ENVIRONMENT"
 info "Docker Compose project name: $COMPOSE_PROJECT"
 if [[ "$CURRENT_ENVIRONMENT" == "staging" || "$CURRENT_ENVIRONMENT" == "production" ]]; then
@@ -215,7 +259,7 @@ if [[ "$REPAIR_NETWORK_FEDERATION" == true ]]; then
     [[ "$DRY_RUN" == true ]] && REPAIR_ARGS+=(--dry-run)
     "${DOCKER_COMPOSE[@]}" exec -T \
         -e LEGACY_APP_URL="$LEGACY_APP_URL_VALUE" \
-        -e LEGACY_HOST_URL="$LEGACY_CONFIG_HOST_URL" \
+        -e LEGACY_HOST_URL="$LEGACY_HOST_URL_VALUE" \
         backend \
         python scripts/migrate_from_biosounds.py "${REPAIR_ARGS[@]}"
     success "Federation repair finished."
@@ -407,7 +451,7 @@ else
         -e MYSQL_PASSWORD="$MYSQL_PASSWORD" \
         -e MYSQL_DB="$MYSQL_DB" \
         -e LEGACY_APP_URL="$LEGACY_APP_URL_VALUE" \
-        -e LEGACY_HOST_URL="$LEGACY_CONFIG_HOST_URL" \
+        -e LEGACY_HOST_URL="$LEGACY_HOST_URL_VALUE" \
         backend \
         python scripts/migrate_from_biosounds.py "${DB_MIGRATE_ARGS[@]}" --audit-report "$AUDIT_REPORT_CONTAINER_PATH"; then
         :
