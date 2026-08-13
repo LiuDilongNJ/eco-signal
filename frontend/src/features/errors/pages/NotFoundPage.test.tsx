@@ -13,8 +13,9 @@ describe("NotFoundPage", () => {
         )
 
         expect(screen.getByText("404")).toBeInTheDocument()
-        expect(screen.getByRole("heading", { name: "页面不存在" })).toBeInTheDocument()
-        expect(screen.getByText("您访问的页面不存在或已被移除")).toBeInTheDocument()
-        expect(screen.getByRole("link", { name: "返回首页" })).toHaveAttribute("href", "/dashboard")
+        expect(screen.getByRole("heading", { name: "Page Not Found" })).toBeInTheDocument()
+        expect(screen.getByText("The page you are looking for does not exist or has been removed.")).toBeInTheDocument()
+        expect(screen.getByRole("link", { name: "Back to Dashboard" })).toHaveAttribute("href", "/dashboard")
+        expect(screen.getByRole("link", { name: "Back to Dashboard" })).toHaveClass("es-button")
     })
 })

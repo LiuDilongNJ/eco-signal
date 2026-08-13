@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom"
+import { Button } from "@/components/ui"
 
 import "./NotFoundPage.css"
 
@@ -11,12 +11,14 @@ export default function NotFoundPage() {
                         404
                     </div>
                     <h1 id="not-found-title" className="not-found-page__title">
-                        页面不存在
+                        Page Not Found
                     </h1>
-                    <p className="not-found-page__description">您访问的页面不存在或已被移除</p>
-                    <Link to="/dashboard" className="not-found-page__home-link">
-                        返回首页
-                    </Link>
+                    <p className="not-found-page__description">
+                        The page you are looking for does not exist or has been removed.
+                    </p>
+                    <Button type="primary" href="/dashboard" className="not-found-page__home-link">
+                        Back to Dashboard
+                    </Button>
                 </div>
             </section>
         </main>
