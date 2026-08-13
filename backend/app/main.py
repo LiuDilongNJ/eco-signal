@@ -90,7 +90,7 @@ if settings.all_cors_origins:
         "allow_credentials": True,
         "allow_methods": ["*"],
         "allow_headers": ["*"],
-        "expose_headers": ["Content-Disposition"],
+        "expose_headers": ["Content-Disposition", "X-Auth-Reason"],
     }
     # 局域网用 IP 打开 Vite（如 http://192.168.x.x:5173）直连后端 :8000 时，origins 列表里往往只有 localhost。
     # 仅在 local 环境放宽为常见私网地址，避免每次换 IP 都改 BACKEND_CORS_ORIGINS。
@@ -203,7 +203,8 @@ async def http_exception_handler(_request: Request, exc: StarletteHTTPException)
     )
     return JSONResponse(
         status_code=exc.status_code,
-        content=error_response.model_dump()
+        content=error_response.model_dump(),
+        headers=exc.headers,
     )
 
 

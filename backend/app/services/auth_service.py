@@ -8,6 +8,7 @@ from fastapi import HTTPException, status
 from jwt.exceptions import ExpiredSignatureError, InvalidTokenError
 from pydantic import ValidationError
 from redis.asyncio import Redis
+from redis.exceptions import RedisError
 from sqlmodel import Session
 
 from app.core import security
@@ -20,6 +21,7 @@ from app.schemas.response import ApiResponse
 from app.utils import verify_password_reset_token
 
 logger = logging.getLogger(__name__)
+AUTH_REASON_HEADER = "X-Auth-Reason"
 
 _refresh_rate_lock = Lock()
 _refresh_rate_buckets: dict[str, deque[float]] = defaultdict(deque)
@@ -110,10 +112,15 @@ async def _clear_login_rate_limit(
     await redis.delete(_login_rate_limit_key(username, client_ip))
 
 
-def _build_access_token(user_id: int) -> Token:
+def _build_access_token(user_id: int, family_id: str) -> Token:
     return Token(
-        access_token=security.create_access_token(user_id, expires_delta=_access_token_ttl()),
+        access_token=security.create_access_token(
+            user_id,
+            expires_delta=_access_token_ttl(),
+            family_id=family_id,
+        ),
         expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        session_idle_timeout_seconds=settings.auth_session_idle_timeout_seconds,
     )
 
 
@@ -122,12 +129,94 @@ async def _revoke_family_and_raise(
     family_id: str,
     family_expires_at: datetime | None,
     detail: str,
+    *,
+    reason: str | None = None,
 ) -> None:
     """Revoke an entire token family then raise HTTP 401."""
     await auth_refresh_session_repository.revoke_family(
         redis, family_id, family_expires_at=family_expires_at
     )
-    raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=detail)
+    headers = {"WWW-Authenticate": "Bearer"}
+    if reason:
+        headers[AUTH_REASON_HEADER] = reason
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail=detail,
+        headers=headers,
+    )
+
+
+async def validate_session_activity(
+    redis: Redis,
+    family_id: str | None,
+    *,
+    user_id: str | None = None,
+) -> None:
+    """Validate and extend the current session family's sliding inactivity window."""
+    timeout_seconds = settings.auth_session_idle_timeout_seconds
+    if timeout_seconds <= 0:
+        return
+    if not family_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    try:
+        activity_state = await auth_refresh_session_repository.touch_family_activity(
+            redis,
+            family_id,
+            timeout_seconds=timeout_seconds,
+        )
+        if activity_state == "active":
+            return
+        if activity_state == "revoked":
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Session is no longer active. Please login again.",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        logger.warning(
+            "auth_session_rejected reason=idle_timeout user_id=%s family_id=%s",
+            user_id,
+            family_id,
+        )
+        await auth_refresh_session_repository.revoke_family(redis, family_id)
+    except HTTPException:
+        raise
+    except RedisError as exc:
+        logger.exception("auth_session_validation_failed family_id=%s", family_id)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Authentication service is temporarily unavailable.",
+        ) from exc
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Session expired due to inactivity. Please login again.",
+        headers={
+            "WWW-Authenticate": "Bearer",
+            AUTH_REASON_HEADER: "idle_timeout",
+        },
+    )
+
+
+async def initialize_session_activity(redis: Redis, family_id: str) -> None:
+    """Create the inactivity window for a new session family when enabled."""
+    timeout_seconds = settings.auth_session_idle_timeout_seconds
+    if timeout_seconds <= 0:
+        return
+    try:
+        await auth_refresh_session_repository.initialize_family_activity(
+            redis,
+            family_id,
+            timeout_seconds=timeout_seconds,
+        )
+    except RedisError as exc:
+        logger.exception("auth_session_initialization_failed family_id=%s", family_id)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Authentication service is temporarily unavailable.",
+        ) from exc
 
 
 async def _issue_refresh_token(
@@ -216,7 +305,8 @@ async def login(
         client_ip=client_ip,
         user_agent=user_agent,
     )
-    return _build_access_token(user.user_id), refresh_token, refresh_max_age
+    await initialize_session_activity(redis, family_id)
+    return _build_access_token(user.user_id, family_id), refresh_token, refresh_max_age
 
 
 async def refresh_access_token(
@@ -271,6 +361,8 @@ async def refresh_access_token(
             client_ip=client_ip,
         )
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token reuse detected")
+
+    await validate_session_activity(redis, family_id, user_id=token_payload.sub)
 
     # Resolve the active session: if the presented token was recently rotated (concurrent
     # refresh or a retry after a lost response), follow the replacement chain rather than
@@ -357,7 +449,7 @@ async def refresh_access_token(
         if cached_token and security.verify_token_fingerprint(cached_token, active_session["token_hash"]):
             max_age = int((active_session["expires_at"] - now).total_seconds())
             if max_age > 0:
-                return _build_access_token(user.user_id), cached_token, max_age
+                return _build_access_token(user.user_id, family_id), cached_token, max_age
 
     new_refresh_token, replacement_jti, refresh_max_age = await _issue_refresh_token(
         redis,
@@ -377,7 +469,7 @@ async def refresh_access_token(
     await auth_refresh_session_repository.revoke_session(
         redis, active_session["jti"], replaced_by_jti=replacement_jti
     )
-    return _build_access_token(user.user_id), new_refresh_token, refresh_max_age
+    return _build_access_token(user.user_id, family_id), new_refresh_token, refresh_max_age
 
 
 async def logout(

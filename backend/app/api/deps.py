@@ -16,6 +16,7 @@ from app.models import User
 from app.repositories import permission_repository
 from app.schemas import TokenPayload
 from app.services import permission_service
+from app.services.auth_service import validate_session_activity
 from app.workers.publisher import TaskPublisher
 
 reusable_oauth2 = OAuth2PasswordBearer(
@@ -62,7 +63,11 @@ TokenDep = Annotated[str, Depends(reusable_oauth2)]
 TokenDepOptional = Annotated[str | None, Depends(reusable_oauth2_optional)]
 
 
-def get_current_user(session: SessionDep, token: TokenDep) -> User:
+async def get_current_user(
+    session: SessionDep,
+    redis: RedisDep,
+    token: TokenDep,
+) -> User:
     """Get current authenticated user."""
     try:
         payload = jwt.decode(
@@ -81,6 +86,7 @@ def get_current_user(session: SessionDep, token: TokenDep) -> User:
             detail="Could not validate credentials",
             headers={"WWW-Authenticate": "Bearer"},
         )
+    await validate_session_activity(redis, token_data.family_id, user_id=token_data.sub)
     user = session.get(User, token_data.sub)
     if not user:
         raise HTTPException(
@@ -98,14 +104,15 @@ def get_current_user(session: SessionDep, token: TokenDep) -> User:
 
 
 
-def get_current_user_optional(session: SessionDep, token: TokenDepOptional) -> User | None:
+async def get_current_user_optional(
+    session: SessionDep,
+    redis: RedisDep,
+    token: TokenDepOptional,
+) -> User | None:
     """Get current user if authenticated, else None."""
     if not token:
         return None
-    try:
-        return get_current_user(session, token)
-    except HTTPException:
-        return None
+    return await get_current_user(session, redis, token)
 
 
 CurrentUser = Annotated[User, Depends(get_current_user)]

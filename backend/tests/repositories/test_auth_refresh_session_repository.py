@@ -33,6 +33,17 @@ class FakeRedis:
     async def ttl(self, key):
         return self.expirations.get(key, -1)
 
+    async def delete(self, key):
+        self.store.pop(key, None)
+
+    async def eval(self, _script, _num_keys, revoked_key, activity_key, timeout_seconds):
+        if revoked_key in self.store:
+            return -1
+        if activity_key not in self.store:
+            return 0
+        await self.set(activity_key, "1", ex=timeout_seconds)
+        return 1
+
 
 def _now() -> datetime:
     return datetime.now(timezone.utc).replace(tzinfo=None)
@@ -106,3 +117,57 @@ async def test_session_roundtrip_allows_no_family_expiry() -> None:
     assert session["expires_at"] == expires_at
     assert redis.expirations["auth:rt_family:family-id:tokens"] > 0
     assert redis.expirations["auth:rt_user:123:families"] > 0
+
+
+@pytest.mark.anyio
+async def test_family_activity_initializes_and_slides() -> None:
+    redis = FakeRedis()
+
+    await auth_refresh_session_repository.initialize_family_activity(
+        redis, "family-id", timeout_seconds=1800
+    )
+    state = await auth_refresh_session_repository.touch_family_activity(
+        redis, "family-id", timeout_seconds=1800
+    )
+
+    key = "auth:rt_family:family-id:activity"
+    assert state == "active"
+    assert redis.expirations[key] == 1800
+
+
+@pytest.mark.anyio
+async def test_family_activity_reports_expired_when_key_is_missing() -> None:
+    redis = FakeRedis()
+
+    state = await auth_refresh_session_repository.touch_family_activity(
+        redis, "family-id", timeout_seconds=1800
+    )
+
+    assert state == "expired"
+
+
+@pytest.mark.anyio
+async def test_family_activity_is_disabled_for_non_positive_timeout() -> None:
+    redis = FakeRedis()
+
+    await auth_refresh_session_repository.initialize_family_activity(
+        redis, "family-id", timeout_seconds=0
+    )
+    state = await auth_refresh_session_repository.touch_family_activity(
+        redis, "family-id", timeout_seconds=0
+    )
+
+    assert redis.store == {}
+    assert state == "active"
+
+
+@pytest.mark.anyio
+async def test_revoke_family_removes_activity_key() -> None:
+    redis = FakeRedis()
+    await auth_refresh_session_repository.initialize_family_activity(
+        redis, "family-id", timeout_seconds=1800
+    )
+
+    await auth_refresh_session_repository.revoke_family(redis, "family-id")
+
+    assert "auth:rt_family:family-id:activity" not in redis.store

@@ -11,12 +11,14 @@ class Token(SQLModel):
     access_token: str
     token_type: str = "bearer"
     expires_in: int
+    session_idle_timeout_seconds: int = 0
 
 
 class TokenPayload(SQLModel):
     """Contents of JWT token."""
     sub: str | None = None
     type: str | None = None
+    family_id: str | None = None
 
 
 class RefreshTokenPayload(SQLModel):

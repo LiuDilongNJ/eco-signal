@@ -1,60 +1,47 @@
-import { ApiError } from "@/api/client"
-import { usersApi } from "@/api/endpoints/users"
-import { authUtils, dispatchAuthChange } from "@/utils/auth"
+import { authUtils, expireIdleSession } from "@/utils/auth"
 
-const MIN_CHECK_INTERVAL_MS = 30_000
-const VISIBLE_POLL_INTERVAL_MS = 15 * 60 * 1000
-
-let lastCheckAt = 0
-let checkSessionPromise: Promise<void> | null = null
-let pollTimer: ReturnType<typeof setInterval> | null = null
+let timeoutTimer: ReturnType<typeof setTimeout> | null = null
 let started = false
 
 function isPageVisible(): boolean {
     return typeof document !== "undefined" && document.visibilityState === "visible"
 }
 
-async function checkSessionIfNeeded(): Promise<void> {
-    if (!authUtils.hasToken() || !isPageVisible()) return
-
-    const now = Date.now()
-    if (now - lastCheckAt < MIN_CHECK_INTERVAL_MS) return
-
-    if (!checkSessionPromise) {
-        checkSessionPromise = (async () => {
-            lastCheckAt = Date.now()
-            try {
-                const res = await usersApi.getMe()
-                if ((res.code === 0 || res.code === 200) && res.data) {
-                    const name = typeof res.data.name === "string" ? res.data.name.trim() : ""
-                    const username = typeof res.data.username === "string" ? res.data.username.trim() : ""
-                    const displayName = name || username
-                    if (displayName && displayName !== authUtils.getUser()) {
-                        authUtils.setUser(displayName)
-                        dispatchAuthChange()
-                    }
-                }
-            } catch (error) {
-                if (error instanceof ApiError && error.status === 401) {
-                    return
-                }
-            }
-        })().finally(() => {
-            checkSessionPromise = null
-        })
+function scheduleExpiryCheck(): void {
+    if (timeoutTimer !== null) {
+        clearTimeout(timeoutTimer)
+        timeoutTimer = null
     }
+    if (!authUtils.hasToken()) return
 
-    await checkSessionPromise
+    const timeoutSeconds = authUtils.getIdleTimeoutSeconds()
+    const lastActivityAt = authUtils.getLastActivityAt()
+    if (timeoutSeconds <= 0 || lastActivityAt <= 0) return
+
+    const remaining = lastActivityAt + timeoutSeconds * 1000 - Date.now()
+    if (remaining <= 0) {
+        void expireIdleSession()
+        return
+    }
+    timeoutTimer = setTimeout(() => {
+        timeoutTimer = null
+        scheduleExpiryCheck()
+    }, remaining)
 }
 
 function onVisibilityOrFocus() {
     if (!isPageVisible()) return
-    void checkSessionIfNeeded()
+    scheduleExpiryCheck()
 }
 
-function onPollTick() {
-    if (!isPageVisible()) return
-    void checkSessionIfNeeded()
+function onStorage(event: StorageEvent) {
+    if (event.key === "authSessionLastActivityAt" || event.key === "authSessionIdleTimeoutSeconds") {
+        scheduleExpiryCheck()
+    }
+}
+
+function onAuthChange() {
+    scheduleExpiryCheck()
 }
 
 export function startSessionActivityMonitor(): void {
@@ -63,10 +50,12 @@ export function startSessionActivityMonitor(): void {
 
     document.addEventListener("visibilitychange", onVisibilityOrFocus)
     window.addEventListener("focus", onVisibilityOrFocus)
-    pollTimer = setInterval(onPollTick, VISIBLE_POLL_INTERVAL_MS)
+    window.addEventListener("storage", onStorage)
+    window.addEventListener("eco-auth-change", onAuthChange)
+    window.addEventListener("eco-auth-session-activity", onAuthChange)
 
     if (isPageVisible()) {
-        void checkSessionIfNeeded()
+        scheduleExpiryCheck()
     }
 }
 
@@ -76,8 +65,11 @@ export function stopSessionActivityMonitor(): void {
 
     document.removeEventListener("visibilitychange", onVisibilityOrFocus)
     window.removeEventListener("focus", onVisibilityOrFocus)
-    if (pollTimer !== null) {
-        clearInterval(pollTimer)
-        pollTimer = null
+    window.removeEventListener("storage", onStorage)
+    window.removeEventListener("eco-auth-change", onAuthChange)
+    window.removeEventListener("eco-auth-session-activity", onAuthChange)
+    if (timeoutTimer !== null) {
+        clearTimeout(timeoutTimer)
+        timeoutTimer = null
     }
 }

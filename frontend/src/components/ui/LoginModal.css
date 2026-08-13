@@ -96,6 +96,16 @@
     line-height: var(--es-line-height-normal);
 }
 
+.login-session-expired {
+    padding: var(--es-space-3);
+    border: 1px solid color-mix(in srgb, var(--warning) 45%, var(--es-color-border));
+    border-radius: var(--es-radius-md);
+    background: color-mix(in srgb, var(--warning) 10%, var(--bg-surface));
+    color: var(--es-color-text);
+    font-size: var(--es-font-size-sm);
+    line-height: var(--es-line-height-normal);
+}
+
 .login-field-error {
     margin-top: 0;
     color: var(--danger);

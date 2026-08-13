@@ -216,7 +216,7 @@ def safe_int(value, default: int | None = None) -> int | None:
         return default
 
 
-def safe_float(value, default: float = 0.0) -> float:
+def safe_float(value, default: float | None = 0.0) -> float | None:
     if value in (None, ""):
         return default
     try:
@@ -2849,6 +2849,16 @@ def _decode_legacy_api_url(raw_value: Any) -> str | None:
     return _normalize_network_url(decoded)
 
 
+def _coordinate_or_none(value: Any, *, context: str) -> float | None:
+    """Blank coordinates mean "not set"; network_node stores them as nullable double precision."""
+    if value is None or str(value).strip() == "":
+        return None
+    coordinate = safe_float(value, default=None)
+    if coordinate is None:
+        log.warning("Ignoring unparsable coordinate (%s): %r", context, value)
+    return coordinate
+
+
 def _same_coordinate(left: Any, right: Any) -> bool:
     if left in (None, ""):
         return True
@@ -2999,8 +3009,8 @@ def migrate_network_federation(mysql_conn, pg_conn, dry_run: bool) -> int:
         for row in fetch_all(mysql_conn, "SELECT name, value FROM setting")
     }
     local_server_name = (legacy_settings.get("server_name") or "").strip()
-    local_latitude = legacy_settings.get("latitude")
-    local_longitude = legacy_settings.get("longitude")
+    local_latitude = _coordinate_or_none(legacy_settings.get("latitude"), context="setting.latitude")
+    local_longitude = _coordinate_or_none(legacy_settings.get("longitude"), context="setting.longitude")
     local_shared = int(legacy_settings.get("shared") or 0) == 1
 
     rows = fetch_all(
@@ -3028,13 +3038,15 @@ def migrate_network_federation(mysql_conn, pg_conn, dry_run: bool) -> int:
             continue
 
         server_name = (row.get("server_name") or "").strip() or app_url
+        latitude = _coordinate_or_none(row.get("latitude"), context=f"api.latitude api_id={row.get('api_id')}")
+        longitude = _coordinate_or_none(row.get("longitude"), context=f"api.longitude api_id={row.get('api_id')}")
         existing = chosen_by_url.get(app_url)
         if existing is None:
             chosen_by_url[app_url] = {
                 "app_url": app_url,
                 "name": server_name,
-                "latitude": row.get("latitude"),
-                "longitude": row.get("longitude"),
+                "latitude": latitude,
+                "longitude": longitude,
                 "last_updated": row.get("last_updated"),
             }
             continue
@@ -3045,8 +3057,8 @@ def migrate_network_federation(mysql_conn, pg_conn, dry_run: bool) -> int:
             chosen_by_url[app_url] = {
                 "app_url": app_url,
                 "name": server_name,
-                "latitude": row.get("latitude"),
-                "longitude": row.get("longitude"),
+                "latitude": latitude,
+                "longitude": longitude,
                 "last_updated": current_ts,
             }
 
@@ -3168,8 +3180,8 @@ def repair_network_federation(pg_conn, dry_run: bool) -> dict[str, Any]:
         )
 
     candidate = next((node for node in nodes if node["app_url"] == app_url), None)
-    latitude = settings.get("latitude")
-    longitude = settings.get("longitude")
+    latitude = _coordinate_or_none(settings.get("latitude"), context="setting.latitude")
+    longitude = _coordinate_or_none(settings.get("longitude"), context="setting.longitude")
     shared = safe_bool(settings.get("shared")) or False
     changes = {
         "app_url": app_url,

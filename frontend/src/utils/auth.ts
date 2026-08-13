@@ -10,6 +10,15 @@ export function dispatchAuthChange() {
 
 /** 401 会话失效时通知全局 LoginModal 弹出（不跳转页面） */
 export const AUTH_LOGIN_REQUIRED_EVENT = "eco-auth-login-required"
+export type LoginRequiredReason = "unauthorized" | "idle_timeout"
+export interface LoginRequiredDetail {
+    reason: LoginRequiredReason
+    idleTimeoutSeconds: number
+}
+
+const SESSION_IDLE_TIMEOUT_KEY = "authSessionIdleTimeoutSeconds"
+const SESSION_LAST_ACTIVITY_KEY = "authSessionLastActivityAt"
+const SESSION_ACTIVITY_EVENT = "eco-auth-session-activity"
 
 let loginRequiredDispatchPending = false
 
@@ -18,12 +27,16 @@ let loginRequiredDispatchPending = false
  * Idempotent until resetLoginRequiredDispatch(): repeated 401s must not
  * re-fire auth-change events, or listeners refetch and loop on 401 forever.
  */
-export function dispatchLoginRequired() {
+export function dispatchLoginRequired(reason: LoginRequiredReason = "unauthorized") {
     if (typeof window === "undefined") return
     if (loginRequiredDispatchPending) return
     loginRequiredDispatchPending = true
+    const detail: LoginRequiredDetail = {
+        reason,
+        idleTimeoutSeconds: authUtils.getIdleTimeoutSeconds(),
+    }
     authUtils.clearAuth()
-    window.dispatchEvent(new CustomEvent(AUTH_LOGIN_REQUIRED_EVENT))
+    window.dispatchEvent(new CustomEvent<LoginRequiredDetail>(AUTH_LOGIN_REQUIRED_EVENT, { detail }))
 }
 
 /** Allow a subsequent 401 to open the login modal again. */
@@ -69,6 +82,20 @@ export async function logoutAndRedirectToIndex() {
     }
 }
 
+export async function expireIdleSession() {
+    const logoutUrl = `${resolveApiBaseUrlForAuth()}${AUTH_API_PREFIX}/auth-tokens/current`
+    try {
+        await fetch(logoutUrl, {
+            method: "DELETE",
+            credentials: "include",
+        })
+    } catch {
+        // The local session must still expire when the network is unavailable.
+    } finally {
+        dispatchLoginRequired("idle_timeout")
+    }
+}
+
 export const authUtils = {
     getToken: () => localStorage.getItem("accessToken"),
     hasToken: () => Boolean(localStorage.getItem("accessToken")),
@@ -79,15 +106,37 @@ export const authUtils = {
     setUser: (username: string) => localStorage.setItem("loggedInUser", username),
     removeUser: () => localStorage.removeItem("loggedInUser"),
 
+    getIdleTimeoutSeconds: () => Number(localStorage.getItem(SESSION_IDLE_TIMEOUT_KEY) ?? 0),
+    getLastActivityAt: () => Number(localStorage.getItem(SESSION_LAST_ACTIVITY_KEY) ?? 0),
+    setIdleTimeoutSeconds: (seconds: number) => {
+        const normalized = Number.isFinite(seconds) && seconds > 0 ? Math.floor(seconds) : 0
+        localStorage.setItem(SESSION_IDLE_TIMEOUT_KEY, String(normalized))
+        if (normalized > 0) {
+            localStorage.setItem(SESSION_LAST_ACTIVITY_KEY, String(Date.now()))
+        } else {
+            localStorage.removeItem(SESSION_LAST_ACTIVITY_KEY)
+        }
+        window.dispatchEvent(new CustomEvent(SESSION_ACTIVITY_EVENT))
+    },
+    markSessionActivity: () => {
+        if (Number(localStorage.getItem(SESSION_IDLE_TIMEOUT_KEY) ?? 0) <= 0) return
+        localStorage.setItem(SESSION_LAST_ACTIVITY_KEY, String(Date.now()))
+        window.dispatchEvent(new CustomEvent(SESSION_ACTIVITY_EVENT))
+    },
+
     clearAuth: () => {
         // Idempotent: skip the auth-change broadcast when nothing is stored,
         // so repeated logout paths don't trigger redundant refetch cascades.
         const hadAuth =
             localStorage.getItem("accessToken") !== null ||
-            localStorage.getItem("loggedInUser") !== null
+            localStorage.getItem("loggedInUser") !== null ||
+            localStorage.getItem(SESSION_IDLE_TIMEOUT_KEY) !== null ||
+            localStorage.getItem(SESSION_LAST_ACTIVITY_KEY) !== null
         if (!hadAuth) return
         localStorage.removeItem("accessToken")
         localStorage.removeItem("loggedInUser")
+        localStorage.removeItem(SESSION_IDLE_TIMEOUT_KEY)
+        localStorage.removeItem(SESSION_LAST_ACTIVITY_KEY)
         dispatchAuthChange()
     }
 }

@@ -3,6 +3,7 @@ from typing import Any
 
 import pytest
 from fastapi import HTTPException
+from redis.exceptions import RedisError
 from sqlmodel import Session
 
 from app.repositories import user_repository
@@ -41,6 +42,23 @@ class FakeRefreshSessionRepository:
         self.sessions: dict[str, dict[str, Any]] = {}
         self.family_revoked: set[str] = set()
         self.replacement_tokens: dict[str, str] = {}
+        self.activity_states: dict[str, str] = {}
+        self.activity_error: RedisError | None = None
+        self.initialization_error: RedisError | None = None
+
+    async def initialize_family_activity(
+        self, redis, family_id: str, *, timeout_seconds: int
+    ) -> None:
+        if self.initialization_error:
+            raise self.initialization_error
+        self.activity_states[family_id] = "active"
+
+    async def touch_family_activity(
+        self, redis, family_id: str, *, timeout_seconds: int
+    ) -> str:
+        if self.activity_error:
+            raise self.activity_error
+        return self.activity_states.get(family_id, "expired")
 
     async def cache_replacement_token(
         self, redis, parent_jti: str, refresh_token: str, *, grace_seconds: int
@@ -76,6 +94,7 @@ class FakeRefreshSessionRepository:
 
     async def revoke_family(self, redis, family_id: str, *, family_expires_at=None) -> None:
         self.family_revoked.add(family_id)
+        self.activity_states.pop(family_id, None)
         for session_data in self.sessions.values():
             if session_data["family_id"] == family_id and session_data["revoked_at"] is None:
                 session_data["revoked_at"] = _now()
@@ -138,9 +157,119 @@ async def test_login_issues_refresh_token_row(db: Session, monkeypatch: pytest.M
     assert refresh_max_age > 0
 
     assert len(fake_repo.sessions) == 1
-    row = next(iter(fake_repo.sessions.values()))
+    row = list(fake_repo.sessions.values())[-1]
     assert row["user_id"] == user.user_id
     assert row["family_expires_at"] > row["expires_at"]
+
+
+@pytest.mark.anyio
+async def test_idle_timeout_rejects_and_revokes_session_family(
+    db: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    user, password = _make_user(db)
+    fake_repo = FakeRefreshSessionRepository()
+    monkeypatch.setattr(auth_service, "auth_refresh_session_repository", fake_repo)
+    monkeypatch.setattr(auth_service.settings, "ENVIRONMENT", "staging")
+    monkeypatch.setattr(auth_service.settings, "AUTH_SESSION_IDLE_EXPIRE_MINUTES", 30)
+
+    token, refresh_token, _ = await auth_service.login(
+        db, FakeAsyncRedis(), user.username, password
+    )
+    family_id = next(iter(fake_repo.sessions.values()))["family_id"]
+    assert token.session_idle_timeout_seconds == 1800
+    fake_repo.activity_states.pop(family_id)
+
+    with pytest.raises(HTTPException) as exc:
+        await auth_service.refresh_access_token(db, object(), refresh_token)
+
+    assert exc.value.status_code == 401
+    assert exc.value.headers == {
+        "WWW-Authenticate": "Bearer",
+        "X-Auth-Reason": "idle_timeout",
+    }
+    assert family_id in fake_repo.family_revoked
+
+
+@pytest.mark.anyio
+async def test_session_activity_validation_handles_active_revoked_and_missing_family(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_repo = FakeRefreshSessionRepository()
+    monkeypatch.setattr(auth_service, "auth_refresh_session_repository", fake_repo)
+    monkeypatch.setattr(auth_service.settings, "ENVIRONMENT", "production")
+    monkeypatch.setattr(auth_service.settings, "AUTH_SESSION_IDLE_EXPIRE_MINUTES", 30)
+    fake_repo.activity_states["active-family"] = "active"
+    fake_repo.activity_states["revoked-family"] = "revoked"
+
+    await auth_service.validate_session_activity(object(), "active-family", user_id="7")
+
+    with pytest.raises(HTTPException) as missing:
+        await auth_service.validate_session_activity(object(), None, user_id="7")
+    assert missing.value.status_code == 401
+
+    with pytest.raises(HTTPException) as revoked:
+        await auth_service.validate_session_activity(object(), "revoked-family", user_id="7")
+    assert revoked.value.status_code == 401
+    assert revoked.value.headers == {"WWW-Authenticate": "Bearer"}
+
+
+@pytest.mark.anyio
+async def test_session_activity_redis_failures_return_service_unavailable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_repo = FakeRefreshSessionRepository()
+    monkeypatch.setattr(auth_service, "auth_refresh_session_repository", fake_repo)
+    monkeypatch.setattr(auth_service.settings, "ENVIRONMENT", "staging")
+    monkeypatch.setattr(auth_service.settings, "AUTH_SESSION_IDLE_EXPIRE_MINUTES", 30)
+    fake_repo.activity_error = RedisError("unavailable")
+
+    with pytest.raises(HTTPException) as validation:
+        await auth_service.validate_session_activity(object(), "family-id")
+    assert validation.value.status_code == 503
+
+    fake_repo.activity_error = None
+    fake_repo.initialization_error = RedisError("unavailable")
+    with pytest.raises(HTTPException) as initialization:
+        await auth_service.initialize_session_activity(object(), "family-id")
+    assert initialization.value.status_code == 503
+
+
+@pytest.mark.anyio
+async def test_refresh_rejects_expired_invalid_and_unknown_tokens(
+    db: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fake_repo = FakeRefreshSessionRepository()
+    monkeypatch.setattr(auth_service, "auth_refresh_session_repository", fake_repo)
+
+    expired_jti = "expired-jti"
+    expired_token = auth_service.security.create_refresh_token(
+        subject="1",
+        expires_delta=timedelta(seconds=-1),
+        jti=expired_jti,
+        family_id="expired-family",
+    )
+    fake_repo.sessions[expired_jti] = {
+        "revoked_at": None,
+        "replaced_by_jti": None,
+    }
+    with pytest.raises(HTTPException) as expired:
+        await auth_service.refresh_access_token(db, object(), expired_token)
+    assert expired.value.status_code == 401
+    assert fake_repo.sessions[expired_jti]["revoked_at"] is not None
+
+    with pytest.raises(HTTPException) as invalid:
+        await auth_service.refresh_access_token(db, object(), "invalid-token")
+    assert invalid.value.status_code == 401
+
+    unknown_token = auth_service.security.create_refresh_token(
+        subject="1",
+        expires_delta=timedelta(minutes=5),
+        jti="unknown-jti",
+        family_id="unknown-family",
+    )
+    with pytest.raises(HTTPException) as unknown:
+        await auth_service.refresh_access_token(db, object(), unknown_token)
+    assert unknown.value.status_code == 401
 
 
 @pytest.mark.anyio

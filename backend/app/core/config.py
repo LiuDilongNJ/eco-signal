@@ -47,6 +47,8 @@ class Settings(BaseSettings):
     REFRESH_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 30
     # <= 0 disables absolute session expiry; refresh tokens still expire and rotate.
     AUTH_SESSION_ABSOLUTE_EXPIRE_MINUTES: int = 0
+    # Sliding inactivity timeout for authenticated sessions. It is disabled in local development.
+    AUTH_SESSION_IDLE_EXPIRE_MINUTES: int = 30
     AUTH_REFRESH_COOKIE_NAME: str = "refresh_token"
     AUTH_REFRESH_COOKIE_PATH: str = "/api/v1"
     AUTH_REFRESH_COOKIE_SECURE: bool = False
@@ -155,6 +157,13 @@ class Settings(BaseSettings):
     FIRST_SUPERUSER_PASSWORD: str
 
     ADMIN_ROLE_NAME: str = "Administrator"
+
+    @property
+    def auth_session_idle_timeout_seconds(self) -> int:
+        """Return the effective sliding inactivity timeout for this environment."""
+        if self.ENVIRONMENT == "local" or self.AUTH_SESSION_IDLE_EXPIRE_MINUTES <= 0:
+            return 0
+        return self.AUTH_SESSION_IDLE_EXPIRE_MINUTES * 60
 
     def _check_default_secret(self, var_name: str, value: str | None) -> None:
         if value == "changethis":

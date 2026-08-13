@@ -141,7 +141,7 @@ For one-time migration from legacy `ecoSound-web` to `ecoSignal`, use the root-l
 ### Migrate legacy data into ecoSignal
 
 ```bash
-chmod +x ./migrate.sh
+chmod +x ./migrate-data.sh
 sudo ./migrate-data.sh <old-project-dir> [options]
 ```
 
@@ -257,6 +257,14 @@ This project uses Docker Compose for deployment. HTTP is the default; setting `E
    Be sure to review `SECRET_KEY`, `FIRST_SUPERUSER`, `FIRST_SUPERUSER_PASSWORD`, `POSTGRES_PASSWORD`, `REDIS_PASSWORD`, and any domain, email, Sentry, or legacy path settings required by your environment.
    HTTP mode uses `DOMAIN` and `FRONTEND_PORT` for the frontend, API, and media on one origin. Set `ENABLE_HTTPS=true` only for a public deployment: it uses `dashboard.DOMAIN` for the frontend and `api.DOMAIN` for the API, requires `EMAIL`, and requires public inbound ports 80 and 443.
 
+   `./deploy.sh` reads `ENVIRONMENT` from the root `.env` file. Allowed values are `local`, `staging`, and `production`; both `.env.example` and the backend default to `local`. Set it explicitly to `staging` on a staging server and `production` on a production server. The `local` environment always disables login inactivity expiry. In `staging` and `production`, `AUTH_SESSION_IDLE_EXPIRE_MINUTES` controls the timeout and defaults to 30 minutes.
+
+   Before deploying, verify the value resolved by Compose:
+
+   ```bash
+   docker compose -f docker-compose.yml config --environment | grep '^ENVIRONMENT='
+   ```
+
    `.env.example` is safe to commit as a template. `.env` is environment-specific and must stay uncommitted.
 
 2. **Deploy with the guarded production script**. The script needs to be made executable. It serializes releases, waits for dependencies, applies setup once, and waits for service health:
@@ -264,6 +272,16 @@ This project uses Docker Compose for deployment. HTTP is the default; setting `E
    chmod +x ./deploy.sh ./rollback.sh
    sudo ./deploy.sh
    ```
+
+   After deployment, verify the environment and effective inactivity timeout inside the backend container:
+
+   ```bash
+   STACK_NAME="$(docker compose -f docker-compose.yml config --environment | awk -F= '$1 == "STACK_NAME" { print tolower($2); exit }')"
+   docker compose --project-name "${STACK_NAME:-ecosignal}" --profile production -f docker-compose.yml exec backend python -c \
+   'from app.core.config import settings; print(settings.ENVIRONMENT, settings.auth_session_idle_timeout_seconds)'
+   ```
+
+   With `ENVIRONMENT=production` and the default timeout, the expected output is `production 1800`.
    
 
    On Windows PowerShell, run `.\deploy.ps1`; Command Prompt users can run `deploy.bat`. On macOS and Linux, use `./deploy.sh`; neither platform requires `flock`.
@@ -280,6 +298,8 @@ The project uses **GitHub Actions** for automated deployment.
 | -------------- | ----------------------- | ----------------------------------------- |
 | **Staging**    | Push to `main` branch   | `.github/workflows/deploy-staging.yml`    |
 | **Production** | Publish a new Release   | `.github/workflows/deploy-production.yml` |
+
+The workflows set `ENVIRONMENT` directly: the staging workflow uses `staging`, and the production workflow uses `production`. Do not add `ENVIRONMENT` as a GitHub variable.
 
 #### Required GitHub Secrets
 
@@ -300,6 +320,7 @@ The project uses **GitHub Actions** for automated deployment.
 | `FRONTEND_PORT`                               | `80`            | Frontend host port             |
 | `STACK_NAME`                                  | none            | Docker Compose project name    |
 | `BACKEND_CORS_ORIGINS`                        | none            | Backend CORS origins           |
+| `AUTH_SESSION_IDLE_EXPIRE_MINUTES`            | `30`            | Login inactivity timeout for staging/production; `0` disables it |
 | `PROJECT_NAME`                                | `ecoSignal`     | Application name               |
 | `POSTGRES_USER`                               | `postgres`      | PostgreSQL username            |
 | `POSTGRES_DB`                                 | `ecosignal`     | PostgreSQL database name       |
