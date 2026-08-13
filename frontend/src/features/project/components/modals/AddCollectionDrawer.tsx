@@ -177,7 +177,6 @@ export function AddCollectionDrawer({ open, editId, projectId, onClose, onSubmit
                                 <Form.Item
                                     name="sphere"
                                     label="Sphere"
-                                    rules={[{ required: true, message: "Please select a sphere" }]}
                                 >
                                     <Select
                                         className="form-drawer-select"

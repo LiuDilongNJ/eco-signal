@@ -59,7 +59,7 @@ const COLUMNS: ColumnDef[] = [
 const FORM_FIELDS: FormFieldDef[] = [
     { key: "name", label: "Name", type: "text", required: true },
     { key: "description", label: "Description", type: "textarea" },
-    { key: "sphere", label: "Sphere", type: "text", required: true },
+    { key: "sphere", label: "Sphere", type: "text" },
     { key: "project_url", label: "Ext. Project", type: "text" },
     { key: "external_media_url", label: "Ext. Media", type: "text" },
     { key: "doi", label: "DOI", type: "text" },

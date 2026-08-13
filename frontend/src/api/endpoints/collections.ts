@@ -7,7 +7,7 @@ export interface CollectionPublic {
     name: string;
     doi: string;
     description: string;
-    sphere: string;
+    sphere: string | null;
     external_media_url: string;
     project_url: string;
     public_access: boolean;
