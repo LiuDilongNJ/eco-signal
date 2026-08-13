@@ -604,6 +604,76 @@ def test_migrate_network_federation_skips_invalid_or_non_shared_rows_in_dry_run(
     assert pg_conn.inserted_network_nodes == []
 
 
+def test_migrate_network_federation_maps_empty_local_coordinates_to_null(monkeypatch):
+    module = _load_script_module()
+    monkeypatch.delenv("LEGACY_APP_URL", raising=False)
+    monkeypatch.delenv("LEGACY_HOST_URL", raising=False)
+    mysql_conn = FakeConnection()
+    pg_conn = FakeConnection()
+
+    def _fetch_all(_conn, sql, _params=None):
+        normalized = " ".join(sql.split())
+        if normalized == "SELECT name, value FROM setting":
+            return [
+                {"name": "server_name", "value": "Legacy Node"},
+                {"name": "app_url", "value": "https://legacy-local.example/"},
+                {"name": "latitude", "value": ""},
+                {"name": "longitude", "value": ""},
+                {"name": "shared", "value": "1"},
+            ]
+        return []
+
+    module.fetch_all = _fetch_all
+    migrated = module.migrate_network_federation(mysql_conn, pg_conn, dry_run=False)
+
+    assert migrated == 1
+    assert len(pg_conn.inserted_network_nodes) == 1
+    local_params = pg_conn.inserted_network_nodes[0]
+    assert local_params[0] == "https://legacy-local.example"
+    assert local_params[2] is None
+    assert local_params[3] is None
+
+
+def test_migrate_network_federation_maps_empty_remote_coordinates_to_null(monkeypatch):
+    module = _load_script_module()
+    monkeypatch.delenv("LEGACY_APP_URL", raising=False)
+    monkeypatch.delenv("LEGACY_HOST_URL", raising=False)
+    mysql_conn = FakeConnection()
+    pg_conn = FakeConnection()
+
+    def _fetch_all(_conn, sql, _params=None):
+        normalized = " ".join(sql.split())
+        if normalized == "SELECT name, value FROM setting":
+            return [
+                {"name": "app_url", "value": "https://legacy-local.example"},
+                {"name": "latitude", "value": "10.5"},
+                {"name": "longitude", "value": "20.25"},
+            ]
+        if "FROM api" in normalized:
+            return [
+                {
+                    "api_id": 1,
+                    "api": "aHR0cHM6Ly9ub2RlLW9uZS5leGFtcGxl",
+                    "server_name": "Node One",
+                    "longitude": "",
+                    "latitude": "",
+                    "shared": 1,
+                    "last_updated": None,
+                },
+            ]
+        return []
+
+    module.fetch_all = _fetch_all
+    migrated = module.migrate_network_federation(mysql_conn, pg_conn, dry_run=False)
+
+    assert migrated == 2
+    remote_params = pg_conn.inserted_network_nodes[0]
+    assert remote_params[0] == "https://node-one.example"
+    assert remote_params[2] is None
+    assert remote_params[3] is None
+    assert remote_params[4] is False
+
+
 def test_resolve_local_network_url_prefers_explicit_and_normalizes():
     module = _load_script_module()
 
@@ -778,8 +848,8 @@ def test_repair_network_federation_promotes_existing_remote_node(monkeypatch):
         {
             "app_url": "https://host.example",
             "server_name": "Legacy Node",
-            "latitude": "10.5",
-            "longitude": "20.25",
+            "latitude": 10.5,
+            "longitude": 20.25,
             "shared": True,
         }
     ]
