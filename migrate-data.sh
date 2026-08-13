@@ -385,7 +385,7 @@ else
     info "Starting database migration..."
     MYSQL_HOST_IN_CONTAINER="host.docker.internal"
     AUDIT_REPORT_DIR="${PROJECT_ROOT}/migration-reports"
-    AUDIT_REPORT_NAME="migration-audit_${TIMESTAMP}.xlsx"
+    AUDIT_REPORT_NAME="migration-audit_${TIMESTAMP}.csv"
     AUDIT_REPORT_CONTAINER_PATH="/tmp/${AUDIT_REPORT_NAME}"
     mkdir -p "$AUDIT_REPORT_DIR"
 
@@ -416,7 +416,7 @@ else
     if "${DOCKER_COMPOSE[@]}" cp "backend:${AUDIT_REPORT_CONTAINER_PATH}" "${AUDIT_REPORT_DIR}/${AUDIT_REPORT_NAME}"; then
         success "Migration audit report saved at: ${AUDIT_REPORT_DIR}/${AUDIT_REPORT_NAME}"
     else
-        warn "No migration audit workbook was created (no row-level issues or migration stopped before auditing)."
+        warn "No migration audit report was created (no row-level issues or migration stopped before auditing)."
     fi
 
     if [[ "$MIGRATION_EXIT" -ne 0 ]]; then

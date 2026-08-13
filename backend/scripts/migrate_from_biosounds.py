@@ -47,7 +47,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
-from migration_audit import MigrationAudit, write_audit_workbook
+from migration_audit import MigrationAudit, write_audit_csv
 
 logging.basicConfig(
     level=logging.INFO,
@@ -4361,10 +4361,10 @@ def run_verification(mysql_conn, pg_conn) -> bool:
 
 
 def _write_audit_report(audit: MigrationAudit, audit_report: Path) -> None:
-    if write_audit_workbook(audit, audit_report):
+    if write_audit_csv(audit, audit_report):
         log.info("Migration audit report written: %s (%d issues)", audit_report, audit.count)
     else:
-        log.info("Migration audit found no row-level issues; no workbook was created.")
+        log.info("Migration audit found no row-level issues; no report was created.")
 
 
 def run_migration(
@@ -4623,8 +4623,8 @@ def main() -> None:
     parser.add_argument(
         "--audit-report",
         type=Path,
-        default=Path("/tmp/migration-audit.xlsx"),
-        help="Write row-level migration issues to this XLSX path.",
+        default=Path("/tmp/migration-audit.csv"),
+        help="Write row-level migration issues to this CSV path.",
     )
     parser.add_argument(
         "--batch-size",

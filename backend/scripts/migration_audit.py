@@ -1,7 +1,8 @@
-"""Disk-backed migration audit records and streaming XLSX export helpers."""
+"""Disk-backed migration audit records and streaming CSV export helpers."""
 
 from __future__ import annotations
 
+import csv
 import json
 import os
 import tempfile
@@ -14,7 +15,6 @@ AUDIT_COLUMNS = [
     "source_table", "source_id", "target_table", "target_id", "issue_type", "severity",
     "field_name", "source_value", "target_value", "reason", "recommended_action",
 ]
-EXCEL_MAX_DATA_ROWS = 1_048_575
 
 
 @dataclass(frozen=True)
@@ -73,56 +73,16 @@ class MigrationAudit:
         ))
 
 
-def write_audit_workbook(audit: MigrationAudit, output_path: Path) -> bool:
-    """Write source-table worksheets from the disk-backed audit stream."""
+def write_audit_csv(audit: MigrationAudit, output_path: Path) -> bool:
+    """Stream the disk-backed audit into one CSV, keeping the order the issues were recorded in."""
     if audit.count == 0:
         return False
 
-    from openpyxl import Workbook
-    from openpyxl.styles import Font, PatternFill
-
-    source_tables = sorted({issue.source_table for issue in audit.iter_issues()})
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    workbook = Workbook(write_only=True)
-    header_fill = PatternFill("solid", fgColor="1F4E78")
-    header_font = Font(color="FFFFFF", bold=True)
-    for source_table in source_tables:
-        sheet_index = 1
-        data_rows = 0
-        worksheet = _new_sheet(workbook, source_table, sheet_index, header_fill, header_font)
+    # BOM so spreadsheet tools detect UTF-8 when opening the file directly.
+    with output_path.open("w", encoding="utf-8-sig", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=AUDIT_COLUMNS)
+        writer.writeheader()
         for issue in audit.iter_issues():
-            if issue.source_table != source_table:
-                continue
-            if data_rows == EXCEL_MAX_DATA_ROWS:
-                worksheet.auto_filter.ref = f"A1:K{data_rows + 1}"
-                sheet_index += 1
-                data_rows = 0
-                worksheet = _new_sheet(workbook, source_table, sheet_index, header_fill, header_font)
-            values = asdict(issue)
-            worksheet.append([_excel_value(values[column]) for column in AUDIT_COLUMNS])
-            data_rows += 1
-        worksheet.auto_filter.ref = f"A1:K{data_rows + 1}"
-    workbook.save(output_path)
+            writer.writerow(asdict(issue))
     return True
-
-
-def _new_sheet(workbook, source_table: str, index: int, header_fill, header_font):
-    from openpyxl.cell import WriteOnlyCell
-
-    title = source_table if index == 1 else f"{source_table}_{index}"
-    worksheet = workbook.create_sheet(title=title[:31])
-    worksheet.freeze_panes = "A2"
-    header = []
-    for name in AUDIT_COLUMNS:
-        cell = WriteOnlyCell(worksheet, value=name)
-        cell.fill = header_fill
-        cell.font = header_font
-        header.append(cell)
-    worksheet.append(header)
-    return worksheet
-
-
-def _excel_value(value: Any) -> Any:
-    if value is None or isinstance(value, (str, int, float, bool)):
-        return value
-    return str(value)
