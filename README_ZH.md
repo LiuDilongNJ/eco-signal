@@ -148,17 +148,17 @@ sudo ./migrate-data.sh <old-project-dir> [options]
 示例：
 
 ```bash
-# 使用默认老项目路径解析（.env 的 LEGACY_PROJECT_DIR 或 ./ecoSound-web）
-./migrate-data.sh
+# 全新部署后的推荐首次迁移：先备份并清空 Demo/种子数据，再迁移
+./migrate-data.sh --reset-target
 
-# 显式指定老项目路径
-./migrate-data.sh /path/to/ecoSound-web
+# 显式指定老项目路径（全新部署后仍需加 --reset-target）
+./migrate-data.sh /path/to/ecoSound-web --reset-target
 
 # 仅预演（不写入）
 ./migrate-data.sh --dry-run
 
-# 先备份并清空当前 ecoSignal 业务数据，再执行迁移
-./migrate-data.sh --reset-target
+# 仅适用于空目标库（没有 Demo Project / collection / site）
+./migrate-data.sh
 ```
 
 常用参数：
@@ -167,10 +167,11 @@ sudo ./migrate-data.sh <old-project-dir> [options]
 - `--skip-db`：跳过数据库迁移
 - `--skip-files`：跳过静态文件迁移
 - `--copy-files`：将老项目静态文件直接复制到 `app-media-data` 卷（应急模式）
-- `--reset-target`：先备份当前 ecoSignal 的 DB/媒体，再清空业务数据并迁移
+- `--reset-target`：全新部署后必须使用。先备份当前 ecoSignal 的 DB/媒体，再清空业务数据（含 Demo Project / collection / site）并迁移
 
 迁移说明：
 
+- 首次启动会写入 Demo Project、Demo collection 和 Demo site。全新部署后的第一次迁移如果不加 `--reset-target` 会失败。
 - 脚本会先在宿主机侧检查老项目 MySQL 的连通性，再启动容器内迁移流程。
 - 默认媒体迁移策略为 `direct-mount`：脚本会基于当前 `LEGACY_PROJECT_DIR` 重新创建 `backend` 和 `worker` 容器，并在数据库迁移开始前校验 `/app/sounds/sounds`、`/app/sounds/images` 和 `/app/sounds/projects` 是否可用。
 - 修改 `LEGACY_PROJECT_DIR` 后，单纯执行 `docker compose restart` 不足以刷新 legacy 目录的 bind mount；迁移脚本会使用重建容器的方式确保挂载生效。

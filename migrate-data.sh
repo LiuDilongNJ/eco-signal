@@ -9,7 +9,9 @@
 #   --skip-db        Skip database migration
 #   --skip-files     Skip static file migration
 #   --copy-files     Copy legacy static files into app-media-data volume (emergency mode)
-#   --reset-target   Backup current ecoSignal DB/media, clear business data, then migrate
+#   --reset-target   Required after a fresh deploy (Demo Project/collection/site
+#                    seed data). Backup current ecoSignal DB/media, clear
+#                    business data, then migrate
 #   --legacy-app-url Explicit public URL for legacy instances using dynamic APP_URL
 #   --repair-network-federation
 #                     Repair only federation settings in an already migrated target
@@ -357,9 +359,9 @@ if [[ "$SKIP_DB" == false ]]; then
     " | tr -d '\r')
     if [[ "$TARGET_IS_NON_EMPTY" == "1" && "$RESET_TARGET" == false ]]; then
         if [[ "$DRY_RUN" == true ]]; then
-            warn "Target PostgreSQL already contains business data. Continuing because this is a dry-run."
+            warn "Target PostgreSQL already contains business data (fresh deploys include Demo Project/collection/site). Continuing because this is a dry-run."
         else
-            die "Target PostgreSQL already contains business data. Re-run with --reset-target to back up, clear, and migrate."
+            die "Target PostgreSQL already contains business data (fresh deploys include Demo Project/collection/site). Re-run with --reset-target to back up, clear, and migrate."
         fi
     fi
 fi

@@ -148,17 +148,17 @@ sudo ./migrate-data.sh <old-project-dir> [options]
 Examples:
 
 ```bash
-# Use default legacy path resolution (.env LEGACY_PROJECT_DIR or ./ecoSound-web)
-./migrate-data.sh
+# Recommended after a fresh deploy: back up, clear demo/seed data, then migrate
+./migrate-data.sh --reset-target
 
-# Explicit legacy project path
-./migrate-data.sh /path/to/ecoSound-web
+# Explicit legacy project path (still use --reset-target after a fresh deploy)
+./migrate-data.sh /path/to/ecoSound-web --reset-target
 
 # Preview only (no writes)
 ./migrate-data.sh --dry-run
 
-# Backup+clear current ecoSignal business data, then migrate
-./migrate-data.sh --reset-target
+# Empty target only (no Demo Project / collection / site rows)
+./migrate-data.sh
 ```
 
 Common options:
@@ -167,10 +167,11 @@ Common options:
 - `--skip-db`: Skip database migration
 - `--skip-files`: Skip static file migration
 - `--copy-files`: Copy legacy static files into `app-media-data` volume (emergency mode)
-- `--reset-target`: Backup current ecoSignal DB/media, clear business data, then migrate
+- `--reset-target`: Required after a fresh deploy. Backup current ecoSignal DB/media, clear business data (including Demo Project / collection / site), then migrate
 
 Migration notes:
 
+- First startup seeds Demo Project, Demo collection, and Demo site. A first migration after a fresh deploy will fail unless you pass `--reset-target`.
 - The shell script checks legacy MySQL connectivity from the host before starting the in-container migration.
 - The default media strategy is `direct-mount`: the script recreates `backend` and `worker` with the current `LEGACY_PROJECT_DIR`, then verifies `/app/sounds/sounds`, `/app/sounds/images`, and `/app/sounds/projects` before any database migration runs.
 - A plain `docker compose restart` is not enough to refresh legacy bind mounts after changing `LEGACY_PROJECT_DIR`; the migration script uses container recreate semantics instead.

@@ -4402,7 +4402,11 @@ def run_migration(
     try:
         if target_has_business_data(pg_conn):
             if not reset_target:
-                raise RuntimeError("Target PostgreSQL already contains business data. Re-run with --reset-target.")
+                raise RuntimeError(
+                    "Target PostgreSQL already contains business data "
+                    "(fresh deploys include Demo Project/collection/site). "
+                    "Re-run with --reset-target."
+                )
             if dry_run:
                 log.info("DRY-RUN: target reset requested but not executed.")
             else:
@@ -4598,7 +4602,7 @@ def main() -> None:
     parser.add_argument(
         "--reset-target",
         action="store_true",
-        help="Clear target business data before transfer",
+        help="Required after a fresh deploy (Demo Project/collection/site seed data). Clear target business data before transfer",
     )
     parser.add_argument(
         "--repair-preview-filenames",
