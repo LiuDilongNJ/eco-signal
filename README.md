@@ -148,17 +148,20 @@ sudo ./migrate-data.sh <old-project-dir> [options]
 Examples:
 
 ```bash
-# Use default legacy path resolution (.env LEGACY_PROJECT_DIR or ./ecoSound-web)
-./migrate-data.sh
+# Recommended after a fresh deploy: back up, clear demo/seed data, then migrate
+./migrate-data.sh --reset-target
 
-# Explicit legacy project path
-./migrate-data.sh /path/to/ecoSound-web
+# Explicit legacy project path (still use --reset-target after a fresh deploy)
+./migrate-data.sh /path/to/ecoSound-web --reset-target
 
 # Preview only (no writes)
 ./migrate-data.sh --dry-run
 
-# Backup+clear current ecoSignal business data, then migrate
-./migrate-data.sh --reset-target
+# Empty target only (no Demo Project / collection / site rows)
+./migrate-data.sh
+
+# Provide the public URL of the legacy instance explicitly
+./migrate-data.sh --reset-target --legacy-app-url https://ecosound-web.example.com/ecosound_web
 ```
 
 Common options:
@@ -167,10 +170,27 @@ Common options:
 - `--skip-db`: Skip database migration
 - `--skip-files`: Skip static file migration
 - `--copy-files`: Copy legacy static files into `app-media-data` volume (emergency mode)
-- `--reset-target`: Backup current ecoSignal DB/media, clear business data, then migrate
+- `--reset-target`: Required after a fresh deploy. Backup current ecoSignal DB/media, clear business data (including Demo Project / collection / site), then migrate
+- `--legacy-app-url <url>`: Public URL of the legacy instance, used to identify its own node in the federation network
+
+### Legacy app URL resolution
+
+The migration must know the public URL of the instance it is migrating, because that URL identifies the local node in the federation network. Legacy installs ship an empty `APP_URL` and resolve the hostname per request, so it often cannot be detected automatically.
+
+Resolution order, first non-empty value wins:
+
+1. `--legacy-app-url <url>` on the command line
+2. `LEGACY_APP_URL` from the shell environment or `.env`
+3. `APP_URL` in the legacy `src/config/config.ini`
+4. Inference from the legacy database: the stored `app_url` setting, then a unique match on server name and coordinates among the known federation nodes
+
+`LEGACY_HOST_URL` follows the same environment-over-config precedence and defaults to the legacy `HOST_URL`. Values that are not `http://` or `https://` URLs are rejected before the migration starts.
+
+If none of these resolve, the migration aborts during preflight, before any data is written, and reports the server name, coordinates, and candidate URLs it found. Set `LEGACY_APP_URL` in `.env` and rerun with the same options; an aborted preflight leaves no partially migrated data behind.
 
 Migration notes:
 
+- First startup seeds Demo Project, Demo collection, and Demo site. A first migration after a fresh deploy will fail unless you pass `--reset-target`.
 - The shell script checks legacy MySQL connectivity from the host before starting the in-container migration.
 - The default media strategy is `direct-mount`: the script recreates `backend` and `worker` with the current `LEGACY_PROJECT_DIR`, then verifies `/app/sounds/sounds`, `/app/sounds/images`, and `/app/sounds/projects` before any database migration runs.
 - A plain `docker compose restart` is not enough to refresh legacy bind mounts after changing `LEGACY_PROJECT_DIR`; the migration script uses container recreate semantics instead.
@@ -327,6 +347,8 @@ The workflows set `ENVIRONMENT` directly: the staging workflow uses `staging`, a
 | `DOCKER_IMAGE_BACKEND`                        | `backend`       | Backend image name             |
 | `DOCKER_IMAGE_FRONTEND`                       | `frontend`      | Frontend image name            |
 | `LEGACY_PROJECT_DIR`                          | `./ecoSound-web`| Legacy media mount source path |
+| `LEGACY_APP_URL`                              | none            | Public URL of the legacy instance, used for federation node identity during migration |
+| `LEGACY_HOST_URL`                             | legacy `HOST_URL` | Federation hub the legacy instance registers with |
 | `GEO_DB_READY_URL`                            | bundled default | Geo DB ready archive URL       |
 | `GEO_DB_XR_SEED_URL`                          | bundled default | Geo DB XR seed archive URL     |
 Define `DOMAIN`, `STACK_NAME`, and `BACKEND_CORS_ORIGINS` separately inside the GitHub `staging` and `production` environments so the variable names stay aligned with `.env` while the values differ by environment.

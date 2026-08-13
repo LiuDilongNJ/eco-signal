@@ -802,6 +802,134 @@ def test_resolve_local_network_url_rejects_invalid_explicit_url():
         )
 
 
+def test_resolve_local_network_url_error_reports_identity_and_host_hint():
+    module = _load_script_module()
+
+    with pytest.raises(RuntimeError) as excinfo:
+        module._resolve_local_network_url(
+            explicit_app_url=None,
+            stored_app_url=None,
+            host_url="https://hub.example",
+            server_name="Local Node",
+            latitude=10.5,
+            longitude=20.25,
+            nodes=[],
+        )
+
+    message = str(excinfo.value)
+    assert "Local Node" in message
+    assert "10.5" in message
+    assert "20.25" in message
+    assert "LEGACY_APP_URL" in message
+    assert "https://hub.example" in message
+
+
+def test_collect_legacy_federation_nodes_keeps_latest_shared_row_per_url():
+    module = _load_script_module()
+    mysql_conn = FakeConnection()
+
+    def _fetch_all(_conn, _sql, _params=None):
+        return [
+            {
+                "api_id": 1,
+                "api": "aHR0cHM6Ly9ub2RlLW9uZS5leGFtcGxl",
+                "server_name": "Older",
+                "longitude": 1.0,
+                "latitude": 2.0,
+                "shared": 1,
+                "last_updated": datetime(2020, 1, 1, tzinfo=UTC),
+            },
+            {
+                "api_id": 2,
+                "api": "aHR0cHM6Ly9ub2RlLW9uZS5leGFtcGxl",
+                "server_name": "Newer",
+                "longitude": 3.0,
+                "latitude": 4.0,
+                "shared": 1,
+                "last_updated": datetime(2024, 1, 1, tzinfo=UTC),
+            },
+            {
+                "api_id": 3,
+                "api": "not-base64",
+                "server_name": "Broken",
+                "longitude": None,
+                "latitude": None,
+                "shared": 1,
+                "last_updated": None,
+            },
+            {
+                "api_id": 4,
+                "api": "aHR0cHM6Ly9oaWRkZW4uZXhhbXBsZQ==",
+                "server_name": "Hidden",
+                "longitude": None,
+                "latitude": None,
+                "shared": 0,
+                "last_updated": None,
+            },
+        ]
+
+    module.fetch_all = _fetch_all
+    nodes, undecodable = module._collect_legacy_federation_nodes(mysql_conn)
+
+    assert [node["app_url"] for node in nodes] == ["https://node-one.example"]
+    assert nodes[0]["name"] == "Newer"
+    assert [row["api_id"] for row in undecodable] == [3]
+
+
+def test_preflight_network_federation_accepts_url_from_environment(monkeypatch, caplog):
+    module = _load_script_module()
+    monkeypatch.setenv("LEGACY_APP_URL", "https://legacy.example/eco/")
+    monkeypatch.delenv("LEGACY_HOST_URL", raising=False)
+    module.fetch_all = lambda _conn, _sql, _params=None: []
+
+    with caplog.at_level("INFO"):
+        module.preflight_network_federation(FakeConnection())
+
+    assert "https://legacy.example/eco" in caplog.text
+
+
+def test_preflight_network_federation_aborts_before_any_write(monkeypatch):
+    module = _load_script_module()
+    monkeypatch.delenv("LEGACY_APP_URL", raising=False)
+    monkeypatch.delenv("LEGACY_HOST_URL", raising=False)
+
+    def _fetch_all(_conn, sql, _params=None):
+        if " ".join(sql.split()) == "SELECT name, value FROM setting":
+            return [
+                {"name": "server_name", "value": "Legacy Node"},
+                {"name": "latitude", "value": "10.5"},
+                {"name": "longitude", "value": "20.25"},
+            ]
+        return [
+            {
+                "api_id": 1,
+                "api": "aHR0cHM6Ly9yZW1vdGUuZXhhbXBsZQ==",
+                "server_name": "Remote Node",
+                "longitude": 98.1,
+                "latitude": 12.3,
+                "shared": 1,
+                "last_updated": None,
+            }
+        ]
+
+    module.fetch_all = _fetch_all
+
+    with pytest.raises(RuntimeError, match="LEGACY_APP_URL"):
+        module.preflight_network_federation(FakeConnection())
+
+
+def test_preflight_network_federation_warns_without_source_federation_config(monkeypatch, caplog):
+    module = _load_script_module()
+    monkeypatch.delenv("LEGACY_APP_URL", raising=False)
+    monkeypatch.delenv("LEGACY_HOST_URL", raising=False)
+    module.fetch_all = lambda _conn, _sql, _params=None: []
+
+    with caplog.at_level("WARNING"):
+        module.preflight_network_federation(FakeConnection())
+
+    assert "no federation configuration" in caplog.text
+
+
 def test_repair_network_federation_promotes_existing_remote_node(monkeypatch):
     module = _load_script_module()
     monkeypatch.delenv("LEGACY_APP_URL", raising=False)

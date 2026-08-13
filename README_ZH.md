@@ -148,17 +148,20 @@ sudo ./migrate-data.sh <old-project-dir> [options]
 示例：
 
 ```bash
-# 使用默认老项目路径解析（.env 的 LEGACY_PROJECT_DIR 或 ./ecoSound-web）
-./migrate-data.sh
+# 全新部署后的推荐首次迁移：先备份并清空 Demo/种子数据，再迁移
+./migrate-data.sh --reset-target
 
-# 显式指定老项目路径
-./migrate-data.sh /path/to/ecoSound-web
+# 显式指定老项目路径（全新部署后仍需加 --reset-target）
+./migrate-data.sh /path/to/ecoSound-web --reset-target
 
 # 仅预演（不写入）
 ./migrate-data.sh --dry-run
 
-# 先备份并清空当前 ecoSignal 业务数据，再执行迁移
-./migrate-data.sh --reset-target
+# 仅适用于空目标库（没有 Demo Project / collection / site）
+./migrate-data.sh
+
+# 显式指定被迁移实例的公开访问地址
+./migrate-data.sh --reset-target --legacy-app-url https://ecosound-web.example.com/ecosound_web
 ```
 
 常用参数：
@@ -167,10 +170,27 @@ sudo ./migrate-data.sh <old-project-dir> [options]
 - `--skip-db`：跳过数据库迁移
 - `--skip-files`：跳过静态文件迁移
 - `--copy-files`：将老项目静态文件直接复制到 `app-media-data` 卷（应急模式）
-- `--reset-target`：先备份当前 ecoSignal 的 DB/媒体，再清空业务数据并迁移
+- `--reset-target`：全新部署后必须使用。先备份当前 ecoSignal 的 DB/媒体，再清空业务数据（含 Demo Project / collection / site）并迁移
+- `--legacy-app-url <url>`：被迁移实例的公开访问地址，用于在联邦网络中标识其自身节点
+
+### 老实例访问地址的解析顺序
+
+迁移过程必须知道被迁移实例的公开访问地址，因为该地址是联邦网络中本机节点的身份标识。老项目安装包中 `APP_URL` 默认为空，运行时按请求动态推导主机名，因此这个地址往往无法自动探测到。
+
+解析顺序，取第一个非空值：
+
+1. 命令行参数 `--legacy-app-url <url>`
+2. shell 环境变量或 `.env` 中的 `LEGACY_APP_URL`
+3. 老项目 `src/config/config.ini` 中的 `APP_URL`
+4. 从老项目数据库推断：先取存储的 `app_url` 设置，再按服务器名称与经纬度在已知联邦节点中查找唯一匹配
+
+`LEGACY_HOST_URL` 遵循同样的「环境变量优先于配置文件」规则，默认取老项目的 `HOST_URL`。非 `http://` 或 `https://` 的取值会在迁移开始前被拒绝。
+
+以上都无法解析时，迁移会在预检阶段中止，此时尚未写入任何数据，并输出实际读取到的服务器名称、经纬度与候选地址。在 `.env` 中配置 `LEGACY_APP_URL` 后按原参数重新执行即可；预检中止不会留下半迁移状态。
 
 迁移说明：
 
+- 首次启动会写入 Demo Project、Demo collection 和 Demo site。全新部署后的第一次迁移如果不加 `--reset-target` 会失败。
 - 脚本会先在宿主机侧检查老项目 MySQL 的连通性，再启动容器内迁移流程。
 - 默认媒体迁移策略为 `direct-mount`：脚本会基于当前 `LEGACY_PROJECT_DIR` 重新创建 `backend` 和 `worker` 容器，并在数据库迁移开始前校验 `/app/sounds/sounds`、`/app/sounds/images` 和 `/app/sounds/projects` 是否可用。
 - 修改 `LEGACY_PROJECT_DIR` 后，单纯执行 `docker compose restart` 不足以刷新 legacy 目录的 bind mount；迁移脚本会使用重建容器的方式确保挂载生效。
@@ -326,6 +346,8 @@ docker compose exec -T frontend npm run build
 | `DOCKER_IMAGE_BACKEND` | `backend`         | 后端镜像名              |
 | `DOCKER_IMAGE_FRONTEND`| `frontend`        | 前端镜像名              |
 | `LEGACY_PROJECT_DIR`   | `./ecoSound-web`  | 旧项目媒体目录挂载路径  |
+| `LEGACY_APP_URL`       | 无                | 被迁移实例的公开访问地址，迁移时用于标识联邦节点身份 |
+| `LEGACY_HOST_URL`      | 旧项目 `HOST_URL` | 老实例注册到的联邦中心节点地址 |
 | `GEO_DB_READY_URL`     | 内置默认值        | Geo DB ready 压缩包地址 |
 | `GEO_DB_XR_SEED_URL`   | 内置默认值        | Geo DB XR seed 压缩包地址 |
 请在 GitHub 的 `staging` 和 `production` 两个 environment 中分别定义 `DOMAIN`、`STACK_NAME`、`BACKEND_CORS_ORIGINS`，这样变量名就能和 `.env` 保持一致，同时每个环境仍可使用不同的值。
