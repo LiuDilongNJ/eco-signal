@@ -43,6 +43,38 @@ const PAGE_NAV_ITEMS = [
     { id: 'sponsors', label: 'Sponsors' },
     { id: 'footer', label: 'Footer' },
 ] as const;
+const POWERED_BY_ITEMS = [
+    {
+        name: 'scikit-maad',
+        image: '/images/powered-by/scikit-maad.png',
+        href: 'https://scikit-maad.github.io/',
+        className: 'powered-by-card--scikit-maad',
+    },
+    {
+        name: 'Leaflet',
+        image: '/images/powered-by/leaflet.png',
+        href: 'https://leafletjs.com/',
+        className: 'powered-by-card--leaflet',
+    },
+    {
+        name: 'BirdNET-Analyzer',
+        image: '/images/powered-by/birdnet.png',
+        href: 'https://github.com/kahst/BirdNET-Analyzer',
+        className: 'powered-by-card--birdnet',
+    },
+    {
+        name: 'batdetect2',
+        image: '/images/powered-by/batdetect2.png',
+        href: 'https://github.com/macaodha/batdetect2',
+        className: 'powered-by-card--batdetect2',
+    },
+    {
+        name: 'RabbitMQ',
+        image: '/images/powered-by/rabbitmq.svg',
+        href: 'https://www.rabbitmq.com/',
+        className: 'powered-by-card--rabbitmq',
+    },
+] as const;
 type MapViewState = {
     center: [number, number];
     zoom: number;
@@ -992,6 +1024,23 @@ export default function HomePage() {
                             >
                                 <img src="/images/sponsors/cnrs.png" alt="CNRS" />
                             </a>
+                        </div>
+                        <div className="powered-by-section">
+                            <h3 className="powered-by-title">Powered <span>By</span></h3>
+                            <div className="powered-by-grid">
+                                {POWERED_BY_ITEMS.map((item) => (
+                                    <a
+                                        key={item.name}
+                                        className={`powered-by-card ${item.className}`}
+                                        href={item.href}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        aria-label={`Visit the ${item.name} website`}
+                                    >
+                                        <img src={item.image} alt={item.name} />
+                                    </a>
+                                ))}
+                            </div>
                         </div>
                     </div>
                 </SwiperSlide>

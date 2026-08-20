@@ -1429,6 +1429,90 @@ body.home-route::-webkit-scrollbar {
   align-items: center;
 }
 
+.powered-by-section {
+  width: min(100%, 920px);
+  margin: 26px auto 0;
+}
+
+.powered-by-title {
+  margin: 0 0 20px;
+  color: var(--text-main);
+  font-size: 2.75rem;
+  font-weight: 900;
+  line-height: 1.1;
+  letter-spacing: 0;
+}
+
+.powered-by-title span {
+  color: var(--brand);
+}
+
+.powered-by-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 24px;
+  align-items: center;
+}
+
+.powered-by-card {
+  min-width: 0;
+  height: 84px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.3s ease;
+}
+
+.powered-by-card img {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  height: auto;
+  max-height: 76px;
+  object-fit: contain;
+  filter: grayscale(100%) opacity(0.58);
+  transition: filter 0.3s ease, opacity 0.3s ease, transform 0.3s ease;
+}
+
+.powered-by-card--scikit-maad img {
+  max-width: 180px;
+}
+
+.powered-by-card--leaflet img {
+  max-width: 180px;
+}
+
+.powered-by-card--birdnet img {
+  max-width: 148px;
+}
+
+.powered-by-card--batdetect2 img {
+  max-width: 78px;
+}
+
+.powered-by-card--rabbitmq img {
+  max-width: 152px;
+}
+
+.powered-by-card:hover {
+  transform: translateY(-2px);
+}
+
+.powered-by-card:hover img {
+  filter: none;
+  opacity: 1;
+  transform: scale(1.05);
+}
+
+[data-theme="dark"] .powered-by-card img {
+  filter: grayscale(100%) invert(1) opacity(0.78);
+}
+
+[data-theme="dark"] .powered-by-card:hover img {
+  filter: none;
+  opacity: 1;
+}
+
 .sponsor-card {
   height: 120px;
   display: flex;
@@ -1982,6 +2066,24 @@ body.home-route::-webkit-scrollbar {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 24px 20px;
     padding: 12px 0;
+  }
+
+  .powered-by-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 14px 16px;
+  }
+
+  .powered-by-card {
+    height: 64px;
+  }
+
+  .powered-by-card img {
+    max-height: 58px;
+  }
+
+  .powered-by-title {
+    margin-bottom: 14px;
+    font-size: 2rem;
   }
 
   .sponsors-header .main-title {
