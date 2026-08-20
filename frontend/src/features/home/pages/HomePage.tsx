@@ -6,7 +6,7 @@ import { Mousewheel, EffectFade } from 'swiper/modules';
 import { MapContainer, TileLayer, Marker, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import {
-    Activity, Moon, Sun, Info, LogIn, User, ChevronDown, Settings, LogOut,
+    Moon, Sun, Info, LogIn, User, ChevronDown, Settings, LogOut,
     Github, FileText, GraduationCap, Mail, Search, Link as LinkIcon, LayoutDashboard,
     Lock, Unlock, Users, FolderKanban, Library, Mic, Image as ImageIcon, ScanLine, MapPin,
     ChevronLeft, ChevronRight
@@ -587,8 +587,10 @@ export default function HomePage() {
                 <div className="nav-left">
                     <div className="nav-capsule-box">
                         <a className="nav-logo" href="#" onClick={handleLogoClick}>
-                            <div className="logo-icon-box"><Activity size={16} /></div>
-                            <span>ecoSignal</span>
+                            <div className="logo-icon-box">
+                                <img src="/images/biosounds_logo_small.png" alt="" aria-hidden="true" />
+                            </div>
+                            <span>ecoSound-web</span>
                         </a>
                     </div>
                 </div>
@@ -677,9 +679,12 @@ export default function HomePage() {
                 <SwiperSlide id="page-home">
                     <div className="bg-image"></div>
                     <div className="home-content">
-                        <div className="brand-logo"><Activity size={48} /> <span>ecoSignal</span></div>
+                        <div className="brand-logo">
+                            <img src="/images/biosounds_logo_small.png" alt="" aria-hidden="true" />
+                            <span>ecoSound-web</span>
+                        </div>
                         <div className="hero-title">Open-source online<br />platform for ecoacoustics</div>
-                        <div className="hero-desc">Use ecoSignal to manage, navigate, visualize, annotate, and analyze soundscape recordings.</div>
+                        <div className="hero-desc">Use ecoSound-web to manage, navigate, visualize, annotate, and analyze soundscape recordings.</div>
                     </div>
                 </SwiperSlide>
 
@@ -857,7 +862,7 @@ export default function HomePage() {
                                     >
                                         {!hasRealImage && (
                                             <div className="thumb-logo-box">
-                                                <Activity size={24} />
+                                                <img src="/images/biosounds_logo_small.png" alt="" aria-hidden="true" />
                                             </div>
                                         )}
                                     </SwiperSlide>
@@ -892,7 +897,7 @@ export default function HomePage() {
                 {/* Slide 3: Map */}
                 <SwiperSlide id="page-map">
                     <div className="map-brand-overlay">
-                        <div className="map-brand-text"><span>ecoSignal</span> Network</div>
+                        <div className="map-brand-text"><span>ecoSound-web</span> Network</div>
                     </div>
                     {nodeStats ? (
                         <div className={`stats-container ${statsActive ? 'active' : ''}`}>
@@ -1048,8 +1053,11 @@ export default function HomePage() {
                 {/* Slide 5: Footer */}
                 <SwiperSlide id="page-footer">
                     <div className="footer-content">
-                        <div className="footer-logo"><span>ecoSignal</span></div>
-                        <p>&copy; 2025 ecoSignal. All rights reserved.</p>
+                        <div className="footer-logo">
+                            <img src="/images/biosounds_logo_small.png" alt="" aria-hidden="true" />
+                            <span>ecoSound-web</span>
+                        </div>
+                        <p>&copy; 2025 ecoSound-web. All rights reserved.</p>
                         <div className="footer-resource-links">
                             <a href="#" className="pill-btn"><Github size={18} /> GitHub</a>
                             <a href="https://f1000research.com/articles/9-1224/v3" target="_blank" rel="noopener noreferrer" className="pill-btn"><FileText size={18} /> F1000Research</a>

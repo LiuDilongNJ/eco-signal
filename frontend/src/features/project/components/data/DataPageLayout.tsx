@@ -9,6 +9,7 @@ import { Button as ESButton } from "@/components/ui"
 import { useState, useMemo, useEffect, useLayoutEffect, useRef, useCallback } from "react"
 import type { Key, ReactNode } from "react"
 import type { LucideIcon } from "lucide-react"
+import dayjs, { type Dayjs } from "dayjs"
 import { useAppStore } from "@/store/useAppStore"
 import { EmptyState } from "@/components/ui"
 import { LoadingState } from "@/components/ui"
@@ -147,6 +148,18 @@ function sanitizeNumberRangeFilterValue(
         isNumberInputWithinBounds(part, bounds) && !isPartialNumberInput(part) ? part : "",
     )
     return nextParts[0] || nextParts[1] ? nextParts.join(",") : ""
+}
+
+/** Convert the serialized date-range filter back to the value expected by AntD. */
+function dateRangeValueForFilter(value: string | undefined): [Dayjs | null, Dayjs | null] | null {
+    if (!value) return null
+    const [start, end] = value.split(",")
+    const parsedStart = start ? dayjs(start) : null
+    const parsedEnd = end ? dayjs(end) : null
+    return [
+        parsedStart?.isValid() ? parsedStart : null,
+        parsedEnd?.isValid() ? parsedEnd : null,
+    ]
 }
 
 /** 复选框列保持 baseWidths[0]，其余列按定义宽度比例分配额外空间以填满容器 */
@@ -844,6 +857,7 @@ export function DataPageLayout({
                             <div className="th-filter" onClick={(e) => e.stopPropagation()}>
                                 {col.filterType === 'dateRange' ? (
                                     <RangePicker
+                                        value={dateRangeValueForFilter(columnFilters[col.key])}
                                         showTime={col.filterShowTime === false ? false : { format: 'HH:mm' }}
                                         format={col.filterShowTime === false ? "YYYY-MM-DD" : "YYYY-MM-DD HH:mm"}
                                         size="small"

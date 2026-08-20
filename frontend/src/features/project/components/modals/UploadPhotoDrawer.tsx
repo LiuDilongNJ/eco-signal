@@ -395,6 +395,7 @@ export function PhotoMediaDrawer(props: PhotoMediaDrawerProps) {
                                                                 size="small"
                                                                 status={file.status === "error" ? "exception" : file.status === "done" ? "success" : "active"}
                                                                 strokeColor="var(--brand)"
+                                                                styles={{ indicator: { color: "var(--brand)" } }}
                                                             />
                                                             {statusText ? (
                                                                 <Typography.Text

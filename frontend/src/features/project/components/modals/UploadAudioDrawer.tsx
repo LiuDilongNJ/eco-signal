@@ -212,6 +212,7 @@ export function UploadAudioDrawer({ open, initialFiles = [], siteOptions = [], l
                                                 size="small"
                                                 status={f.status === 'error' ? 'exception' : f.status === 'done' ? 'success' : 'active'}
                                                 strokeColor="var(--brand)"
+                                                styles={{ indicator: { color: "var(--brand)" } }}
                                             />
                                             {(() => {
                                                 const errText = f.status === "error" ? resolveUploadErrorText(f) : null

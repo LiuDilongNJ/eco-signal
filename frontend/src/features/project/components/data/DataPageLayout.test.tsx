@@ -129,4 +129,36 @@ describe("DataPageLayout collection context", () => {
             "This record has no name to confirm",
         )
     })
+
+    it("clears date range inputs when the table is reset", async () => {
+        render(
+            <DataPageLayout
+                title="Projects"
+                columns={[{
+                    key: "creation_date",
+                    label: "Created",
+                    type: "date",
+                    filterable: true,
+                    filterType: "dateRange",
+                    filterShowTime: false,
+                }]}
+                rows={[]}
+                formFields={[]}
+            />,
+        )
+
+        const dateInputs = screen.getAllByRole("textbox")
+        expect(dateInputs).toHaveLength(2)
+        await userEvent.click(dateInputs[0]!)
+        await userEvent.type(dateInputs[0]!, "2026-01-01")
+        await userEvent.keyboard("{Enter}")
+        await userEvent.click(dateInputs[1]!)
+        await userEvent.type(dateInputs[1]!, "2026-01-31")
+        await userEvent.keyboard("{Enter}")
+
+        await userEvent.click(screen.getByRole("button", { name: "Reset table" }))
+
+        expect(dateInputs[0]).toHaveValue("")
+        expect(dateInputs[1]).toHaveValue("")
+    })
 })
