@@ -137,7 +137,7 @@ export function SitesPage() {
     const [modalSubmitting, setModalSubmitting] = useState(false)
 
     const [linkDrawerOpen, setLinkDrawerOpen] = useState(false)
-    const [linkSiteId, setLinkSiteId] = useState<number | null>(null)
+    const [linkSiteIds, setLinkSiteIds] = useState<number[]>([])
 
     const currentProjectId = useProjectStore(s => s.currentProjectId)
     const currentCollectionId = useProjectStore(s => s.currentCollectionId)
@@ -338,8 +338,8 @@ export function SitesPage() {
                 hideView={true}
                 renderCustomActions={(selectedRows) => (
                     <>
-                        <ESButton appearance="unstyled" className="data-btn" title="Link" disabled={selectedRows.size !== 1} onClick={() => {
-                            setLinkSiteId(Array.from(selectedRows)[0] as number)
+                        <ESButton appearance="unstyled" className="data-btn" title="Link" disabled={selectedRows.size === 0} onClick={() => {
+                            setLinkSiteIds(Array.from(selectedRows) as number[])
                             setLinkDrawerOpen(true)
                         }}>
                             <LinkIcon size={14} /> Link
@@ -363,11 +363,11 @@ export function SitesPage() {
 
             <LinkSiteToCollectionsDrawer
                 open={linkDrawerOpen}
-                siteId={linkSiteId}
+                siteIds={linkSiteIds}
                 projectId={currentProjectId ? Number(currentProjectId) : null}
                 onClose={() => {
                     setLinkDrawerOpen(false)
-                    setLinkSiteId(null)
+                    setLinkSiteIds([])
                 }}
                 onSuccess={() => {
                     if (tableState) handleTableChange(tableState)

@@ -394,23 +394,25 @@ def get_site_link_options(
 
 
 @router.put(
-    "/{site_id}/collections",
+    "/collections",
     response_model=ApiResponse[None],
-    summary="全量同步站点集合关联 / Sync Site Collections",
+    summary="批量全量同步站点集合关联 / Batch Sync Site Collections",
 )
 def sync_site_collections(
     session: SessionDep,
     current_user: CurrentUser,
-    site_id: int,
     payload: SiteCollectionSyncRequest,
+    project_id: int = Query(..., description="当前项目 ID（必填） / Current project ID (required)"),
 ) -> Any:
     """
-    全量同步站点与集合/项目的关系。 / Fully sync site-collection and site-project links.
+    全量同步多个站点在可管理范围内的集合与项目关系。
+    / Fully sync collection and project links for multiple sites within manageable scope.
     """
     site_service.sync_site_collections(
         session,
-        site_id=site_id,
         current_user=current_user,
+        project_id=project_id,
+        site_ids=payload.site_ids,
         collection_ids=payload.collection_ids,
         project_ids=payload.project_ids,
     )

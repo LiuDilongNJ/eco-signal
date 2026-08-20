@@ -198,12 +198,17 @@ export const sitesApi = {
         return apiClient.delete<any>(`/v1/sites/${id}`)
     },
 
-    /** 更新站点的集合 / 项目关联（集合与项目勾选相互独立） */
+    /** 批量更新站点的集合 / 项目关联（集合与项目勾选相互独立） */
     updateSiteCollections(
-        siteId: number,
+        siteIds: number[],
+        projectId: number,
         payload: { collection_ids: number[]; project_ids: number[] },
     ) {
-        return apiClient.put<{ code: number; message: string; data: any }>(`/v1/sites/${siteId}/collections`, payload)
+        return apiClient.put<{ code: number; message: string; data: any }>(
+            "/v1/sites/collections",
+            { ...payload, site_ids: siteIds },
+            { params: { project_id: projectId } },
+        )
     },
 
     /** 获取站点关联弹窗的选项及当前关联状态 */

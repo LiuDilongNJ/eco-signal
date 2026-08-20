@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlmodel import Session, select
@@ -107,6 +109,54 @@ def test_get_operation_logs_supports_column_filters(
     assert data["page_info"]["total"] == 1
     assert data["data"][0]["log_id"] == target.log_id
     assert data["data"][0]["status_code"] == 204
+
+
+def test_get_operation_logs_supports_inclusive_date_range(
+    client: TestClient, superuser_token_headers: dict[str, str], db: Session
+) -> None:
+    admin = db.exec(select(User).where(User.username == settings.FIRST_SUPERUSER)).one()
+    start = datetime(2026, 8, 10, 12, 0, 0)
+    end_date_log = datetime(2026, 8, 20, 23, 59, 59)
+    outside = datetime(2026, 8, 21, 0, 0, 0)
+
+    rows = [
+        OperationLog(
+            user_id=admin.user_id,
+            action="update",
+            resource_type="projects",
+            description="date range target start",
+            creation_date=start,
+        ),
+        OperationLog(
+            user_id=admin.user_id,
+            action="update",
+            resource_type="projects",
+            description="date range target end",
+            creation_date=end_date_log,
+        ),
+        OperationLog(
+            user_id=admin.user_id,
+            action="update",
+            resource_type="projects",
+            description="date range outside",
+            creation_date=outside,
+        ),
+    ]
+    db.add_all(rows)
+    db.commit()
+
+    response = client.get(
+        f"{settings.API_V1_STR}/system/operation-logs"
+        "?date_from=2026-08-10&date_to=2026-08-20"
+        "&description=date%20range&page_size=100",
+        headers=superuser_token_headers,
+    )
+
+    assert response.status_code == 200, response.json()
+    result_ids = {item["log_id"] for item in response.json()["data"]}
+    assert rows[0].log_id in result_ids
+    assert rows[1].log_id in result_ids
+    assert rows[2].log_id not in result_ids
 
 
 def test_get_operation_logs_supports_fuzzy_filters(
@@ -282,4 +332,3 @@ def test_operation_log_middleware_captures_json_payload(
     assert captured["action"] == "create"
     assert captured["resource_type"] == "projects"
     assert captured["payload"] == create_data
-

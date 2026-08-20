@@ -2904,61 +2904,87 @@ class TestSiteLinkOptions:
 
 
 class TestSyncSiteCollections:
-    """Tests for PUT /sites/{site_id}/collections."""
+    """Tests for PUT /sites/collections."""
 
-    def test_sync_collections_admin(
+    def test_sync_collections_admin_for_multiple_sites(
         self, client: TestClient, superuser_token_headers: dict, db: Session
     ) -> None:
-        """Admin can sync a site's collection bindings."""
+        """Admin can apply one collection assignment to multiple sites."""
+        project = create_test_project(db)
         col1 = create_test_collection(db)
         col2 = create_test_collection(db)
-        site = create_test_site(db, col1.collection_id)
+        col3 = create_test_collection(db)
+        for collection in (col1, col2, col3):
+            link_collection_to_project(db, project.project_id, collection.collection_id)
+        first_site = create_test_site(db, col1.collection_id)
+        second_site = create_test_site(db, col2.collection_id)
 
         r = client.put(
-            f"{settings.API_V1_STR}/sites/{site.site_id}/collections",
+            f"{settings.API_V1_STR}/sites/collections",
             headers=superuser_token_headers,
-            json={"collection_ids": [col1.collection_id, col2.collection_id]},
+            params={"project_id": project.project_id},
+            json={
+                "site_ids": [first_site.site_id, second_site.site_id],
+                "collection_ids": [col2.collection_id, col3.collection_id],
+                "project_ids": [project.project_id],
+            },
         )
         assert r.status_code == 200
         assert r.json()["data"] is None
-        ids = db.exec(
-            select(SiteCollection.collection_id).where(SiteCollection.site_id == site.site_id)
-        ).all()
-        assert sorted(ids) == sorted([col1.collection_id, col2.collection_id])
+        for site_id in (first_site.site_id, second_site.site_id):
+            collection_ids = db.exec(
+                select(SiteCollection.collection_id).where(SiteCollection.site_id == site_id)
+            ).all()
+            assert sorted(collection_ids) == sorted([col2.collection_id, col3.collection_id])
+            project_ids = db.exec(
+                select(SiteProject.project_id).where(SiteProject.site_id == site_id)
+            ).all()
+            assert project_ids == [project.project_id]
 
-    def test_sync_collections_and_projects_admin(
+    def test_sync_collections_admin_removes_unchecked_manageable_links(
         self, client: TestClient, superuser_token_headers: dict, db: Session
     ) -> None:
-        """Admin can sync a site's project-level and collection-level links together."""
+        """Admin full sync removes unselected links for the selected site."""
         project = create_test_project(db)
         col1 = create_test_collection(db)
         col2 = create_test_collection(db)
         link_collection_to_project(db, project.project_id, col1.collection_id)
         link_collection_to_project(db, project.project_id, col2.collection_id)
         site = create_test_site(db, col1.collection_id)
+        db.add(SiteCollection(site_id=site.site_id, collection_id=col2.collection_id))
+        db.add(SiteProject(site_id=site.site_id, project_id=project.project_id))
+        db.commit()
 
         r = client.put(
-            f"{settings.API_V1_STR}/sites/{site.site_id}/collections",
+            f"{settings.API_V1_STR}/sites/collections",
             headers=superuser_token_headers,
+            params={"project_id": project.project_id},
             json={
-                "project_ids": [project.project_id],
-                "collection_ids": [col1.collection_id, col2.collection_id],
+                "site_ids": [site.site_id],
+                "project_ids": [],
+                "collection_ids": [col2.collection_id],
             },
         )
         assert r.status_code == 200
+        collection_ids = db.exec(
+            select(SiteCollection.collection_id).where(SiteCollection.site_id == site.site_id)
+        ).all()
+        assert collection_ids == [col2.collection_id]
         site_project_ids = db.exec(
             select(SiteProject.project_id).where(SiteProject.site_id == site.site_id)
         ).all()
-        assert site_project_ids == [project.project_id]
+        assert site_project_ids == []
 
     def test_sync_collections_site_not_found(
         self, client: TestClient, superuser_token_headers: dict, db: Session
     ) -> None:
         """Returns 404 when site does not exist."""
+        project = create_test_project(db)
         r = client.put(
-            f"{settings.API_V1_STR}/sites/999999/collections",
+            f"{settings.API_V1_STR}/sites/collections",
             headers=superuser_token_headers,
-            json={"collection_ids": []},
+            params={"project_id": project.project_id},
+            json={"site_ids": [999999], "collection_ids": []},
         )
         assert r.status_code == 404
 
@@ -2969,13 +2995,60 @@ class TestSyncSiteCollections:
         _, headers = create_user_with_headers(db, client)
         collection = create_test_collection(db)
         site = create_test_site(db, collection.collection_id, creator_id=1)
+        project_id = db.exec(
+            select(ProjectCollection.project_id).where(
+                ProjectCollection.collection_id == collection.collection_id
+            )
+        ).one()
 
         r = client.put(
-            f"{settings.API_V1_STR}/sites/{site.site_id}/collections",
+            f"{settings.API_V1_STR}/sites/collections",
             headers=headers,
-            json={"collection_ids": [collection.collection_id]},
+            params={"project_id": project_id},
+            json={"site_ids": [site.site_id], "collection_ids": [collection.collection_id]},
         )
         assert r.status_code == 403
+
+    def test_sync_collections_preserves_unmanageable_links(
+        self, client: TestClient, db: Session
+    ) -> None:
+        """A batch sync cannot remove a site's links outside the user's writable scope."""
+        user, headers = create_user_with_headers(db, client)
+        current_project = create_test_project(db)
+        foreign_project = create_test_project(db)
+        current_collection = create_test_collection(db)
+        foreign_collection = create_test_collection(db)
+        link_collection_to_project(db, current_project.project_id, current_collection.collection_id)
+        link_collection_to_project(db, foreign_project.project_id, foreign_collection.collection_id)
+        site = create_test_site(db, current_collection.collection_id)
+        db.add(SiteCollection(site_id=site.site_id, collection_id=foreign_collection.collection_id))
+        db.add(SiteProject(site_id=site.site_id, project_id=foreign_project.project_id))
+        db.commit()
+        grant_permission(
+            db,
+            user.user_id,
+            "site",
+            "write",
+            collection_id=current_collection.collection_id,
+            project_id=current_project.project_id,
+        )
+
+        response = client.put(
+            f"{settings.API_V1_STR}/sites/collections",
+            headers=headers,
+            params={"project_id": current_project.project_id},
+            json={"site_ids": [site.site_id], "collection_ids": [], "project_ids": []},
+        )
+
+        assert response.status_code == 200, response.json()
+        collection_ids = db.exec(
+            select(SiteCollection.collection_id).where(SiteCollection.site_id == site.site_id)
+        ).all()
+        assert collection_ids == [foreign_collection.collection_id]
+        project_ids = db.exec(
+            select(SiteProject.project_id).where(SiteProject.site_id == site.site_id)
+        ).all()
+        assert project_ids == [foreign_project.project_id]
 
     def test_sync_collections_unauthenticated(
         self, client: TestClient, db: Session
@@ -2983,10 +3056,16 @@ class TestSyncSiteCollections:
         """Unauthenticated request is rejected."""
         collection = create_test_collection(db)
         site = create_test_site(db, collection.collection_id)
+        project_id = db.exec(
+            select(ProjectCollection.project_id).where(
+                ProjectCollection.collection_id == collection.collection_id
+            )
+        ).one()
 
         r = client.put(
-            f"{settings.API_V1_STR}/sites/{site.site_id}/collections",
-            json={"collection_ids": [collection.collection_id]},
+            f"{settings.API_V1_STR}/sites/collections",
+            params={"project_id": project_id},
+            json={"site_ids": [site.site_id], "collection_ids": [collection.collection_id]},
         )
         assert r.status_code == 401
 
