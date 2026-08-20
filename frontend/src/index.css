@@ -51,8 +51,6 @@
   --app-stage-height: 900px;
   --app-viewport-width: 100vw;
   --app-viewport-height: 100vh;
-  --app-browser-zoom: 1;
-  --app-browser-zoom-compensation: 1;
   color-scheme: light;
   scrollbar-gutter: stable;
   /* ===== ecoSignal semantic tokens (single source of truth) ===== */
@@ -192,8 +190,6 @@
   min-width: var(--app-design-width);
   min-height: var(--app-design-height);
   overflow: hidden;
-  transform-origin: top left;
-  will-change: transform;
 }
 
 .app-overlay-root {
@@ -202,8 +198,7 @@
   left: 0;
   width: var(--app-design-width);
   height: var(--app-design-height);
-  transform: scale(var(--app-stage-scale));
-  transform-origin: top left;
+  zoom: var(--app-stage-scale);
   z-index: 10000;
   pointer-events: none;
   overflow: hidden;
