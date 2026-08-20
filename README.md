@@ -279,6 +279,8 @@ This project uses Docker Compose for deployment. HTTP is the default; setting `E
 
    `./deploy.sh` reads `ENVIRONMENT` from the root `.env` file. Allowed values are `local`, `staging`, and `production`; both `.env.example` and the backend default to `local`. Set it explicitly to `staging` on a staging server and `production` on a production server. The `local` environment always disables login inactivity expiry. In `staging` and `production`, `AUTH_SESSION_IDLE_EXPIRE_MINUTES` controls the timeout and defaults to 30 minutes.
 
+   `ENVIRONMENT=production` configures the backend only; it does not switch a Vite development server into production mode and cannot fix frontend Vite error overlays. The command below only checks the resolved environment value; it does not start or change any service.
+
    Before deploying, verify the value resolved by Compose:
 
    ```bash
@@ -287,11 +289,14 @@ This project uses Docker Compose for deployment. HTTP is the default; setting `E
 
    `.env.example` is safe to commit as a template. `.env` is environment-specific and must stay uncommitted.
 
-2. **Deploy with the guarded production script**. The script needs to be made executable. It serializes releases, waits for dependencies, applies setup once, and waits for service health:
+2. **Deploy the frontend in production mode**. This is the fix for Vite's development error overlay appearing in already-open browser tabs. The script excludes `docker-compose.override.yml`, builds the frontend production bundle, and serves it through nginx. It serializes releases, waits for dependencies, applies setup once, and waits for service health:
    ```bash
    chmod +x ./deploy.sh ./rollback.sh
+   ./deploy.sh --dry-run
    sudo ./deploy.sh
    ```
+
+   Do not use `docker compose up`, `docker compose up -d`, or `docker compose watch` as a public/production deployment: those commands automatically load `docker-compose.override.yml`, which starts the frontend through Vite's development server on port 5173. On Windows, run `.\deploy.ps1` instead (or `deploy.bat` in Command Prompt).
 
    After deployment, verify the environment and effective inactivity timeout inside the backend container:
 
@@ -304,7 +309,7 @@ This project uses Docker Compose for deployment. HTTP is the default; setting `E
    With `ENVIRONMENT=production` and the default timeout, the expected output is `production 1800`.
    
 
-   On Windows PowerShell, run `.\deploy.ps1`; Command Prompt users can run `deploy.bat`. On macOS and Linux, use `./deploy.sh`; neither platform requires `flock`.
+   On macOS and Linux, use `./deploy.sh`; neither platform requires `flock`.
 
    Use `--dry-run` to validate the resolved production configuration, and `--force-unlock` only after verifying `.deploy/deploy.lock` is stale. Set `TAG` only when you need a custom image tag; otherwise Compose uses `latest`. The scripts intentionally use only production Compose files; `docker-compose.override.yml` remains the local development overlay used by `docker compose up` and `docker compose watch`.
 

@@ -279,6 +279,8 @@ docker compose exec -T frontend npm run build
 
    `./deploy.sh` 从根目录 `.env` 读取 `ENVIRONMENT`。允许值为 `local`、`staging`、`production`；`.env.example` 与后端代码的默认值都是 `local`。测试服务器应明确设置为 `staging`，正式服务器应明确设置为 `production`。`local` 环境始终关闭登录空闲超时；`staging` 和 `production` 使用 `AUTH_SESSION_IDLE_EXPIRE_MINUTES` 控制超时时间，默认 30 分钟。
 
+   `ENVIRONMENT=production` 只配置后端，不能解决前端 Vite 错误覆盖层问题，也不会将 Vite 开发服务器切换为生产模式。下面的命令只检查 Compose 最终解析出的环境变量值，不会启动或修改任何服务。
+
    部署前可检查 Compose 最终解析的值：
 
    ```bash
@@ -287,11 +289,14 @@ docker compose exec -T frontend npm run build
 
    `.env.example` 用于版本管理中的模板分发；`.env` 属于环境专用文件，必须保持未提交状态。
 
-2. **使用带保护的生产部署脚本**。脚本需要先授予执行权限；随后会串行化发布、等待依赖就绪、单次执行初始化，并等待服务健康：
+2. **以生产模式部署前端**。这是解决 Vite 开发错误覆盖层出现在已打开浏览器标签页中的方法。该脚本会排除 `docker-compose.override.yml`、构建前端生产包，并通过 nginx 提供服务；同时串行化发布、等待依赖就绪、单次执行初始化，并等待服务健康：
    ```bash
    chmod +x ./deploy.sh ./rollback.sh
+   ./deploy.sh --dry-run
    sudo ./deploy.sh
    ```
+
+   不要使用 `docker compose up`、`docker compose up -d` 或 `docker compose watch` 作为公网/生产部署方式：这些命令会自动加载 `docker-compose.override.yml`，并通过 5173 端口上的 Vite 开发服务器启动前端。Windows PowerShell 请使用 `.\deploy.ps1`；命令提示符可使用 `deploy.bat`。
 
    部署后可在后端容器中确认实际环境和有效空闲超时时间：
 
@@ -303,7 +308,7 @@ docker compose exec -T frontend npm run build
 
    当 `ENVIRONMENT=production` 且使用默认超时时间时，预期输出为 `production 1800`。
 
-   Windows PowerShell 请运行 `.\deploy.ps1`；命令提示符可使用 `deploy.bat`。macOS 和 Linux 使用 `./deploy.sh`，两者均不再依赖 `flock`。
+   macOS 和 Linux 使用 `./deploy.sh`，两者均不再依赖 `flock`。
 
    使用 `--dry-run` 验证生产配置，只有确认 `.deploy/deploy.lock` 是遗留锁时才使用 `--force-unlock`。只有需要自定义镜像标签时才设置 `TAG`，否则 Compose 使用 `latest`。脚本只使用生产 Compose 文件；`docker-compose.override.yml` 仍是本地 `docker compose up` 和 `docker compose watch` 使用的开发覆盖配置。
 
