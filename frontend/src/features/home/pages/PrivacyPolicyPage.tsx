@@ -1,5 +1,5 @@
 import { Button as ESButton, PageContainer, PageContent, Section } from "@/components/ui"
-import { Activity, ChevronDown, Info, LayoutDashboard, LogIn, LogOut, Moon, Settings, Sun, User } from "lucide-react"
+import { ChevronDown, Info, LayoutDashboard, LogIn, LogOut, Moon, Settings, Sun, User } from "lucide-react"
 import { type MouseEvent as ReactMouseEvent, useEffect, useRef, useState } from "react"
 import { Link } from "react-router-dom"
 import { LoginModal } from "@/components/ui"
@@ -76,8 +76,10 @@ export default function PrivacyPolicyPage() {
                     <div className="privacy-policy-footer-left">
                         <div className="privacy-policy-capsule">
                             <Link to="/" className="privacy-policy-footer-logo">
-                                <div className="privacy-policy-footer-logo-icon"><Activity size={16} /></div>
-                                <span>ecoSignal</span>
+                                <div className="privacy-policy-footer-logo-icon">
+                                    <img src="/images/biosounds_logo_small.png" alt="" aria-hidden="true" />
+                                </div>
+                                <span>ecoSound-web</span>
                             </Link>
                         </div>
                     </div>

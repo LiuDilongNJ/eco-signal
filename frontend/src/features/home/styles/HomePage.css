@@ -182,18 +182,23 @@ body.home-route::-webkit-scrollbar {
   width: 28px;
   height: 28px;
   background: var(--brand);
-  color: white;
   border-radius: 50%;
+  padding: 3px;
+  box-sizing: border-box;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 2px 5px rgba(131, 205, 32, 0.4);
   transition: all 0.2s ease;
 }
 
+.logo-icon-box img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
 .nav-logo:hover .logo-icon-box {
-  background: white;
-  color: var(--brand);
+  background: var(--brand);
 }
 
 .nav-btn-simple {
@@ -399,6 +404,17 @@ body.home-route::-webkit-scrollbar {
   justify-content: center;
 }
 
+.brand-logo img {
+  width: 48px;
+  height: 48px;
+  padding: 7px;
+  box-sizing: border-box;
+  border-radius: 50%;
+  background: var(--brand);
+  object-fit: contain;
+  flex: 0 0 auto;
+}
+
 .brand-logo span {
   color: #fff;
 }
@@ -525,11 +541,16 @@ body.home-route::-webkit-scrollbar {
   width: 100%;
   height: 100%;
   background: var(--brand);
-  color: white;
   display: flex;
   align-items: center;
   justify-content: center;
   border-radius: 50%;
+}
+
+.thumb-logo-box img {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
 }
 
 .thumbs-button-next,
@@ -1602,6 +1623,19 @@ body.home-route::-webkit-scrollbar {
   color: white;
   margin-bottom: 20px;
   font-weight: 900;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.footer-logo img {
+  width: 32px;
+  height: 32px;
+  padding: 5px;
+  box-sizing: border-box;
+  border-radius: 50%;
+  background: var(--brand);
+  object-fit: contain;
 }
 
 .footer-logo span {

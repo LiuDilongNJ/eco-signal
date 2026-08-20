@@ -7,7 +7,7 @@ import { Button as ESButton } from "@/components/ui"
 
 import { Link, useParams, useNavigate, useSearchParams } from "react-router-dom"
 import { useState, useEffect, useMemo, useRef, useCallback } from "react"
-import { Activity, Moon, Sun, Info, ChevronDown } from "lucide-react"
+import { Moon, Sun, Info, ChevronDown } from "lucide-react"
 import { SearchableDropdown } from "./SearchableDropdown"
 import { TabSwitcher } from "./TabSwitcher"
 import { UserMenu } from "./UserMenu"
@@ -334,9 +334,9 @@ export function ProjectNavBar() {
                 <div className="nav-capsule-box" ref={leftCapsuleRef}>
                     <Link className="nav-logo" to="/">
                         <div className="logo-icon-box">
-                            <Activity size={16} />
+                            <img src="/images/biosounds_logo_small.png" alt="" aria-hidden="true" />
                         </div>
-                        <StableText className="nav-logo-text">ecoSignal</StableText>
+                        <StableText className="nav-logo-text">ecoSound-web</StableText>
                     </Link>
                     <div className="nav-divider" />
                     <ESButton appearance="unstyled"

@@ -8,7 +8,6 @@ import {
     Moon,
     Sun,
     Info,
-    Activity,
     Camera,
     Aperture,
     Cpu,
@@ -53,9 +52,9 @@ function SettingsNavBar() {
                 <div className="nav-capsule-box">
                     <Link className="nav-logo" to="/">
                         <div className="logo-icon-box">
-                            <Activity size={16} />
+                            <img src="/images/biosounds_logo_small.png" alt="" aria-hidden="true" />
                         </div>
-                        <span>ecoSignal</span>
+                        <span>ecoSound-web</span>
                     </Link>
                 </div>
             </div>
