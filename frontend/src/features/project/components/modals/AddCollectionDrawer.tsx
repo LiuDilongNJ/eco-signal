@@ -194,11 +194,21 @@ export function AddCollectionDrawer({ open, editId, projectId, onClose, onSubmit
                                     />
                                 </Form.Item>
 
-                                <Form.Item name="project_url" label="Ext. Project URL" rules={[httpUrlRule("Ext. Project URL")]}>
+                                <Form.Item
+                                    name="project_url"
+                                    label="External project URL"
+                                    tooltip="link to an external project website for further contextual info"
+                                    rules={[httpUrlRule("External project URL")]}
+                                >
                                     <Input type="url" inputMode="url" autoComplete="off" />
                                 </Form.Item>
 
-                                <Form.Item name="external_media_url" label="Ext. Media URL" rules={[httpUrlRule("Ext. Media URL")]}>
+                                <Form.Item
+                                    name="external_media_url"
+                                    label="External Media URL"
+                                    tooltip="link to an external data repository where recordings of this collection are also stored"
+                                    rules={[httpUrlRule("External Media URL")]}
+                                >
                                     <Input type="url" inputMode="url" autoComplete="off" />
                                 </Form.Item>
 
