@@ -18,7 +18,7 @@ import {
     Pencil,
     Trash2,
     Download,
-    RefreshCw,
+    RotateCcw,
     MoreHorizontal,
     Eye,
     ChevronsUpDown,
@@ -248,9 +248,9 @@ export interface DataPageLayoutProps {
     navFilterValue?: DataNavFilter
     /** Called when the Current/All nav filter changes. */
     onNavFilterChange?: (value: DataNavFilter) => void
-    /** Default sort field used on first load and Refresh */
+    /** Default sort field used on first load and Reset table */
     defaultSortKey?: string | null
-    /** Default sort direction used on first load and Refresh */
+    /** Default sort direction used on first load and Reset table */
     defaultSortDir?: "asc" | "desc" | null
     /** 额外的工具栏内容（在标准按钮之后渲染） */
     extraToolbar?: React.ReactNode
@@ -1242,8 +1242,8 @@ export function DataPageLayout({
                     </div>
                     <div className="data-toolbar-right">
                         <div className="data-action-group">
-                            <ESButton appearance="unstyled" type="button" className="data-btn" title="Refresh" aria-label="Refresh table" onClick={() => { setColumnFilters({}); setSearchQuery(""); setSortKey(defaultSortKey); setSortDir(defaultSortDir); setSelectedRows(new Set()); setCurrentPage(1) }}>
-                                <RefreshCw size={14} /> Refresh
+                            <ESButton appearance="unstyled" type="button" className="data-btn" title="Reset table" aria-label="Reset table" onClick={() => { setColumnFilters({}); setSearchQuery(""); setSortKey(defaultSortKey); setSortDir(defaultSortDir); setSelectedRows(new Set()); setCurrentPage(1) }}>
+                                <RotateCcw size={14} /> Reset table
                             </ESButton>
                             {!hideView && (
                                 <ESButton appearance="unstyled"
