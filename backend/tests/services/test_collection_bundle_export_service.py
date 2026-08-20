@@ -149,6 +149,24 @@ def test_mark_cancelled_exports_removes_artifacts(monkeypatch, tmp_path: Path) -
     session.commit.assert_not_called()
 
 
+def test_delete_queue_exports_removes_artifacts_and_records(monkeypatch, tmp_path: Path) -> None:
+    target = tmp_path / "offline_exports" / "user" / "bundle.zip"
+    target.parent.mkdir(parents=True)
+    target.write_bytes(b"bundle")
+    record = _record(
+        status="completed",
+        path="offline_exports/user/bundle.zip",
+        filename="bundle.zip",
+    )
+    monkeypatch.setattr(collection_bundle_export_service, "media_root", lambda: tmp_path)
+    session = MagicMock()
+
+    collection_bundle_export_service.delete_queue_exports(session, [record])
+
+    assert not target.exists()
+    session.delete.assert_called_once_with(record)
+
+
 def test_remove_artifact_tolerates_empty_path_and_nonempty_parent(
     monkeypatch,
     tmp_path: Path,

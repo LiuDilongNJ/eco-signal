@@ -163,3 +163,10 @@ def mark_cancelled_exports(session: Session, queue_ids: list[int]) -> None:
         record.completion_date = _now()
         session.add(record)
     session.commit()
+
+
+def delete_queue_exports(session: Session, records: list[CollectionBundleExport]) -> None:
+    """Remove export artifacts and records before their queue rows are deleted."""
+    for record in records:
+        _remove_artifact_file(record)
+        session.delete(record)

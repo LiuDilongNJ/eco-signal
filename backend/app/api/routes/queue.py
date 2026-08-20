@@ -7,7 +7,7 @@ from fastapi import APIRouter, Query
 from app.api.deps import CurrentUser, RedisDep, SessionDep
 from app.api.responses import csv_response
 from app.schemas.queue import (
-    QueueCancellationResult,
+    QueueDeletionResult,
     QueueDeleteRequest,
     QueueDetail,
     QueueListItem,
@@ -98,14 +98,15 @@ def export_queues(
     )
     return csv_response(csv_data, "queue.csv")
 
-@router.delete("", response_model=ApiResponse[QueueCancellationResult], summary="取消任务队列 / Cancel Queues")
+@router.delete("", response_model=ApiResponse[QueueDeletionResult], summary="删除任务队列 / Delete Queues")
 def delete_queues(
     session: SessionDep,
     current_user: CurrentUser,
     body: QueueDeleteRequest,
 ):
     """
-    取消等待中或运行中的队列，保留已结束记录。 / Cancel pending or running queues and retain terminal records.
+    删除已结束任务；等待任务直接取消并删除，运行任务会在取消完成后删除。
+    / Delete terminal tasks; pending tasks are cancelled and deleted immediately, while running tasks are deleted after cancellation completes.
     """
     return queue_service.delete_queues(
         session=session,

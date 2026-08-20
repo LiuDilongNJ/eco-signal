@@ -130,13 +130,28 @@ export function QueuePage() {
                 message.error(res.message || "Failed to delete queue items")
                 return
             }
-            message.success(res?.message || `Deleted ${queueIds.length} queue item${queueIds.length > 1 ? "s" : ""}`)
+            const result = res?.data
+            if (result?.deleted_ids?.length) {
+                const label = result.deleted_ids.length === 1 ? "Task" : "Tasks"
+                message.success(`${label} deleted successfully`)
+            }
+            if (result?.cancelling_ids?.length) {
+                const label = result.cancelling_ids.length === 1 ? "Task" : "Tasks"
+                message.warning(`${label} deletion requested`)
+            }
+            if (result?.unavailable_ids?.length) {
+                const label = result.unavailable_ids.length === 1 ? "Task" : "Tasks"
+                message.error(`${label} failed to delete`)
+            }
+            if (!result?.deleted_ids?.length && !result?.cancelling_ids?.length && !result?.unavailable_ids?.length) {
+                message.warning("No tasks were deleted")
+            }
             if (tableState) {
                 handleTableChange(tableState)
             }
         } catch (error: any) {
             console.error("Delete queue error:", error)
-            message.error(error?.message || "An error occurred while deleting queue items")
+            message.error(error?.message || "Failed to delete tasks")
         } finally {
             setLoading(false)
         }

@@ -9,6 +9,8 @@ from app.core.db import engine
 from app.core.task_cancellation import TASK_CANCELLED_MESSAGE
 from app.enums import QueueStatus
 from app.models.system import Queue
+from app.repositories.collection_bundle_export_repository import collection_bundle_export_repository
+from app.services.collection_bundle_export_service import delete_queue_exports
 
 
 def prepare_queue_for_execution(queue_id: int) -> QueueStatus | None:
@@ -33,16 +35,13 @@ def prepare_queue_for_execution(queue_id: int) -> QueueStatus | None:
 
 
 def finalize_queue_cancellation(queue_id: int) -> None:
-    now = datetime.now(UTC).replace(tzinfo=None)
     with Session(engine) as session:
-        session.execute(
-            update(Queue)
-            .where(
-                Queue.queue_id == queue_id,
-                Queue.error == TASK_CANCELLED_MESSAGE,
-            )
-            .values(status=QueueStatus.ERROR, stop_time=now)
-        )
+        queue = session.get(Queue, queue_id)
+        if queue is None or queue.error != TASK_CANCELLED_MESSAGE:
+            return
+        export_records = collection_bundle_export_repository.get_by_queue_ids(session, [queue_id])
+        delete_queue_exports(session, export_records)
+        session.delete(queue)
         session.commit()
 
 

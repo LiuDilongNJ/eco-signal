@@ -341,6 +341,9 @@ def test_get_queue_status_includes_cached_analysis_message(
     assert queue is not None
 
     class FakeRedis:
+        async def eval(self, *_args: object) -> int:
+            return 1
+
         async def get(self, key: str):
             assert key == f"analysis:queue-message:{queue.queue_id}"
             return b"BirdNET v2.4 found 10 detections. 10 tags were inserted."
@@ -387,7 +390,7 @@ def test_export_queues_csv(
     assert any("birdnet" in line and "completed" in line for line in lines[1:])
 
 
-def test_cancel_queues_permission(
+def test_delete_queues_permission(
     client: TestClient,
     normal_user_token_headers: dict,
     superuser_token_headers: dict,
@@ -395,7 +398,7 @@ def test_cancel_queues_permission(
     _setup_queues,
     db: Session
 ):
-    """Test normal users can only cancel their own queues."""
+    """Test normal users can only delete their own queues."""
     # Find user2's queue id
     queue = db.exec(select(Queue).where(Queue.user_id == user2.user_id)).first()
     
@@ -417,18 +420,17 @@ def test_cancel_queues_permission(
         json={"queue_ids": [queue.queue_id]},
     )
     assert r_admin.status_code == 200
-    assert r_admin.json()["data"]["unchanged"] == [
-        {"queue_id": queue.queue_id, "status": "completed"}
-    ]
+    assert r_admin.json()["data"]["deleted_ids"] == [queue.queue_id]
+    assert db.get(Queue, queue.queue_id) is None
 
 
-def test_cancel_queues_state_transitions(
+def test_delete_queues_removes_pending_and_terminal_records(
     client: TestClient,
     normal_user_token_headers: dict,
     _setup_queues,
     db: Session
 ):
-    """Pending queues cancel immediately while terminal history is retained."""
+    """Pending and terminal queues are deleted immediately."""
     import jwt as pyjwt
     normal_token = normal_user_token_headers["Authorization"].split(" ")[1]
     normal_payload = pyjwt.decode(normal_token, options={"verify_signature": False})
@@ -446,21 +448,13 @@ def test_cancel_queues_state_transitions(
     )
     assert r.status_code == 200
     assert r.json()["data"] == {
-        "cancelled_ids": [q_pending.queue_id],
+        "deleted_ids": [q_pending.queue_id, q_completed.queue_id],
         "cancelling_ids": [],
-        "unchanged": [{"queue_id": q_completed.queue_id, "status": "completed"}],
         "unavailable_ids": [],
     }
-    
-    # Refresh objects from db
-    db.refresh(q_pending)
-    db.refresh(q_completed)
-    
-    assert q_pending.status == 3
-    assert q_pending.error == "Task cancelled by user"
-    assert q_pending.stop_time is not None
-    assert q_completed.status == 2
-    assert q_completed.error is None
+    assert r.json()["message"] == "Tasks deleted successfully"
+    assert db.get(Queue, q_pending.queue_id) is None
+    assert db.get(Queue, q_completed.queue_id) is None
 
 
 def test_cancel_running_queue_is_idempotent(

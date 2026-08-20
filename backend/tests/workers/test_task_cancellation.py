@@ -160,13 +160,20 @@ def test_prepare_queue_for_execution_returns_existing_status(queue, expected):
         assert prepare_queue_for_execution(9) == expected
 
 
-def test_finalize_queue_cancellation_updates_marker_and_stop_time():
+def test_finalize_queue_cancellation_deletes_cancelled_queue():
     session, session_context = _mock_session()
+    queue = SimpleNamespace(error=TASK_CANCELLED_MESSAGE)
+    session.get.return_value = queue
 
-    with patch("app.workers.cancellation.Session", return_value=session_context):
+    with (
+        patch("app.workers.cancellation.Session", return_value=session_context),
+        patch("app.workers.cancellation.collection_bundle_export_repository.get_by_queue_ids", return_value=[]),
+        patch("app.workers.cancellation.delete_queue_exports") as delete_exports,
+    ):
         finalize_queue_cancellation(10)
 
-    session.execute.assert_called_once()
+    delete_exports.assert_called_once_with(session, [])
+    session.delete.assert_called_once_with(queue)
     session.commit.assert_called_once_with()
 
 

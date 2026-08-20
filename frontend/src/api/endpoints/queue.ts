@@ -46,6 +46,12 @@ export interface QueueExportParams {
     order_dir?: "asc" | "desc"
 }
 
+export interface QueueDeletionResult {
+    deleted_ids: number[]
+    cancelling_ids: number[]
+    unavailable_ids: number[]
+}
+
 export const queueApi = {
     /** 获取 Queue 分页列表 */
     getList(params: QueueQueryParams) {
@@ -62,7 +68,7 @@ export const queueApi = {
 
     /** 批量删除队列任务 */
     deleteItems(queueIds: number[]) {
-        return apiClient.delete<ApiResponse<null>>("/v1/queues", { body: { queue_ids: queueIds } })
+        return apiClient.delete<ApiResponse<QueueDeletionResult>>("/v1/queues", { body: { queue_ids: queueIds } })
     },
 
     exportCsv(params: QueueExportParams) {

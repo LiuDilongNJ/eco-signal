@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import Any, Optional
 
 from sqlmodel import Session, func, select
@@ -167,20 +167,19 @@ class QueueRepository(BaseRepository[Queue, Any, Any]):
 
         return list(session.exec(query).all()), total
 
-    def cancel_queues(
+    def delete_or_cancel_queues(
         self,
         session: Session,
         queue_ids: list[int],
         is_admin: bool,
         current_user_id: int,
     ) -> dict[str, Any]:
-        """Request cancellation without altering completed or failed history."""
+        """Delete terminal queues and request cancellation for active queues."""
         unique_ids = list(dict.fromkeys(queue_ids))
         if not unique_ids:
             return {
-                "cancelled_ids": [],
+                "deleted_ids": [],
                 "cancelling_ids": [],
-                "unchanged": [],
                 "unavailable_ids": [],
             }
 
@@ -191,30 +190,27 @@ class QueueRepository(BaseRepository[Queue, Any, Any]):
         queues = list(session.exec(query).all())
         available_ids = {queue.queue_id for queue in queues}
         result: dict[str, Any] = {
-            "cancelled_ids": [],
+            "deleted_ids": [],
             "cancelling_ids": [],
-            "unchanged": [],
             "unavailable_ids": [queue_id for queue_id in unique_ids if queue_id not in available_ids],
         }
-        now = datetime.now(UTC).replace(tzinfo=None)
         for queue in queues:
             status = QueueStatus(queue.status)
             if status == QueueStatus.PENDING:
-                queue.status = QueueStatus.ERROR
-                queue.error = TASK_CANCELLED_MESSAGE
-                queue.stop_time = now
-                result["cancelled_ids"].append(queue.queue_id)
+                session.delete(queue)
+                result["deleted_ids"].append(queue.queue_id)
             elif status == QueueStatus.RUNNING:
                 queue.status = QueueStatus.ERROR
                 queue.error = TASK_CANCELLED_MESSAGE
                 result["cancelling_ids"].append(queue.queue_id)
-            elif status == QueueStatus.ERROR and queue.error == TASK_CANCELLED_MESSAGE:
-                result[
-                    "cancelled_ids" if queue.stop_time is not None else "cancelling_ids"
-                ].append(queue.queue_id)
+            elif status == QueueStatus.ERROR and queue.error == TASK_CANCELLED_MESSAGE and queue.stop_time is None:
+                result["cancelling_ids"].append(queue.queue_id)
             else:
-                result["unchanged"].append({"queue_id": queue.queue_id, "status": status.name.lower()})
-        session.commit()
+                session.delete(queue)
+                result["deleted_ids"].append(queue.queue_id)
+        requested_order = {queue_id: index for index, queue_id in enumerate(unique_ids)}
+        result["deleted_ids"].sort(key=requested_order.__getitem__)
+        result["cancelling_ids"].sort(key=requested_order.__getitem__)
         return result
 
 
