@@ -1,11 +1,11 @@
 import { CustomScrollArea } from "@/components/ui"
-import { useCallback, useState } from "react"
+import { useCallback, useRef, useState } from "react"
 import { ConfigProvider, Form, Input, Select, Switch, message } from "@/components/ui"
 import { FormDrawer } from "@/components/ui"
 import { EmptyState } from "@/components/ui"
 import { LoadingState } from "@/components/ui"
 
-import { Cpu } from "lucide-react"
+import { Radio } from "lucide-react"
 import { ApiError } from "../../../../api/client"
 import { camerasApi, type CameraListItem } from "../../../../api/endpoints/cameras"
 import { fetchLensListAll, type LensListItem } from "../../../../api/endpoints/lenses"
@@ -78,6 +78,8 @@ export function SensorSettingsTab() {
     const [recorderSelectOptions, setRecorderSelectOptions] = useState<{ value: number; label: string }[]>([])
     const [micSelectOptions, setMicSelectOptions] = useState<{ value: number; label: string }[]>([])
     const [lensSelectOptions, setLensSelectOptions] = useState<{ value: number; label: string }[]>([])
+    const microphoneRequestIdRef = useRef(0)
+    const lensRequestIdRef = useRef(0)
 
     const fetchCameraPage = useCallback(async (query: string, page: number, pageSize: number) => {
         const response = await camerasApi.list({
@@ -128,22 +130,62 @@ export function SensorSettingsTab() {
     }, [])
 
     const loadMicsForRecorder = useCallback(async (recorderId: number | undefined) => {
+        const requestId = ++microphoneRequestIdRef.current
         if (recorderId == null) {
             setMicSelectOptions([])
             return
         }
-        const res = await microphonesApi.getOptions()
-        if (res.code === 0 || res.code === 200) {
-            setMicSelectOptions(
-                (res.data ?? []).map((m) => ({
-                    value: m.microphone_id,
-                    label: m.name || `Microphone #${m.microphone_id}`,
-                })),
-            )
-        } else {
-            setMicSelectOptions([])
+        try {
+            const res = await microphonesApi.getOptions({ recorder_id: recorderId })
+            if (requestId !== microphoneRequestIdRef.current) return
+            if (res.code === 0 || res.code === 200) {
+                setMicSelectOptions(
+                    (res.data ?? []).map((m) => ({
+                        value: m.microphone_id,
+                        label: m.name || `Microphone #${m.microphone_id}`,
+                    })),
+                )
+            } else {
+                setMicSelectOptions([])
+            }
+        } catch {
+            if (requestId === microphoneRequestIdRef.current) setMicSelectOptions([])
         }
     }, [])
+
+    const loadLensesForCamera = useCallback(async (cameraId: number | undefined) => {
+        const requestId = ++lensRequestIdRef.current
+        if (cameraId == null) {
+            setLensSelectOptions([])
+            form.setFieldValue("lens_id", undefined)
+            form.setFieldValue("camera_lens_is_default", false)
+            return
+        }
+        try {
+            const response = await camerasApi.get(cameraId)
+            if (requestId !== lensRequestIdRef.current) return
+            if (response.code !== 0 && response.code !== 200) {
+                setLensSelectOptions([])
+                return
+            }
+            const lenses = response.data?.lenses ?? []
+            setLensSelectOptions(
+                lenses.map((lens) => ({
+                    value: lens.lens_id,
+                    label: lens.name?.trim() || `Lens #${lens.lens_id}`,
+                })),
+            )
+            const selectedLensId = form.getFieldValue("lens_id") as number | undefined
+            const compatibleLens = lenses.some((lens) => lens.lens_id === selectedLensId)
+            if (!compatibleLens) {
+                const defaultLensId = getUniqueDefaultLensId(lenses)
+                form.setFieldValue("lens_id", defaultLensId)
+                form.setFieldValue("camera_lens_is_default", defaultLensId != null)
+            }
+        } catch {
+            if (requestId === lensRequestIdRef.current) setLensSelectOptions([])
+        }
+    }, [form])
 
     const syncCameraLensDefault = useCallback(async (cameraId?: number, lensId?: number) => {
         setCameraLensDefaultTouched(false)
@@ -152,7 +194,7 @@ export function SensorSettingsTab() {
 
         try {
             const response = await camerasApi.get(cameraId)
-            if (response.code !== 0) return
+            if (response.code !== 0 && response.code !== 200) return
             const lenses = response.data?.lenses ?? []
             if (lensId == null) {
                 const defaultLensId = getUniqueDefaultLensId(lenses)
@@ -176,7 +218,7 @@ export function SensorSettingsTab() {
 
         try {
             const response = await recordersApi.get(recorderId)
-            if (response.code !== 0) return
+            if (response.code !== 0 && response.code !== 200) return
             const microphones = response.data?.microphones ?? []
             form.setFieldValue(
                 "recorder_microphone_is_default",
@@ -323,6 +365,10 @@ export function SensorSettingsTab() {
                     s.recorder_microphone_is_default ?? (s.sensor_type === "audio" ? s.is_default ?? false : false),
                 description: s.description ?? "",
             })
+            if (s.camera_id != null) {
+                await loadLensesForCamera(s.camera_id)
+                form.setFieldValue("lens_id", s.lens_id ?? undefined)
+            }
             setCameraLensDefaultTouched(false)
             setRecorderMicrophoneDefaultTouched(false)
             if (s.sensor_type === "audio" && s.recorder_id != null) {
@@ -441,7 +487,7 @@ export function SensorSettingsTab() {
         <ConfigProvider theme={drawerTheme}>
             <DataPageLayout
                 title="Sensors"
-                icon={Cpu}
+                icon={Radio}
                 columns={SENSOR_COLUMNS}
                 rows={rows}
                 defaultSortKey="sensor_id"
@@ -577,14 +623,20 @@ export function SensorSettingsTab() {
                                                     }}
                                                     notFoundContent={
                                                         micSelectOptions.length ? undefined : (
-                                                            <EmptyState className="form-drawer-select-empty" title="Pick a recorder first" />
+                                                            <EmptyState
+                                                                className="form-drawer-select-empty"
+                                                                title={form.getFieldValue("recorder_id") == null
+                                                                    ? "Pick a recorder first"
+                                                                    : "No compatible microphones for this recorder"}
+                                                            />
                                                         )
                                                     }
                                                 />
                                             </Form.Item>
                                             <Form.Item
                                                 className="form-drawer-switch-row"
-                                                label="Default"
+                                                label="Default combination"
+                                                tooltip="Use this recorder–microphone pairing as the default when creating an audio sensor."
                                                 colon={false}
                                                 required={false}
                                             >
@@ -633,13 +685,14 @@ export function SensorSettingsTab() {
                                                         </>
                                                     )}
                                                     onChange={(cameraId: number) => {
-                                                        const currentLensId = form.getFieldValue("lens_id")
                                                         cameraOptions.setCurrentOption(
                                                             cameraOptions.options.find(
                                                                 (option) => option.value === cameraId,
                                                             ) ?? null,
                                                         )
-                                                        void syncCameraLensDefault(cameraId, currentLensId)
+                                                        setCameraLensDefaultTouched(false)
+                                                        form.setFieldValue("lens_id", undefined)
+                                                        void loadLensesForCamera(cameraId)
                                                     }}
                                                 />
                                             </Form.Item>
@@ -657,11 +710,22 @@ export function SensorSettingsTab() {
                                                     onChange={(lensId: number) => {
                                                         void syncCameraLensDefault(form.getFieldValue("camera_id"), lensId)
                                                     }}
+                                                    notFoundContent={
+                                                        lensSelectOptions.length ? undefined : (
+                                                            <EmptyState
+                                                                className="form-drawer-select-empty"
+                                                                title={form.getFieldValue("camera_id") == null
+                                                                    ? "Pick a camera first"
+                                                                    : "No compatible lenses for this camera"}
+                                                            />
+                                                        )
+                                                    }
                                                 />
                                             </Form.Item>
                                             <Form.Item
                                                 className="form-drawer-switch-row"
-                                                label="Default"
+                                                label="Default combination"
+                                                tooltip="Use this camera–lens pairing as the default when creating a photo sensor."
                                                 colon={false}
                                                 required={false}
                                             >

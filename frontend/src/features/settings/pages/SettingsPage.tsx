@@ -10,13 +10,15 @@ import {
     Info,
     Camera,
     Aperture,
-    Cpu,
+    Radio,
     GitBranch,
     Globe,
     Mic,
     Mic2,
     ScrollText,
     AudioLines,
+    ChevronDown,
+    ChevronRight,
 } from "lucide-react"
 import { Link, useSearchParams } from "react-router-dom"
 import { UserPreferencesTab } from "../components/pages/UserPreferencesTab"
@@ -118,8 +120,8 @@ const SETTINGS_TABS: SettingsTabConfig[] = [
     },
     {
         id: "sensor",
-        label: "Sensor",
-        icon: Cpu,
+        label: "Sensors",
+        icon: Radio,
         adminOnly: true,
         tableFill: true,
         render: () => <SensorSettingsTab />,
@@ -191,6 +193,7 @@ const SETTINGS_TABS: SettingsTabConfig[] = [
 const DEFAULT_SETTINGS_TAB = SETTINGS_TABS[0]!
 const SETTINGS_TAB_IDS = new Set<SettingsTabId>(SETTINGS_TABS.map((tab) => tab.id))
 const SETTINGS_GROUP_START_IDS = new Set<SettingsTabId>(["sensor", "taxon", "federation"])
+const SENSOR_COMPONENT_IDS = new Set<SettingsTabId>(["recorders", "microphones", "camera", "lenses"])
 
 function parseSettingsTabParam(value: string | null): SettingsTabId | null {
     if (!value || !SETTINGS_TAB_IDS.has(value as SettingsTabId)) return null
@@ -205,6 +208,7 @@ export default function SettingsPage() {
     const [meIsAdmin, setMeIsAdmin] = useState(false)
     const [meLoaded, setMeLoaded] = useState(false)
     const [meFetchGen, setMeFetchGen] = useState(0)
+    const [sensorGroupExpanded, setSensorGroupExpanded] = useState(true)
 
     useEffect(() => {
         const onAuth = () => setMeFetchGen((n) => n + 1)
@@ -252,6 +256,10 @@ export default function SettingsPage() {
         return visibleTabs[0] ?? DEFAULT_SETTINGS_TAB
     }, [tabParam, visibleTabs])
 
+    useEffect(() => {
+        if (SENSOR_COMPONENT_IDS.has(activeTabConfig.id)) setSensorGroupExpanded(true)
+    }, [activeTabConfig.id])
+
     const ActiveTabIcon = activeTabConfig.icon
 
     const selectTab = (tabId: SettingsTabId) => {
@@ -298,20 +306,68 @@ export default function SettingsPage() {
                         {!meLoaded ? (
                             <Skeleton className="settings-page__nav-skeleton" lines={4} height={32} />
                         ) : visibleTabs.map((tab) => {
+                            if (SENSOR_COMPONENT_IDS.has(tab.id)) return null
+
                             const Icon = tab.icon
                             const groupStartClass = SETTINGS_GROUP_START_IDS.has(tab.id)
                                 ? " data-nav-item--group-start"
                                 : ""
+                            if (tab.id !== "sensor") {
+                                return (
+                                    <ESButton appearance="unstyled"
+                                        key={tab.id}
+                                        type="button"
+                                        className={`data-nav-item${groupStartClass} ${activeTabConfig.id === tab.id ? "active" : ""}`}
+                                        onClick={() => selectTab(tab.id)}
+                                    >
+                                        <Icon size={16} aria-hidden />
+                                        <span>{tab.label}</span>
+                                    </ESButton>
+                                )
+                            }
+
+                            const sensorChildren = visibleTabs.filter((child) => SENSOR_COMPONENT_IDS.has(child.id))
                             return (
-                                <ESButton appearance="unstyled"
-                                    key={tab.id}
-                                    type="button"
-                                    className={`data-nav-item${groupStartClass} ${activeTabConfig.id === tab.id ? "active" : ""}`}
-                                    onClick={() => selectTab(tab.id)}
-                                >
-                                    <Icon size={16} aria-hidden />
-                                    <span>{tab.label}</span>
-                                </ESButton>
+                                <div className="settings-nav-group" key={tab.id}>
+                                    <div className="settings-nav-group-header">
+                                        <ESButton appearance="unstyled"
+                                            type="button"
+                                            className={`data-nav-item settings-nav-group-parent ${activeTabConfig.id === tab.id ? "active" : ""}`}
+                                            onClick={() => selectTab(tab.id)}
+                                        >
+                                            <Icon size={16} aria-hidden />
+                                            <span>{tab.label}</span>
+                                        </ESButton>
+                                        <ESButton appearance="unstyled"
+                                            type="button"
+                                            className="settings-nav-group-toggle"
+                                            aria-label={sensorGroupExpanded ? "Collapse sensor components" : "Expand sensor components"}
+                                            aria-expanded={sensorGroupExpanded}
+                                            title={sensorGroupExpanded ? "Collapse sensor components" : "Expand sensor components"}
+                                            onClick={() => setSensorGroupExpanded((expanded) => !expanded)}
+                                        >
+                                            {sensorGroupExpanded ? <ChevronDown size={14} aria-hidden /> : <ChevronRight size={14} aria-hidden />}
+                                        </ESButton>
+                                    </div>
+                                    {sensorGroupExpanded ? (
+                                        <div className="settings-nav-group-children" role="group" aria-label="Sensor components">
+                                            {sensorChildren.map((child) => {
+                                                const ChildIcon = child.icon
+                                                return (
+                                                    <ESButton appearance="unstyled"
+                                                        key={child.id}
+                                                        type="button"
+                                                        className={`data-nav-item settings-nav-child ${activeTabConfig.id === child.id ? "active" : ""}`}
+                                                        onClick={() => selectTab(child.id)}
+                                                    >
+                                                        <ChildIcon size={15} aria-hidden />
+                                                        <span>{child.label}</span>
+                                                    </ESButton>
+                                                )
+                                            })}
+                                        </div>
+                                    ) : null}
+                                </div>
                             )
                         })}
                     </nav>

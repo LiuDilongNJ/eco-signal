@@ -106,6 +106,11 @@ beforeEach(() => {
         data: [{ microphone_id: 10, name: "Microphone A" }],
     })
     fetchLensListAll.mockResolvedValue({ data: [], errorMessage: null })
+    api.cameras.get.mockResolvedValue({
+        code: 0,
+        message: "ok",
+        data: { camera_id: 20, uuid: "camera-20", name: "Camera A", lenses: [] },
+    })
     api.sensors.get.mockResolvedValue({
         code: 0,
         message: "ok",
@@ -141,8 +146,9 @@ describe("SensorSettingsTab form", () => {
         fireEvent.click(await screen.findByText("Recorder B"))
 
         await waitFor(() => {
-            expect(screen.getByText("Default")).toBeInTheDocument()
+            expect(screen.getByText("Default combination")).toBeInTheDocument()
             expect(screen.getByRole("switch")).toHaveAttribute("aria-checked", "false")
         })
+        expect(api.microphones.getOptions).toHaveBeenLastCalledWith({ recorder_id: 2 })
     })
 })
