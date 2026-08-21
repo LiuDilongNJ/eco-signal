@@ -343,59 +343,59 @@ export function EditMediaDrawer({
 
                             <div className="form-drawer-side-col">
                                 <Form.Item name="id" label={<StableText>ID</StableText>} required={false}>
-                                    <Input readOnly />
+                                    <Input disabled className="media-readonly-field" />
                                 </Form.Item>
 
                                 <Form.Item name="uuid" label={<StableText>UUID</StableText>} required={false}>
-                                    <Input readOnly />
+                                    <Input disabled className="media-readonly-field" />
                                 </Form.Item>
 
                                 <Form.Item name="media_type" label={<StableText>Media Type</StableText>} required={false}>
-                                    <Input readOnly />
+                                    <Input disabled className="media-readonly-field" />
                                 </Form.Item>
 
                                 <Form.Item name="type" label={<StableText>Type</StableText>} required={false}>
-                                    <Input readOnly />
+                                    <Input disabled className="media-readonly-field" />
                                 </Form.Item>
 
                                 {isAudioMedia ? (
                                     <>
                                         <Form.Item name="filename" label={<StableText>Filename</StableText>} required={false}>
-                                            <Input readOnly />
+                                            <Input disabled className="media-readonly-field" />
                                         </Form.Item>
 
                                         <Form.Item name="sampling_rate_hz" label={<StableText>Sample Rate (Hz)</StableText>} required={false}>
-                                            <Input readOnly />
+                                            <Input disabled className="media-readonly-field" />
                                         </Form.Item>
 
                                         <Form.Item name="bit_depth" label={<StableText>Bit Depth</StableText>} required={false}>
-                                            <Input readOnly />
+                                            <Input disabled className="media-readonly-field" />
                                         </Form.Item>
 
                                         <Form.Item name="channel_num" label={<StableText>Channels</StableText>} required={false}>
-                                            <Input readOnly />
+                                            <Input disabled className="media-readonly-field" />
                                         </Form.Item>
 
                                         <Form.Item name="duration_s" label={<StableText>Duration (s)</StableText>} required={false}>
-                                            <Input readOnly />
+                                            <Input disabled className="media-readonly-field" />
                                         </Form.Item>
 
                                         <Form.Item name="size_b" label={<StableText>Size (Bytes)</StableText>} required={false}>
-                                            <Input readOnly />
+                                            <Input disabled className="media-readonly-field" />
                                         </Form.Item>
                                     </>
                                 ) : null}
 
                                 <Form.Item name="uploader" label={<StableText>Uploader</StableText>} required={false}>
-                                    <Input readOnly />
+                                    <Input disabled className="media-readonly-field" />
                                 </Form.Item>
 
                                 <Form.Item name="creator" label={<StableText>Creator</StableText>} required={false}>
-                                    <Input readOnly />
+                                    <Input disabled className="media-readonly-field" />
                                 </Form.Item>
 
                                 <Form.Item name="creation_date" label={<StableText>Created</StableText>} required={false}>
-                                    <Input readOnly />
+                                    <Input disabled className="media-readonly-field" />
                                 </Form.Item>
                             </div>
                         </div>

@@ -221,11 +221,11 @@ export function AddUserDrawer({ open, editId, onClose, onSubmit }: AddUserDrawer
                             {editId && (
                                 <div className="form-drawer-side-col">
                                     <Form.Item name="user_id" label="ID" required={false}>
-                                        <Input readOnly />
+                                        <Input disabled className="form-readonly-field" />
                                     </Form.Item>
 
                                     <Form.Item name="username" label="Username" required={false}>
-                                        <Input readOnly />
+                                        <Input disabled className="form-readonly-field" />
                                     </Form.Item>
                                 </div>
                             )}

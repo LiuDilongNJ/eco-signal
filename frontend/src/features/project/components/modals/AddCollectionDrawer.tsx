@@ -44,6 +44,7 @@ const RichTextInput = ({ value, onChange, title }: any) => {
             <Input
                 value={getPreviewText(value)}
                 readOnly
+                className="rich-text-preview-input"
                 onClick={() => setEditorOpen(true)}
                 style={{ cursor: "pointer" }}
             />

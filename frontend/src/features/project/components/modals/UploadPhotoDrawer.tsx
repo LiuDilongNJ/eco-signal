@@ -15,6 +15,7 @@ import { mediaApi, type MediaPublic } from "../../../../api/endpoints/media"
 import type { LicenseOption } from "../../../../api/endpoints/licenses"
 import type { SiteOption } from "../../../../api/endpoints/sites"
 import type { SensorOption } from "../../../../api/endpoints/sensors"
+import type { UserOption } from "../../../../api/endpoints/users"
 import {
     buildMediaUpdatePayload,
     filterSensorsForMediaType,
@@ -32,6 +33,7 @@ type AddPhotoProps = {
     sites: SiteOption[]
     licenses: LicenseOption[]
     sensors: SensorOption[]
+    userOptions?: UserOption[]
     onClose: () => void
     onAddFiles: () => void
     onRetry?: (file: QueueFile) => void
@@ -56,6 +58,7 @@ const selectPopupClassName = "form-drawer-select-popup"
 
 export function PhotoMediaDrawer(props: PhotoMediaDrawerProps) {
     const { open, sites, licenses, sensors, onClose } = props
+    const userOptions = props.mode === "add" ? props.userOptions ?? [] : []
     const mode = props.mode
     const editMediaId = props.mode === "edit" ? props.mediaId : null
     const editProjectId = props.mode === "edit" ? props.projectId : null
@@ -297,6 +300,18 @@ export function PhotoMediaDrawer(props: PhotoMediaDrawerProps) {
                     notFoundContent={selectEmptyState}
                 />
             </Form.Item>
+            {props.mode === "add" ? (
+                <Form.Item name="creator_id" label={<StableText>Creator</StableText>}>
+                    <Select
+                        showSearch
+                        optionFilterProp="label"
+                        className="form-drawer-select"
+                        classNames={{ popup: { root: selectPopupClassName } }}
+                        notFoundContent={selectEmptyState}
+                        options={userOptions.map((user) => ({ value: user.user_id, label: user.name }))}
+                    />
+                </Form.Item>
+            ) : null}
             <Form.Item name="doi" label={<StableText>DOI</StableText>}>
                 <Input maxLength={255} />
             </Form.Item>
@@ -452,18 +467,18 @@ export function PhotoMediaDrawer(props: PhotoMediaDrawerProps) {
                                                 alt={detail.name || detail.filename || "Photo"}
                                             />
                                         ) : null}
-                                        <Form.Item name="id" label={<StableText>ID</StableText>}><Input readOnly /></Form.Item>
-                                        <Form.Item name="uuid" label={<StableText>UUID</StableText>}><Input readOnly /></Form.Item>
-                                        <Form.Item name="media_type" label={<StableText>Media Type</StableText>}><Input readOnly /></Form.Item>
-                                        <Form.Item name="type" label={<StableText>Type</StableText>}><Input readOnly /></Form.Item>
-                                        <Form.Item name="filename" label={<StableText>Filename</StableText>}><Input readOnly /></Form.Item>
-                                        <Form.Item name="size_b" label={<StableText>Size (Bytes)</StableText>}><Input readOnly /></Form.Item>
-                                        <Form.Item name="exposure_ms" label={<StableText>Exposure (ms)</StableText>}><Input readOnly /></Form.Item>
-                                        <Form.Item name="aperture" label={<StableText>Aperture</StableText>}><Input readOnly /></Form.Item>
-                                        <Form.Item name="iso" label={<StableText>ISO</StableText>}><Input readOnly /></Form.Item>
-                                        <Form.Item name="uploader" label={<StableText>Uploader</StableText>}><Input readOnly /></Form.Item>
-                                        <Form.Item name="creator" label={<StableText>Creator</StableText>}><Input readOnly /></Form.Item>
-                                        <Form.Item name="creation_date" label={<StableText>Created</StableText>}><Input readOnly /></Form.Item>
+                                        <Form.Item name="id" label={<StableText>ID</StableText>}><Input disabled className="media-readonly-field" /></Form.Item>
+                                        <Form.Item name="uuid" label={<StableText>UUID</StableText>}><Input disabled className="media-readonly-field" /></Form.Item>
+                                        <Form.Item name="media_type" label={<StableText>Media Type</StableText>}><Input disabled className="media-readonly-field" /></Form.Item>
+                                        <Form.Item name="type" label={<StableText>Type</StableText>}><Input disabled className="media-readonly-field" /></Form.Item>
+                                        <Form.Item name="filename" label={<StableText>Filename</StableText>}><Input disabled className="media-readonly-field" /></Form.Item>
+                                        <Form.Item name="size_b" label={<StableText>Size (Bytes)</StableText>}><Input disabled className="media-readonly-field" /></Form.Item>
+                                        <Form.Item name="exposure_ms" label={<StableText>Exposure (ms)</StableText>}><Input disabled className="media-readonly-field" /></Form.Item>
+                                        <Form.Item name="aperture" label={<StableText>Aperture</StableText>}><Input disabled className="media-readonly-field" /></Form.Item>
+                                        <Form.Item name="iso" label={<StableText>ISO</StableText>}><Input disabled className="media-readonly-field" /></Form.Item>
+                                        <Form.Item name="uploader" label={<StableText>Uploader</StableText>}><Input disabled className="media-readonly-field" /></Form.Item>
+                                        <Form.Item name="creator" label={<StableText>Creator</StableText>}><Input disabled className="media-readonly-field" /></Form.Item>
+                                        <Form.Item name="creation_date" label={<StableText>Created</StableText>}><Input disabled className="media-readonly-field" /></Form.Item>
                                     </div>
                                 </>
                             )}

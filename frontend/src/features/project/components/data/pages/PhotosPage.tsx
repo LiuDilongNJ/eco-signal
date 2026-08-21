@@ -1,5 +1,5 @@
 import { Input as ESInput, Button as ESButton } from "@/components/ui"
-import { useCallback, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { message } from "@/components/ui"
 import { ClipboardList as ClipboardListIcon, FileText, Image, Info, Link as LinkIcon, Tag as TagIcon } from "lucide-react"
 import { mediaApi } from "../../../../../api/endpoints/media"
@@ -22,6 +22,7 @@ import {
 } from "./mediaTablePresentation"
 import { useMediaTableData } from "./useMediaTableData"
 import { useMediaUploadQueue } from "./useMediaUploadQueue"
+import { usersApi, type UserOption } from "../../../../../api/endpoints/users"
 
 const COLUMNS: ColumnDef[] = [
     { key: "media_id", label: "ID", type: "number", width: "80px", sortable: true, filterable: true },
@@ -83,6 +84,7 @@ export function PhotosPage() {
     const [instructionsOpen, setInstructionsOpen] = useState(false)
     const [metadataImportResultOpen, setMetadataImportResultOpen] = useState(false)
     const [metadataImportResult, setMetadataImportResult] = useState<CsvImportResult | null>(null)
+    const [creatorOptions, setCreatorOptions] = useState<UserOption[]>([])
     const {
         rows,
         totalRows,
@@ -96,6 +98,32 @@ export function PhotosPage() {
         refresh,
     } = useMediaTableData("photo", currentProjectId, currentCollectionId)
     const uploadQueue = useMediaUploadQueue("photo", currentCollectionId)
+
+    useEffect(() => {
+        if (!currentProjectId || !currentCollectionId || currentCollectionId === "all") {
+            setCreatorOptions([])
+            return
+        }
+        usersApi.getUsers({
+            page: 1,
+            page_size: 100,
+            project_id: Number(currentProjectId),
+            collection_id: Number(currentCollectionId),
+            scope: "current",
+            order_by: "name",
+            order_dir: "asc",
+        }).then((response) => setCreatorOptions(
+            (response.data ?? []).map((user) => ({
+                user_id: user.user_id,
+                name: user.name || user.username || String(user.user_id),
+                username: user.username,
+            })),
+        ))
+            .catch((error) => {
+                console.error("Failed to fetch creator options:", error)
+                setCreatorOptions([])
+            })
+    }, [currentCollectionId, currentProjectId])
 
     const handleView = useCallback((selectedRowKeys: unknown[]) => {
         if (!currentProjectId) {
@@ -364,6 +392,7 @@ export function PhotosPage() {
                 sites={siteOptions}
                 licenses={licenseOptions}
                 sensors={sensorOptions}
+                userOptions={creatorOptions}
                 onClose={uploadQueue.reset}
                 onAddFiles={() => fileInputRef.current?.click()}
                 onRetry={uploadQueue.retryUpload}
@@ -391,6 +420,7 @@ export function PhotosPage() {
                         date_from_filename: (formData.date_from_filename as boolean) ?? false,
                         site_id: formData.site_id as number | undefined,
                         sensor_id: formData.sensor_id as number | undefined,
+                        creator_id: formData.creator_id as number | undefined,
                         license_id: formData.license_id as number | undefined,
                         medium: formData.medium as string | undefined,
                         note: formData.note as string | undefined,
