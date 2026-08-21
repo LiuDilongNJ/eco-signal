@@ -212,6 +212,9 @@ async def process_message(message: AbstractIncomingMessage, channel: AbstractRob
         queue_id = _queue_id_from_payload(payload, headers)
         if queue_id is not None:
             queue_status = prepare_queue_for_execution(queue_id)
+            if queue_status is None:
+                await message.ack()
+                return
             if queue_status in {QueueStatus.COMPLETED, QueueStatus.ERROR, QueueStatus.WARNING}:
                 if cancellation_requested(queue_id):
                     finalize_queue_cancellation(queue_id)

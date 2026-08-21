@@ -150,8 +150,11 @@ class SiteMapGeometryResponse(SQLModel):
 
 class SiteCollectionSyncRequest(SQLModel):
     """Schema for syncing site collections."""
+    site_ids: list[int] = Field(min_length=1)
     project_ids: list[int] = Field(default_factory=list)
     collection_ids: list[int] = Field(default_factory=list)
+
+    model_config = ConfigDict(extra="forbid")
 
 
 class SiteLinkCollectionItem(SQLModel):

@@ -833,75 +833,26 @@ def update_site(session: Session, project_id: int | None, site_id: int, data: Si
 
 def sync_site_collections(
     session: Session,
-    site_id: int,
     current_user: User,
+    project_id: int,
+    site_ids: list[int],
     collection_ids: list[int],
     project_ids: list[int] | None = None,
 ) -> None:
-    """Sync collection and project bindings for a site."""
-    site = site_repository.get_site_with_relations(session, site_id)
-    if not site:
-        raise HTTPException(status_code=404, detail="Site not found")
-
+    """Sync manageable collection and project bindings across multiple sites."""
+    normalized_site_ids = sorted(set(site_ids))
     requested_collection_ids = sorted(set(collection_ids))
     requested_project_ids = sorted(set(project_ids or []))
 
-    if not permission_service.is_admin(current_user):
-        existing_cids = [sc.collection_id for sc in (site.site_collections or [])]
-        has_write = (
-            permission_service.has_resource_permission_on_any_collection_path(
-                session,
-                current_user,
-                existing_cids,
-                "site",
-                "write",
-            )
-            if existing_cids
-            else True
-        )
-        if not has_write:
-            raise HTTPException(status_code=403, detail="No site:write permission on this site")
+    if session.get(Project, project_id) is None:
+        raise HTTPException(status_code=404, detail="Project not found")
 
-        disallowed_collection_ids = [
-            cid
-            for cid in requested_collection_ids
-            if not permission_service.has_resource_permission_on_any_collection_path(
-                session,
-                current_user,
-                [cid],
-                "site",
-                "write",
-            )
-        ]
-        if disallowed_collection_ids:
-            raise HTTPException(
-                status_code=403,
-                detail=f"No site:write permission on collection(s): {disallowed_collection_ids}",
-            )
-
-        disallowed_project_ids = []
-        for pid in requested_project_ids:
-            project_collection_ids = permission_repository.get_project_collection_ids(
-                session, pid
-            )
-            can_write_all_project_collections = all(
-                permission_service.has_resource_permission(
-                    session,
-                    current_user,
-                    resource_type="site",
-                    action="write",
-                    project_id=pid,
-                    collection_id=cid,
-                )
-                for cid in project_collection_ids
-            )
-            if not can_write_all_project_collections:
-                disallowed_project_ids.append(pid)
-        if disallowed_project_ids:
-            raise HTTPException(
-                status_code=403,
-                detail=f"No write permission on project(s): {disallowed_project_ids}",
-            )
+    existing_site_ids = set(
+        session.exec(select(Site.site_id).where(Site.site_id.in_(normalized_site_ids))).all()
+    )
+    missing_site_ids = sorted(set(normalized_site_ids) - existing_site_ids)
+    if missing_site_ids:
+        raise HTTPException(status_code=404, detail=f"Site(s) not found: {missing_site_ids}")
 
     existing_collection_ids = set(
         session.exec(
@@ -929,8 +880,111 @@ def sync_site_collections(
             detail=f"Project(s) not found: {missing_project_ids}",
         )
 
-    site_repository.bind_to_collections(session, site_id=site_id, collection_ids=requested_collection_ids)
-    site_repository.bind_to_projects(session, site_id=site_id, project_ids=requested_project_ids)
+    project_site_collection_rows = session.exec(
+        select(SiteCollection.site_id, SiteCollection.collection_id)
+        .join(
+            ProjectCollection,
+            ProjectCollection.collection_id == SiteCollection.collection_id,
+        )
+        .where(
+            ProjectCollection.project_id == project_id,
+            SiteCollection.site_id.in_(normalized_site_ids),
+        )
+    ).all()
+    site_collection_ids_in_current_project = {
+        site_id: set() for site_id in normalized_site_ids
+    }
+    for site_id, collection_id in project_site_collection_rows:
+        site_collection_ids_in_current_project[site_id].add(collection_id)
+
+    outside_current_project_site_ids = sorted(
+        site_id
+        for site_id, linked_collection_ids in site_collection_ids_in_current_project.items()
+        if not linked_collection_ids
+    )
+    if outside_current_project_site_ids:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Site(s) are not linked to project {project_id}: {outside_current_project_site_ids}",
+        )
+
+    all_project_collection_rows = session.exec(
+        select(ProjectCollection.project_id, ProjectCollection.collection_id)
+    ).all()
+    project_collection_map: dict[int, set[int]] = {}
+    collection_project_map: dict[int, set[int]] = {}
+    for linked_project_id, linked_collection_id in all_project_collection_rows:
+        project_collection_map.setdefault(linked_project_id, set()).add(linked_collection_id)
+        collection_project_map.setdefault(linked_collection_id, set()).add(linked_project_id)
+
+    if permission_service.is_admin(current_user):
+        manageable_collection_ids = set(
+            session.exec(select(Collection.collection_id)).all()
+        )
+        manageable_project_ids = set(
+            session.exec(select(Project.project_id)).all()
+        )
+    else:
+        site_write_scopes = set(permission_repository.get_effective_collection_scopes(
+            session,
+            current_user.user_id,
+            resource_type="site",
+            action="write",
+        ))
+        manageable_collection_ids = {collection_id for _, collection_id in site_write_scopes}
+        manageable_project_ids = {
+            candidate_project_id
+            for candidate_project_id, candidate_collection_ids in project_collection_map.items()
+            if candidate_collection_ids
+            and all(
+                (candidate_project_id, candidate_collection_id) in site_write_scopes
+                for candidate_collection_id in candidate_collection_ids
+            )
+        }
+
+        inaccessible_site_ids = sorted(
+            site_id
+            for site_id, linked_collection_ids in site_collection_ids_in_current_project.items()
+            if not any(
+                (project_id, linked_collection_id) in site_write_scopes
+                for linked_collection_id in linked_collection_ids
+            )
+        )
+        if inaccessible_site_ids:
+            raise HTTPException(
+                status_code=403,
+                detail=f"No site:write permission on site(s): {inaccessible_site_ids}",
+            )
+
+        disallowed_collection_ids = sorted(
+            collection_id
+            for collection_id in requested_collection_ids
+            if not any(
+                (candidate_project_id, collection_id) in site_write_scopes
+                for candidate_project_id in collection_project_map.get(collection_id, set())
+            )
+        )
+        if disallowed_collection_ids:
+            raise HTTPException(
+                status_code=403,
+                detail=f"No site:write permission on collection(s): {disallowed_collection_ids}",
+            )
+
+        disallowed_project_ids = sorted(set(requested_project_ids) - manageable_project_ids)
+        if disallowed_project_ids:
+            raise HTTPException(
+                status_code=403,
+                detail=f"No site:write permission on project(s): {disallowed_project_ids}",
+            )
+
+    site_repository.sync_collection_and_project_links(
+        session,
+        site_ids=normalized_site_ids,
+        managed_collection_ids=manageable_collection_ids,
+        requested_collection_ids=requested_collection_ids,
+        managed_project_ids=manageable_project_ids,
+        requested_project_ids=requested_project_ids,
+    )
     session.commit()
 
 

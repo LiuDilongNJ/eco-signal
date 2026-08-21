@@ -1,4 +1,5 @@
 """操作日志 API 路由。 / Operation log API routes."""
+from datetime import date, datetime, time
 from typing import Optional
 
 from fastapi import APIRouter, Query
@@ -9,6 +10,18 @@ from app.schemas.response import PagedApiResponse, api_page
 from app.services.operation_log_service import operation_log_service
 
 router = APIRouter()
+
+
+def _date_start(value: date | None) -> datetime | None:
+    if value is None:
+        return None
+    return datetime.combine(value, time.min)
+
+
+def _date_end(value: date | None) -> datetime | None:
+    if value is None:
+        return None
+    return datetime.combine(value, time.max)
 
 
 @router.get(
@@ -27,8 +40,8 @@ def read_operation_logs(
     description: Optional[str] = Query(None, description="Filter by description"),
     status_code: Optional[str] = Query(None, description="Fuzzy filter by status code"),
     search: Optional[str] = Query(None, description="Search in description, action or resource_type"),
-    date_from: Optional[str] = Query(None, description="Filter from date (YYYY-MM-DD)"),
-    date_to: Optional[str] = Query(None, description="Filter to date (YYYY-MM-DD)"),
+    date_from: date | None = Query(None, description="Filter from date (YYYY-MM-DD)"),
+    date_to: date | None = Query(None, description="Filter to date (YYYY-MM-DD)"),
     page: int = Query(1, ge=1, description="Page number"),
     page_size: int = Query(20, ge=1, le=100, description="Items per page"),
     order_by: str = Query("log_id", description="Field to sort by"),
@@ -48,8 +61,8 @@ def read_operation_logs(
         "description": description,
         "status_code": status_code,
         "search": search,
-        "date_from": date_from,
-        "date_to": date_to,
+        "date_from": _date_start(date_from),
+        "date_to": _date_end(date_to),
     }
     # Remove None values
     filters = {k: v for k, v in filters.items() if v is not None}

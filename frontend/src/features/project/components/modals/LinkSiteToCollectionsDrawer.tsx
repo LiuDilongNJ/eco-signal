@@ -28,7 +28,7 @@ interface ProjectTreeItem {
 
 interface LinkSiteToCollectionsDrawerProps {
     open: boolean
-    siteId: number | null
+    siteIds: number[]
     projectId: number | null
     onClose: () => void
     onSuccess?: () => void
@@ -36,7 +36,7 @@ interface LinkSiteToCollectionsDrawerProps {
 
 export function LinkSiteToCollectionsDrawer({
     open,
-    siteId,
+    siteIds,
     projectId,
     onClose,
     onSuccess,
@@ -49,18 +49,21 @@ export function LinkSiteToCollectionsDrawer({
     const [selectedCollectionIds, setSelectedCollectionIds] = useState<number[]>([])
     const [selectedProjectIds, setSelectedProjectIds] = useState<number[]>([])
     const [activeKeys, setActiveKeys] = useState<(string | number)[]>([])
+    const targetSiteIds = Array.from(new Set(siteIds.filter((siteId) => siteId > 0)))
+    const primarySiteId = targetSiteIds[0] ?? null
+    const isBatch = targetSiteIds.length > 1
 
     useEffect(() => {
-        if (open && siteId) {
+        if (open && primarySiteId) {
             void fetchData()
         }
-    }, [open, siteId, projectId])
+    }, [open, primarySiteId, projectId, isBatch])
 
     const fetchData = async () => {
-        if (!siteId || !projectId) return
+        if (!primarySiteId || !projectId) return
         setLoading(true)
         try {
-            const res = await sitesApi.getLinkOptions(siteId, { project_id: Number(projectId) })
+            const res = await sitesApi.getLinkOptions(primarySiteId, { project_id: Number(projectId) })
             const r = res as {
                 code: number
                 data?: {
@@ -81,9 +84,10 @@ export function LinkSiteToCollectionsDrawer({
             if (r.code === 0 || r.code === 200) {
                 const data = r.data || {}
                 
-                // Set initial selections
-                setSelectedCollectionIds(data.selected_collection_ids || [])
-                setSelectedProjectIds(data.selected_project_ids || [])
+                const initialCollectionIds = isBatch ? [] : (data.selected_collection_ids || [])
+                const initialProjectIds = isBatch ? [] : (data.selected_project_ids || [])
+                setSelectedCollectionIds(initialCollectionIds)
+                setSelectedProjectIds(initialProjectIds)
 
                 const newTreeData: ProjectTreeItem[] = []
                 
@@ -128,11 +132,11 @@ export function LinkSiteToCollectionsDrawer({
                 // Only expand items that have something selected
                 const keysToExpand = newTreeData
                     .filter((p) => {
-                        const isProjChecked = p.id > 0 && (data.selected_project_ids || []).includes(p.id)
+                        const isProjChecked = p.id > 0 && initialProjectIds.includes(p.id)
                         const hasSelectedCol = p.collections.some((c) =>
-                            (data.selected_collection_ids || []).includes(c.id),
+                            initialCollectionIds.includes(c.id),
                         )
-                        return isProjChecked || hasSelectedCol
+                        return (!isBatch && isProjChecked) || hasSelectedCol
                     })
                     .map((p) => p.id)
                 setActiveKeys(keysToExpand)
@@ -164,15 +168,15 @@ export function LinkSiteToCollectionsDrawer({
     }
 
     const handleSave = async () => {
-        if (!siteId) return
+        if (!primarySiteId || !projectId) return
         setSaving(true)
         try {
-            const res = await sitesApi.updateSiteCollections(siteId, {
+            const res = await sitesApi.updateSiteCollections(targetSiteIds, Number(projectId), {
                 collection_ids: selectedCollectionIds,
                 project_ids: selectedProjectIds,
             })
             if (isSuccessfulDrawerResponse(res.code, res.message)) {
-                message.success("Links updated")
+                message.success(isBatch ? `Links updated for ${targetSiteIds.length} sites` : "Links updated")
                 onSuccess?.()
                 onClose()
             } else {
@@ -191,7 +195,7 @@ export function LinkSiteToCollectionsDrawer({
             <FormDrawer
                 maskClosable={false}
                 closable={false}
-                title="Link Site to Projects & Collections"
+                title={isBatch ? `Link ${targetSiteIds.length} Sites to Projects & Collections` : "Link Site to Projects & Collections"}
                 placement="right"
                 open={open}
                 onClose={onClose}

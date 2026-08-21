@@ -41,13 +41,7 @@ class QueueDeleteRequest(SQLModel):
     queue_ids: list[int] = Field(min_length=1)
 
 
-class QueueCancellationUnchanged(SQLModel):
-    queue_id: int
-    status: str
-
-
-class QueueCancellationResult(SQLModel):
-    cancelled_ids: list[int] = Field(default_factory=list)
+class QueueDeletionResult(SQLModel):
+    deleted_ids: list[int] = Field(default_factory=list)
     cancelling_ids: list[int] = Field(default_factory=list)
-    unchanged: list[QueueCancellationUnchanged] = Field(default_factory=list)
     unavailable_ids: list[int] = Field(default_factory=list)

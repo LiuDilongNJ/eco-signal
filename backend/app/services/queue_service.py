@@ -8,10 +8,11 @@ from app.csv_export import CsvColumn, export_columns_csv
 from app.enums import QueueStatus
 from app.models.user import User
 from app.repositories import queue_repository
-from app.schemas.queue import QueueCancellationResult, QueueDetail, QueueListItem
+from app.schemas.queue import QueueDeletionResult, QueueDetail, QueueListItem
 from app.schemas.response import ApiResponse, PagedApiResponse, api_page, api_success
 from app.services import permission_service
-from app.services.collection_bundle_export_service import mark_cancelled_exports
+from app.repositories.collection_bundle_export_repository import collection_bundle_export_repository
+from app.services.collection_bundle_export_service import delete_queue_exports
 
 _QUEUE_EXPORT_COLUMNS = [
     CsvColumn("queue_id"), CsvColumn("type"), CsvColumn("username"),
@@ -174,25 +175,33 @@ def delete_queues(
     session: Session,
     current_user: User,
     queue_ids: list[int],
-) -> ApiResponse[QueueCancellationResult]:
+) -> ApiResponse[QueueDeletionResult]:
     """
-    Cancel pending or running queues while preserving terminal history.
+    Delete terminal queues and request cancellation for active queues.
     """
     is_admin = permission_service.is_admin(current_user)
-    raw_result = queue_repository.cancel_queues(
+    export_records = collection_bundle_export_repository.get_by_queue_ids(session, queue_ids)
+    raw_result = queue_repository.delete_or_cancel_queues(
         session=session,
         queue_ids=queue_ids,
         is_admin=is_admin,
         current_user_id=current_user.user_id
     )
-    mark_cancelled_exports(
+    delete_queue_exports(
         session,
-        raw_result["cancelled_ids"],
+        [record for record in export_records if record.queue_id in raw_result["deleted_ids"]],
     )
-    result = QueueCancellationResult.model_validate(raw_result)
-    message = (
-        f"已取消 {len(result.cancelled_ids)} 个任务，"
-        f"{len(result.cancelling_ids)} 个任务正在取消，"
-        f"{len(result.unchanged)} 个任务未变更"
-    )
+    session.commit()
+    result = QueueDeletionResult.model_validate(raw_result)
+    message_parts = []
+    if result.deleted_ids:
+        label = "Task" if len(result.deleted_ids) == 1 else "Tasks"
+        message_parts.append(f"{label} deleted successfully")
+    if result.cancelling_ids:
+        label = "Task" if len(result.cancelling_ids) == 1 else "Tasks"
+        message_parts.append(f"{label} deletion requested")
+    if result.unavailable_ids:
+        label = "Task" if len(result.unavailable_ids) == 1 else "Tasks"
+        message_parts.append(f"{label} failed to delete")
+    message = ". ".join(message_parts) or "No tasks were deleted"
     return api_success(data=result, message=message)

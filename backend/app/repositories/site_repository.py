@@ -574,6 +574,45 @@ class SiteRepository(BaseRepository[Site, SiteCreate, SiteUpdate]):
             session.add(SiteProject(site_id=site_id, project_id=pid))
         session.flush()
 
+    def sync_collection_and_project_links(
+        self,
+        session: Session,
+        *,
+        site_ids: list[int],
+        managed_collection_ids: set[int],
+        requested_collection_ids: list[int],
+        managed_project_ids: set[int],
+        requested_project_ids: list[int],
+    ) -> None:
+        """Replace only the manageable site collection and project links in batch."""
+        if managed_collection_ids:
+            existing_collection_links = session.exec(
+                select(SiteCollection).where(
+                    SiteCollection.site_id.in_(site_ids),
+                    SiteCollection.collection_id.in_(managed_collection_ids),
+                )
+            ).all()
+            for link in existing_collection_links:
+                session.delete(link)
+
+        if managed_project_ids:
+            existing_project_links = session.exec(
+                select(SiteProject).where(
+                    SiteProject.site_id.in_(site_ids),
+                    SiteProject.project_id.in_(managed_project_ids),
+                )
+            ).all()
+            for link in existing_project_links:
+                session.delete(link)
+
+        for site_id in site_ids:
+            for collection_id in requested_collection_ids:
+                session.add(SiteCollection(site_id=site_id, collection_id=collection_id))
+            for project_id in requested_project_ids:
+                session.add(SiteProject(site_id=site_id, project_id=project_id))
+
+        session.flush()
+
     def add_project_linked_sites_to_collections(
         self,
         session: Session,

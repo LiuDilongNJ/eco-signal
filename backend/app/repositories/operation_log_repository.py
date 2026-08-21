@@ -25,7 +25,7 @@ _FILTER_SPECS: list[FilterSpec] = [
     ("resource_type", OperationLog.resource_type, FilterOp.LIKE),
     ("username", User.username, FilterOp.LIKE),
     ("description", OperationLog.description, FilterOp.LIKE),
-    ("date_from", OperationLog.creation_date, FilterOp.DATE_RANGE),  # date_to parameter works with this
+    ("date", OperationLog.creation_date, FilterOp.DATE_RANGE),
 ]
 
 _SORT_FIELDS = {
