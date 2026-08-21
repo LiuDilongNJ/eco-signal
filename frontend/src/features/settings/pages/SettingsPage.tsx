@@ -56,7 +56,7 @@ function SettingsNavBar() {
                         <div className="logo-icon-box">
                             <img src="/images/biosounds_logo_small.png" alt="" aria-hidden="true" />
                         </div>
-                        <span>ecoSound-web</span>
+                        <span>ecoSignal</span>
                     </Link>
                 </div>
             </div>

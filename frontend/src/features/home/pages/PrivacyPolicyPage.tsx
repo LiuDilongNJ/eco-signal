@@ -79,7 +79,7 @@ export default function PrivacyPolicyPage() {
                                 <div className="privacy-policy-footer-logo-icon">
                                     <img src="/images/biosounds_logo_small.png" alt="" aria-hidden="true" />
                                 </div>
-                                <span>ecoSound-web</span>
+                                <span>ecoSignal</span>
                             </Link>
                         </div>
                     </div>
