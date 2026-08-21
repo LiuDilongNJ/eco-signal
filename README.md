@@ -28,8 +28,33 @@ This project is completely automated. Geographical data and database migrations 
 
 -   cloned repository
 -   For a first-time install, ensure 50 GB of free disk space to avoid build failures, plus extra free space if you also keep a legacy `ecoSound-web` directory on the same host for later migration.
--   [Docker](https://docs.docker.com/get-docker/)
--   [Docker Compose](https://docs.docker.com/compose/install/)
+-   [Docker Engine](https://docs.docker.com/engine/install/) 23.0 or newer is recommended.
+-   [Docker Compose](https://docs.docker.com/compose/install/) v2.22 or newer.
+-   The [Docker Buildx plugin](https://docs.docker.com/build/buildx/) and BuildKit must be available. Current Docker Engine and Docker Desktop installations include them and use BuildKit by default. The project Dockerfiles use BuildKit-only `RUN --mount` instructions for dependency and build caches.
+
+    Check the installed components before starting:
+
+    ```bash
+    docker version
+    docker compose version
+    docker buildx version
+    docker buildx inspect --bootstrap
+    ```
+
+    If `docker buildx version` is unavailable, or the build fails with `the --mount option requires BuildKit`, install Docker from the official Docker repository, including `docker-buildx-plugin` and `docker-compose-plugin`. On Ubuntu, the package installation is:
+
+    ```bash
+    sudo apt-get update
+    sudo apt-get install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+    ```
+
+    On older Docker installations, enable BuildKit for the current shell before starting the project. Docker Compose v2 uses `DOCKER_BUILDKIT`; `COMPOSE_DOCKER_CLI_BUILD` is only relevant to legacy Compose v1:
+
+    ```bash
+    export DOCKER_BUILDKIT=1
+    ```
+
+    Do not download a standalone Buildx binary manually unless it is required by your system administrator. Prefer the versioned Docker packages so the Docker Engine, Buildx, and Compose versions remain compatible.
 
 ### Running the Project (Local Development Mode)
 

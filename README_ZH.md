@@ -28,8 +28,33 @@
 
 -   已克隆的代码仓库
 -   首次安装时请确保至少有 50 GB 可用磁盘空间，以避免构建失败；若同一主机还保留用于后续迁移的 `ecoSound-web` 目录，则需要额外预留空间。
--   [Docker](https://docs.docker.com/get-docker/)
--   [Docker Compose](https://docs.docker.com/compose/install/)
+-   建议使用 23.0 或更高版本的 [Docker Engine](https://docs.docker.com/engine/install/)。
+-   使用 2.22 或更高版本的 [Docker Compose](https://docs.docker.com/compose/install/)。
+-   必须安装 [Docker Buildx 插件](https://docs.docker.com/build/buildx/) 和 BuildKit。当前版本的 Docker Engine 和 Docker Desktop 已自带这些组件，并默认使用 BuildKit。本项目的 Dockerfile 使用了仅由 BuildKit 支持的 `RUN --mount` 指令，用于依赖和构建缓存。
+
+    启动项目前请检查相关组件：
+
+    ```bash
+    docker version
+    docker compose version
+    docker buildx version
+    docker buildx inspect --bootstrap
+    ```
+
+    如果 `docker buildx version` 不可用，或者构建时出现 `the --mount option requires BuildKit`，请从 Docker 官方软件源安装 Docker，并同时安装 `docker-buildx-plugin` 和 `docker-compose-plugin`。Ubuntu 下可以执行：
+
+    ```bash
+    sudo apt-get update
+    sudo apt-get install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+    ```
+
+    对于较旧的 Docker 安装，在启动项目之前，可以为当前 Shell 启用 BuildKit。Docker Compose v2 使用 `DOCKER_BUILDKIT`；`COMPOSE_DOCKER_CLI_BUILD` 仅适用于旧版 Compose v1：
+
+    ```bash
+    export DOCKER_BUILDKIT=1
+    ```
+
+    除非系统管理员明确要求，否则不建议手动下载独立的 Buildx 二进制文件。优先使用版本化的 Docker 软件包，以确保 Docker Engine、Buildx 和 Compose 版本兼容。
 
 ### 运行项目（本地开发模式）
 
