@@ -10,6 +10,7 @@ import { FormDrawer } from "@/components/ui"
 import { renderRequiredMark } from "@/components/ui"
 
 import { EditorModal } from "./EditorModal"
+import { SetTaxonsDrawer, type CollectionTaxonDraft } from "./SetTaxonsDrawer"
 import { CustomScrollArea } from "@/components/ui"
 import { collectionsApi } from "../../../../api/endpoints/collections"
 import { useAppStore } from "@/store/useAppStore"
@@ -24,7 +25,7 @@ interface AddCollectionDrawerProps {
     editId?: number | null // If provided, drawer operates in edit mode
     projectId?: number | null
     onClose: () => void
-    onSubmit: (values: Record<string, any>) => void
+    onSubmit: (values: Record<string, any>, taxons: CollectionTaxonDraft[]) => void
 }
 
 const RichTextInput = ({ value, onChange, title }: any) => {
@@ -70,10 +71,12 @@ export function AddCollectionDrawer({ open, editId, projectId, onClose, onSubmit
     const [loadingData, setLoadingData] = useState(false)
     const [spheres, setSpheres] = useState<{ label: string, value: string }[]>([])
     const [fetchingSpheres, setFetchingSpheres] = useState(false)
+    const [taxons, setTaxons] = useState<CollectionTaxonDraft[]>([])
 
     useEffect(() => {
         if (open) {
             form.resetFields()
+            setTaxons([])
 
             // Fetch spheres
             setFetchingSpheres(true)
@@ -116,7 +119,7 @@ export function AddCollectionDrawer({ open, editId, projectId, onClose, onSubmit
             values.creation_date = values.creation_date.toISOString()
         }
 
-        onSubmit(values)
+        onSubmit(values, taxons)
     }
 
     return (
@@ -239,6 +242,21 @@ export function AddCollectionDrawer({ open, editId, projectId, onClose, onSubmit
                                         <Switch />
                                     </Form.Item>
                                 </Form.Item>
+
+                                {editId ? (
+                                    <Form.Item
+                                        label="Taxa"
+                                        tooltip="Associate the collection with one or several taxa (species or higher-order) that it targets. BY and AT show the current user and time immediately after adding, then are finalized when you save."
+                                    >
+                                        <SetTaxonsDrawer
+                                            embedded
+                                            open
+                                            collectionId={editId}
+                                            projectId={projectId ?? null}
+                                            onDraftChange={setTaxons}
+                                        />
+                                    </Form.Item>
+                                ) : null}
                             </div>
 
                             {editId && (

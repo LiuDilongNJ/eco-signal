@@ -44,6 +44,7 @@ const ACTION_TOOLTIP_TEXT: Record<string, string> = {
     "Set Labels": "Apply labels to the selected records",
     "Switch Theme": "Switch between light, dark, and automatic themes",
     Taxon: "Manage the taxon for the selected collection",
+    Taxa: "Associate the collection with one or several taxa",
     "Upload Files": "Add files to the upload queue",
     "Retry upload": "Retry uploading this file",
     Documentation: "Open documentation for this tool",

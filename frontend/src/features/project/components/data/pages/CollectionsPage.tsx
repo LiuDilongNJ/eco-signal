@@ -6,11 +6,11 @@ import { Button as ESButton } from "@/components/ui"
 import { useState, useCallback, useMemo, useEffect, useRef } from "react"
 import { DataPageLayout } from "../DataPageLayout"
 import type { ColumnDef, FormFieldDef, RowData, TableState } from "../DataPageLayout"
-import { FileArchive, Library, PackageOpen, Tag } from "lucide-react"
+import { FileArchive, Library, PackageOpen } from "lucide-react"
 import { collectionsApi } from "../../../../../api/endpoints/collections"
 import { usersApi } from "../../../../../api/endpoints/users"
 import { AddCollectionDrawer } from "../../modals/AddCollectionDrawer"
-import { SetTaxonsDrawer } from "../../modals/SetTaxonsDrawer"
+import type { CollectionTaxonDraft } from "../../modals/SetTaxonsDrawer"
 import {
     ExportBundleDrawer,
     ImportBundleDrawer,
@@ -53,7 +53,7 @@ const COLUMNS: ColumnDef[] = [
     { key: "creation_date", label: "Created", type: "date", width: "240px", sortable: true, filterable: true, filterType: "dateRange" },
     { key: "public_access", label: "Public Access", type: "badge", width: "140px", sortable: true, filterable: true, filterOptions: ["True", "False"] },
     { key: "public_tags", label: "Public Annotations", type: "badge", width: "160px", sortable: true, filterable: true, filterOptions: ["True", "False"] },
-    { key: "taxon_name", label: "Taxon", type: "text", width: "360px", sortable: true, filterable: true, renderCell: renderTaxonPills },
+    { key: "taxon_name", label: "Taxa", type: "text", width: "360px", sortable: true, filterable: true, renderCell: renderTaxonPills },
 ]
 
 const FORM_FIELDS: FormFieldDef[] = [
@@ -75,8 +75,6 @@ export function CollectionsPage() {
 
     const [addDrawerOpen, setAddDrawerOpen] = useState(false)
     const [editCollectionId, setEditCollectionId] = useState<number | null>(null)
-    const [taxonDrawerOpen, setTaxonDrawerOpen] = useState(false)
-    const [taxonCollectionId, setTaxonCollectionId] = useState<number | null>(null)
     const [meIsProjectAdmin, setMeIsProjectAdmin] = useState(false)
     const [importBundleOpen, setImportBundleOpen] = useState(false)
     const [exportBundleOpen, setExportBundleOpen] = useState(false)
@@ -199,7 +197,7 @@ export function CollectionsPage() {
         scheduleTableFetch(state)
     }, [scheduleTableFetch])
 
-    const handleAddSubmit = useCallback(async (values: Record<string, any>) => {
+    const handleAddSubmit = useCallback(async (values: Record<string, any>, taxons: CollectionTaxonDraft[]) => {
         try {
             setLoading(true)
             const payload = {
@@ -226,6 +224,19 @@ export function CollectionsPage() {
                 : await collectionsApi.createCollection(payload, Number(currentProjectId!))
 
             if (res.code === 0 || res.code === 200) {
+                const savedCollectionId = isEdit
+                    ? editCollectionId
+                    : Number(res.data?.collection_id ?? res.data?.id ?? 0) || null
+                if (savedCollectionId && currentProjectId && (isEdit || taxons.length > 0)) {
+                    const taxaRes = await collectionsApi.setCollectionTaxons(
+                        savedCollectionId,
+                        currentProjectId,
+                        { taxons },
+                    )
+                    if (taxaRes.code !== 0 && taxaRes.code !== 200) {
+                        throw new Error(taxaRes.message || "Failed to update collection taxa")
+                    }
+                }
                 message.success(`Collection ${isEdit ? 'updated' : 'created'} successfully`)
                 setAddDrawerOpen(false)
                 setEditCollectionId(null)
@@ -374,17 +385,6 @@ export function CollectionsPage() {
                 onDeleteCustom={handleDeleteSubmit}
                 deleteConfirmation={{ entityLabel: "collection", nameField: "name" }}
                 onExportCustom={handleExport}
-                renderCustomActions={(selectedRows) => (
-                    <>
-                        <ESButton appearance="unstyled" className="data-btn" title="Manage the taxon for the selected collection" disabled={selectedRows.size !== 1} onClick={() => {
-                            const collectionId = Array.from(selectedRows)[0] as number
-                            setTaxonCollectionId(collectionId)
-                            setTaxonDrawerOpen(true)
-                        }}>
-                            <Tag size={14} /> Taxon
-                        </ESButton>
-                    </>
-                )}
                 renderAfterExportActions={(selectedRows) => (
                     <ESButton appearance="unstyled"
                         className="data-btn"
@@ -430,18 +430,6 @@ export function CollectionsPage() {
                     setEditCollectionId(null)
                 }}
                 onSubmit={handleAddSubmit}
-            />
-            <SetTaxonsDrawer
-                open={taxonDrawerOpen}
-                collectionId={taxonCollectionId}
-                projectId={currentProjectId ? Number(currentProjectId) : null}
-                onClose={() => {
-                    setTaxonDrawerOpen(false)
-                    setTaxonCollectionId(null)
-                }}
-                onSuccess={() => {
-                    if (tableState) handleTableChange(tableState)
-                }}
             />
             <ImportBundleDrawer
                 open={importBundleOpen}
