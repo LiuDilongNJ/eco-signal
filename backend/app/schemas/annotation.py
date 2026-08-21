@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import ConfigDict, Field, field_serializer, model_validator
 from sqlmodel import SQLModel
@@ -24,7 +24,8 @@ class AnnotationCreate(SQLModel):
     max_x: float
     min_y: float
     max_y: float
-    sound_id: int = Field(..., gt=0)
+    sound_id: Optional[int] = Field(None, gt=0)
+    object_type: Literal["organism", "other"] | None = None
     reference: bool = False
     comments: Optional[str] = Field(None, max_length=500)
     
@@ -32,7 +33,7 @@ class AnnotationCreate(SQLModel):
     uncertain: Optional[bool] = None
     sound_distance_m: Optional[int] = None
     distance_not_estimable: Optional[bool] = None
-    individual_num: int = Field(default=1, ge=1)
+    individual_num: Optional[int] = Field(default=None, ge=1)
     
     creator_type: str = "user"
     confidence: Optional[float] = None
@@ -56,6 +57,7 @@ class AnnotationUpdate(SQLModel):
     min_y: Optional[float] = None
     max_y: Optional[float] = None
     sound_id: Optional[int] = None
+    object_type: Literal["organism", "other"] | None = None
     reference: Optional[bool] = None
     comments: Optional[str] = Field(None, max_length=500)
     
@@ -91,6 +93,7 @@ class AnnotationPublic(SQLModel):
     
     # Sound type
     sound_id: Optional[int] = None
+    object_type: Literal["organism", "other"] | None = None
     soundscape_component: Optional[str] = None
     sound_type: Optional[str] = None
     
@@ -106,7 +109,7 @@ class AnnotationPublic(SQLModel):
     task: Optional[AnnotationTaskSummary] = None
     sound_distance_m: Optional[int] = None
     distance_not_estimable: Optional[bool] = None
-    individual_num: int = 1
+    individual_num: Optional[int] = None
     animal_sound_type: Optional[str] = None
     
     # Creator info

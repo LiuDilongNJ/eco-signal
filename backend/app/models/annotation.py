@@ -37,7 +37,7 @@ class AnnotationBase(SQLModel):
     uncertain: Optional[bool] = Field(default=None)
     sound_distance_m: Optional[int] = Field(default=None)
     distance_not_estimable: Optional[bool] = Field(default=None)
-    individual_num: int = Field(default=1)
+    individual_num: Optional[int] = Field(default=1)
     animal_sound_type: Optional[str] = Field(default=None, max_length=128)
     reference: bool = Field(default=False)
     comments: Optional[str] = Field(default=None, max_length=500)
@@ -53,11 +53,12 @@ class Annotation(AnnotationBase, table=True):
         unique=True,
         index=True
     )
-    sound_id: int = Field(
+    sound_id: Optional[int] = Field(
         foreign_key="sound_classification.sound_id",
         ondelete="RESTRICT",
         index=True
     )
+    object_type: Optional[str] = Field(default=None, max_length=16, index=True)
     media_id: int = Field(
         foreign_key="media.media_id",
         ondelete="CASCADE",

@@ -23,7 +23,7 @@ import { isSelectScrollNearBottom } from "@/hooks/usePagedSelectOptions"
 import { useTaxonSearchOptions } from "@/hooks/useTaxonSearchOptions"
 
 const BBOX_FIELD_KEYS = new Set(["min_x", "max_x", "min_y", "max_y"])
-const REQUIRED_FIELD_KEYS = new Set(["min_x", "max_x", "min_y", "max_y", "soundscape", "sound_type"])
+const REQUIRED_FIELD_KEYS = new Set(["min_x", "max_x", "min_y", "max_y"])
 const SOUND_FIELD_DEPENDENCIES = ["soundscape", "sound_type"] as const
 
 function isEmptyValue(value: unknown): boolean {
@@ -100,6 +100,8 @@ export function AnnotationFormDrawer({
     const taxonSearch = useTaxonSearchOptions()
 
     const currentSoundscape = Form.useWatch("soundscape", form)
+    const objectType = Form.useWatch("object_type", form)
+    const isPhoto = initialData?.media_type === "photo"
     const distanceNotEstimable = Form.useWatch("distance_not_estimable", form)
     const isBiophony = (currentSoundscape || "").toLowerCase() === "biophony"
     const animalSoundSelectOptions = useMemo(
@@ -228,11 +230,11 @@ export function AnnotationFormDrawer({
             rules.push(requiredNumberRule)
         }
 
-        if (field.key === "soundscape") {
+        if (field.key === "soundscape" && !isPhoto) {
             rules.push({ required: true, message: "Please select Soundscape" })
         }
 
-        if (field.key === "sound_type") {
+        if (field.key === "sound_type" && !isPhoto) {
             rules.push({ required: true, message: "Please select Sound Type" })
         }
 
@@ -265,7 +267,17 @@ export function AnnotationFormDrawer({
         let innerElement: ReactNode = <Input />
 
         const biophonyFields = ["taxon", "uncertain", "animal_sound", "distance_m", "individual_num"]
-        if (biophonyFields.includes(field.key) && !isBiophony) {
+        if (!isPhoto && biophonyFields.includes(field.key) && !isBiophony) {
+            return null
+        }
+
+        if (isPhoto && ["soundscape", "sound_type", "animal_sound", "distance_m", "distance_not_estimable"].includes(field.key)) {
+            return null
+        }
+        if (!isPhoto && field.key === "object_type") {
+            return null
+        }
+        if (isPhoto && ["taxon", "uncertain", "individual_num"].includes(field.key) && objectType !== "organism") {
             return null
         }
 
@@ -418,6 +430,23 @@ export function AnnotationFormDrawer({
                                         ? null
                                         : taxonSearch.options.find((option) => option.value === value) ?? null,
                                 )
+                            }}
+                        />
+                    </Form.Item>
+                )
+            }
+
+            if (field.key === "object_type") {
+                return (
+                    <Form.Item key={field.key} {...itemProps} rules={[{ required: isPhoto, message: "Please select Object Type" }]}>
+                        <Select
+                            className="form-drawer-select"
+                            classNames={{ popup: { root: "form-drawer-select-popup" } }}
+                            options={[{ value: "organism", label: "Organism" }, { value: "other", label: "Other" }]}
+                            onChange={(value) => {
+                                if (value === "other") {
+                                    form.setFieldsValue({ taxon: undefined, uncertain: undefined, individual_num: undefined })
+                                }
                             }}
                         />
                     </Form.Item>

@@ -5,7 +5,7 @@
 import { useState, useCallback } from "react"
 import { DataPageLayout } from "../DataPageLayout"
 import type { ColumnDef, FormFieldDef, RowData, TableState } from "../DataPageLayout"
-import { message } from "@/components/ui"
+import { message, Tooltip } from "@/components/ui"
 import { queueApi } from "../../../../../api/endpoints/queue"
 import type { QueueExportParams, QueueListItem, QueueQueryParams } from "../../../../../api/endpoints/queue"
 import { Activity } from "lucide-react"
@@ -31,7 +31,23 @@ const COLUMNS: ColumnDef[] = [
     { key: "start_time", label: "Start Time", type: "date", width: "220px", sortable: true, filterable: true, filterType: "dateRange" },
     { key: "stop_time", label: "Stop Time", type: "date", width: "220px", sortable: true, filterable: true, filterType: "dateRange" },
     { key: "error", label: "Error", type: "text", width: "220px", sortable: true, filterable: true },
-    { key: "warning", label: "Warning", type: "text", width: "220px", sortable: true, filterable: true },
+    {
+        key: "warning",
+        label: "Warning",
+        type: "text",
+        width: "220px",
+        sortable: true,
+        filterable: true,
+        renderCell: (value) => {
+            const warning = value == null ? "" : String(value)
+            if (!warning) return null
+            return (
+                <Tooltip title={warning}>
+                    <span className="dpl-cell-text">{warning}</span>
+                </Tooltip>
+            )
+        },
+    },
 ]
 
 const FORM_FIELDS: FormFieldDef[] = []

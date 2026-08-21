@@ -20,6 +20,7 @@ const COLUMNS: ColumnDef[] = [
     { key: "uuid", label: "UUID", type: "text", width: "300px", sortable: true, filterable: true },
     { key: "media_name", label: "Media Name", type: "text", width: "180px", sortable: true, filterable: true },
     { key: "media_type", label: "Media Type", type: "text", width: "150px", sortable: true, filterable: true },
+    { key: "object_type", label: "Object Type", type: "text", width: "130px", sortable: true, filterable: true },
     { key: "min_x", label: "Min X", type: "number", width: "130px", sortable: true, filterable: true, filterType: "numberRange" },
     { key: "max_x", label: "Max X", type: "number", width: "130px", sortable: true, filterable: true, filterType: "numberRange" },
     { key: "min_y", label: "Min Y", type: "number", width: "130px", sortable: true, filterable: true, filterType: "numberRange" },
@@ -53,6 +54,7 @@ const FORM_FIELDS: FormFieldDef[] = [
     { key: "max_x", label: "Max X", type: "number" },
     { key: "min_y", label: "Min Y", type: "number" },
     { key: "max_y", label: "Max Y", type: "number" },
+    { key: "object_type", label: "Object Type", type: "select", options: ["Organism", "Other"] },
     { key: "soundscape", label: "Soundscape", type: "select" },
     { key: "sound_type", label: "Sound Type", type: "select" },
     { key: "taxon", label: "Taxon", type: "select" },
@@ -176,6 +178,7 @@ export function AnnotationsPage() {
                     setEditData({
                         ...res,
                         soundscape: res.soundscape_component,
+                        object_type: res.object_type,
                         sound_type: res.sound_id == null ? undefined : String(res.sound_id),
                         taxon: res.taxon_id,
                         animal_sound: res.animal_sound_type,
@@ -227,6 +230,7 @@ export function AnnotationsPage() {
             payload.individual_num = values.individual_num === undefined ? null : Number(values.individual_num)
             payload.comments = values.comments ?? null
             payload.sound_id = values.sound_type === undefined ? null : Number(values.sound_type)
+            payload.object_type = values.object_type ? String(values.object_type).toLowerCase() : null
             payload.taxon_id = values.taxon === undefined ? null : (values.taxon ? Number(values.taxon) : null)
             payload.animal_sound_type = values.animal_sound ?? null
             

@@ -144,7 +144,8 @@ class OfflineAnnotationPayload(BundleModel):
     annotation_id: int | None = None
     uuid: UUID
     media_uuid: UUID
-    sound_id: int
+    sound_id: int | None = None
+    object_type: Literal["organism", "other"] | None = None
     creator_id: int | None = None
     taxon_id: int | None = None
     creator_type: str | None = None
@@ -156,7 +157,7 @@ class OfflineAnnotationPayload(BundleModel):
     uncertain: bool | None = None
     sound_distance_m: float | None = None
     distance_not_estimable: bool | None = None
-    individual_num: int = 1
+    individual_num: int | None = None
     animal_sound_type: str | None = None
     reference: bool = False
     comments: str | None = None

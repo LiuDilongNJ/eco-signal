@@ -104,7 +104,7 @@ export const camerasApi = {
     },
 
     addLens(cameraId: number, body: CameraLensCreateBody) {
-        return apiClient.post<{ code: number; message: string; data: CameraPublic }>(
+        return apiClient.post<{ code: number; message: string; data: null }>(
             `/v1/cameras/${cameraId}/lenses`,
             body,
         )

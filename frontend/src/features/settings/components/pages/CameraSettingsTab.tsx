@@ -1,9 +1,9 @@
 import { CustomScrollArea } from "@/components/ui"
 import { useCallback, useEffect, useState } from "react"
-import { ConfigProvider, Descriptions, Form, Input, Space, message } from "@/components/ui"
+import { Button, ConfigProvider, Descriptions, Form, Input, Modal, Select, Space, Switch, message } from "@/components/ui"
 import { FormDrawer } from "@/components/ui"
 
-import { Camera, FileUp, Info, Plus } from "lucide-react"
+import { Camera, FileUp, Info, Link2, Plus } from "lucide-react"
 import { ApiError } from "../../../../api/client"
 import { camerasApi, type CameraListItem, type CameraPublic } from "../../../../api/endpoints/cameras"
 import { useAppDefaultAntdBrandConfig } from "../../../project/hooks/useAntdBrandConfig"
@@ -31,6 +31,13 @@ import { CsvImportInstructionsDrawer } from "../CsvImportInstructionsDrawer"
 import { SETTINGS_CSV_IMPORT_CONFIG } from "../../utils/settingsCsvImportConfig"
 import { renderRequiredLabel } from "../../utils/formValidation"
 import { useTableFetchScheduler } from "@/hooks/useTableFetchScheduler"
+import { fetchLensListAll, type LensListItem } from "../../../../api/endpoints/lenses"
+
+type CameraLensFormValues = {
+    lens_id: number
+    is_default?: boolean
+    notes?: string
+}
 
 const COLUMNS: ColumnDef[] = [
     { key: "camera_id", label: "ID", type: "number", width: "80px", sortable: true, filterable: true },
@@ -85,6 +92,13 @@ export function CameraSettingsTab() {
     const [detailOpen, setDetailOpen] = useState(false)
     const [detailCamera, setDetailCamera] = useState<CameraPublic | null>(null)
     const [detailLoading, setDetailLoading] = useState(false)
+    const [relationFormOpen, setRelationFormOpen] = useState(false)
+    const [relationSaving, setRelationSaving] = useState(false)
+    const [relationLoading, setRelationLoading] = useState(false)
+    const [removingLensId, setRemovingLensId] = useState<number | null>(null)
+    const [relationCameraId, setRelationCameraId] = useState<number | null>(null)
+    const [availableLenses, setAvailableLenses] = useState<LensListItem[]>([])
+    const [relationForm] = Form.useForm<CameraLensFormValues>()
     const csvImport = useSettingsCsvImport("cameras", camerasApi.importCsv, () => tableState && handleTableChange(tableState))
 
     const fetchTableData = useCallback(async (state: TableState) => {
@@ -234,6 +248,98 @@ export function CameraSettingsTab() {
         }
     }
 
+    const reloadDetail = async () => {
+        if (!detailCamera) return
+        const response = await camerasApi.get(detailCamera.camera_id)
+        if (response.code === 0 || response.code === 200) setDetailCamera(response.data!)
+    }
+
+    const openRelationForm = async (cameraId: number) => {
+        setRelationCameraId(cameraId)
+        relationForm.resetFields()
+        setRelationFormOpen(true)
+        setRelationLoading(true)
+        try {
+            const [cameraResponse, lensResponse] = await Promise.all([
+                camerasApi.get(cameraId),
+                fetchLensListAll({ order_by: "name", order_dir: "asc" }),
+            ])
+            if (cameraResponse.code !== 0 && cameraResponse.code !== 200) {
+                message.error(cameraResponse.message || "Failed to load camera")
+                setAvailableLenses([])
+                return
+            }
+            if (lensResponse.errorMessage) {
+                message.error(lensResponse.errorMessage)
+                setAvailableLenses([])
+                return
+            }
+            setDetailCamera(cameraResponse.data!)
+            const linkedIds = new Set(cameraResponse.data?.lenses.map((lens) => lens.lens_id) ?? [])
+            setAvailableLenses(lensResponse.data.filter((lens) => !linkedIds.has(lens.lens_id)))
+        } catch (e: unknown) {
+            message.error(e instanceof Error ? e.message : "Failed to load lenses")
+            setAvailableLenses([])
+        } finally {
+            setRelationLoading(false)
+        }
+    }
+
+    const submitRelation = async () => {
+        if (relationCameraId == null) return
+        try {
+            const values = await relationForm.validateFields()
+            setRelationSaving(true)
+            const response = await camerasApi.addLens(relationCameraId, {
+                lens_id: values.lens_id,
+                is_default: values.is_default ?? false,
+                notes: values.notes?.trim() || null,
+            })
+            if (response.code !== 0 && response.code !== 200) {
+                message.error(response.message || "Failed to associate lens")
+                return
+            }
+            message.success("Lens associated")
+            setRelationFormOpen(false)
+            if (detailCamera?.camera_id === relationCameraId) await reloadDetail()
+            if (tableState) handleTableChange(tableState)
+        } catch (e: unknown) {
+            if (e && typeof e === "object" && "errorFields" in e) return
+            message.error(e instanceof Error ? e.message : "Failed to associate lens")
+        } finally {
+            setRelationSaving(false)
+        }
+    }
+
+    const confirmRemoveLens = (lensId: number, lensName?: string | null) => {
+        Modal.confirm({
+            title: "Remove lens association?",
+            content: `Remove ${lensName || `Lens #${lensId}`} from this camera?`,
+            okText: "Remove",
+            cancelText: "Cancel",
+            okButtonProps: { danger: true, className: "settings-form-modal-ok" },
+            cancelButtonProps: { className: "settings-form-modal-cancel" },
+            onOk: async () => {
+                if (!detailCamera) return
+                setRemovingLensId(lensId)
+                try {
+                    const response = await camerasApi.removeLens(detailCamera.camera_id, lensId)
+                    if (response.code !== 0 && response.code !== 200) {
+                        message.error(response.message || "Failed to remove association")
+                        return
+                    }
+                    message.success("Lens association removed")
+                    await reloadDetail()
+                    if (tableState) handleTableChange(tableState)
+                } catch (e: unknown) {
+                    message.error(e instanceof Error ? e.message : "Failed to remove association")
+                } finally {
+                    setRemovingLensId(null)
+                }
+            },
+        })
+    }
+
     const handleDelete = async (selectedKeys: unknown[]) => {
         const hideLoading = message.loading(`Deleting ${selectedKeys.length} record(s)...`, 0)
         try {
@@ -321,6 +427,20 @@ export function CameraSettingsTab() {
                 onEditCustom={handleEdit}
                 onDeleteCustom={handleDelete}
                 onExportCustom={handleExport}
+                renderCustomActions={(selectedRows) => {
+                    const selectedCameraId = selectedRows.size === 1 ? Number(Array.from(selectedRows)[0]) : undefined
+                    return (
+                        <Button
+                            type="text"
+                            className="data-btn"
+                            title="Link a lens to the selected camera"
+                            disabled={selectedCameraId == null || !Number.isFinite(selectedCameraId)}
+                            onClick={() => selectedCameraId != null && void openRelationForm(selectedCameraId)}
+                        >
+                            <Link2 size={14} /> Link
+                        </Button>
+                    )
+                }}
                 onViewCustom={(selectedKeys) => void openDetail(selectedKeys[0] as number)}
             />
 
@@ -407,6 +527,11 @@ export function CameraSettingsTab() {
                                     fallbackLabel="Lens"
                                     emptyMessage="No lenses associated with this camera."
                                     isDark={isDark}
+                                    onRemove={(lensId) => {
+                                        const lens = detailCamera.lenses.find((item) => item.lens_id === lensId)
+                                        confirmRemoveLens(lensId, lens?.name)
+                                    }}
+                                    removingId={removingLensId}
                                     items={detailCamera.lenses.map((lens) => ({
                                         id: lens.lens_id,
                                         name: lens.name,
@@ -416,6 +541,58 @@ export function CameraSettingsTab() {
                                 />
                             </Space>
                         ) : null}
+                    </div>
+                </CustomScrollArea>
+            </FormDrawer>
+
+            <FormDrawer
+                closable={false}
+                title={<SettingsDrawerTitle>Associate Lens</SettingsDrawerTitle>}
+                open={relationFormOpen}
+                maskClosable={false}
+                onClose={() => setRelationFormOpen(false)}
+                destroyOnClose
+                styles={getSettingsStageDrawerStyles(isDark, SETTINGS_DRAWER_WIDTH_COMPACT)}
+                extra={
+                    <SettingsDrawerFormExtra
+                        onClose={() => setRelationFormOpen(false)}
+                        onSave={() => void submitRelation()}
+                        saving={relationSaving}
+                    />
+                }
+            >
+                <CustomScrollArea variant="fill">
+                    <div style={{ padding: SETTINGS_DRAWER_BODY_PADDING }}>
+                        <Form form={relationForm} layout="vertical" requiredMark={false} className="shared-drawer-form">
+                            <Form.Item name="lens_id" label={renderRequiredLabel("Lens")} rules={[{ required: true, message: "Select a lens" }]}>
+                                <Select
+                                    className="form-drawer-select"
+                                    classNames={{ popup: { root: "form-drawer-select-popup" } }}
+                                    loading={relationLoading}
+                                    showSearch
+                                    optionFilterProp="label"
+                                    placeholder="Select a lens"
+                                    options={availableLenses.map((lens) => ({
+                                        value: lens.lens_id,
+                                        label: [lens.name || `Lens #${lens.lens_id}`, lens.brand].filter(Boolean).join(" · "),
+                                    }))}
+                                    notFoundContent={relationLoading ? "Loading lenses…" : "No unlinked lenses available"}
+                                />
+                            </Form.Item>
+                            <Form.Item
+                                className="form-drawer-switch-row"
+                                label="Default combination"
+                                colon={false}
+                                required={false}
+                            >
+                                <Form.Item name="is_default" valuePropName="checked" noStyle initialValue={false}>
+                                    <Switch />
+                                </Form.Item>
+                            </Form.Item>
+                            <Form.Item name="notes" label="Notes" rules={[{ max: 500, message: "Notes must be at most 500 characters" }]}>
+                                <Input.TextArea rows={4} maxLength={500} showCount />
+                            </Form.Item>
+                        </Form>
                     </div>
                 </CustomScrollArea>
             </FormDrawer>

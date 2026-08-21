@@ -158,7 +158,9 @@ def test_create_annotation_for_photo_media(
     data = {
         "project_id": project.project_id,
         "media_id": media.media_id,
-        "sound_id": 1,
+        "object_type": "organism",
+        "taxon_id": 1,
+        "individual_num": 2,
         "min_x": 2.0,
         "max_x": 6.0,
         "min_y": 50.0,
@@ -181,6 +183,9 @@ def test_create_annotation_for_photo_media(
     ).first()
     assert ann is not None
     assert ann.comments == "Photo annotation"
+    assert ann.object_type == "organism"
+    assert ann.sound_id is None
+    assert ann.individual_num == 2
 
 
 def test_list_annotations(
@@ -608,7 +613,7 @@ def test_export_annotations(
     header = read_csv_header(content)
     assert header == [
         "annotation_id", "uuid", "media_name", "media_type", "min_x", "max_x",
-        "min_y", "max_y", "creator_type", "soundscape_component", "sound_type",
+        "min_y", "max_y", "creator_type", "object_type", "soundscape_component", "sound_type",
         "taxon_scientific_name", "animal_sound_type", "confidence", "uncertain",
         "sound_distance_m", "distance_not_estimable", "individual_num", "reference",
         "comments", "creator_name", "creator_id", "creation_date",

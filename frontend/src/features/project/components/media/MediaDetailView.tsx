@@ -207,6 +207,7 @@ import {
     physBoxFreqBandHz,
     computeMagnifierLayoutForAnnotation,
     STUDIO_ANNOTATION_COLUMNS,
+    PHOTO_STUDIO_ANNOTATION_COLUMNS,
     type StudioAnnotationRow,
     annotationHasTaskTagForNav,
     annotationPublicToStudioRow,
@@ -579,6 +580,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
     }, [])
     /** null = 未选声景；"" 表示 API 中 soundscape_component 为 null 的分组 */
     const [formSoundscape, setFormSoundscape] = useState<string | null>(null)
+    const [formObjectType, setFormObjectType] = useState<"organism" | "other" | null>(null)
     /** 第二级下拉对应行的 sound_id，提交 AnnotationCreate.sound_id */
     const [formSoundTypeSoundId, setFormSoundTypeSoundId] = useState<number | null>(null)
     const [soundClassifications, setSoundClassifications] = useState<SoundClassificationPublic[]>([])
@@ -1855,7 +1857,8 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
             ),
         }
 
-        const cols = STUDIO_ANNOTATION_COLUMNS.map((col) => {
+        const columnsForMedia = isPhoto ? PHOTO_STUDIO_ANNOTATION_COLUMNS : STUDIO_ANNOTATION_COLUMNS
+        const cols = columnsForMedia.map((col) => {
             const useTextFilter = col.key === "creator_type" || col.key === "soundscape_component" || col.key === "sound_type"
             const filterOptionsResolved =
                 useTextFilter
@@ -2037,6 +2040,10 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                             ""
                         )
                     }
+                    if (col.key === "object_type") {
+                        const objectType = String(record.object_type ?? "").trim().toLowerCase()
+                        return objectType === "organism" ? "Organism" : objectType === "other" ? "Other" : ""
+                    }
                     if (col.key === "taxon_name") {
                         const label = String(
                             record.taxon_scientific_name || record.taxon_common_name || "",
@@ -2111,6 +2118,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
         annotationSortDir,
         annotationSortKey,
         annotationTableRows,
+        isPhoto,
         isDark,
         selectedAnnotationKeys,
         toggleAnnotationRowSelected,
@@ -2392,6 +2400,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
         setFormSoundTypeSoundId(
             typeof a.sound_id === "number" && !Number.isNaN(a.sound_id) ? a.sound_id : null,
         )
+        setFormObjectType(a.object_type ?? null)
         const sci = (a.taxon_scientific_name ?? "").trim()
         const com = (a.taxon_common_name ?? "").trim()
         if (sci && com) {
@@ -4798,15 +4807,19 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
         if (!annotationDraft) return
         setSavePending(true)
         try {
-            if (formSoundscape === null) {
+            if (isPhoto && formObjectType === null) {
+                message.error("Please select Object Type")
+                return
+            }
+            if (!isPhoto && formSoundscape === null) {
                 message.error("Please select Soundscape")
                 return
             }
-            if (formSoundTypeSoundId == null) {
+            if (!isPhoto && formSoundTypeSoundId == null) {
                 message.error("Please select Sound Type")
                 return
             }
-            if (soundClassifications.length === 0) {
+            if (!isPhoto && soundClassifications.length === 0) {
                 message.error("Sound classifications unavailable. Refresh and try again.")
                 return
             }
@@ -4821,7 +4834,8 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                 max_x,
                 min_y,
                 max_y,
-                sound_id: formSoundTypeSoundId,
+                sound_id: isPhoto ? null : formSoundTypeSoundId,
+                object_type: isPhoto ? formObjectType : null,
             }
 
             if (formUncertain === "true") patch.uncertain = true
@@ -4831,11 +4845,27 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
             if (c) patch.comments = c
             else patch.comments = null
 
-            const bio = formSoundscape.toLowerCase() === "biophony"
-            if (bio) {
+            if (formReference === "true") patch.reference = true
+            else if (formReference === "false") patch.reference = false
+
+            const bio = !isPhoto && formSoundscape!.toLowerCase() === "biophony"
+            if (isPhoto && formObjectType === "other") {
+                patch.taxon_id = null
+                patch.uncertain = null
+                patch.individual_num = null
+                patch.animal_sound_type = null
+                patch.sound_distance_m = null
+                patch.distance_not_estimable = null
+                patch.confidence = null
+            } else if (isPhoto) {
                 patch.individual_num = Math.max(1, Math.trunc(formIndividualNum) || 1)
-                if (formReference === "true") patch.reference = true
-                else if (formReference === "false") patch.reference = false
+                patch.taxon_id = formTaxonId == null ? null : Math.trunc(formTaxonId)
+                patch.animal_sound_type = null
+                patch.sound_distance_m = null
+                patch.distance_not_estimable = null
+                patch.confidence = null
+            } else if (bio) {
+                patch.individual_num = Math.max(1, Math.trunc(formIndividualNum) || 1)
                 if (formAnimalSound.trim()) {
                     patch.animal_sound_type = formAnimalSound.trim()
                 } else {
@@ -4946,6 +4976,8 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
         formReference,
         formSoundTypeSoundId,
         formSoundscape,
+        formObjectType,
+        isPhoto,
         formTaxonId,
         formTaxonSearch,
         formUncertain,
@@ -6840,7 +6872,16 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                                                                     </Form.Item>
                                                                 </Col>
                                                             </Row>
-                                                            <Row gutter={[14, 0]}>
+                                                            {isPhoto ? (
+                                                                <Row gutter={[14, 0]}>
+                                                                    <Col xs={24} sm={12}>
+                                                                        <Form.Item label={renderStudioRequiredLabel("Object Type")} className="studio-annot-form-item">
+                                                                            <Select className="form-drawer-select" options={[{ value: "organism", label: "Organism" }, { value: "other", label: "Other" }]} value={formObjectType ?? undefined} onChange={(value) => setFormObjectType(value ?? null)} />
+                                                                        </Form.Item>
+                                                                    </Col>
+                                                                </Row>
+                                                            ) : null}
+                                                            <Row gutter={[14, 0]} style={isPhoto ? { display: "none" } : undefined}>
                                                                 <Col xs={24} sm={12}>
                                                                     <Form.Item label={renderStudioRequiredLabel("Soundscape")} className="studio-annot-form-item">
                                                                         <Select
@@ -6880,7 +6921,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                                                                     </Form.Item>
                                                                 </Col>
                                                             </Row>
-                                                            {isBiophonyAnnotationForm ? (
+                                                            {(isPhoto ? formObjectType === "organism" : isBiophonyAnnotationForm) ? (
                                                                 <>
                                                                     <Row gutter={[14, 0]}>
                                                                         <Col xs={24} sm={12}>
@@ -7045,7 +7086,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                                                                             </Form.Item>
                                                                         </Col>
                                                                     </Row>
-                                                                    <Row gutter={[14, 0]}>
+                                                                    {!isPhoto ? <Row gutter={[14, 0]}>
                                                                         <Col xs={24} sm={12}>
                                                                             <Form.Item label="Animal Sound" className="studio-annot-form-item">
                                                                                 <Select
@@ -7114,7 +7155,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                                                                                 </Space.Compact>
                                                                             </div>
                                                                         </Col>
-                                                                    </Row>
+                                                                    </Row> : null}
                                                                     <Row gutter={[14, 0]}>
                                                                         <Col xs={24} sm={12}>
                                                                             <Form.Item label="Indiv. Num" className="studio-annot-form-item">

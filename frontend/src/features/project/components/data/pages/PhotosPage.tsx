@@ -23,6 +23,7 @@ import {
 import { useMediaTableData } from "./useMediaTableData"
 import { useMediaUploadQueue } from "./useMediaUploadQueue"
 import { usersApi, type UserOption } from "../../../../../api/endpoints/users"
+import { isAbortError, pollAnalysisQueues } from "../../modals/utils/analysisQueuePolling"
 
 const COLUMNS: ColumnDef[] = [
     { key: "media_id", label: "ID", type: "number", width: "80px", sortable: true, filterable: true },
@@ -85,6 +86,7 @@ export function PhotosPage() {
     const [metadataImportResultOpen, setMetadataImportResultOpen] = useState(false)
     const [metadataImportResult, setMetadataImportResult] = useState<CsvImportResult | null>(null)
     const [creatorOptions, setCreatorOptions] = useState<UserOption[]>([])
+    const mediaProcessingAbortRef = useRef<AbortController | null>(null)
     const {
         rows,
         totalRows,
@@ -98,6 +100,43 @@ export function PhotosPage() {
         refresh,
     } = useMediaTableData("photo", currentProjectId, currentCollectionId)
     const uploadQueue = useMediaUploadQueue("photo", currentCollectionId)
+
+    useEffect(() => () => {
+        mediaProcessingAbortRef.current?.abort()
+    }, [])
+
+    const refreshAfterMediaProcessing = useCallback(async (queueId: number) => {
+        mediaProcessingAbortRef.current?.abort()
+        const controller = new AbortController()
+        mediaProcessingAbortRef.current = controller
+        let timedOut = false
+        const timeoutId = window.setTimeout(() => {
+            timedOut = true
+            controller.abort()
+        }, 120_000)
+
+        try {
+            const summary = await pollAnalysisQueues([queueId], controller.signal)
+            const failedStatus = summary.failed[0]
+            if (failedStatus) {
+                message.warning(failedStatus.error || failedStatus.warning || "Some photos could not be processed.")
+            }
+            refresh()
+        } catch (error) {
+            if (timedOut) {
+                message.info("Photo processing is taking longer than expected. Please refresh the table later to see the results.")
+                refresh()
+            } else if (!isAbortError(error)) {
+                console.error("Failed to monitor photo processing queue:", error)
+                message.info("Photo upload was submitted. Refresh the table later to see the processed files.")
+            }
+        } finally {
+            window.clearTimeout(timeoutId)
+            if (mediaProcessingAbortRef.current === controller) {
+                mediaProcessingAbortRef.current = null
+            }
+        }
+    }, [refresh])
 
     useEffect(() => {
         if (!currentProjectId || !currentCollectionId || currentCollectionId === "all") {
@@ -426,9 +465,13 @@ export function PhotosPage() {
                         note: formData.note as string | undefined,
                         doi: formData.doi as string | undefined,
                     }, currentProjectId ? { project_id: Number(currentProjectId) } : undefined)
-                    message.success(`Upload queue ${response.data?.queue_id ?? ""} submitted.`)
+                    const queueId = response.data?.queue_id
+                    message.success("Photo upload submitted. Processing will continue in the background.")
                     uploadQueue.reset()
                     refresh()
+                    if (queueId) {
+                        void refreshAfterMediaProcessing(queueId)
+                    }
                 }}
             />
 

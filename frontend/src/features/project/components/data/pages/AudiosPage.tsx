@@ -168,8 +168,6 @@ export function AudiosPage() {
             const failedStatus = summary.failed[0]
             if (failedStatus) {
                 message.warning(failedStatus.error || failedStatus.warning || "Some audio files could not be processed.")
-            } else {
-                message.success("Audio processing completed. The table has been refreshed.")
             }
             refresh()
         } catch (error) {

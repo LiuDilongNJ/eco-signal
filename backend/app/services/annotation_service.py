@@ -24,6 +24,38 @@ from app.schemas.review import ReviewRead
 from app.services import permission_service
 
 
+_PHOTO_AUDIO_FIELDS = (
+    "sound_id", "animal_sound_type", "sound_distance_m", "distance_not_estimable", "confidence",
+)
+_PHOTO_ORGANISM_FIELDS = ("taxon_id", "uncertain", "individual_num")
+
+
+def _normalize_annotation_fields(media_type: str, values: dict) -> dict:
+    if media_type == "audio":
+        if values.get("sound_id") is None:
+            raise HTTPException(status_code=422, detail="Audio annotations require a sound type")
+        if values.get("object_type") is not None:
+            raise HTTPException(status_code=422, detail="Audio annotations must not define an object type")
+        values["object_type"] = None
+        if values.get("individual_num") is None:
+            values["individual_num"] = 1
+        return values
+
+    if media_type != "photo":
+        raise HTTPException(status_code=422, detail="Annotations are supported for audio and photo media only")
+    object_type = values.get("object_type")
+    if object_type not in {"organism", "other"}:
+        raise HTTPException(status_code=422, detail="Photo annotations require an object type")
+    for field in _PHOTO_AUDIO_FIELDS:
+        values[field] = None
+    if object_type == "other":
+        for field in _PHOTO_ORGANISM_FIELDS:
+            values[field] = None
+    elif values.get("individual_num") is None:
+        values["individual_num"] = 1
+    return values
+
+
 def _validate_annotation_bounds(session: Session, media_id: int, min_x: float, max_x: float, min_y: float, max_y: float) -> None:
     """Validate rectangle coordinates; photo annotations use original-image pixels."""
     if min_x < 0 or min_y < 0 or max_x <= min_x or max_y <= min_y:
@@ -55,7 +87,7 @@ _ANNOTATION_EXPORT_COLUMNS = [
     CsvColumn("media_name"), CsvColumn("media_type"), CsvColumn("min_x"),
     CsvColumn("max_x"), CsvColumn("min_y"),
     CsvColumn("max_y"), CsvColumn("creator_type"),
-    CsvColumn("soundscape_component"), CsvColumn("sound_type"),
+    CsvColumn("object_type"), CsvColumn("soundscape_component"), CsvColumn("sound_type"),
     CsvColumn("taxon_scientific_name"), CsvColumn("animal_sound_type"),
     CsvColumn("confidence"), CsvColumn("uncertain"),
     CsvColumn("sound_distance_m"), CsvColumn("distance_not_estimable"),
@@ -410,6 +442,10 @@ def create_annotation(
             detail="You do not have write permission for annotations in this media's collection"
         )
 
+    media = session.get(Media, data.media_id)
+    if media is None:
+        raise HTTPException(status_code=404, detail="Media not found")
+    payload = _normalize_annotation_fields(media.media_type, data.model_dump())
     _validate_annotation_bounds(session, data.media_id, data.min_x, data.max_x, data.min_y, data.max_y)
         
     # 3. Create annotation
@@ -419,18 +455,19 @@ def create_annotation(
         max_x=data.max_x,
         min_y=data.min_y,
         max_y=data.max_y,
-        sound_id=data.sound_id,
-        reference=data.reference,
-        comments=data.comments,
-        taxon_id=data.taxon_id,
-        uncertain=data.uncertain,
-        sound_distance_m=data.sound_distance_m,
-        distance_not_estimable=data.distance_not_estimable,
-        individual_num=data.individual_num,
+        sound_id=payload["sound_id"],
+        object_type=payload["object_type"],
+        reference=payload["reference"],
+        comments=payload["comments"],
+        taxon_id=payload["taxon_id"],
+        uncertain=payload["uncertain"],
+        sound_distance_m=payload["sound_distance_m"],
+        distance_not_estimable=payload["distance_not_estimable"],
+        individual_num=payload["individual_num"],
         creator_id=current_user.user_id,
         creator_type=data.creator_type,
-        confidence=data.confidence,
-        animal_sound_type=data.animal_sound_type,
+        confidence=payload["confidence"],
+        animal_sound_type=payload["animal_sound_type"],
         creation_date=datetime.now(UTC),
     )
     
@@ -495,7 +532,19 @@ def update_annotation(
         update_data.get("max_y", annotation.max_y),
     )
         
-    annotation_repository.update(session, db_obj=annotation, obj_in=update_data)
+    media = session.get(Media, annotation.media_id)
+    if media is None:
+        raise HTTPException(status_code=404, detail="Media not found")
+    final_values = {
+        field: getattr(annotation, field)
+        for field in (*_PHOTO_AUDIO_FIELDS, *_PHOTO_ORGANISM_FIELDS, "object_type", "reference", "comments", "sound_id")
+    }
+    final_values.update(update_data)
+    annotation_repository.update(
+        session,
+        db_obj=annotation,
+        obj_in=_normalize_annotation_fields(media.media_type, final_values),
+    )
 
 
 def delete_annotation(

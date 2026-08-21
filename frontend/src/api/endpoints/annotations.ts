@@ -22,6 +22,7 @@ export interface AnnotationPublic {
     min_y: number
     max_y: number
     sound_id?: number | null
+    object_type?: "organism" | "other" | null
     soundscape_component?: string | null
     sound_type?: string | null
     reference?: boolean
@@ -32,7 +33,7 @@ export interface AnnotationPublic {
     uncertain?: boolean | null
     sound_distance_m?: number | null
     distance_not_estimable?: boolean | null
-    individual_num?: number
+    individual_num?: number | null
     animal_sound_type?: string | null
     creator_id: number
     creator_name?: string | null
@@ -68,13 +69,14 @@ export interface CreateAnnotationPayload {
     min_y: number
     max_y: number
     sound_id?: number | null
+    object_type?: "organism" | "other" | null
     reference?: boolean
     comments?: string | null
     taxon_id?: number | null
     uncertain?: boolean | null
     sound_distance_m?: number | null
     distance_not_estimable?: boolean | null
-    individual_num?: number
+    individual_num?: number | null
     animal_sound_type?: string | null
     creator_type?: string
     confidence?: number | null
@@ -94,13 +96,14 @@ export interface UpdateAnnotationPayload {
     min_y?: number
     max_y?: number
     sound_id?: number | null
+    object_type?: "organism" | "other" | null
     reference?: boolean
     comments?: string | null
     taxon_id?: number | null
     uncertain?: boolean | null
     sound_distance_m?: number | null
     distance_not_estimable?: boolean | null
-    individual_num?: number
+    individual_num?: number | null
     confidence?: number | null
     animal_sound_type?: string | null
 }

@@ -1,5 +1,6 @@
-import { Typography } from "@/components/ui"
-import { List as ListIcon } from "lucide-react"
+import { Button, Typography } from "@/components/ui"
+import { List as ListIcon, Trash2 } from "lucide-react"
+import type { ReactNode } from "react"
 
 const { Title } = Typography
 
@@ -16,6 +17,9 @@ interface SettingsRelationDetailListProps {
     fallbackLabel: string
     emptyMessage: string
     isDark: boolean
+    action?: ReactNode
+    onRemove?: (id: number) => void
+    removingId?: number | null
 }
 
 export function SettingsRelationDetailList({
@@ -24,12 +28,18 @@ export function SettingsRelationDetailList({
     fallbackLabel,
     emptyMessage,
     isDark,
+    action,
+    onRemove,
+    removingId,
 }: SettingsRelationDetailListProps) {
     return (
         <div>
-            <Title level={5} style={{ marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
-                <ListIcon size={16} /> {title}
-            </Title>
+            <div style={{ marginBottom: 12, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                <Title level={5} style={{ margin: 0, display: "flex", alignItems: "center", gap: 8 }}>
+                    <ListIcon size={16} /> {title}
+                </Title>
+                {action}
+            </div>
             {items.length > 0 ? (
                 <div
                     style={{
@@ -63,20 +73,33 @@ export function SettingsRelationDetailList({
                                     </div>
                                 )}
                             </div>
-                            {item.isDefault && (
-                                <span
-                                    style={{
-                                        fontSize: 10,
-                                        background: "var(--brand)",
-                                        color: "var(--text-invert)",
-                                        padding: "2px 6px",
-                                        borderRadius: 4,
-                                        fontWeight: 600,
-                                    }}
-                                >
-                                    DEFAULT
-                                </span>
-                            )}
+                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                {item.isDefault && (
+                                    <span
+                                        style={{
+                                            fontSize: 10,
+                                            background: "var(--brand)",
+                                            color: "var(--text-invert)",
+                                            padding: "2px 6px",
+                                            borderRadius: 4,
+                                            fontWeight: 600,
+                                        }}
+                                    >
+                                        DEFAULT
+                                    </span>
+                                )}
+                                {onRemove && (
+                                    <Button
+                                        type="text"
+                                        size="small"
+                                        danger
+                                        icon={<Trash2 size={14} />}
+                                        loading={removingId === item.id}
+                                        aria-label={`Remove ${item.name || `${fallbackLabel} #${item.id}`}`}
+                                        onClick={() => onRemove(item.id)}
+                                    />
+                                )}
+                            </div>
                         </div>
                     ))}
                 </div>

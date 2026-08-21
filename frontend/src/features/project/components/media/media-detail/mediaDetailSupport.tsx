@@ -503,6 +503,23 @@ export const STUDIO_ANNOTATION_COLUMNS: ColumnDef[] = [
     { key: "comments", label: "Comments", type: "text", sortable: true, filterable: true, width: 220 },
 ]
 
+/** Photo annotations use object classification fields instead of audio soundscape fields. */
+export const PHOTO_STUDIO_ANNOTATION_COLUMNS: ColumnDef[] = [
+    { key: "annotation_id", label: "ID", type: "number", sortable: true, filterable: true, width: 150 },
+    { key: "uuid", label: "UUID", type: "text", sortable: true, filterable: true, width: 320 },
+    { key: "min_x", label: "Min X", type: "number", sortable: true, filterable: true, filterType: "numberRange", width: 280 },
+    { key: "max_x", label: "Max X", type: "number", sortable: true, filterable: true, filterType: "numberRange", width: 280 },
+    { key: "min_y", label: "Min Y", type: "number", sortable: true, filterable: true, filterType: "numberRange", width: 280 },
+    { key: "max_y", label: "Max Y", type: "number", sortable: true, filterable: true, filterType: "numberRange", width: 280 },
+    { key: "object_type", label: "Object Type", type: "text", sortable: true, filterable: true, filterOptions: ["organism", "other"], width: 160 },
+    { key: "creator_type", label: "Creator", type: "text", sortable: true, filterable: true, filterSearch: true, width: 140 },
+    { key: "taxon_name", label: "Taxon", type: "text", sortable: true, filterable: true, width: 180 },
+    { key: "uncertain", label: "Uncertain", type: "boolean", sortable: true, filterable: true, filterOptions: ["true", "false"], width: 120 },
+    { key: "individual_num", label: "Indiv. Num", type: "number", sortable: true, filterable: true, filterType: "numberRange", width: 180 },
+    { key: "reference", label: "Reference", type: "badge", sortable: true, filterable: true, filterOptions: ["True", "False"], width: 120 },
+    { key: "comments", label: "Comments", type: "text", sortable: true, filterable: true, width: 220 },
+]
+
 export type StudioAnnotationRow = {
     annotation_id: number
     uuid: string
@@ -511,6 +528,7 @@ export type StudioAnnotationRow = {
     min_y: number
     max_y: number
     sound_id: number | null
+    object_type: "organism" | "other" | null
     creator_type: string
     soundscape_component: string
     sound_type: string
@@ -551,6 +569,7 @@ export function annotationPublicToStudioRow(
         min_y: a.min_y,
         max_y: a.max_y,
         sound_id: a.sound_id ?? null,
+        object_type: a.object_type ?? null,
         creator_type: a.creator_type ?? "",
         soundscape_component: a.soundscape_component ?? "",
         sound_type: a.sound_type ?? "",

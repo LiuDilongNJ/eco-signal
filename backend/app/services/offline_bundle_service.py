@@ -66,6 +66,7 @@ from app.schemas.offline_bundle import (
     OfflineBundlePayloads,
     OfflineMediaPayload,
 )
+from app.services.annotation_service import _normalize_annotation_fields
 from app.repositories.label_repository import label_repository
 from app.services import permission_service
 from app.services.media_preview_service import generate_media_previews
@@ -206,6 +207,7 @@ def _annotation_payload(annotation: Annotation) -> dict[str, Any]:
         "uuid": str(annotation.uuid),
         "media_uuid": str(annotation.media.uuid) if annotation.media else None,
         "sound_id": annotation.sound_id,
+        "object_type": annotation.object_type,
         "creator_id": annotation.creator_id,
         "taxon_id": annotation.taxon_id,
         "creator_type": annotation.creator_type,
@@ -1136,7 +1138,10 @@ def _import_bundle_payloads(
                 )
             )
             continue
-        if annotation_item["sound_id"] not in valid_sound_ids:
+        media = session.get(Media, media_id)
+        if media is None:
+            continue
+        if media.media_type == "audio" and annotation_item["sound_id"] not in valid_sound_ids:
             result.skipped_counts.annotations += 1
             result.warnings.append(
                 DataImportWarning(
@@ -1156,6 +1161,7 @@ def _import_bundle_payloads(
         annotation = Annotation(
             uuid=annotation_item["uuid"],
             sound_id=annotation_item["sound_id"],
+            object_type=annotation_item.get("object_type"),
             media_id=media_id,
             creator_id=_resolve_user_id(session, annotation_item.get("creator_id"), current_user),
             taxon_id=annotation_item.get("taxon_id") if annotation_item.get("taxon_id") in valid_taxon_ids else None,
@@ -1173,6 +1179,8 @@ def _import_bundle_payloads(
             reference=bool(annotation_item.get("reference", False)),
             comments=annotation_item.get("comments"),
         )
+        normalized = _normalize_annotation_fields(media.media_type, annotation.model_dump())
+        annotation.sqlmodel_update(normalized)
         session.add(annotation)
         session.flush()
         annotation_map[str(annotation.uuid)] = annotation.annotation_id
