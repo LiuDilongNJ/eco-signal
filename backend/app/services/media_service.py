@@ -58,7 +58,7 @@ from app.models import (
 )
 from app.models.media import Preview
 from app.models.project import Project
-from app.repositories import media_repository, permission_repository, project_repository
+from app.repositories import media_repository, permission_repository, project_repository, user_repository
 from app.repositories.collection_scope import resolve_project_collection_scope
 from app.schemas.media import (
     MediaBatchFailedItem,
@@ -490,8 +490,70 @@ class DetailAssetBundle:
     key: str
 
 
+def _resolve_creator_id(
+    session: Session,
+    requested_creator_id: int | None,
+    current_user: User,
+    collection_ids: list[int],
+    project_id: int | None,
+) -> int:
+    """Resolve the selected creator and ensure it belongs to the upload scope."""
+    if requested_creator_id is None or requested_creator_id == current_user.user_id:
+        return current_user.user_id
+
+    creator = session.get(User, requested_creator_id)
+    if creator is None:
+        raise HTTPException(status_code=404, detail="Creator user not found")
+    if permission_service.is_admin(creator):
+        return creator.user_id
+    if permission_service.is_admin(current_user):
+        return creator.user_id
+
+    project_write_ids = permission_repository.get_project_ids_with_write_permission(
+        session, current_user.user_id
+    )
+    project_write_set = set(project_write_ids)
+    collection_write_scopes = [
+        scope
+        for scope in permission_repository.get_effective_collection_scopes(
+            session,
+            current_user.user_id,
+            resource_type="collection",
+            action="write",
+        )
+        if scope[0] not in project_write_set
+    ]
+    for collection_id in collection_ids:
+        resolved_project_id = permission_service.resolve_collection_project_id(
+            session, collection_id, project_id
+        )
+        allowed_user_condition = user_repository.build_manager_scope_user_condition(
+            [resolved_project_id] if resolved_project_id in project_write_set else [],
+            [(resolved_project_id, collection_id)]
+            if (resolved_project_id, collection_id) in collection_write_scopes
+            else [],
+        )
+        target_is_allowed = session.exec(
+            select(User.user_id).where(
+                User.user_id == creator.user_id,
+                allowed_user_condition,
+            )
+        ).first()
+        if target_is_allowed is not None:
+            return creator.user_id
+
+    raise HTTPException(
+        status_code=403,
+        detail="Creator is not available in the current project or collection",
+    )
+
+
 async def create_media(
-    session: Session, request: MediaCreate, current_user: User, publisher: TaskPublisher
+    session: Session,
+    request: MediaCreate,
+    current_user: User,
+    publisher: TaskPublisher,
+    project_id: int | None = None,
 ) -> MediaCreateResponse:
     """
     Create media from a batch of uploaded files.
@@ -516,6 +578,14 @@ async def create_media(
     failed: list[MediaCreateFailedItem] = []
     filename_datetime_warnings: list[str] = []
     filename_prefix = request.filename_prefix or ""
+
+    creator_id = _resolve_creator_id(
+        session,
+        request.creator_id,
+        current_user,
+        [request.collection_id],
+        project_id,
+    )
     shared_date_time_parts: tuple[str | None, str | None] = (None, None)
     if request.date_from_filename:
         fallback_date_time = request.date_time or _LEGACY_FILENAME_DATETIME_FALLBACK
@@ -640,6 +710,7 @@ async def create_media(
             site_id=request.site_id,
             sensor_id=request.sensor_id,
             license_id=request.license_id,
+            creator_id=creator_id,
             medium=request.medium,
             media_type=request.media_type,
             recording_gain_db=request.recording_gain_db,
@@ -3084,6 +3155,8 @@ def update_media(
     session: Session,
     media_id: int,
     media_in: MediaUpdate,
+    current_user: User | None = None,
+    project_id: int | None = None,
 ) -> None:
     """
     Update a media record.
@@ -3140,6 +3213,35 @@ def update_media(
         )
 
     update_data = _sanitize_media_update_payload(media, raw_payload)
+    if "creator_id" in raw_payload:
+        if raw_payload["creator_id"] is None:
+            update_data["creator_id"] = None
+        else:
+            if current_user is None or project_id is None:
+                raise HTTPException(status_code=400, detail="Creator update requires project context")
+            collection_ids = list(session.exec(
+                select(MediaCollection.collection_id)
+                .join(
+                    ProjectCollection,
+                    ProjectCollection.collection_id == MediaCollection.collection_id,
+                )
+                .where(
+                    MediaCollection.media_id == media_id,
+                    ProjectCollection.project_id == project_id,
+                )
+            ).all())
+            if not collection_ids:
+                raise HTTPException(
+                    status_code=403,
+                    detail="Media is not linked to the current project",
+                )
+            update_data["creator_id"] = _resolve_creator_id(
+                session,
+                raw_payload["creator_id"],
+                current_user,
+                collection_ids,
+                project_id,
+            )
     if "date_time" in update_data and update_data["date_time"]:
         update_data["date_time"] = datetime.strptime(
             update_data["date_time"], "%Y-%m-%d %H:%M:%S"
@@ -3209,6 +3311,7 @@ def _sanitize_media_update_payload(media: Media, update_data: dict[str, Any]) ->
         "site_id",
         "sensor_id",
         "license_id",
+        "creator_id",
         "duty_cycle_recording",
         "duty_cycle_period",
     }

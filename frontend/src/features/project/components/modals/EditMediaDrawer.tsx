@@ -14,6 +14,7 @@ import { mediaApi } from "../../../../api/endpoints/media"
 import type { SiteOption } from "../../../../api/endpoints/sites"
 import type { LicenseOption } from "../../../../api/endpoints/licenses"
 import type { SensorOption } from "../../../../api/endpoints/sensors"
+import type { UserOption } from "../../../../api/endpoints/users"
 import {
     buildMediaUpdatePayload,
     filterSensorsForMediaType,
@@ -40,6 +41,7 @@ export interface EditMediaDrawerProps {
     siteOptions?: SiteOption[]
     licenseOptions?: LicenseOption[]
     sensorOptions?: SensorOption[]
+    userOptions?: UserOption[]
     onClose: () => void
     onSuccess?: () => void
 }
@@ -51,6 +53,7 @@ export function EditMediaDrawer({
     siteOptions = [],
     licenseOptions = [],
     sensorOptions = [],
+    userOptions = [],
     onClose,
     onSuccess
 }: EditMediaDrawerProps) {
@@ -115,6 +118,7 @@ export function EditMediaDrawer({
                     size_b: rest.size_b,
                     uploader: rest.uploader_name ?? rest.uploader ?? null,
                     creator: rest.creator_name ?? rest.creator ?? null,
+                    creator_id: rest.creator_id,
                     creation_date: rest.creation_date ? dayjs(rest.creation_date).format('YYYY-MM-DD HH:mm:ss') : null,
                 })
             }
@@ -339,6 +343,17 @@ export function EditMediaDrawer({
                                 <Form.Item name="note" label={<StableText>Note</StableText>}>
                                     <Input />
                                 </Form.Item>
+
+                                <Form.Item name="creator_id" label={<StableText>Creator</StableText>} required={false}>
+                                    <Select
+                                        className="form-drawer-select"
+                                        classNames={{ popup: { root: selectPopupClassName } }}
+                                        getPopupContainer={(trigger) => trigger.parentElement ?? document.body}
+                                        options={userOptions.map((user) => ({ label: user.name, value: user.user_id }))}
+                                        allowClear
+                                        notFoundContent={selectEmptyState}
+                                    />
+                                </Form.Item>
                             </div>
 
                             <div className="form-drawer-side-col">
@@ -387,10 +402,6 @@ export function EditMediaDrawer({
                                 ) : null}
 
                                 <Form.Item name="uploader" label={<StableText>Uploader</StableText>} required={false}>
-                                    <Input disabled className="media-readonly-field" />
-                                </Form.Item>
-
-                                <Form.Item name="creator" label={<StableText>Creator</StableText>} required={false}>
                                     <Input disabled className="media-readonly-field" />
                                 </Form.Item>
 

@@ -34,6 +34,7 @@ type AddPhotoProps = {
     licenses: LicenseOption[]
     sensors: SensorOption[]
     userOptions?: UserOption[]
+    currentUserId?: number | null
     onClose: () => void
     onAddFiles: () => void
     onRetry?: (file: QueueFile) => void
@@ -48,6 +49,7 @@ type EditPhotoProps = {
     sites: SiteOption[]
     licenses: LicenseOption[]
     sensors: SensorOption[]
+    userOptions?: UserOption[]
     onClose: () => void
     onSuccess?: () => void
 }
@@ -58,7 +60,8 @@ const selectPopupClassName = "form-drawer-select-popup"
 
 export function PhotoMediaDrawer(props: PhotoMediaDrawerProps) {
     const { open, sites, licenses, sensors, onClose } = props
-    const userOptions = props.mode === "add" ? props.userOptions ?? [] : []
+    const userOptions = props.userOptions ?? []
+    const currentUserId = props.mode === "add" ? props.currentUserId ?? null : null
     const mode = props.mode
     const editMediaId = props.mode === "edit" ? props.mediaId : null
     const editProjectId = props.mode === "edit" ? props.projectId : null
@@ -92,7 +95,7 @@ export function PhotoMediaDrawer(props: PhotoMediaDrawerProps) {
         if (mode === "add") {
             setLoading(false)
             setDateFromFilename(false)
-            form.setFieldsValue({ medium: "Air" })
+            form.setFieldsValue({ medium: "Air", creator_id: currentUserId ?? undefined })
             return
         }
         if (!editMediaId || !editProjectId) return
@@ -125,6 +128,7 @@ export function PhotoMediaDrawer(props: PhotoMediaDrawerProps) {
                     iso: media.photo_setting?.iso,
                     uploader: media.uploader_name ?? media.uploader_id,
                     creator: media.creator_name ?? media.creator_id,
+                    creator_id: media.creator_id,
                     creation_date: media.creation_date,
                 })
             })
@@ -139,7 +143,7 @@ export function PhotoMediaDrawer(props: PhotoMediaDrawerProps) {
         return () => {
             cancelled = true
         }
-    }, [editMediaId, editProjectId, form, mode, open])
+    }, [currentUserId, editMediaId, editProjectId, form, mode, open])
 
     const handleFinish = async (values: Record<string, unknown>) => {
         setSaving(true)
@@ -300,23 +304,22 @@ export function PhotoMediaDrawer(props: PhotoMediaDrawerProps) {
                     notFoundContent={selectEmptyState}
                 />
             </Form.Item>
-            {props.mode === "add" ? (
-                <Form.Item name="creator_id" label={<StableText>Creator</StableText>}>
-                    <Select
-                        showSearch
-                        optionFilterProp="label"
-                        className="form-drawer-select"
-                        classNames={{ popup: { root: selectPopupClassName } }}
-                        notFoundContent={selectEmptyState}
-                        options={userOptions.map((user) => ({ value: user.user_id, label: user.name }))}
-                    />
-                </Form.Item>
-            ) : null}
             <Form.Item name="doi" label={<StableText>DOI</StableText>}>
                 <Input maxLength={255} />
             </Form.Item>
-            <Form.Item name="note" label={<StableText>Note</StableText>} className="photo-media-drawer-note-item">
+            <Form.Item name="note" label={<StableText>Note</StableText>}>
                 <Input maxLength={500} />
+            </Form.Item>
+            <Form.Item name="creator_id" label={<StableText>Creator</StableText>}>
+                <Select
+                    showSearch
+                    optionFilterProp="label"
+                    className="form-drawer-select"
+                    classNames={{ popup: { root: selectPopupClassName } }}
+                    notFoundContent={selectEmptyState}
+                    options={userOptions.map((user) => ({ value: user.user_id, label: user.name }))}
+                    allowClear
+                />
             </Form.Item>
         </>
     )
@@ -477,7 +480,6 @@ export function PhotoMediaDrawer(props: PhotoMediaDrawerProps) {
                                         <Form.Item name="aperture" label={<StableText>Aperture</StableText>}><Input disabled className="media-readonly-field" /></Form.Item>
                                         <Form.Item name="iso" label={<StableText>ISO</StableText>}><Input disabled className="media-readonly-field" /></Form.Item>
                                         <Form.Item name="uploader" label={<StableText>Uploader</StableText>}><Input disabled className="media-readonly-field" /></Form.Item>
-                                        <Form.Item name="creator" label={<StableText>Creator</StableText>}><Input disabled className="media-readonly-field" /></Form.Item>
                                         <Form.Item name="creation_date" label={<StableText>Created</StableText>}><Input disabled className="media-readonly-field" /></Form.Item>
                                     </div>
                                 </>

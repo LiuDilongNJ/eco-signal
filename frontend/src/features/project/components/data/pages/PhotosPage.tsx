@@ -22,8 +22,8 @@ import {
 } from "./mediaTablePresentation"
 import { useMediaTableData } from "./useMediaTableData"
 import { useMediaUploadQueue } from "./useMediaUploadQueue"
-import { usersApi, type UserOption } from "../../../../../api/endpoints/users"
 import { isAbortError, pollAnalysisQueues } from "../../modals/utils/analysisQueuePolling"
+import { useCreatorOptions } from "./useCreatorOptions"
 
 const COLUMNS: ColumnDef[] = [
     { key: "media_id", label: "ID", type: "number", width: "80px", sortable: true, filterable: true },
@@ -85,7 +85,6 @@ export function PhotosPage() {
     const [instructionsOpen, setInstructionsOpen] = useState(false)
     const [metadataImportResultOpen, setMetadataImportResultOpen] = useState(false)
     const [metadataImportResult, setMetadataImportResult] = useState<CsvImportResult | null>(null)
-    const [creatorOptions, setCreatorOptions] = useState<UserOption[]>([])
     const mediaProcessingAbortRef = useRef<AbortController | null>(null)
     const {
         rows,
@@ -100,6 +99,7 @@ export function PhotosPage() {
         refresh,
     } = useMediaTableData("photo", currentProjectId, currentCollectionId)
     const uploadQueue = useMediaUploadQueue("photo", currentCollectionId)
+    const { creatorOptions, currentUserId } = useCreatorOptions(currentProjectId, currentCollectionId)
 
     useEffect(() => () => {
         mediaProcessingAbortRef.current?.abort()
@@ -137,32 +137,6 @@ export function PhotosPage() {
             }
         }
     }, [refresh])
-
-    useEffect(() => {
-        if (!currentProjectId || !currentCollectionId || currentCollectionId === "all") {
-            setCreatorOptions([])
-            return
-        }
-        usersApi.getUsers({
-            page: 1,
-            page_size: 100,
-            project_id: Number(currentProjectId),
-            collection_id: Number(currentCollectionId),
-            scope: "current",
-            order_by: "name",
-            order_dir: "asc",
-        }).then((response) => setCreatorOptions(
-            (response.data ?? []).map((user) => ({
-                user_id: user.user_id,
-                name: user.name || user.username || String(user.user_id),
-                username: user.username,
-            })),
-        ))
-            .catch((error) => {
-                console.error("Failed to fetch creator options:", error)
-                setCreatorOptions([])
-            })
-    }, [currentCollectionId, currentProjectId])
 
     const handleView = useCallback((selectedRowKeys: unknown[]) => {
         if (!currentProjectId) {
@@ -432,6 +406,7 @@ export function PhotosPage() {
                 licenses={licenseOptions}
                 sensors={sensorOptions}
                 userOptions={creatorOptions}
+                currentUserId={currentUserId}
                 onClose={uploadQueue.reset}
                 onAddFiles={() => fileInputRef.current?.click()}
                 onRetry={uploadQueue.retryUpload}
@@ -483,6 +458,7 @@ export function PhotosPage() {
                 sites={siteOptions}
                 licenses={licenseOptions}
                 sensors={sensorOptions}
+                userOptions={creatorOptions}
                 onClose={() => setEditMediaId(null)}
                 onSuccess={refresh}
             />

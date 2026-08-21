@@ -279,6 +279,59 @@ class TestMediaService:
             "display_filename": "rec.wav",
         }]
         assert mock_redis.enqueue_task.call_args.args[0] == WorkerTaskType.PROCESS_MEDIA_BATCH
+        assert kwargs["creator_id"] == user.user_id
+
+    async def test_create_media_passes_selected_creator_to_worker(self, db: Session, setup_data):
+        uploader = setup_data["user"]
+        creator = setup_data["admin"]
+        col = setup_data["collection"]
+        fu = FileUpload(
+            filename="selected-creator.wav",
+            name="selected-creator.wav",
+            directory=1,
+            path="/tmp/selected-creator.wav",
+            size=1024,
+            status=1,
+            uploader_id=uploader.user_id,
+        )
+        db.add(fu)
+        db.flush()
+
+        publisher = AsyncMock()
+        request = MediaCreate(
+            collection_id=col.collection_id,
+            file_upload_ids=[fu.file_upload_id],
+            media_type="audio",
+            creator_id=creator.user_id,
+            date_from_filename=True,
+        )
+
+        await media_service.create_media(
+            db,
+            request,
+            creator,
+            publisher,
+        )
+
+        assert publisher.enqueue_task.call_args.kwargs["creator_id"] == creator.user_id
+
+    async def test_create_media_rejects_unknown_creator(self, db: Session, setup_data):
+        request = MediaCreate(
+            collection_id=setup_data["collection"].collection_id,
+            file_upload_ids=[1],
+            creator_id=999999,
+            date_from_filename=True,
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            await media_service.create_media(
+                db,
+                request,
+                setup_data["user"],
+                AsyncMock(),
+            )
+
+        assert exc_info.value.status_code == 404
 
     async def test_create_media_reports_upload_time_duplicate_from_status(
         self, db: Session, setup_data

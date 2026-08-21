@@ -233,6 +233,7 @@ class TestProcessMediaTask:
                 ctx={},
                 file_upload_id=1,
                 collection_id=10,
+                creator_id=99,
                 media_type="photo",
                 recording_gain_db=8,
                 duty_cycle_recording=10,
@@ -245,6 +246,8 @@ class TestProcessMediaTask:
         assert not any(isinstance(obj, AudioSetting) for obj in created)
         assert created_media.audio_setting_id is None
         assert created_media.photo_setting_id == 100
+        assert created_media.uploader_id == 1
+        assert created_media.creator_id == 99
         assert created_media.duty_cycle_recording is None
         assert created_media.duty_cycle_period is None
         mock_move.assert_called_once()

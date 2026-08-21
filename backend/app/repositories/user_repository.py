@@ -330,7 +330,6 @@ class UserRepository(BaseRepository[User, UserCreate, UserUpdate]):
                 allowed_project_ids or [],
                 allowed_collection_scopes or [],
             )
-
         if dp is not None:
             base_query = base_query.where(dp)
             count_query = count_query.where(dp)
@@ -395,6 +394,48 @@ class UserRepository(BaseRepository[User, UserCreate, UserUpdate]):
             "page_size": page_size,
             "total_pages": total_pages,
         }
+
+    def get_creator_candidates(
+        self,
+        session: Session,
+        *,
+        project_id: int,
+        collection_id: int | None,
+        allowed_project_ids: list[int] | None,
+        allowed_collection_scopes: list[tuple[int, int]] | None,
+    ) -> list[User]:
+        """Return scoped Creator candidates plus all system administrators."""
+        admin_condition = User.role_id.in_(
+            select(Role.role_id).where(Role.name == settings.ADMIN_ROLE_NAME)
+        )
+        if allowed_project_ids is None and allowed_collection_scopes is None:
+            if collection_id is not None:
+                scoped_condition = User.user_id.in_(
+                    select(UserEffectivePermission.user_id).where(
+                        UserEffectivePermission.project_id == project_id,
+                        UserEffectivePermission.collection_id == collection_id,
+                        UserEffectivePermission.scope_type == "project_collection",
+                    )
+                )
+            else:
+                scoped_condition = User.user_id.in_(
+                    select(UserEffectivePermission.user_id).where(
+                        UserEffectivePermission.project_id == project_id,
+                    )
+                )
+        else:
+            scoped_condition = self.build_manager_scope_user_condition(
+                allowed_project_ids or [],
+                allowed_collection_scopes or [],
+            )
+
+        stmt = (
+            select(User)
+            .where(or_(scoped_condition, admin_condition))
+            .options(selectinload(User.role))
+            .order_by(User.name.asc(), User.user_id.asc())
+        )
+        return list(session.exec(stmt).all())
 
 
 # Singleton instance

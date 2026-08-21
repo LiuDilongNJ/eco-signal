@@ -166,6 +166,14 @@ class UserOption(SQLModel):
     user_id: int
     name: str
 
+
+class CreatorOption(SQLModel):
+    """Compact user representation for media Creator selectors."""
+    user_id: int
+    name: str
+    username: str
+    is_admin: bool
+
 class SetContributorRequest(SQLModel):
     """Schema for setting a user as a contributor."""
     project_id: int = Field(description="The project ID")

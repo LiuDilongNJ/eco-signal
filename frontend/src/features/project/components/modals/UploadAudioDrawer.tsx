@@ -39,6 +39,7 @@ interface UploadAudioDrawerProps {
     licenseOptions?: LicenseOption[]
     sensorOptions?: SensorOption[]
     userOptions?: UserOption[]
+    currentUserId?: number | null
     onClose: () => void
     onSave?: (
         files: QueueFile[],
@@ -52,7 +53,7 @@ const MEDIUM_OPTIONS = ["Air", "Water"]
 
 type UploadAudioValidationField = "date_time" | "sensor_id" | "gain"
 
-export function UploadAudioDrawer({ open, initialFiles = [], siteOptions = [], licenseOptions = [], sensorOptions = [], userOptions = [], onClose, onSave, onAddMoreFiles, onRetry }: UploadAudioDrawerProps) {
+export function UploadAudioDrawer({ open, initialFiles = [], siteOptions = [], licenseOptions = [], sensorOptions = [], userOptions = [], currentUserId = null, onClose, onSave, onAddMoreFiles, onRetry }: UploadAudioDrawerProps) {
     const isDark = useAppStore(s => s.effectiveTheme === "dark")
     const drawerTheme = useAntdBrandConfig(isDark)
     const [formData, setFormData] = useState<Record<string, any>>({})
@@ -72,9 +73,22 @@ export function UploadAudioDrawer({ open, initialFiles = [], siteOptions = [], l
 
     useEffect(() => {
         if (!open) {
+            setFormData({})
             setValidationErrors({})
+            return
         }
+        setFormData({ creator_id: currentUserId ?? undefined, medium: "Air" })
     }, [open])
+
+    useEffect(() => {
+        if (open && currentUserId != null) {
+            setFormData((previous) => (
+                previous.creator_id == null
+                    ? { ...previous, creator_id: currentUserId }
+                    : previous
+            ))
+        }
+    }, [currentUserId, open])
 
     const clearValidationError = (field: UploadAudioValidationField) => {
         setValidationErrors((prev) => {
@@ -371,16 +385,6 @@ export function UploadAudioDrawer({ open, initialFiles = [], siteOptions = [], l
                                         onChange={v => setFormData(p => ({ ...p, license_id: v }))}
                                     />
                                 </Form.Item>
-                                <Form.Item label="Creator">
-                                    <Select
-                                        showSearch
-                                        optionFilterProp="label"
-                                        classNames={{ popup: { root: "form-drawer-select-popup" } }}
-                                        notFoundContent={selectEmptyState}
-                                        options={userOptions.map((user) => ({ value: user.user_id, label: user.name }))}
-                                        onChange={v => setFormData(p => ({ ...p, creator_id: v }))}
-                                    />
-                                </Form.Item>
                                 <Form.Item
                                     label={renderRequiredLabel("Gain (dB)")}
                                     validateStatus={validationErrors.gain ? "error" : undefined}
@@ -402,6 +406,17 @@ export function UploadAudioDrawer({ open, initialFiles = [], siteOptions = [], l
                                 </Form.Item>
                                 <Form.Item label="Sound Name Prefix">
                                     <Input onChange={e => setFormData(p => ({ ...p, sound_name_prefix: e.target.value }))} />
+                                </Form.Item>
+                                <Form.Item label="Creator">
+                                    <Select
+                                        showSearch
+                                        optionFilterProp="label"
+                                        classNames={{ popup: { root: "form-drawer-select-popup" } }}
+                                        notFoundContent={selectEmptyState}
+                                        value={formData.creator_id ?? undefined}
+                                        options={userOptions.map((user) => ({ value: user.user_id, label: user.name }))}
+                                        onChange={v => setFormData(p => ({ ...p, creator_id: v }))}
+                                    />
                                 </Form.Item>
                             </Form>
                         </div>

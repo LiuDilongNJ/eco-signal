@@ -129,6 +129,54 @@ def test_get_users_normal_user_me(
     assert current_user["is_project_admin"] is False
 
 
+def test_creator_options_include_all_system_administrators_for_project_manager(
+    client: TestClient,
+    normal_user_token_headers: dict[str, str],
+    db: Session,
+) -> None:
+    manager = db.get(User, _normal_test_user_id(db))
+    assert manager is not None
+    owner = create_test_user(db)
+    project, _ = _create_project_with_collection(
+        db,
+        owner,
+        project_name="Creator Options Project",
+        collection_name="Creator Options Collection",
+    )
+    _grant_permission(db, manager, "project", "write", project_id=project.project_id)
+
+    response = client.get(
+        f"{settings.API_V1_STR}/users/creators?project_id={project.project_id}",
+        headers=normal_user_token_headers,
+    )
+
+    assert response.status_code == 200
+    options = response.json()["data"]
+    assert all(set(option) == {"user_id", "name", "username", "is_admin"} for option in options)
+    assert any(option["is_admin"] for option in options)
+
+
+def test_creator_options_reject_unreachable_project(
+    client: TestClient,
+    normal_user_token_headers: dict[str, str],
+    db: Session,
+) -> None:
+    owner = create_test_user(db)
+    project, _ = _create_project_with_collection(
+        db,
+        owner,
+        project_name="Creator Options Private Project",
+        collection_name="Creator Options Private Collection",
+    )
+
+    response = client.get(
+        f"{settings.API_V1_STR}/users/creators?project_id={project.project_id}",
+        headers=normal_user_token_headers,
+    )
+
+    assert response.status_code == 403
+
+
 def test_get_users_normal_user_me_with_project_write(
     client: TestClient,
     normal_user_token_headers: dict[str, str],

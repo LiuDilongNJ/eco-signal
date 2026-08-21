@@ -206,10 +206,6 @@
     width: 100%;
 }
 
-.photo-media-drawer-layout--add .photo-media-drawer-note-item {
-    margin-bottom: 0;
-}
-
 /* Date Time 标签行：标题在左，From filename 开关在右 */
 .photo-media-drawer-datetime-item .ant-form-item-label {
     width: 100%;

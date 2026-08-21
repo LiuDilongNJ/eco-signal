@@ -24,8 +24,8 @@ import { downloadFile } from "@/utils/download"
 import { buildMediaQueryParams } from "./mediaQueryParams"
 import { useMediaTableData } from "./useMediaTableData"
 import { useMediaUploadQueue } from "./useMediaUploadQueue"
-import { usersApi, type UserOption } from "../../../../../api/endpoints/users"
 import { isAbortError, pollAnalysisQueues } from "../../modals/utils/analysisQueuePolling"
+import { useCreatorOptions } from "./useCreatorOptions"
 import {
     openMediaDetailTab,
     renderLabelPills,
@@ -102,7 +102,6 @@ export function AudiosPage() {
     const [metadataImportResult, setMetadataImportResult] = useState<CsvImportResult | null>(null)
     const audioInputRef = useRef<HTMLInputElement>(null)
     const metadataInputRef = useRef<HTMLInputElement>(null)
-    const [creatorOptions, setCreatorOptions] = useState<UserOption[]>([])
     const mediaProcessingAbortRef = useRef<AbortController | null>(null)
 
     const currentProjectId = useProjectStore(s => s.currentProjectId)
@@ -122,32 +121,7 @@ export function AudiosPage() {
         refresh,
     } = useMediaTableData("audio", currentProjectId, currentCollectionId)
     const uploadQueue = useMediaUploadQueue("audio", currentCollectionId)
-
-    useEffect(() => {
-        if (!currentProjectId || !currentCollectionId || currentCollectionId === "all") {
-            setCreatorOptions([])
-            return
-        }
-        usersApi.getUsers({
-            page: 1,
-            page_size: 100,
-            project_id: Number(currentProjectId),
-            collection_id: Number(currentCollectionId),
-            scope: "current",
-            order_by: "name",
-            order_dir: "asc",
-        }).then((response) => setCreatorOptions(
-            (response.data ?? []).map((user) => ({
-                user_id: user.user_id,
-                name: user.name || user.username || String(user.user_id),
-                username: user.username,
-            })),
-        ))
-            .catch((error) => {
-                console.error("Failed to fetch creator options:", error)
-                setCreatorOptions([])
-            })
-    }, [currentCollectionId, currentProjectId])
+    const { creatorOptions, currentUserId } = useCreatorOptions(currentProjectId, currentCollectionId)
 
     useEffect(() => () => {
         mediaProcessingAbortRef.current?.abort()
@@ -465,6 +439,7 @@ export function AudiosPage() {
                 licenseOptions={licenseOptions}
                 sensorOptions={sensorOptions}
                 userOptions={creatorOptions}
+                currentUserId={currentUserId}
                 onClose={uploadQueue.reset}
                 onAddMoreFiles={() => audioInputRef.current?.click()}
                 onRetry={uploadQueue.retryUpload}
@@ -546,6 +521,7 @@ export function AudiosPage() {
                 siteOptions={siteOptions}
                 licenseOptions={licenseOptions}
                 sensorOptions={sensorOptions}
+                userOptions={creatorOptions}
                 onClose={() => { setEditDrawerOpen(false); setEditMediaId(null); }}
                 onSuccess={refresh}
             />

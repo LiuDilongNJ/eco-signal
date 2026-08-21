@@ -86,7 +86,7 @@ interface CreateMediaPayloadBase {
     date_from_filename?: boolean
     site_id?: number
     sensor_id?: number
-    creator_id?: number
+    creator_id?: number | null
     license_id?: number
     medium?: string
     note?: string
@@ -117,6 +117,7 @@ export interface UpdateMediaPayload {
     sensor_id?: number | null
     medium?: string | null
     license_id?: number | null
+    creator_id?: number | null
     doi?: string | null
     note?: string | null
     recording_gain_db?: number | null

@@ -10,6 +10,7 @@ export interface MediaUpdateFormValues extends Record<string, unknown> {
     sensor_id?: number | null
     medium?: string | null
     license_id?: number | null
+    creator_id?: number | null
     doi?: string | null
     note?: string | null
     recording_gain_db?: string | number | null
@@ -59,6 +60,7 @@ export function buildMediaUpdatePayload(
         sensor_id: values.sensor_id ?? null,
         medium: values.medium ?? null,
         license_id: values.license_id ?? null,
+        creator_id: values.creator_id ?? null,
         doi: values.doi,
         note: values.note,
     }

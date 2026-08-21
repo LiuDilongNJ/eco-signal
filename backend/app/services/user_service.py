@@ -20,9 +20,10 @@ from app.schemas import (
     UserUpdate,
     UserUpdateMe,
 )
-from app.schemas.response import ApiResponse, PagedApiResponse, api_page
+from app.schemas.response import ApiResponse, PagedApiResponse, api_page, api_success
 from app.schemas.user import (
     COLLECTION_CONTRIBUTOR_ROLES,
+    CreatorOption,
     PROJECT_CONTRIBUTOR_ROLES,
     SetContributorRequest,
     UserListPublic,
@@ -326,6 +327,61 @@ def list_users(
         total=result["count"],
         page=result["page"],
         page_size=result["page_size"]
+    )
+
+
+def list_creator_options(
+    session: Session,
+    current_user: User,
+    project_id: int,
+    collection_id: int | None = None,
+) -> ApiResponse[list[CreatorOption]]:
+    """Return scoped Creator candidates, including all system administrators."""
+    if not permission_service.is_admin(current_user):
+        if collection_id is None:
+            has_access = permission_service.has_resource_permission(
+                session,
+                current_user,
+                "project",
+                "read",
+                project_id=project_id,
+            )
+        else:
+            has_access = permission_service.has_resource_permission(
+                session,
+                current_user,
+                "audio",
+                "write",
+                project_id=project_id,
+                collection_id=collection_id,
+            )
+        if not has_access:
+            raise HTTPException(status_code=403, detail="No access to the requested project or collection")
+
+    allowed_project_ids, allowed_collection_scopes = _resolve_user_list_data_scope(
+        session,
+        current_user,
+        project_id=project_id,
+        collection_id=collection_id,
+        scope="current",
+    )
+    candidates = user_repository.get_creator_candidates(
+        session,
+        project_id=project_id,
+        collection_id=collection_id,
+        allowed_project_ids=allowed_project_ids,
+        allowed_collection_scopes=allowed_collection_scopes,
+    )
+    return api_success(
+        data=[
+            CreatorOption(
+                user_id=user.user_id,
+                name=user.name,
+                username=user.username,
+                is_admin=permission_service.is_admin(user),
+            )
+            for user in candidates
+        ]
     )
 
 

@@ -64,6 +64,7 @@ class MediaCreate(SQLModel):
     """Request body for creating media records from uploaded files (batch)."""
     collection_id: int = Field(..., description="Collection ID")
     file_upload_ids: list[int] = Field(..., min_length=1, description="List of FileUpload IDs to process")
+    creator_id: int | None = Field(default=None, description="Creator user ID; defaults to the uploader")
     filename_prefix: Optional[str] = Field(
         default=None,
         max_length=64,
@@ -153,6 +154,7 @@ class MediaUpdate(SQLModel):
     site_id: Optional[int] = None
     sensor_id: Optional[int] = None
     license_id: Optional[int] = None
+    creator_id: Optional[int] = None
     recording_gain_db: Optional[int] = None
     sampling_rate_hz: Optional[int] = None
     bit_depth: Optional[int] = None

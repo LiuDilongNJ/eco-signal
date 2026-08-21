@@ -21,6 +21,11 @@ export interface UserOption {
     username?: string
 }
 
+export interface CreatorOption extends UserOption {
+    username?: string
+    is_admin: boolean
+}
+
 export interface PageInfo {
     total: number
     page: number
@@ -58,6 +63,12 @@ export const usersApi = {
             ? Object.fromEntries(Object.entries(params).filter(([_, v]) => v !== undefined && v !== ""))
             : undefined
         return apiClient.get<PagedUserResponse>("/v1/users", { params: cleanParams as any })
+    },
+    getCreatorOptions(params: Pick<GetUsersParams, "project_id" | "collection_id">) {
+        const cleanParams = Object.fromEntries(
+            Object.entries(params).filter(([_, value]) => value !== undefined && value !== null),
+        )
+        return apiClient.get<{ code: number; message: string; data: CreatorOption[] }>("/v1/users/creators", { params: cleanParams as any })
     },
     getContributorRoles() {
         return apiClient.get<{ project_roles: string[]; collection_roles: string[] }>(

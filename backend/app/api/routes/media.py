@@ -351,7 +351,13 @@ async def create_media(
         denied_detail="No write permission on collection",
     )
 
-    data = await media_service.create_media(session, request, current_user, publisher)
+    data = await media_service.create_media(
+        session,
+        request,
+        current_user,
+        publisher,
+        project_id=project_id,
+    )
 
     if not data.queued and data.failed and data.queue_id is None:
         parts: list[str] = []
@@ -448,7 +454,13 @@ def update_media(
         project_id=project_id,
     )
 
-    media_service.update_media(session, media_id, media_in)
+    media_service.update_media(
+        session,
+        media_id,
+        media_in,
+        current_user=current_user,
+        project_id=project_id,
+    )
     return api_success()
 
 

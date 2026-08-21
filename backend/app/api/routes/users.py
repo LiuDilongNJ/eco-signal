@@ -21,6 +21,7 @@ from app.schemas import (
 from app.schemas.response import PagedApiResponse, ApiResponse, api_success
 from app.schemas.user import (
     SetContributorRequest,
+    CreatorOption,
     UserListPublic,
     UserPreferenceUpdate,
     UserPublic,
@@ -79,6 +80,26 @@ def list_users(
         contribution_role=contrib,
         order_by=order_by,
         order_dir=order_dir
+    )
+
+
+@router.get(
+    "/creators",
+    response_model=ApiResponse[list[CreatorOption]],
+    summary="列出 Creator 候选用户 / List Creator candidates",
+)
+def list_creator_candidates(
+    session: SessionDep,
+    current_user: ActiveManager,
+    project_id: int = Query(..., description="项目 ID / Project ID"),
+    collection_id: int | None = Query(default=None, description="集合 ID / Collection ID"),
+) -> Any:
+    """返回媒体 Creator 候选用户。 / Return users eligible to be assigned as media creators."""
+    return user_service.list_creator_options(
+        session,
+        current_user=current_user,
+        project_id=project_id,
+        collection_id=collection_id,
     )
 
 
