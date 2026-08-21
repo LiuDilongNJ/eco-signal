@@ -130,6 +130,33 @@ describe("DataPageLayout collection context", () => {
         )
     })
 
+    it("selects and highlights a row when clicking its contents", async () => {
+        render(
+            <DataPageLayout
+                title="Projects"
+                columns={[
+                    { key: "id", label: "ID", type: "number" },
+                    { key: "name", label: "Name", type: "text" },
+                ]}
+                rows={[{ id: 1, name: "Forest Sounds" }]}
+                formFields={[]}
+            />,
+        )
+
+        const row = screen.getByText("Forest Sounds").closest("tr")
+        expect(row).not.toBeNull()
+        const checkbox = screen.getAllByRole("checkbox")[1]!
+        expect(checkbox).not.toBeChecked()
+
+        await userEvent.click(screen.getByText("Forest Sounds"))
+        expect(checkbox).toBeChecked()
+        expect(row).toHaveClass("dpl-row-selected")
+
+        await userEvent.click(screen.getByText("Forest Sounds"))
+        expect(checkbox).not.toBeChecked()
+        expect(row).not.toHaveClass("dpl-row-selected")
+    })
+
     it("clears date range inputs when the table is reset", async () => {
         render(
             <DataPageLayout

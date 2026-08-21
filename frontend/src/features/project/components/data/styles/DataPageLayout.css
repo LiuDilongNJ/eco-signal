@@ -804,6 +804,19 @@ input[type="number"].dpl-filter-input {
     background: var(--bg-surface-secondary) !important;
 }
 
+/* Full-row selection keeps the active record visible even when the checkbox column is out of view. */
+.data-table-wrapper .ant-table-tbody>tr.dpl-row-selected>td,
+.data-table-wrapper .ant-table-tbody>tr.dpl-row-selected:hover>td {
+    background: var(--es-color-brand-soft) !important;
+}
+
+.data-table-wrapper .ant-table-tbody>tr.dpl-row-selected>td.dpl-td-selection,
+.data-table-wrapper .ant-table-tbody>tr.dpl-row-selected:hover>td.dpl-td-selection,
+.data-table-wrapper .ant-table-tbody>tr.dpl-row-selected>td.ant-table-cell-fix-left,
+.data-table-wrapper .ant-table-tbody>tr.dpl-row-selected:hover>td.ant-table-cell-fix-left {
+    background: var(--es-color-brand-soft) !important;
+}
+
 .data-table-wrapper .ant-table-placeholder {
     pointer-events: none !important;
 }

@@ -740,6 +740,16 @@ export function DataPageLayout({
         })
     }, [])
 
+    const toggleRowSelection = useCallback((record: RowData) => {
+        const key = getRecordKey(record)
+        setSelectedRows((prev) => {
+            const next = new Set(prev)
+            if (next.has(key)) next.delete(key)
+            else next.add(key)
+            return next
+        })
+    }, [getRecordKey])
+
     const toggleSelectAllVisible = useCallback(() => {
         const keys = filteredRows.map(getRecordKey)
         if (keys.length === 0) return
@@ -1379,6 +1389,15 @@ export function DataPageLayout({
                                 y: tableScrollY,
                             }}
                             onRow={(record) => ({
+                                className: selectedRows.has(getRecordKey(record)) ? "dpl-row-selected" : undefined,
+                                onClick: (e) => {
+                                    const target = e.target as HTMLElement
+                                    // Keep controls and cell actions independent from row selection.
+                                    if (target.closest(
+                                        ".dpl-td-selection, .dpl-select-cell, button, a, input, textarea, select, [role='button'], [contenteditable='true']",
+                                    )) return
+                                    toggleRowSelection(record)
+                                },
                                 onDoubleClick: (e) => {
                                     const t = e.target as HTMLElement
                                     if (t.closest(".dpl-td-selection") || t.closest(".dpl-select-cell")) return
