@@ -336,7 +336,7 @@ export function ProjectNavBar() {
                         <div className="logo-icon-box">
                             <img src="/images/biosounds_logo_small.png" alt="" aria-hidden="true" />
                         </div>
-                        <StableText className="nav-logo-text">ecoSound-web</StableText>
+                        <StableText className="nav-logo-text">ecoSignal</StableText>
                     </Link>
                     <div className="nav-divider" />
                     <ESButton appearance="unstyled"
