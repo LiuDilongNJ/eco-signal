@@ -26,7 +26,8 @@ function withProjectId(path: string, projectId: number | null | undefined): stri
  * Gallery/List 频谱缩略图：
  * - 外链 http(s) 直接用
  * - `/api/v1/media/.../previews/...` 需 Bearer，用 fetch + blob
- * - 其他路径直接 fallback（列表页不按 mediaId 逐条拉详情，避免 N+1 请求）
+ * - `/sounds/...` 静态媒体地址直接使用
+ * - 其他空或未知路径 fallback（列表页不按 mediaId 逐条拉详情，避免 N+1 请求）
  */
 export function useMediaSpectrogramUrl(
     raw: string | undefined | null,
@@ -80,6 +81,14 @@ export function useMediaSpectrogramUrl(
             })()
             return () => {
                 cancelled = true
+                revoke()
+            }
+        }
+
+        if (s.startsWith("/sounds/")) {
+            revoke()
+            setUrl(s)
+            return () => {
                 revoke()
             }
         }
