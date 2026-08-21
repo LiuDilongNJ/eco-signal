@@ -12,6 +12,7 @@ import type { SiteOption } from "../../../../api/endpoints/sites"
 
 import type { LicenseOption } from "../../../../api/endpoints/licenses"
 import type { SensorOption } from "../../../../api/endpoints/sensors"
+import type { UserOption } from "../../../../api/endpoints/users"
 import { MEDIA_ADD_TITLES, filterSensorsForMediaType } from "./mediaForm"
 import "./styles/FormDrawer.css"
 import "./styles/UploadAudioDrawer.css"
@@ -37,6 +38,7 @@ interface UploadAudioDrawerProps {
     siteOptions?: SiteOption[]
     licenseOptions?: LicenseOption[]
     sensorOptions?: SensorOption[]
+    userOptions?: UserOption[]
     onClose: () => void
     onSave?: (
         files: QueueFile[],
@@ -50,7 +52,7 @@ const MEDIUM_OPTIONS = ["Air", "Water"]
 
 type UploadAudioValidationField = "date_time" | "sensor_id" | "gain"
 
-export function UploadAudioDrawer({ open, initialFiles = [], siteOptions = [], licenseOptions = [], sensorOptions = [], onClose, onSave, onAddMoreFiles, onRetry }: UploadAudioDrawerProps) {
+export function UploadAudioDrawer({ open, initialFiles = [], siteOptions = [], licenseOptions = [], sensorOptions = [], userOptions = [], onClose, onSave, onAddMoreFiles, onRetry }: UploadAudioDrawerProps) {
     const isDark = useAppStore(s => s.effectiveTheme === "dark")
     const drawerTheme = useAntdBrandConfig(isDark)
     const [formData, setFormData] = useState<Record<string, any>>({})
@@ -367,6 +369,16 @@ export function UploadAudioDrawer({ open, initialFiles = [], siteOptions = [], l
 
                                         options={licenseOptions.map(l => ({ value: l.license_id, label: l.name }))}
                                         onChange={v => setFormData(p => ({ ...p, license_id: v }))}
+                                    />
+                                </Form.Item>
+                                <Form.Item label="Creator">
+                                    <Select
+                                        showSearch
+                                        optionFilterProp="label"
+                                        classNames={{ popup: { root: "form-drawer-select-popup" } }}
+                                        notFoundContent={selectEmptyState}
+                                        options={userOptions.map((user) => ({ value: user.user_id, label: user.name }))}
+                                        onChange={v => setFormData(p => ({ ...p, creator_id: v }))}
                                     />
                                 </Form.Item>
                                 <Form.Item

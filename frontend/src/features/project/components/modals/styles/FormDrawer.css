@@ -256,6 +256,22 @@
 .shared-drawer-form .ant-input[readonly],
 .shared-drawer-form textarea.ant-input[readonly] {
     cursor: default;
+    background-color: #f4f4f4 !important;
+    border-color: var(--border-color) !important;
+    color: var(--text-secondary) !important;
+    opacity: 0.72;
+}
+
+:root[data-theme="dark"] .shared-drawer-form .ant-input[readonly],
+:root[data-theme="dark"] .shared-drawer-form textarea.ant-input[readonly] {
+    background-color: #263344 !important;
+}
+
+/* Rich-text previews open an editor on click, so they retain the editable input surface. */
+.shared-drawer-form .rich-text-preview-input.ant-input {
+    background-color: var(--bg-surface-secondary) !important;
+    color: var(--text-main) !important;
+    opacity: 1 !important;
 }
 
 .shared-drawer-form .ant-input-disabled,
@@ -264,12 +280,21 @@
 .shared-drawer-form .ant-input-number-disabled,
 .shared-drawer-form .ant-picker-disabled,
 .shared-drawer-form .ant-select-disabled .ant-select-selector {
-    background-color: var(--bg-surface-secondary) !important;
+    background-color: #f4f4f4 !important;
     border: 1px solid var(--border-color) !important;
     box-shadow: none !important;
     cursor: default !important;
     color: var(--text-secondary) !important;
     opacity: 0.6 !important;
+}
+
+:root[data-theme="dark"] .shared-drawer-form .ant-input-disabled,
+:root[data-theme="dark"] .shared-drawer-form .ant-input[disabled],
+:root[data-theme="dark"] .shared-drawer-form .ant-input-affix-wrapper-disabled,
+:root[data-theme="dark"] .shared-drawer-form .ant-input-number-disabled,
+:root[data-theme="dark"] .shared-drawer-form .ant-picker-disabled,
+:root[data-theme="dark"] .shared-drawer-form .ant-select-disabled .ant-select-selector {
+    background-color: #263344 !important;
 }
 
 .shared-drawer-form .ant-input-disabled *,

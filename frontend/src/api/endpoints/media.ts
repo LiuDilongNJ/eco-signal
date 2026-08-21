@@ -86,6 +86,7 @@ interface CreateMediaPayloadBase {
     date_from_filename?: boolean
     site_id?: number
     sensor_id?: number
+    creator_id?: number
     license_id?: number
     medium?: string
     note?: string

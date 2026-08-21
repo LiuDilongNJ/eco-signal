@@ -15,6 +15,12 @@ export interface UserPublic {
     [key: string]: any
 }
 
+export interface UserOption {
+    user_id: number
+    name: string
+    username?: string
+}
+
 export interface PageInfo {
     total: number
     page: number

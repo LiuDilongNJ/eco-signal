@@ -24,6 +24,8 @@ import { downloadFile } from "@/utils/download"
 import { buildMediaQueryParams } from "./mediaQueryParams"
 import { useMediaTableData } from "./useMediaTableData"
 import { useMediaUploadQueue } from "./useMediaUploadQueue"
+import { usersApi, type UserOption } from "../../../../../api/endpoints/users"
+import { isAbortError, pollAnalysisQueues } from "../../modals/utils/analysisQueuePolling"
 import {
     openMediaDetailTab,
     renderLabelPills,
@@ -100,6 +102,8 @@ export function AudiosPage() {
     const [metadataImportResult, setMetadataImportResult] = useState<CsvImportResult | null>(null)
     const audioInputRef = useRef<HTMLInputElement>(null)
     const metadataInputRef = useRef<HTMLInputElement>(null)
+    const [creatorOptions, setCreatorOptions] = useState<UserOption[]>([])
+    const mediaProcessingAbortRef = useRef<AbortController | null>(null)
 
     const currentProjectId = useProjectStore(s => s.currentProjectId)
     const currentCollectionId = useProjectStore(s => s.currentCollectionId)
@@ -118,6 +122,71 @@ export function AudiosPage() {
         refresh,
     } = useMediaTableData("audio", currentProjectId, currentCollectionId)
     const uploadQueue = useMediaUploadQueue("audio", currentCollectionId)
+
+    useEffect(() => {
+        if (!currentProjectId || !currentCollectionId || currentCollectionId === "all") {
+            setCreatorOptions([])
+            return
+        }
+        usersApi.getUsers({
+            page: 1,
+            page_size: 100,
+            project_id: Number(currentProjectId),
+            collection_id: Number(currentCollectionId),
+            scope: "current",
+            order_by: "name",
+            order_dir: "asc",
+        }).then((response) => setCreatorOptions(
+            (response.data ?? []).map((user) => ({
+                user_id: user.user_id,
+                name: user.name || user.username || String(user.user_id),
+                username: user.username,
+            })),
+        ))
+            .catch((error) => {
+                console.error("Failed to fetch creator options:", error)
+                setCreatorOptions([])
+            })
+    }, [currentCollectionId, currentProjectId])
+
+    useEffect(() => () => {
+        mediaProcessingAbortRef.current?.abort()
+    }, [])
+
+    const refreshAfterMediaProcessing = useCallback(async (queueId: number) => {
+        mediaProcessingAbortRef.current?.abort()
+        const controller = new AbortController()
+        mediaProcessingAbortRef.current = controller
+        let timedOut = false
+        const timeoutId = window.setTimeout(() => {
+            timedOut = true
+            controller.abort()
+        }, 120_000)
+
+        try {
+            const summary = await pollAnalysisQueues([queueId], controller.signal)
+            const failedStatus = summary.failed[0]
+            if (failedStatus) {
+                message.warning(failedStatus.error || failedStatus.warning || "Some audio files could not be processed.")
+            } else {
+                message.success("Audio processing completed. The table has been refreshed.")
+            }
+            refresh()
+        } catch (error) {
+            if (timedOut) {
+                message.info("Audio processing is taking longer than expected. Please refresh the table later to see the results.")
+                refresh()
+            } else if (!isAbortError(error)) {
+                console.error("Failed to monitor audio processing queue:", error)
+                message.info("Audio upload was submitted. Refresh the table later to see the processed files.")
+            }
+        } finally {
+            window.clearTimeout(timeoutId)
+            if (mediaProcessingAbortRef.current === controller) {
+                mediaProcessingAbortRef.current = null
+            }
+        }
+    }, [refresh])
 
     useEffect(() => {
         if (pendingAudioDetailMediaId == null) return
@@ -397,6 +466,7 @@ export function AudiosPage() {
                 siteOptions={siteOptions}
                 licenseOptions={licenseOptions}
                 sensorOptions={sensorOptions}
+                userOptions={creatorOptions}
                 onClose={uploadQueue.reset}
                 onAddMoreFiles={() => audioInputRef.current?.click()}
                 onRetry={uploadQueue.retryUpload}
@@ -431,6 +501,7 @@ export function AudiosPage() {
                             date_from_filename: formData.dateFromFilename ?? false,
                             site_id: formData.site_id,
                             sensor_id: formData.sensor_id,
+                            creator_id: formData.creator_id,
                             license_id: formData.license_id,
                             medium: formData.medium,
                             media_type: 'audio',
@@ -442,10 +513,14 @@ export function AudiosPage() {
                             note: formData.note,
                             doi: formData.doi,
                         }, createMediaParams)
-                        message.success(`Upload queue ${response.data?.queue_id ?? ""} submitted.`)
-                        // 关闭抽屉并刷新列表
+                        const queueId = response.data?.queue_id
+                        message.success("Audio upload submitted. Processing will continue in the background.")
+                        // Refresh immediately, then refresh again when asynchronous processing writes the media rows.
                         uploadQueue.reset()
                         refresh()
+                        if (queueId) {
+                            void refreshAfterMediaProcessing(queueId)
+                        }
                         return true
                     } catch (err) {
                         console.error('[createMedia] failed:', err)
