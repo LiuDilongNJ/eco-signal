@@ -185,6 +185,16 @@ _METADATA_RECORDING_START_FORMAT_HELP = (
 _LEGACY_FILENAME_DATETIME_FALLBACK = "1970-01-01 00:00:00"
 
 
+def _filename_datetime_warning(filenames: list[str]) -> str | None:
+    if not filenames:
+        return None
+    joined_filenames = ", ".join(filenames)
+    return (
+        "Date/time could not be extracted from the filename for: "
+        f"{joined_filenames}. Default date/time {_LEGACY_FILENAME_DATETIME_FALLBACK} was used."
+    )
+
+
 def _build_display_filename(original_name: str, filename_prefix: str) -> str:
     """Build the logical stored filename using the current naming rules."""
     base_name = original_name.strip()
@@ -504,6 +514,7 @@ async def create_media(
     """
     valid_items: list[tuple[int, str | None, str | None, str]] = []
     failed: list[MediaCreateFailedItem] = []
+    filename_datetime_warnings: list[str] = []
     filename_prefix = request.filename_prefix or ""
     shared_date_time_parts: tuple[str | None, str | None] = (None, None)
     if request.date_from_filename:
@@ -580,6 +591,8 @@ async def create_media(
             if match:
                 file_date = f"{match.group(1)}-{match.group(2)}-{match.group(3)}"
                 file_time = f"{match.group(4)}:{match.group(5)}:{match.group(6)}"
+            elif request.date_time is None:
+                filename_datetime_warnings.append(file_upload.name or file_upload.filename)
         else:
             file_date, file_time = shared_date_time_parts
 
@@ -604,6 +617,7 @@ async def create_media(
         user_id=current_user.user_id,
         total=len(valid_items),
         status=QueueStatus.PENDING,
+        warning=_filename_datetime_warning(filename_datetime_warnings),
     )
     session.add(batch_queue)
     session.commit()

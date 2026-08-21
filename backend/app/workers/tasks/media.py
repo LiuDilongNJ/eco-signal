@@ -567,12 +567,14 @@ async def process_media_batch(
         failures = [item for item in file_uploads if item is None or item.status == 4]
 
         queue.completed = len(successes)
-        queue.warning = None
         queue.error = None
         if duplicates:
-            queue.warning = "; ".join(
+            duplicate_warning = "; ".join(
                 f"File {item.name or item.filename} already exists in the collection"
                 for item in duplicates
+            )
+            queue.warning = "; ".join(
+                warning for warning in (queue.warning, duplicate_warning) if warning
             )
         if failures:
             queue.error = "; ".join(
@@ -580,7 +582,7 @@ async def process_media_batch(
                 for item in failures
             )
             queue.status = QueueStatus.ERROR
-        elif duplicates:
+        elif queue.warning:
             queue.status = QueueStatus.WARNING
         else:
             queue.status = QueueStatus.COMPLETED
@@ -592,5 +594,5 @@ async def process_media_batch(
         "queue_id": queue_id,
         "completed": len(successes),
         "total": len(item_ids),
-        "status": "error" if failures else "warning" if duplicates else "completed",
+        "status": "error" if failures else "warning" if queue.warning else "completed",
     }
