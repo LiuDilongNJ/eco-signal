@@ -10,7 +10,7 @@ import { mediaApi } from "../../../../../api/endpoints/media"
 import { emptyCsvImportResult, type CsvImportResult } from "../../../../../api/csvImport"
 import { useProjectStore } from "../../../stores/useProjectStore"
 import { message } from "@/components/ui"
-import { Mic, FileText, Info, Link as LinkIcon, Tag as TagIcon, ClipboardList as ClipboardListIcon, Bot as BotIcon, Activity as ActivityIcon } from "lucide-react"
+import { Music2, FileText, Info, Link as LinkIcon, Tag as TagIcon, ClipboardList as ClipboardListIcon, Bot as BotIcon, Activity as ActivityIcon } from "lucide-react"
 import { UploadAudioDrawer } from "../../modals/UploadAudioDrawer"
 import { EditMediaDrawer } from "../../modals/EditMediaDrawer"
 import { LinkItemToCollectionsDrawer } from "../../modals/LinkItemToCollectionsDrawer"
@@ -201,7 +201,7 @@ export function AudiosPage() {
     const addDropdownItems = [
         {
             key: 'audios',
-            label: (<span style={{ display: 'flex', alignItems: 'center', gap: 8 }}><Mic size={16} /> Audios</span>),
+            label: (<span style={{ display: 'flex', alignItems: 'center', gap: 8 }}><Music2 size={16} /> Audios</span>),
             onClick: () => audioInputRef.current?.click(),
         },
         {
@@ -285,7 +285,7 @@ export function AudiosPage() {
                 columns={COLUMNS}
                 rows={rows}
                 formFields={FORM_FIELDS}
-                icon={Mic}
+                icon={Music2}
                 loading={loading}
                 serverSide={true}
                 totalRows={totalRows}

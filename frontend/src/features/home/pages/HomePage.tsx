@@ -8,7 +8,7 @@ import L from 'leaflet';
 import {
     Moon, Sun, Info, LogIn, User, ChevronDown, Settings, LogOut,
     Github, FileText, GraduationCap, Mail, Search, Link as LinkIcon, LayoutDashboard,
-    Lock, Unlock, Users, FolderKanban, Library, Mic, Image as ImageIcon, ScanLine, MapPin,
+    Lock, Unlock, Users, FolderKanban, Library, Music2, Image as ImageIcon, ScanLine, MapPin,
     ChevronLeft, ChevronRight
 } from 'lucide-react';
 
@@ -914,7 +914,7 @@ export default function HomePage() {
                                 <div className="stat-info"><div className="label">Collections</div><div className="value">{nodeStats.collections}</div></div>
                             </div>
                             <div className="stat-card">
-                                <div className="stat-icon"><Mic size={22} /></div>
+                                <div className="stat-icon"><Music2 size={22} /></div>
                                 <div className="stat-info"><div className="label">Audios</div><div className="value">{nodeStats.audios}</div></div>
                             </div>
                             <div className="stat-card">

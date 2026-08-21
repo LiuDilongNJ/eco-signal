@@ -3,7 +3,7 @@ import { useCallback, useState } from "react"
 import { ConfigProvider, Descriptions, Form, Input, InputNumber, Space, message } from "@/components/ui"
 import { FormDrawer } from "@/components/ui"
 
-import { FileUp, Info, Mic2, Plus } from "lucide-react"
+import { FileUp, Info, Mic, Plus } from "lucide-react"
 import { ApiError } from "../../../../api/client"
 import { microphonesApi, type MicrophonePublic } from "../../../../api/endpoints/microphones"
 import { DataPageLayout } from "../../../project/components/data/DataPageLayout"
@@ -307,7 +307,7 @@ export function MicrophoneSettingsTab() {
             {csvImport.input}
             <DataPageLayout
                 title="Microphones"
-                icon={Mic2}
+                icon={Mic}
                 columns={COLUMNS}
                 rows={rows}
                 defaultSortKey="microphone_id"

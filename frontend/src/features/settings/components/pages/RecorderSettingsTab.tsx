@@ -3,7 +3,7 @@ import { useCallback, useState } from "react"
 import { ConfigProvider, Descriptions, Form, Input, Space, message } from "@/components/ui"
 import { FormDrawer } from "@/components/ui"
 
-import { FileUp, Info, Mic, Plus } from "lucide-react"
+import { CassetteTape, FileUp, Info, Plus } from "lucide-react"
 import { ApiError } from "../../../../api/client"
 import { recordersApi, type RecorderPublic } from "../../../../api/endpoints/recorders"
 import { DataPageLayout } from "../../../project/components/data/DataPageLayout"
@@ -300,7 +300,7 @@ export function RecorderSettingsTab() {
             {csvImport.input}
             <DataPageLayout
                 title="Recorders"
-                icon={Mic}
+                icon={CassetteTape}
                 columns={COLUMNS}
                 rows={rows}
                 defaultSortKey="recorder_id"

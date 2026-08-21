@@ -5,7 +5,7 @@ import { ConfigProvider, Form, Input, Select, message } from "@/components/ui"
 import { FormDrawer } from "@/components/ui"
 import { LoadingState } from "@/components/ui"
 
-import { FileUp, GitBranch, Info, Plus } from "lucide-react"
+import { FileUp, GitFork, Info, Plus } from "lucide-react"
 import { ApiError } from "../../../../api/client"
 import { downloadFile } from "@/utils/download"
 import {
@@ -480,7 +480,7 @@ export function TaxonSettingsTab() {
             {csvImport.input}
             <DataPageLayout
                 title="Taxa"
-                icon={GitBranch}
+                icon={GitFork}
                 columns={COLUMNS}
                 rows={rows}
                 defaultSortKey="taxon_id"

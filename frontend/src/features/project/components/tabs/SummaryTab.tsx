@@ -8,7 +8,7 @@ import { useEffect, useRef, useState } from "react"
 import {
     Users,
     Library,
-    Mic,
+    Music2,
     Image,
     ScanLine,
     MapPin,
@@ -28,7 +28,7 @@ import type { ProjectStats, Contributor } from "../../types"
 const STAT_ICONS: Record<string, LucideIcon> = {
     users: Users,
     collections_or_projects: Library,
-    audios: Mic,
+    audios: Music2,
     photos: Image,
     annotations: ScanLine,
     sites: MapPin,
