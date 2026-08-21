@@ -185,7 +185,10 @@ describe("DataPageLayout collection context", () => {
         await userEvent.type(dateInputs[1]!, "2026-01-31")
         await userEvent.keyboard("{Enter}")
 
-        await userEvent.click(screen.getByRole("button", { name: "Reset table" }))
+        const resetButton = screen.getByRole("button", { name: "Reset" })
+        await userEvent.hover(resetButton)
+        expect(await screen.findByText("Clear filters, sorting, and selected rows")).toBeInTheDocument()
+        await userEvent.click(resetButton)
 
         expect(dateInputs[0]).toHaveValue("")
         expect(dateInputs[1]).toHaveValue("")

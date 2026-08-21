@@ -31,7 +31,7 @@ import { AIModelsPanel } from "../modals/AIModelsPanel"
 import { AcousticIndicesPanel } from "../modals/AcousticIndicesPanel"
 import { ConfirmDialog } from "../modals/ConfirmDialog"
 import { useProjectStore } from "../../stores/useProjectStore"
-import { Checkbox, Combobox, ConfigProvider, DataTable, DatePicker, DropdownMenu, Input, RowActions, TableToolbar, Tooltip, theme as antdTheme } from "@/components/ui"
+import { Checkbox, Combobox, ConfigProvider, DataTable, DatePicker, DropdownMenu, getTooltipText, Input, RowActions, TableToolbar, Tooltip, theme as antdTheme } from "@/components/ui"
 import type { ThemeConfig } from "@/components/ui"
 import type { MenuProps } from "@/components/ui"
 import { INTERNAL_COL_DEFINE } from "@/components/ui"
@@ -68,7 +68,7 @@ function DataToolbarTooltips({ children }: { children: ReactNode }) {
                 ) : child
 
                 return (
-                    <Tooltip key={child.key} mouseEnterDelay={0} title={title}>
+                    <Tooltip key={child.key} mouseEnterDelay={0} title={getTooltipText(title)}>
                         {trigger}
                     </Tooltip>
                 )
@@ -1300,8 +1300,8 @@ export function DataPageLayout({
                     <div className="data-toolbar-right">
                         <div className="data-action-group">
                             <DataToolbarTooltips>
-                            <ESButton appearance="unstyled" type="button" className="data-btn" title="Reset table" aria-label="Reset table" onClick={() => { setColumnFilters({}); setSearchQuery(""); setSortKey(defaultSortKey); setSortDir(defaultSortDir); setSelectedRows(new Set()); setCurrentPage(1) }}>
-                                <RotateCcw size={14} /> Reset table
+                            <ESButton appearance="unstyled" type="button" className="data-btn" title="Reset table" aria-label="Reset" onClick={() => { setColumnFilters({}); setSearchQuery(""); setSortKey(defaultSortKey); setSortDir(defaultSortDir); setSelectedRows(new Set()); setCurrentPage(1) }}>
+                                <RotateCcw size={14} /> Reset
                             </ESButton>
                             {!hideView && (
                                 <ESButton appearance="unstyled"
