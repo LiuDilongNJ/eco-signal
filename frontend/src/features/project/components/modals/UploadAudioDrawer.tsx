@@ -179,7 +179,7 @@ export function UploadAudioDrawer({ open, initialFiles = [], siteOptions = [], l
                 }
             >
                 <CustomScrollArea variant="fill">
-                    <div className="form-drawer-layout upload-audio-drawer-layout" style={{ padding: "24px", height: "798px" }}>
+                    <div className="form-drawer-layout upload-audio-drawer-layout" style={{ padding: "24px" }}>
                         <div className="form-drawer-main-col upload-audio-drawer-queue-col">
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
                                 <Typography.Text strong>Queue</Typography.Text>
@@ -264,7 +264,7 @@ export function UploadAudioDrawer({ open, initialFiles = [], siteOptions = [], l
                                     ))}
                                 </div>
                             </CustomScrollArea>
-                            <div style={{ marginTop: "auto", display: "flex", justifyContent: "flex-end" }}>
+                            <div className="upload-audio-drawer-upload-action">
                                 <Button
                                     className="upload-audio-drawer-upload-btn"
                                     onClick={onAddMoreFiles}

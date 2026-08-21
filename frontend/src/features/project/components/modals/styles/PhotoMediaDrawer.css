@@ -33,7 +33,7 @@
 
 .photo-media-drawer-layout--add .photo-media-drawer-upload-col {
     align-self: stretch;
-    height: 576px;
+    height: auto;
 }
 
 .photo-media-drawer-queue-header {
