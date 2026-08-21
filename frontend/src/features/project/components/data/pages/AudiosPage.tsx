@@ -326,13 +326,13 @@ export function AudiosPage() {
                     const audioActionDisabled = selectedRows.size === 0 || audioActionBlockedByMediaType
                     return (
                     <>
-                        <ESButton appearance="unstyled" className="data-btn" title="Link Item to Collections" disabled={selectedRows.size === 0} onClick={() => {
+                        <ESButton appearance="unstyled" className="data-btn" title="Link the selected audio files to collections" disabled={selectedRows.size === 0} onClick={() => {
                             setLinkMediaIds(selectedIds)
                             setLinkDrawerOpen(true)
                         }}>
                             <LinkIcon size={14} /> Link
                         </ESButton>
-                        <ESButton appearance="unstyled" className="data-btn" title="Set Labels" disabled={selectedRows.size === 0} onClick={() => {
+                        <ESButton appearance="unstyled" className="data-btn" title="Apply labels to the selected audio files" disabled={selectedRows.size === 0} onClick={() => {
                             setLabelMediaIds(selectedIds)
                             setLabelDrawerOpen(true)
                         }}>
@@ -340,7 +340,7 @@ export function AudiosPage() {
                         </ESButton>
                         <ESButton appearance="unstyled"
                             className="data-btn"
-                            title={audioActionBlockedByMediaType ? "Only audio files can be assigned" : "Assignment"}
+                            title={audioActionBlockedByMediaType ? "Only audio files can be assigned" : "Assign the selected audio files to a user"}
                             disabled={selectedRows.size === 0 || audioActionBlockedByMediaType}
                             onClick={() => {
                                 if (audioActionBlockedByMediaType) {
@@ -356,7 +356,7 @@ export function AudiosPage() {
                         }}>
                             <ClipboardListIcon size={14} /> Assignment
                         </ESButton>
-                        <ESButton appearance="unstyled" className="data-btn" title={audioActionBlockedByMediaType ? "AI models are available for audio files only" : "AI models"} disabled={audioActionDisabled} onClick={() => {
+                        <ESButton appearance="unstyled" className="data-btn" title={audioActionBlockedByMediaType ? "AI models are available for audio files only" : "Run an AI model on the selected audio files"} disabled={audioActionDisabled} onClick={() => {
                             if (audioActionBlockedByMediaType) {
                                 message.warning("AI models are available for audio files only.")
                                 return
@@ -366,7 +366,7 @@ export function AudiosPage() {
                         }}>
                             <BotIcon size={14} /> AI models
                         </ESButton>
-                        <ESButton appearance="unstyled" className="data-btn" title={audioActionBlockedByMediaType ? "Acoustic indices are available for audio files only" : "Acoustic Indices"} disabled={audioActionDisabled} onClick={() => {
+                        <ESButton appearance="unstyled" className="data-btn" title={audioActionBlockedByMediaType ? "Acoustic indices are available for audio files only" : "Calculate acoustic indices for the selected audio files"} disabled={audioActionDisabled} onClick={() => {
                             if (audioActionBlockedByMediaType) {
                                 message.warning("Acoustic indices are available for audio files only.")
                                 return

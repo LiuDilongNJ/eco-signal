@@ -303,7 +303,7 @@ export function PhotosPage() {
                         <>
                             <ESButton appearance="unstyled"
                                 className="data-btn"
-                                title="Link Photos to Collections"
+                                title="Link the selected photos to collections"
                                 disabled={ids.length === 0}
                                 onClick={() => setLinkMediaIds(ids)}
                             >
@@ -311,7 +311,7 @@ export function PhotosPage() {
                             </ESButton>
                             <ESButton appearance="unstyled"
                                 className="data-btn"
-                                title="Set Labels"
+                                title="Apply labels to the selected photos"
                                 disabled={ids.length === 0}
                                 onClick={() => setLabelMediaIds(ids)}
                             >
@@ -319,7 +319,7 @@ export function PhotosPage() {
                             </ESButton>
                             <ESButton appearance="unstyled"
                                 className="data-btn"
-                                title={photoActionBlockedByMediaType ? "Only photo files can be assigned" : "Assignment"}
+                                title={photoActionBlockedByMediaType ? "Only photo files can be assigned" : "Assign the selected photos to a user"}
                                 disabled={ids.length === 0 || photoActionBlockedByMediaType}
                                 onClick={() => {
                                     if (photoActionBlockedByMediaType) {

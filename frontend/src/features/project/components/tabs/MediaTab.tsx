@@ -372,6 +372,7 @@ export function MediaTab() {
                         <div className="view-pill" ref={pillRef} />
                         <ESButton appearance="unstyled"
                             className={`view-btn ${viewMode === "gallery" ? "active" : ""}`}
+                            title="Show media as preview cards"
                             onClick={(e) => handleViewSwitch("gallery", e)}
                         >
                             <Grid size={14} />
@@ -379,6 +380,7 @@ export function MediaTab() {
                         </ESButton>
                         <ESButton appearance="unstyled"
                             className={`view-btn ${viewMode === "list" ? "active" : ""}`}
+                            title="Show media in a compact list"
                             onClick={(e) => handleViewSwitch("list", e)}
                         >
                             <List size={14} />

@@ -123,11 +123,13 @@ describe("DataPageLayout collection context", () => {
         const checkboxes = screen.getAllByRole("checkbox")
         await userEvent.click(checkboxes[1]!)
 
-        expect(screen.getByRole("button", { name: "Delete" })).toBeDisabled()
-        expect(screen.getByRole("button", { name: "Delete" })).toHaveAttribute(
-            "title",
-            "This record has no name to confirm",
-        )
+        const deleteButton = screen.getByRole("button", { name: "Delete" })
+        expect(deleteButton).toBeDisabled()
+        expect(deleteButton).not.toHaveAttribute("title")
+        const tooltipTrigger = deleteButton.parentElement
+        expect(tooltipTrigger).toHaveClass("data-toolbar-tooltip-trigger")
+        await userEvent.hover(tooltipTrigger!)
+        expect(await screen.findByText("This record has no name to confirm")).toBeInTheDocument()
     })
 
     it("selects and highlights a row when clicking its contents", async () => {

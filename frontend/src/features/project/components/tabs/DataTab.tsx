@@ -298,6 +298,7 @@ export function DataTab() {
                             <ESButton appearance="unstyled"
                                 key={item.key}
                                 className={`data-nav-item ${effectiveKey === item.key ? "active" : ""}`}
+                                title={`Open the ${item.label.toLowerCase()} data table`}
                                 onClick={() => {
                                     setActiveKey(item.key)
                                     const next = new URLSearchParams(searchParams)

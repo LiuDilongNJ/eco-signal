@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 import {
     Checkbox,
     DataTable,
+    DropdownMenu,
     EmptyState,
     Form,
     FormField,
@@ -102,5 +103,35 @@ describe("UI adapter contracts", () => {
 
         expect(document.querySelector(".es-tooltip.ant-tooltip")).toBeInTheDocument()
         expect(document.querySelector(".es-popover.ant-popover")).toBeInTheDocument()
+    })
+
+    it("removes the browser title tooltip when a custom tooltip is present", () => {
+        render(
+            <Tooltip open title="Select a collection before adding data">
+                <span>
+                    <button type="button" title="Add a new record">Add</button>
+                </span>
+            </Tooltip>,
+        )
+
+        expect(screen.getByRole("button", { name: "Add" })).not.toHaveAttribute("title")
+    })
+
+    it("keeps a DropdownMenu as one child when wrapped by Tooltip", () => {
+        expect(() => {
+            render(
+                <Tooltip open title="Please select a Collection before adding data">
+                    <span style={{ display: "inline-flex" }}>
+                        <DropdownMenu items={[{ key: "photo", label: "Add photo" }]}>
+                            <button type="button" title="Add a new record to this table">
+                                Add
+                            </button>
+                        </DropdownMenu>
+                    </span>
+                </Tooltip>,
+            )
+        }).not.toThrow()
+
+        expect(screen.getByRole("button", { name: "Add" })).not.toHaveAttribute("title")
     })
 })

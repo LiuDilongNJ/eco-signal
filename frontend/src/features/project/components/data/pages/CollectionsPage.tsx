@@ -376,7 +376,7 @@ export function CollectionsPage() {
                 onExportCustom={handleExport}
                 renderCustomActions={(selectedRows) => (
                     <>
-                        <ESButton appearance="unstyled" className="data-btn" title="Taxon" disabled={selectedRows.size !== 1} onClick={() => {
+                        <ESButton appearance="unstyled" className="data-btn" title="Manage the taxon for the selected collection" disabled={selectedRows.size !== 1} onClick={() => {
                             const collectionId = Array.from(selectedRows)[0] as number
                             setTaxonCollectionId(collectionId)
                             setTaxonDrawerOpen(true)

@@ -260,12 +260,20 @@
 
 .es-tooltip.ant-tooltip .ant-tooltip-container,
 .es-tooltip.ant-tooltip .ant-tooltip-inner {
+  max-width: 260px;
+  font-size: var(--es-font-size-sm);
+  line-height: 1.45;
   padding: var(--es-tooltip-padding);
   border: 1px solid var(--es-color-border);
-  border-radius: var(--es-radius-sm);
+  border-radius: 2px;
   background: var(--es-color-bg-elevated);
   color: var(--es-color-text);
   box-shadow: var(--es-shadow-sm);
+}
+
+.es-tooltip--surface .ant-tooltip-arrow::before,
+.es-tooltip--surface .ant-tooltip-arrow::after {
+  background: var(--es-color-bg-elevated);
 }
 
 .es-popover.ant-popover {

@@ -337,7 +337,7 @@ export function ProjectsPage() {
                 renderCustomActions={(selectedRows) => (
                     <>
                         {(
-                            <ESButton appearance="unstyled" className="data-btn" title="Link" disabled={selectedRows.size !== 1} onClick={() => {
+                            <ESButton appearance="unstyled" className="data-btn" title="Link the selected project to collections" disabled={selectedRows.size !== 1} onClick={() => {
                                 const projectId = Array.from(selectedRows)[0] as number
                                 setLinkProjectId(projectId)
                                 setLinkDrawerOpen(true)

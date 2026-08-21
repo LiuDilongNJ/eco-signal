@@ -383,7 +383,7 @@ export function AnnotationsPage() {
                     return (
                         <ESButton appearance="unstyled"
                             className="data-btn"
-                            title="Assignment"
+                            title="Assign a task to the selected annotation rows"
                             disabled={!canAssign}
                             onClick={() => {
                                 if (selectedAnnotations.length === 0) {

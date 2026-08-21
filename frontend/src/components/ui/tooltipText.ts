@@ -1,0 +1,61 @@
+const ACTION_TOOLTIP_TEXT: Record<string, string> = {
+    Add: "Add a new record to this table",
+    Assignment: "Assign the selected records to a user",
+    "Acoustic Indices": "Calculate acoustic indices for the selected audio",
+    "AI Models": "Run an AI model on the selected audio",
+    Back: "Return to the previous view",
+    Auto: "Follow the system theme automatically",
+    Cancel: "Discard changes and close",
+    Close: "Close this panel",
+    Contributor: "Set the contributor role for the selected user",
+    Delete: "Delete the selected records",
+    "Delete Annotation": "Delete the selected annotation",
+    "Delete annotation": "Delete this annotation",
+    "Delete label": "Remove this label from the record",
+    "Delete project": "Delete this project and its related data",
+    "Delete review": "Delete this review",
+    "Delete Records": "Delete the selected records",
+    "Delete this label?": "Remove this label from the record",
+    Edit: "Edit the selected record",
+    Export: "Download the current table as a CSV file",
+    "Expand sidebar": "Expand the navigation sidebar",
+    "Collapse sidebar": "Collapse the navigation sidebar",
+    "Show Annotations": "Show annotation overlays on the image",
+    "Hide Annotations": "Hide annotation overlays from the image",
+    "Zoom In (Shift + wheel)": "Zoom in; Shift + mouse wheel also changes zoom",
+    "Zoom Out (Shift + wheel)": "Zoom out; Shift + mouse wheel also changes zoom",
+    Light: "Use the light theme",
+    Dark: "Use the dark theme",
+    Information: "Open project information and help",
+    "Export Bundle": "Download an offline bundle for this collection",
+    "Import Bundle": "Import an offline collection bundle into this project",
+    Label: "Apply labels to the selected records",
+    Link: "Link the selected records to collections",
+    More: "Show more actions for this record",
+    Permissions: "Manage permissions for the selected users",
+    "Reset Password": "Set a new password for the selected user",
+    Reset: "Restore this form or view to its defaults",
+    "Reset table": "Clear filters, sorting, and selected rows",
+    Save: "Save the current changes",
+    "Share annotation": "Copy a link to this annotation",
+    "Show annotations table": "Show the annotations table for this media",
+    "Hide annotations table": "Hide the annotations table for this media",
+    "Reset table filters and reload list": "Clear annotation filters and reload the list",
+    "Set Labels": "Apply labels to the selected records",
+    "Switch Theme": "Switch between light, dark, and automatic themes",
+    Taxon: "Manage the taxon for the selected collection",
+    "Upload Files": "Add files to the upload queue",
+    "Retry upload": "Retry uploading this file",
+    Documentation: "Open documentation for this tool",
+    "Project website": "Open the project's external website",
+    View: "Open the selected record in detail",
+}
+
+/**
+ * Keep visible labels concise while making native hover hints actionable.
+ * Custom, already-descriptive titles pass through unchanged.
+ */
+export function getTooltipText(value: string | undefined): string | undefined {
+    if (!value) return value
+    return ACTION_TOOLTIP_TEXT[value] ?? value
+}

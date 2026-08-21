@@ -1,6 +1,7 @@
 import { forwardRef, type ButtonHTMLAttributes, type ForwardedRef, type ReactElement, type ReactNode, type RefAttributes } from "react"
 import { Button as AntButton, type ButtonProps as AntButtonProps } from "antd"
 import { cn } from "@/lib/utils"
+import { getTooltipText } from "./tooltipText"
 
 type NativeButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
     appearance: "unstyled"
@@ -15,13 +16,13 @@ interface ButtonComponent {
 
 function ButtonAdapter(props: AntButtonProps | NativeButtonProps, ref: ForwardedRef<HTMLButtonElement>) {
     if ("appearance" in props && props.appearance === "unstyled") {
-        const { appearance: _appearance, className, ...nativeProps } = props
+        const { appearance: _appearance, className, title, ...nativeProps } = props
         void _appearance
-        return <button ref={ref} className={cn("es-button-unstyled", className)} {...nativeProps} />
+        return <button ref={ref} className={cn("es-button-unstyled", className)} title={getTooltipText(title)} {...nativeProps} />
     }
 
-    const { className, ...antProps } = props as AntButtonProps
-    return <AntButton ref={ref} className={cn("es-button", className)} {...antProps} />
+    const { className, title, ...antProps } = props as AntButtonProps
+    return <AntButton ref={ref} className={cn("es-button", className)} title={getTooltipText(title)} {...antProps} />
 }
 
 export const Button = forwardRef(ButtonAdapter) as ButtonComponent
@@ -29,11 +30,12 @@ export const Button = forwardRef(ButtonAdapter) as ButtonComponent
 export interface IconButtonProps extends Omit<AntButtonProps, "children" | "icon" | "aria-label"> {
     icon: ReactNode
     label: string
+    tooltip?: string
     pressed?: boolean
 }
 
 export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(function IconButton(
-    { icon, label, pressed, className, ...props },
+    { icon, label, tooltip, pressed, className, title, ...props },
     ref,
 ) {
     return (
@@ -43,7 +45,7 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(functio
             type="text"
             icon={icon}
             aria-label={label}
-            title={label}
+            title={getTooltipText(tooltip ?? title ?? label)}
             aria-pressed={pressed}
             {...props}
         />

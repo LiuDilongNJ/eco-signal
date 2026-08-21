@@ -338,7 +338,7 @@ export function SitesPage() {
                 hideView={true}
                 renderCustomActions={(selectedRows) => (
                     <>
-                        <ESButton appearance="unstyled" className="data-btn" title="Link" disabled={selectedRows.size === 0} onClick={() => {
+                        <ESButton appearance="unstyled" className="data-btn" title="Link the selected sites to collections" disabled={selectedRows.size === 0} onClick={() => {
                             setLinkSiteIds(Array.from(selectedRows) as number[])
                             setLinkDrawerOpen(true)
                         }}>

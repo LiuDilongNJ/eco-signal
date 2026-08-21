@@ -6,7 +6,7 @@ import { Button as ESButton } from "@/components/ui"
  * 每个数据页面（Projects、Collections 等）使用此布局，传入自己的列定义、数据和表单字段。
  */
 
-import { useState, useMemo, useEffect, useLayoutEffect, useRef, useCallback } from "react"
+import { Children, Fragment, isValidElement, useState, useMemo, useEffect, useLayoutEffect, useRef, useCallback } from "react"
 import type { Key, ReactNode } from "react"
 import type { LucideIcon } from "lucide-react"
 import dayjs, { type Dayjs } from "dayjs"
@@ -43,6 +43,39 @@ const { RangePicker } = DatePicker
 export const SELECTION_COL_W = 50
 
 const SELECTION_COL_PX = `${SELECTION_COL_W}px`
+
+function DataToolbarTooltips({ children }: { children: ReactNode }) {
+    return (
+        <>
+            {Children.map(children, (child) => {
+                if (!isValidElement(child)) return child
+
+                if (child.type === Fragment) {
+                    return (
+                        <DataToolbarTooltips key={child.key}>
+                            {child.props.children}
+                        </DataToolbarTooltips>
+                    )
+                }
+
+                const className = typeof child.props.className === "string" ? child.props.className : ""
+                const isDataAction = className.includes("data-btn") || className.includes("nav-center-btn")
+                const title = typeof child.props.title === "string" ? child.props.title : undefined
+                if (!isDataAction || !title) return child
+
+                const trigger = child.props.disabled ? (
+                    <span className="data-toolbar-tooltip-trigger">{child}</span>
+                ) : child
+
+                return (
+                    <Tooltip key={child.key} mouseEnterDelay={0} title={title}>
+                        {trigger}
+                    </Tooltip>
+                )
+            })}
+        </>
+    )
+}
 
 /** Status 列彩色标签：queue / task / review 各领域枚举不同，统一做小写归一 */
 export type StatusBadgeSemantic = "queue" | "task" | "review" | "labelType"
@@ -1008,7 +1041,7 @@ export function DataPageLayout({
                                 <ESButton appearance="unstyled"
                                     type="button"
                                     className="row-action-btn"
-                                    title="View"
+                                    title="Open this record in detail"
                                     onClick={(e) => {
                                         e.stopPropagation()
                                         const k =
@@ -1020,7 +1053,7 @@ export function DataPageLayout({
                                 >
                                     <Eye size={14} />
                                 </ESButton>
-                                <ESButton appearance="unstyled" type="button" className="row-action-btn" title="More"><MoreHorizontal size={14} /></ESButton>
+                                <ESButton appearance="unstyled" type="button" className="row-action-btn" title="Show more actions for this record"><MoreHorizontal size={14} /></ESButton>
                             </RowActions>
                         )
                     }
@@ -1266,6 +1299,7 @@ export function DataPageLayout({
                     </div>
                     <div className="data-toolbar-right">
                         <div className="data-action-group">
+                            <DataToolbarTooltips>
                             <ESButton appearance="unstyled" type="button" className="data-btn" title="Reset table" aria-label="Reset table" onClick={() => { setColumnFilters({}); setSearchQuery(""); setSortKey(defaultSortKey); setSortDir(defaultSortDir); setSelectedRows(new Set()); setCurrentPage(1) }}>
                                 <RotateCcw size={14} /> Reset table
                             </ESButton>
@@ -1273,7 +1307,7 @@ export function DataPageLayout({
                                 <ESButton appearance="unstyled"
                                     type="button"
                                     className="data-btn"
-                                    title="View"
+                                    title="Open the selected record in detail"
                                     disabled={
                                         selectedRows.size === 0 ||
                                         !onViewCustom ||
@@ -1288,7 +1322,7 @@ export function DataPageLayout({
 
                             {addDropdownItems ? (
                                 (!hideAdd && (
-                                    <Tooltip mouseEnterDelay={0} title={addDisabled ? addDisabledTooltip : undefined}>
+                                    <Tooltip mouseEnterDelay={0} title={addDisabled ? addDisabledTooltip : "Add a new record to this table"}>
                                         <span style={{ display: "inline-flex" }}>
                                             <DropdownMenu
                                                 items={addDropdownItems}
@@ -1297,7 +1331,7 @@ export function DataPageLayout({
                                                 disabled={addDisabled}
                                                 overlayClassName="data-add-dropdown"
                                             >
-                                                <ESButton appearance="unstyled" type="button" className="data-btn" title="Add" disabled={addDisabled}>
+                                                <ESButton appearance="unstyled" type="button" className="data-btn" title="Add a new record to this table" disabled={addDisabled}>
                                                     <Plus size={14} /> Add
                                                     <ChevronDown size={14} className="data-btn__dropdown-icon" aria-hidden />
                                                 </ESButton>
@@ -1307,9 +1341,9 @@ export function DataPageLayout({
                                 ))
                             ) : (
                                 !hideAdd && (
-                                    <Tooltip mouseEnterDelay={0} title={addDisabled ? addDisabledTooltip : undefined}>
+                                    <Tooltip mouseEnterDelay={0} title={addDisabled ? addDisabledTooltip : "Add a new record to this table"}>
                                         <span style={{ display: "inline-flex" }}>
-                                            <ESButton appearance="unstyled" type="button" className="data-btn" title="Add" disabled={addDisabled} onClick={() => onAddCustom ? onAddCustom() : setCrudModal({ open: true, mode: "add" })}>
+                                            <ESButton appearance="unstyled" type="button" className="data-btn" title="Add a new record to this table" disabled={addDisabled} onClick={() => onAddCustom ? onAddCustom() : setCrudModal({ open: true, mode: "add" })}>
                                                 <Plus size={14} /> Add
                                             </ESButton>
                                         </span>
@@ -1317,7 +1351,7 @@ export function DataPageLayout({
                                 )
                             )}
                             {!hideEdit && (
-                                <ESButton appearance="unstyled" className="data-btn" title="Edit" disabled={selectedRows.size !== 1} onClick={() => onEditCustom ? onEditCustom(Array.from(selectedRows)) : setCrudModal({ open: true, mode: "edit" })}>
+                                <ESButton appearance="unstyled" className="data-btn" title="Edit the selected record" disabled={selectedRows.size !== 1} onClick={() => onEditCustom ? onEditCustom(Array.from(selectedRows)) : setCrudModal({ open: true, mode: "edit" })}>
                                     <Pencil size={14} /> Edit
                                 </ESButton>
                             )}
@@ -1340,12 +1374,13 @@ export function DataPageLayout({
                                 </ESButton>
                             )}
                             {!hideExport && (
-                                <ESButton appearance="unstyled" className="data-btn" title="Export" onClick={handleExportClick}>
+                                <ESButton appearance="unstyled" className="data-btn" title="Download the current table as a CSV file" onClick={handleExportClick}>
                                     <Download size={14} /> Export CSV
                                 </ESButton>
                             )}
                             {renderAfterExportActions?.(selectedRows)}
                             {extraToolbar}
+                            </DataToolbarTooltips>
                         </div>
                     </div>
                 </TableToolbar>

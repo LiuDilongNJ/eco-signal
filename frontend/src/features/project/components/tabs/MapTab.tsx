@@ -998,6 +998,7 @@ export function MapTab() {
                     </div>
                     <ESButton appearance="unstyled"
                         className="map-filter-close"
+                        title="Close the map filters panel"
                         onClick={() => {
                             closeAllFilterDropdowns()
                             setIsFilterOpen(false)
@@ -1016,6 +1017,7 @@ export function MapTab() {
                         <ESButton appearance="unstyled"
                             type="button"
                             className={`filter-select-btn ${isRealmSelectOpen ? 'open' : ''}`}
+                            title="Filter sites by ecological realm"
                             onClick={() => {
                                 setIsBiomeSelectOpen(false)
                                 setIsGroupSelectOpen(false)
@@ -1097,6 +1099,7 @@ export function MapTab() {
                             type="button"
                             disabled={biomeSelectDisabled}
                             className={`filter-select-btn ${isBiomeSelectOpen ? "open" : ""}`}
+                            title={biomeSelectDisabled ? "Select a realm before filtering by biome" : "Filter sites by biome"}
                             onClick={() => {
                                 if (biomeSelectDisabled) return
                                 setIsRealmSelectOpen(false)
@@ -1174,6 +1177,7 @@ export function MapTab() {
                             type="button"
                             disabled={groupSelectDisabled}
                             className={`filter-select-btn ${isGroupSelectOpen ? "open" : ""}`}
+                            title={groupSelectDisabled ? "Select a biome before filtering by group" : "Filter sites by functional group"}
                             onClick={() => {
                                 if (groupSelectDisabled) return
                                 setIsRealmSelectOpen(false)
@@ -1244,6 +1248,7 @@ export function MapTab() {
 
                     <ESButton appearance="unstyled"
                         className="filter-reset-btn"
+                        title="Clear all map filters and show every site"
                         onClick={() => {
                             closeAllFilterDropdowns()
                             setFilterState(EMPTY_FILTERS)
@@ -1259,6 +1264,7 @@ export function MapTab() {
                 {mapDataReady && filteredSites.length === 0 ? null : (
                     <ESButton appearance="unstyled"
                         className="map-filter-toggle"
+                        title="Open map filters"
                         onClick={() => setIsFilterOpen(true)}
                     >
                         <SlidersHorizontal size={20} className="filter-icon-svg" />
@@ -1486,6 +1492,7 @@ function SiteSidebar({
                             type="button"
                             className="site-sidebar-icon-btn site-sidebar-icon-btn--on-hero"
                             aria-label={expanded ? "Narrow panel" : "Widen panel"}
+                            title={expanded ? "Narrow the site details panel" : "Widen the site details panel"}
                             onClick={() => {
                                 setIsTransitioning(true)
                                 setExpanded((e) => !e)
@@ -1498,6 +1505,7 @@ function SiteSidebar({
                             type="button"
                             className="site-sidebar-icon-btn site-sidebar-icon-btn--on-hero"
                             aria-label="Close"
+                            title="Close site details"
                             onClick={onClose}
                         >
                             <X size={18} />

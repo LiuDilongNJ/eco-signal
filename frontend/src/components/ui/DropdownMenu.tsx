@@ -1,5 +1,6 @@
 import { Dropdown as AntDropdown, type DropdownProps, type MenuProps } from "antd"
 import type { ReactElement } from "react"
+import { cn } from "@/lib/utils"
 
 export type { DropdownProps, MenuProps }
 
@@ -9,9 +10,14 @@ export interface DropdownMenuProps extends Omit<DropdownProps, "menu" | "childre
     onItemClick?: MenuProps["onClick"]
 }
 
-export function DropdownMenu({ items, onItemClick, children, ...props }: DropdownMenuProps) {
+export function DropdownMenu({ items, onItemClick, children, overlayClassName, rootClassName, ...props }: DropdownMenuProps) {
     return (
-        <AntDropdown menu={{ items, onClick: onItemClick }} trigger={["click"]} {...props}>
+        <AntDropdown
+            menu={{ items, onClick: onItemClick }}
+            trigger={["click"]}
+            rootClassName={cn(rootClassName, overlayClassName)}
+            {...props}
+        >
             {children}
         </AntDropdown>
     )

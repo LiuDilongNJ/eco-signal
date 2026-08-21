@@ -127,6 +127,10 @@
     cursor: not-allowed;
 }
 
+.data-toolbar-tooltip-trigger {
+    display: inline-flex;
+}
+
 .data-btn svg {
     flex-shrink: 0;
 }

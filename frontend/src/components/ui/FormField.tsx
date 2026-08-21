@@ -9,6 +9,7 @@ import {
     Switch as AntSwitch,
 } from "antd"
 import type { FormItemProps, InputProps as AntInputProps, InputRef } from "antd"
+import type { PickerRef } from "@rc-component/picker"
 import { cn } from "@/lib/utils"
 
 export type { FormInstance, RuleObject } from "antd/es/form"
@@ -115,13 +116,21 @@ function InputNumberAdapter({ className, ...props }: React.ComponentProps<typeof
     return <AntInputNumber className={cn("es-input-number", className)} {...props} />
 }
 
-function DatePickerAdapter({ className, ...props }: React.ComponentProps<typeof AntDatePicker>) {
-    return <AntDatePicker className={cn("es-date-picker", className)} {...props} />
-}
+const DatePickerAdapter = forwardRef<PickerRef, React.ComponentProps<typeof AntDatePicker>>(
+    ({ className, ...props }, ref) => (
+        <AntDatePicker ref={ref} className={cn("es-date-picker", className)} {...props} />
+    ),
+)
 
-function RangePickerAdapter({ className, ...props }: React.ComponentProps<typeof AntDatePicker.RangePicker>) {
-    return <AntDatePicker.RangePicker className={cn("es-date-picker", "es-date-range-picker", className)} {...props} />
-}
+const RangePickerAdapter = forwardRef<PickerRef, React.ComponentProps<typeof AntDatePicker.RangePicker>>(
+    ({ className, ...props }, ref) => (
+        <AntDatePicker.RangePicker
+            ref={ref}
+            className={cn("es-date-picker", "es-date-range-picker", className)}
+            {...props}
+        />
+    ),
+)
 
 export const InputNumber = InputNumberAdapter as typeof AntInputNumber
 export const DatePicker = Object.assign(DatePickerAdapter, AntDatePicker, {

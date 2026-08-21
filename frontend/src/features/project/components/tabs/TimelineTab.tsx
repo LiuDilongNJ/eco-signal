@@ -1168,7 +1168,7 @@ export function TimelineTab() {
                     ) : null}
                 </div>
                 <div className="media-controls">
-                    <ESButton appearance="unstyled" type="button" className="timeline-show-all-btn" onClick={resetView}>
+                    <ESButton appearance="unstyled" type="button" className="timeline-show-all-btn" title="Fit the timeline to all sites and media" onClick={resetView}>
                         <Maximize size={14} />
                         Show All
                     </ESButton>
@@ -1296,8 +1296,8 @@ export function TimelineTab() {
                                                 type="button"
                                                 className="ats-site-name ats-site-name--sticky"
                                                 style={{ height: rowH, gridColumn: "1 / 2", gridRow: rowPos }}
-                                                onClick={() => toggleSite(site)}
-                                                title="Expand row"
+                                                    onClick={() => toggleSite(site)}
+                                                title="Expand this site row to show its media timeline"
                                             >
                                                 <ChevronRight size={16} className="ats-site-chevron" />
                                                 <span className="ats-site-name-text">{siteNames.get(site) ?? site}</span>
@@ -1323,6 +1323,7 @@ export function TimelineTab() {
                                                                 className="ats-cluster"
                                                                 style={barTimeLayout(b.tAnchor, b.tAnchor)}
                                                                 onClick={() => onBucketClick(site)}
+                                                                title={b.count > 1 ? `Open ${b.count} media items for this site` : "Open media for this site"}
                                                                 aria-label={
                                                                     b.count > 1
                                                                         ? `${b.count} items`
@@ -1429,7 +1430,7 @@ export function TimelineTab() {
                                                                             onClick={() => {
                                                                                 if (canOpen) openAudioDetail(it.media_id)
                                                                             }}
-                                                                            title={it.name || "Media"}
+                                                                            title={canOpen ? `Open ${it.name || "this media"} in the media viewer` : "Metadata-only item; no media viewer available"}
                                                                         >
                                                                             <span
                                                                                 className={`ats-bar-label ${canFitInside ? "ats-bar-label--inside" : ""}`}
