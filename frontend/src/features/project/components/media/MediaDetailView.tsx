@@ -6809,9 +6809,12 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                                                     requiredMark={false}
                                                 >
                                                     <div className="">
-                                                        <div className="form-drawer-main-col" style={{ padding: 0 }}>
-                                                            <Row gutter={[14, 0]}>
-                                                                <Col xs={12} sm={6}>
+                                                        <div
+                                                            className={isPhoto ? "form-drawer-main-col studio-annot-photo-form-grid" : "form-drawer-main-col"}
+                                                            style={{ padding: 0 }}
+                                                        >
+                                                            <Row gutter={[14, 0]} className={isPhoto ? "studio-annot-photo-coordinate-row" : undefined}>
+                                                                <Col xs={isPhoto ? 24 : 12} sm={isPhoto ? 12 : 6}>
                                                                     <Form.Item label={renderStudioRequiredLabel("Min X")} className="studio-annot-form-item">
                                                                         <InputNumber
                                                                             style={{ width: "100%" }}
@@ -6826,7 +6829,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                                                                         />
                                                                     </Form.Item>
                                                                 </Col>
-                                                                <Col xs={12} sm={6}>
+                                                                <Col xs={isPhoto ? 24 : 12} sm={isPhoto ? 12 : 6}>
                                                                     <Form.Item label={renderStudioRequiredLabel("Max X")} className="studio-annot-form-item">
                                                                         <InputNumber
                                                                             style={{ width: "100%" }}
@@ -6841,7 +6844,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                                                                         />
                                                                     </Form.Item>
                                                                 </Col>
-                                                                <Col xs={12} sm={6}>
+                                                                <Col xs={isPhoto ? 24 : 12} sm={isPhoto ? 12 : 6}>
                                                                     <Form.Item label={renderStudioRequiredLabel("Min Y")} className="studio-annot-form-item">
                                                                         <InputNumber
                                                                             style={{ width: "100%" }}
@@ -6856,7 +6859,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                                                                         />
                                                                     </Form.Item>
                                                                 </Col>
-                                                                <Col xs={12} sm={6}>
+                                                                <Col xs={isPhoto ? 24 : 12} sm={isPhoto ? 12 : 6}>
                                                                     <Form.Item label={renderStudioRequiredLabel("Max Y")} className="studio-annot-form-item">
                                                                         <InputNumber
                                                                             style={{ width: "100%" }}
@@ -6873,7 +6876,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                                                                 </Col>
                                                             </Row>
                                                             {isPhoto ? (
-                                                                <Row gutter={[14, 0]}>
+                                                                <Row gutter={[14, 0]} className="studio-annot-photo-flow-row">
                                                                     <Col xs={24} sm={12}>
                                                                         <Form.Item label={renderStudioRequiredLabel("Object Type")} className="studio-annot-form-item">
                                                                             <Select className="form-drawer-select" options={[{ value: "organism", label: "Organism" }, { value: "other", label: "Other" }]} value={formObjectType ?? undefined} onChange={(value) => setFormObjectType(value ?? null)} />
@@ -6923,7 +6926,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                                                             </Row>
                                                             {(isPhoto ? formObjectType === "organism" : isBiophonyAnnotationForm) ? (
                                                                 <>
-                                                                    <Row gutter={[14, 0]}>
+                                                                    <Row gutter={[14, 0]} className={isPhoto ? "studio-annot-photo-flow-row" : undefined}>
                                                                         <Col xs={24} sm={12}>
                                                                             <Form.Item
                                                                                 label={
@@ -7156,7 +7159,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                                                                             </div>
                                                                         </Col>
                                                                     </Row> : null}
-                                                                    <Row gutter={[14, 0]}>
+                                                                    <Row gutter={[14, 0]} className={isPhoto ? "studio-annot-photo-flow-row" : undefined}>
                                                                         <Col xs={24} sm={12}>
                                                                             <Form.Item label="Indiv. Num" className="studio-annot-form-item">
                                                                                 <Input
@@ -7184,7 +7187,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                                                                             </Form.Item>
                                                                         </Col>
                                                                     </Row>
-                                                                    <Row gutter={[14, 0]} align="bottom">
+                                                                    <Row gutter={[14, 0]} align="bottom" className={isPhoto ? "studio-annot-photo-flow-row" : undefined}>
                                                                         <Col xs={24} sm={12}>
                                                                             <div className="studio-annot-comments-meta-shell">
                                                                                 <Form.Item
@@ -7217,7 +7220,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                                                                 </>
                                                             ) : (
                                                                 <>
-                                                                    <Row gutter={[14, 0]}>
+                                                                    <Row gutter={[14, 0]} className={isPhoto ? "studio-annot-photo-flow-row" : undefined}>
                                                                         <Col xs={24} sm={12}>
                                                                             <Form.Item
                                                                                 label="Reference"

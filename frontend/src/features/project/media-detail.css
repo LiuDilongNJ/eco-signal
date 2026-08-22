@@ -1281,6 +1281,49 @@
     margin-bottom: 14px;
 }
 
+/* Photo annotations use one continuous two-column field flow so conditional
+   fields fill the next available cell instead of leaving empty rows. */
+.studio-annot-photo-form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 14px;
+    align-items: start;
+}
+
+.studio-annot-photo-form-grid > .studio-annot-photo-coordinate-row {
+    grid-column: 1 / -1;
+}
+
+.studio-annot-photo-form-grid > .studio-annot-photo-flow-row {
+    display: contents;
+}
+
+.studio-annot-photo-form-grid > .studio-annot-photo-flow-row > .ant-col {
+    width: auto !important;
+    max-width: none !important;
+    flex: 0 0 auto !important;
+    padding-inline: 0 !important;
+}
+
+.studio-annot-photo-form-grid .studio-annot-taxon-label {
+    height: 1.5715em;
+    min-height: 1.5715em;
+    line-height: 1.5715;
+    box-sizing: border-box;
+}
+
+.studio-annot-photo-form-grid .studio-annot-taxon-label-title,
+.studio-annot-photo-form-grid .studio-annot-taxon-links,
+.studio-annot-photo-form-grid .studio-annot-taxon-search-btn {
+    line-height: 1.5715;
+}
+
+@media (max-width: 720px) {
+    .studio-annot-photo-form-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
 .studio-annotation-form--antd .studio-annot-switch-field .ant-form-item-control-input {
     min-height: 32px;
 }
@@ -1292,6 +1335,15 @@
     min-height: 32px;
     padding-inline-end: var(--es-space-1);
     box-sizing: border-box;
+}
+
+.studio-annot-photo-form-grid .studio-annot-switch-field .ant-form-item-control-input-content {
+    align-items: flex-start;
+}
+
+.studio-annot-photo-form-grid .studio-annot-switch-field .ant-switch {
+    position: relative;
+    top: -5px;
 }
 
 .studio-annotation-form--antd .ant-input,
