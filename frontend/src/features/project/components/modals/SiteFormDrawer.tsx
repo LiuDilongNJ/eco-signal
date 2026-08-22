@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef } from "react"
 import type { ReactNode } from "react"
 import type { RuleObject } from "@/components/ui"
-import { Button, Form, Input, LoadingState, Select, InputNumber, ConfigProvider, Space } from "@/components/ui"
+import { Button, Form, Input, LoadingState, Select, InputNumber, ConfigProvider, Space, Tooltip } from "@/components/ui"
 import { FormDrawer } from "@/components/ui"
 import { renderRequiredMark } from "@/components/ui"
 
@@ -12,6 +12,7 @@ import { useGadm } from "../hooks/useGadm"
 import { useGeoOptions, type GeoOptionsFilter } from "../hooks/useGeoOptions"
 import { CustomScrollArea } from "@/components/ui"
 import { isSelectScrollNearBottom } from "@/hooks/usePagedSelectOptions"
+import { CircleHelp } from "lucide-react"
 import "./styles/FormDrawer.css"
 
 function gadmSelectOptions(opts: { gid?: string; name: string; name_zh?: string }[]) {
@@ -87,6 +88,14 @@ const SITE_LOCATION_DEPENDENCIES = [
 
 const LOCATION_REQUIRED_FIELD_KEYS = new Set(["latitude", "longitude", "gadm0_gid", "iho_id"])
 
+const TOPOGRAPHY_MIN_METERS = -10900
+const TOPOGRAPHY_MAX_METERS = 8849
+
+const SITE_FIELD_HELP: Record<string, string> = {
+    topography_m: "Negative or positive values for depth below sea level or altitude above sea level.",
+    freshwater_depth_m: "Depth of sampling site within freshwater body.",
+}
+
 function hasRequiredFieldValue(value: unknown): boolean {
     if (value == null) return false
     if (typeof value === "object" && "value" in value) {
@@ -105,15 +114,22 @@ function validateCoordRange(value: unknown, label: string, min: number, max: num
 }
 
 function renderFieldLabel(field: FormFieldDef) {
-    if (field.required) return field.label
-
-    if (!LOCATION_REQUIRED_FIELD_KEYS.has(field.key)) return field.label
-
-    return (
+    const label = field.required || LOCATION_REQUIRED_FIELD_KEYS.has(field.key) ? (
         <>
             {field.label}
-            <span className="form-drawer-required-suffix">*</span>
+            {!field.required ? <span className="form-drawer-required-suffix">*</span> : null}
         </>
+    ) : field.label
+    const helpText = SITE_FIELD_HELP[field.key]
+    if (!helpText) return label
+
+    return (
+        <span className="site-form-field-label-with-help">
+            <span>{label}</span>
+            <Tooltip title={helpText}>
+                <CircleHelp size={14} strokeWidth={2} aria-label={`${field.label} information`} />
+            </Tooltip>
+        </span>
     )
 }
 
@@ -435,6 +451,24 @@ export function SiteFormDrawer({
         }
     }, [])
 
+    const topographyRangeRule = useMemo((): RuleObject => {
+        return {
+            validator: async (_, value) => {
+                const error = validateCoordRange(value, "Topography", TOPOGRAPHY_MIN_METERS, TOPOGRAPHY_MAX_METERS)
+                if (error) throw new Error(error)
+            },
+        }
+    }, [])
+
+    const freshwaterDepthRule = useMemo((): RuleObject => {
+        return {
+            validator: async (_, value) => {
+                const error = validateCoordRange(value, "Water depth", 0, Number.POSITIVE_INFINITY)
+                if (error) throw new Error(error)
+            },
+        }
+    }, [])
+
     const longitudeRangeRule = useMemo((): RuleObject => {
         return {
             validator: async (_, value) => {
@@ -474,6 +508,10 @@ export function SiteFormDrawer({
             rules.push(gadm0HierarchyRule)
         } else if (field.key === "gadm1_gid" || field.key === "gadm2_gid") {
             rules.push(gadm0HierarchyRule)
+        } else if (field.key === "topography_m") {
+            rules.push(topographyRangeRule)
+        } else if (field.key === "freshwater_depth_m") {
+            rules.push(freshwaterDepthRule)
         }
 
         return rules
@@ -495,7 +533,13 @@ export function SiteFormDrawer({
 
         if (field.type === "number") {
             // Keep out-of-range coordinates visible so the field validator can explain the error.
-            innerElement = <InputNumber {...numberFieldProps} />
+            innerElement = (
+                <InputNumber
+                    {...numberFieldProps}
+                    min={field.key === "topography_m" ? TOPOGRAPHY_MIN_METERS : field.key === "freshwater_depth_m" ? 0 : undefined}
+                    max={field.key === "topography_m" ? TOPOGRAPHY_MAX_METERS : undefined}
+                />
+            )
         } else if (field.key === "gadm0_gid") {
             innerElement = (
                 <Select

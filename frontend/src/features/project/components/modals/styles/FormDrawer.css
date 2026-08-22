@@ -317,6 +317,19 @@
     min-width: 0;
 }
 
+.site-form-field-label-with-help {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.site-form-field-label-with-help .anticon,
+.site-form-field-label-with-help svg {
+    color: var(--text-secondary);
+    cursor: help;
+    flex: 0 0 auto;
+}
+
 .form-drawer-side-col {
     flex: 1;
     min-width: 0;
