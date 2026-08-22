@@ -427,21 +427,6 @@ if [[ "$SKIP_DB" == false ]]; then
     fi
 fi
 
-if [[ "$SKIP_DB" == false ]]; then
-    info "Ensuring MySQL migration dependencies are available in the backend container..."
-    if ! "${DOCKER_COMPOSE[@]}" exec -T backend python -c "import pymysql, cryptography" >/dev/null 2>&1; then
-        "${DOCKER_COMPOSE[@]}" exec -T backend sh -c '
-            VENV_SITE_PACKAGES=$(python - <<'"'"'PY'"'"'
-import sysconfig
-print(sysconfig.get_path("purelib"))
-PY
-)
-            pip install --quiet --target "$VENV_SITE_PACKAGES" pymysql cryptography
-        '
-    fi
-    success "MySQL migration dependencies are available."
-fi
-
 if [[ "$SKIP_DB" == true ]]; then
     warn "Skipping database migration (--skip-db)."
 else

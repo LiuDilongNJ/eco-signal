@@ -37,6 +37,7 @@ dependencies = [
     "pillow>=10.0.0; sys_platform != 'darwin' or platform_machine != 'x86_64'",
     "pillow>=9.5.0,<10; sys_platform == 'darwin' and platform_machine == 'x86_64'",
     "pymysql>=1.1.2",
+    "cryptography>=43.0.0",
     "prometheus-client>=0.25.0",
     "birdnet-analyzer==2.4.0",
 ]
