@@ -67,7 +67,15 @@
 
     然后打开 `.env`，按当前环境填写实际配置后再启动项目。
     至少需要重点检查 `SECRET_KEY`、`FIRST_SUPERUSER`、`FIRST_SUPERUSER_PASSWORD` 和 `POSTGRES_PASSWORD`。
-    如果你要部署项目或启用可选集成，还需要按场景补充域名、邮箱、Sentry、旧项目路径等配置。
+    如果你要部署项目或启用可选集成，还需要按场景补充域名、邮箱、Sentry、RabbitMQ、旧项目路径等配置。
+
+    `RABBITMQ_ERLANG_COOKIE` 提供本地开发默认值。每个部署环境都应替换为唯一且稳定的随机值，例如：
+
+    ```bash
+    openssl rand -hex 32
+    ```
+
+    只要 RabbitMQ 数据卷仍在使用，就必须保持该部署值不变；修改它会使 RabbitMQ 节点无法启动。
 
     `.env.example` 是可提交的初始化模板，`.env` 仅用于本地或部署环境，不能提交真实密钥、密码或其他敏感配置。
 
@@ -359,6 +367,7 @@ docker compose exec -T frontend npm run build
 | `FIRST_SUPERUSER_PASSWORD`                     | 管理员密码      |
 | `POSTGRES_PASSWORD`                            | 数据库密码      |
 | `REDIS_PASSWORD`                               | Redis 密码（本地默认 `ecosignal`；staging/production 须通过 secret 覆盖） |
+| `RABBITMQ_ERLANG_COOKIE`                       | RabbitMQ 节点 cookie（每个部署环境均须以唯一且稳定的 secret 替换本地默认值） |
 | `SENTRY_DSN`                                   | Sentry DSN（可选） |
 
 #### 可选 GitHub Variables

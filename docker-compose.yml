@@ -93,6 +93,7 @@ services:
       - RABBITMQ_DEFAULT_USER=${RABBITMQ_USER:-ecosignal}
       - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASSWORD:-ecosignal}
       - RABBITMQ_DEFAULT_VHOST=${RABBITMQ_VHOST:-/}
+      - RABBITMQ_ERLANG_COOKIE=${RABBITMQ_ERLANG_COOKIE:-ecosignal-erlang-cookie}
     ports:
       - "25672:15672"
     volumes:

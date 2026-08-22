@@ -67,7 +67,15 @@ This project is completely automated. Geographical data and database migrations 
 
     Then open `.env` and fill in the values for your environment before starting the stack.
     At minimum, review `SECRET_KEY`, `FIRST_SUPERUSER`, `FIRST_SUPERUSER_PASSWORD`, and `POSTGRES_PASSWORD`.
-    If you are deploying or using optional integrations, also fill in domain, email, Sentry, and legacy project path settings as needed.
+    If you are deploying or using optional integrations, also fill in domain, email, Sentry, RabbitMQ, and legacy project path settings as needed.
+
+    `RABBITMQ_ERLANG_COOKIE` has a local-development default. For each deployment, replace it with a unique, stable random value, for example:
+
+    ```bash
+    openssl rand -hex 32
+    ```
+
+    Keep the deployed value unchanged while its RabbitMQ data volume is in use; changing it prevents the RabbitMQ node from starting.
 
     `.env.example` is the committed template for project setup. `.env` is for local or deployment-specific secrets and must not be committed.
 
@@ -360,6 +368,7 @@ The workflows set `ENVIRONMENT` directly: the staging workflow uses `staging`, a
 | `FIRST_SUPERUSER_PASSWORD`                     | Admin password         |
 | `POSTGRES_PASSWORD`                            | Database password      |
 | `REDIS_PASSWORD`                               | Redis password (default `ecosignal` for local; must override via secret in staging/production) |
+| `RABBITMQ_ERLANG_COOKIE`                       | RabbitMQ node cookie (replace the local default with a unique, stable secret in each deployment) |
 | `SENTRY_DSN`                                   | Sentry DSN (optional)  |
 
 #### Optional GitHub Variables
