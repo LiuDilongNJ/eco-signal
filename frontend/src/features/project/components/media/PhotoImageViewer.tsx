@@ -891,7 +891,9 @@ export function PhotoImageViewer({
 
             <div className="player-toolbar-bottom photo-player-toolbar-bottom">
                 <div style={{ flex: 1 }} />
-                <span className="photo-viewer-help">Shift or middle-drag to pan · drag to mark</span>
+                <span className="photo-viewer-help">
+                    Shift + drag or middle-button drag to pan · click and drag to draw an annotation box
+                </span>
                 <span>
                     {Math.round(scale * 100)}
                     {Math.abs(scaleY - scale) > 0.001 ? `/${Math.round(scaleY * 100)}` : ""}%
