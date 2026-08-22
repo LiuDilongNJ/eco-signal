@@ -77,6 +77,13 @@
 
     只要 RabbitMQ 数据卷仍在使用，就必须保持该部署值不变；修改它会使 RabbitMQ 节点无法启动。
 
+    Docker Compose 使用 `STACK_NAME` 作为项目名，默认值为 `ecosignal`，不会根据仓库所在目录自动变化。启动项目和迁移数据时必须保持该值一致。如果使用自定义项目名：
+
+    ```bash
+    STACK_NAME=eco-signal docker compose up -d
+    STACK_NAME=eco-signal ./migrate-data.sh /path/to/source
+    ```
+
     `.env.example` 是可提交的初始化模板，`.env` 仅用于本地或部署环境，不能提交真实密钥、密码或其他敏感配置。
 
 2.  **启动堆栈**:

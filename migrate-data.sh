@@ -247,6 +247,23 @@ require_full_legacy_media_tree() {
 command -v docker >/dev/null 2>&1 || die "docker is not installed"
 cd "$PROJECT_ROOT"
 
+validate_compose_project() {
+    local service container_id actual_project mismatches=""
+    for service in backend db; do
+        while read -r container_id; do
+            [[ -n "$container_id" ]] || continue
+            actual_project="$(docker inspect --format '{{ index .Config.Labels "com.docker.compose.project" }}' "$container_id")"
+            if [[ "$actual_project" != "$COMPOSE_PROJECT" ]]; then
+                mismatches+=" ${service}=${actual_project}"
+            fi
+        done < <(docker ps --filter "label=com.docker.compose.service=${service}" --format '{{.ID}}')
+    done
+    if [[ -n "$mismatches" ]]; then
+        die "Running containers belong to a different Docker Compose project:${mismatches}. Expected '${COMPOSE_PROJECT}'. Set STACK_NAME consistently and recreate the stack before migration."
+    fi
+}
+
+validate_compose_project
 BACKEND_RUNNING=$("${DOCKER_COMPOSE[@]}" ps --status running --services 2>/dev/null | grep -c "^backend$" || true)
 DB_RUNNING=$("${DOCKER_COMPOSE[@]}" ps --status running --services 2>/dev/null | grep -c "^db$" || true)
 [[ "$BACKEND_RUNNING" -gt 0 ]] || die "The backend container is not running."

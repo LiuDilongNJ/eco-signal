@@ -77,6 +77,13 @@ This project is completely automated. Geographical data and database migrations 
 
     Keep the deployed value unchanged while its RabbitMQ data volume is in use; changing it prevents the RabbitMQ node from starting.
 
+    Docker Compose uses `STACK_NAME` as the project name, with `ecosignal` as the default, regardless of the directory where the repository is cloned. Keep the same value when starting the stack and migrating data. For a custom project name:
+
+    ```bash
+    STACK_NAME=eco-signal docker compose up -d
+    STACK_NAME=eco-signal ./migrate-data.sh /path/to/source
+    ```
+
     `.env.example` is the committed template for project setup. `.env` is for local or deployment-specific secrets and must not be committed.
 
 3.  **Start the stack**:

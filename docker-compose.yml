@@ -1,3 +1,5 @@
+name: ${STACK_NAME:-ecosignal}
+
 services:
 
   db:
