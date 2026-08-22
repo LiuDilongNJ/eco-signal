@@ -38,6 +38,7 @@ const VIRTUAL_ROW_OVERSCAN = 8
 const DETAIL_DEBOUNCE_MS = 250
 const WHEEL_ZOOM_STEP = 1.14
 const MIN_VIEW_SPAN_MS = 60_000
+const TIMELINE_EDGE_PADDING_RATIO = 0.25
 const MS = 1
 const SECOND = 1000 * MS
 const MINUTE = 60 * SECOND
@@ -265,7 +266,6 @@ function bucketItemsForSite(
 function timelineItemsBounds(items: CollectionTimelineItem[]) {
     let min = Infinity
     let max = -Infinity
-    const spans: { start: number; end: number }[] = []
     for (const it of items) {
         const start = parseTimelineDate(it.start_date)
         if (Number.isNaN(start)) continue
@@ -273,10 +273,9 @@ function timelineItemsBounds(items: CollectionTimelineItem[]) {
         const end = Number.isNaN(rawEnd) ? start : Math.max(start, rawEnd)
         min = Math.min(min, start)
         max = Math.max(max, end)
-        spans.push({ start, end })
     }
     if (min === Infinity || max === -Infinity) return null
-    return { min, max, span: Math.max(max - min, 1), spans }
+    return { min, max, span: Math.max(max - min, 1) }
 }
 
 function buildCenteredTimeWindow(
@@ -464,8 +463,10 @@ export function TimelineTab() {
             return empty
         }
         const rawSpan = t1_raw - t0_raw
-        const t0 = t0_raw - rawSpan * 0.1
-        const t1 = t1_raw + rawSpan * 0.25
+        // Keep the initial viewport symmetric so dragging has the same room at both ends.
+        const edgePadding = rawSpan * TIMELINE_EDGE_PADDING_RATIO
+        const t0 = t0_raw - edgePadding
+        const t1 = t1_raw + edgePadding
 
         const map = new Map<string, CollectionTimelineItem[]>()
         const names = new Map<string, string>()
@@ -694,18 +695,16 @@ export function TimelineTab() {
         let dragScrollEl: HTMLElement = chartArea
         let dragCanScrollY = false
         let dragActivated = false
-        let dragBounds: ReturnType<typeof timelineItemsBounds> | null = null
 
         const clampWindowToDataBounds = (
             start: number,
             end: number,
             s: typeof wheelZoomRef.current,
-            specificBounds?: ReturnType<typeof timelineItemsBounds> | null,
         ) => {
             const span = Math.max(end - start, MIN_VIEW_SPAN_MS)
-            const baseMin = specificBounds?.min ?? s.dataMin
-            const baseMax = specificBounds?.max ?? s.dataMax
-            const baseSpan = specificBounds?.span ?? s.dataSpan
+            const baseMin = s.dataMin
+            const baseMax = s.dataMax
+            const baseSpan = s.dataSpan
             if (!(baseSpan > 0)) return { start, end: start + span }
 
             if (span >= baseSpan) {
@@ -720,23 +719,8 @@ export function TimelineTab() {
 
             const minStart = baseMin
             const maxStart = baseMax - span
-            let nextStart = Math.max(minStart, Math.min(start, maxStart))
-            let nextEnd = nextStart + span
-
-            if (specificBounds?.spans.length) {
-                const hasVisibleItem = specificBounds.spans.some((it) => it.end >= nextStart && it.start <= nextEnd)
-                if (!hasVisibleItem) {
-                    const center = nextStart + span / 2
-                    const nearest = specificBounds.spans.reduce((best, cur) => {
-                        const bestCenter = (best.start + best.end) / 2
-                        const curCenter = (cur.start + cur.end) / 2
-                        return Math.abs(curCenter - center) < Math.abs(bestCenter - center) ? cur : best
-                    })
-                    const nearestCenter = (nearest.start + nearest.end) / 2
-                    nextStart = Math.max(minStart, Math.min(nearestCenter - span / 2, maxStart))
-                    nextEnd = nextStart + span
-                }
-            }
+            const nextStart = Math.max(minStart, Math.min(start, maxStart))
+            const nextEnd = nextStart + span
 
             return {
                 start: nextStart,
@@ -829,9 +813,6 @@ export function TimelineTab() {
 
             isDragging = true
             dragActivated = false
-            const rowEl = target.closest("[data-site-row]") as HTMLElement | null
-            const rowSite = rowEl?.getAttribute("data-site-row")
-            dragBounds = rowSite ? timelineItemsBounds(bySite.get(rowSite) ?? []) : null
             dragStartX = e.clientX
             dragStartY = e.clientY
             dragStartVMin = s.vMin
@@ -859,7 +840,7 @@ export function TimelineTab() {
             const msShift = (deltaX / s.chartTrackPx) * s.vSpan
 
             allowDetailAutoWindowRef.current = false
-            setViewWindow(clampWindowToDataBounds(dragStartVMin - msShift, dragStartVMax - msShift, s, dragBounds))
+            setViewWindow(clampWindowToDataBounds(dragStartVMin - msShift, dragStartVMax - msShift, s))
 
             // Only expanded detail rows support vertical drag-scroll. Header/overview drags are horizontal pan only.
             if (dragCanScrollY) {
@@ -877,7 +858,6 @@ export function TimelineTab() {
             chartArea.style.cursor = ''
             dragCanScrollY = false
             dragActivated = false
-            dragBounds = null
         }
 
         chartArea.addEventListener("wheel", onWheel, wheelOpts)
