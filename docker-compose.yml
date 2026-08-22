@@ -78,6 +78,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 30s
     volumes:
       - redis-data:/data
 
@@ -89,6 +90,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 60s
     environment:
       - RABBITMQ_DEFAULT_USER=${RABBITMQ_USER:-ecosignal}
       - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASSWORD:-ecosignal}
@@ -152,6 +154,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 300s
 
     build:
       context: ./backend
