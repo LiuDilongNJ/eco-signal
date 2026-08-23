@@ -1,4 +1,4 @@
-import { Button as ESButton } from "@/components/ui"
+import { Button as ESButton, LoadingState } from "@/components/ui"
 /**
  * ProjectNavBar - 项目页顶部导航栏
  *
@@ -35,6 +35,7 @@ export function ProjectNavBar() {
     const {
         currentProjectId,
         currentCollectionId,
+        loadingCollections,
         projectSearchQuery,
         collectionSearchQuery,
         filteredProjects,
@@ -60,7 +61,33 @@ export function ProjectNavBar() {
     const pendingNavCollectionIdRef = useRef<number | null>(null)
     const mediaNavItemsCollectionIdRef = useRef<number | null>(null)
     const [mobileCrumbOpen, setMobileCrumbOpen] = useState(false)
+    const [projectSwitchLoading, setProjectSwitchLoading] = useState(false)
+    const [collectionSwitchLoading, setCollectionSwitchLoading] = useState(false)
+    const projectSwitchTargetRef = useRef<string | null>(null)
+    const collectionSwitchTargetRef = useRef<string | null>(null)
     const leftCapsuleRef = useRef<HTMLDivElement>(null)
+
+    const finishCollectionSwitchLoading = useCallback(() => {
+        collectionSwitchTargetRef.current = null
+        setCollectionSwitchLoading(false)
+    }, [])
+
+    useEffect(() => {
+        if (!projectSwitchLoading) return
+        const target = projectSwitchTargetRef.current
+        if (target == null || String(currentProjectId ?? "") !== target) return
+        if (loadingCollections || collectionOptions.length === 0) return
+        projectSwitchTargetRef.current = null
+        setProjectSwitchLoading(false)
+    }, [collectionOptions.length, currentProjectId, loadingCollections, projectSwitchLoading])
+
+    useEffect(() => {
+        if (!collectionSwitchLoading) return
+        const target = collectionSwitchTargetRef.current
+        if (target == null || String(currentCollectionId ?? "") !== target) return
+        if (isMediaDetailRoute && pendingNavCollectionIdRef.current != null) return
+        finishCollectionSwitchLoading()
+    }, [currentCollectionId, collectionSwitchLoading, finishCollectionSwitchLoading, isMediaDetailRoute])
 
     useEffect(() => {
         const onAuth = () => setMeFetchGen((n) => n + 1)
@@ -229,6 +256,11 @@ export function ProjectNavBar() {
         async (id: number | string) => {
             const pid = Number(id)
             if (!Number.isFinite(pid)) return
+            if (String(currentProjectId ?? "") === String(pid)) return
+            projectSwitchTargetRef.current = String(pid)
+            setProjectSwitchLoading(true)
+            collectionSwitchTargetRef.current = null
+            setCollectionSwitchLoading(false)
             const preferredMediaType = preferredMediaTypeRef.current
 
             pendingNavCollectionIdRef.current = null
@@ -262,7 +294,7 @@ export function ProjectNavBar() {
                 goToDashboardMedia()
             }
         },
-        [goToDashboardMedia, navigate, selectCollection, selectProject],
+        [currentProjectId, goToDashboardMedia, navigate, selectCollection, selectProject],
     )
 
     // 用户手动切换 Collection 后，等待新列表返回，再优先跳到同类型媒体。
@@ -275,6 +307,7 @@ export function ProjectNavBar() {
         if (mediaNavItemsCollectionIdRef.current !== pendingCid) return
         if (mediaNavItems.length === 0) {
             pendingNavCollectionIdRef.current = null
+            finishCollectionSwitchLoading()
             goToDashboardMedia()
             return
         }
@@ -284,10 +317,12 @@ export function ProjectNavBar() {
         pendingNavCollectionIdRef.current = null
         preferredMediaTypeRef.current = target.mediaType
 
+        finishCollectionSwitchLoading()
         if (selectedMediaNavId != null && String(selectedMediaNavId) === String(target.id)) return
         navigate(`/dashboard/${projectSegmentForNavigate}/media/${target.id}`)
     }, [
         goToDashboardMedia,
+        finishCollectionSwitchLoading,
         isMediaDetailRoute,
         mediaNavItems,
         navigate,
@@ -328,6 +363,7 @@ export function ProjectNavBar() {
 
 
     return (
+        <>
         <nav className="project-nav-bar">
             {/* 左侧: Logo + 面包屑 */}
             <div className="nav-left">
@@ -342,6 +378,7 @@ export function ProjectNavBar() {
                     <ESButton appearance="unstyled"
                         type="button"
                         className="nav-mobile-crumb-toggle"
+                        disabled={projectSwitchLoading || collectionSwitchLoading}
                         onClick={() => setMobileCrumbOpen((v) => !v)}
                     >
                         <StableText className="nav-mobile-crumb-label">
@@ -359,6 +396,11 @@ export function ProjectNavBar() {
                                 } else {
                                     const pid = Number(id)
                                     if (!Number.isFinite(pid)) return
+                                    if (String(currentProjectId ?? "") === String(pid)) return
+                                    projectSwitchTargetRef.current = String(pid)
+                                    setProjectSwitchLoading(true)
+                                    collectionSwitchTargetRef.current = null
+                                    setCollectionSwitchLoading(false)
                                     navigate(`/dashboard/${pid}?${searchParams.toString()}`, {
                                         replace: true,
                                     })
@@ -368,12 +410,16 @@ export function ProjectNavBar() {
                             searchQuery={projectSearchQuery}
                             label="Project"
                             roleBanner={projectRoleBanner}
+                            loading={projectSwitchLoading}
                         />
                         <span className="crumb-separator">/</span>
                         <SearchableDropdown
                             items={collectionItems}
                             selectedId={currentCollectionId}
                             onSelect={(id) => {
+                                if (currentCollectionId != null && String(currentCollectionId) === String(id ?? "")) return
+                                collectionSwitchTargetRef.current = String(id ?? "")
+                                setCollectionSwitchLoading(true)
                                 selectCollection(id)
                                 setMobileCrumbOpen(false)
                                 if (!isMediaDetailRoute) return
@@ -388,6 +434,7 @@ export function ProjectNavBar() {
                             roleBanner={collectionRoleBanner}
                             disabled={!hasCollections}
                             customLabel={!hasCollections ? "No Data" : undefined}
+                            loading={projectSwitchLoading || collectionSwitchLoading}
                         />
                         {isMediaDetailRoute ? (
                             <>
@@ -407,6 +454,7 @@ export function ProjectNavBar() {
                                     searchQuery={mediaNavSearch}
                                     label="Media"
                                     roleBanner={null}
+                                    loading={projectSwitchLoading || collectionSwitchLoading}
                                 />
                             </>
                         ) : null}
@@ -436,5 +484,14 @@ export function ProjectNavBar() {
                 </div>
             </div>
         </nav>
+        {projectSwitchLoading || collectionSwitchLoading ? (
+            <LoadingState
+                label="Loading..."
+                variant="overlay"
+                size="lg"
+                className="project-context-loading-overlay"
+            />
+        ) : null}
+        </>
     )
 }

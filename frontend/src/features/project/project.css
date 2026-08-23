@@ -69,6 +69,14 @@ html {
     gap: 16px;
 }
 
+/* Project / Collection context switches use the same centered loading surface as Media. */
+.project-context-loading-overlay.ui-state--overlay {
+    position: absolute;
+    inset: var(--nav-height) 0 0;
+    z-index: 900;
+    background: var(--glass-bg);
+}
+
 .nav-capsule-box {
     position: relative;
     display: flex;
@@ -220,6 +228,11 @@ html {
 
 .crumb-wrapper.disabled .crumb-btn {
     pointer-events: none;
+}
+
+.crumb-wrapper.loading .crumb-btn {
+    cursor: wait;
+    opacity: 1;
 }
 
 .crumb-separator {

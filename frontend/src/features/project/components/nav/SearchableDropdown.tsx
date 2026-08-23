@@ -30,6 +30,7 @@ interface SearchableDropdownProps {
     /** 仅禁用交互，不展示 disabled 外观（不加 .disabled wrapper class） */
     suppressDisabledStyle?: boolean
     customLabel?: string
+    loading?: boolean
 }
 
 export function SearchableDropdown({
@@ -43,6 +44,7 @@ export function SearchableDropdown({
     disabled,
     suppressDisabledStyle,
     customLabel,
+    loading = false,
 }: SearchableDropdownProps) {
     const [isOpen, setIsOpen] = useState(false)
     const wrapperRef = useRef<HTMLDivElement>(null)
@@ -67,11 +69,12 @@ export function SearchableDropdown({
     return (
         <div
             ref={wrapperRef}
-            className={`crumb-wrapper ${isOpen ? "active" : ""} ${disabled && !suppressDisabledStyle ? "disabled" : ""}`}
+            className={`crumb-wrapper ${isOpen ? "active" : ""} ${disabled && !suppressDisabledStyle ? "disabled" : ""} ${loading ? "loading" : ""}`}
         >
             <ESButton appearance="unstyled"
                 className="crumb-btn"
-                disabled={disabled}
+                disabled={disabled || loading}
+                aria-busy={loading}
                 onClick={() => {
                     if (isOpen) {
                         closeDropdown()
