@@ -1,6 +1,7 @@
 import { act, render, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { afterEach, describe, expect, it, vi } from "vitest"
+import { MemoryRouter } from "react-router-dom"
 
 import { APP_OVERLAY_ROOT_ID } from "@/providers/StageOverlayContext"
 import { useProjectStore } from "../../stores/useProjectStore"
@@ -192,5 +193,58 @@ describe("DataPageLayout collection context", () => {
 
         expect(dateInputs[0]).toHaveValue("")
         expect(dateInputs[1]).toHaveValue("")
+    })
+
+    it("uses Add for mixed pages and Import for import-only pages", async () => {
+        const { rerender } = render(
+            <MemoryRouter>
+                <DataPageLayout
+                    title="Queue"
+                    columns={[{ key: "id", label: "ID", type: "number" }]}
+                    rows={[]}
+                    formFields={[]}
+                />
+            </MemoryRouter>,
+        )
+
+        expect(screen.queryByRole("button", { name: "Import" })).not.toBeInTheDocument()
+
+        rerender(
+            <MemoryRouter>
+                <DataPageLayout
+                    title="Sites"
+                    columns={[{ key: "id", label: "ID", type: "number" }]}
+                    rows={[]}
+                    formFields={[]}
+                    importConfig={{ endpoint: "/v1/sites/imports", resourceKey: "sites" }}
+                />
+            </MemoryRouter>,
+        )
+
+        expect(screen.queryByRole("button", { name: "Import" })).not.toBeInTheDocument()
+        await userEvent.click(screen.getByRole("button", { name: "Add" }))
+        expect(await screen.findByText("Add Site")).toBeInTheDocument()
+        expect(screen.getByText("Import Data")).toBeInTheDocument()
+        expect(screen.getByText("Import Instructions")).toBeInTheDocument()
+
+        rerender(
+            <MemoryRouter>
+                <DataPageLayout
+                    title="Annotations"
+                    columns={[{ key: "id", label: "ID", type: "number" }]}
+                    rows={[]}
+                    formFields={[]}
+                    importConfig={{ endpoint: "/v1/annotations/imports", resourceKey: "annotations", importOnly: true }}
+                    hideAdd
+                />
+            </MemoryRouter>,
+        )
+
+        expect(screen.queryByRole("button", { name: "Add" })).not.toBeInTheDocument()
+        const importButton = screen.getByRole("button", { name: "Import" })
+        expect(importButton.querySelector("svg")).toBeInTheDocument()
+        await userEvent.click(importButton)
+        expect(await screen.findByText("Import Data")).toBeInTheDocument()
+        expect(screen.getByText("Import Instructions")).toBeInTheDocument()
     })
 })

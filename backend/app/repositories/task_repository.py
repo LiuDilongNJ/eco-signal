@@ -187,6 +187,8 @@ class TaskRepository(BaseRepository[Task, Any, Any]):
         task_type: str,
         assignments: list[dict],
         annotation_id: int | None = None,
+        *,
+        commit: bool = True,
     ) -> int:
         """
         Batch upsert task assignments.
@@ -248,7 +250,10 @@ class TaskRepository(BaseRepository[Task, Any, Any]):
 
             count += 1
 
-        session.commit()
+        if commit:
+            session.commit()
+        else:
+            session.flush()
         return count
 
     def mark_media_task_reviewed(

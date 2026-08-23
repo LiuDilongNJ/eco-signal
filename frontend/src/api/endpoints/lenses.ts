@@ -1,5 +1,5 @@
 import { apiClient } from "../client"
-import type { CsvImportResult } from "../csvImport"
+import type { ImportResult as TabularImportResult } from "../tabularImport"
 
 export interface LensCameraInfo {
     camera_id: number
@@ -61,7 +61,7 @@ export interface LensUpdateBody {
     max_aperture?: string | null
     brand?: string | null
 }
-export type ImportResult = CsvImportResult
+export type ImportResult = TabularImportResult
 
 function cleanParams(params?: Record<string, unknown>) {
     if (!params) return undefined
@@ -92,9 +92,10 @@ export const lensesApi = {
     delete(lensId: number) {
         return apiClient.delete<{ code: number; message: string }>(`/v1/lenses/${lensId}`)
     },
-    importCsv(file: File) {
+    importCsv(file: File, dryRun = true) {
         const formData = new FormData()
         formData.append("file", file)
+        formData.append("dry_run", String(dryRun))
         return apiClient.post<{ code: number; message: string; data: ImportResult }>("/v1/lenses/imports", formData)
     },
 

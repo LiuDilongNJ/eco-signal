@@ -2,7 +2,7 @@
 from datetime import datetime
 from typing import Any, Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
 
 from app.api.deps import (
     ActiveManager,
@@ -13,6 +13,7 @@ from app.api.deps import (
 )
 from app.api.responses import csv_response
 from app.core.config import settings
+from app.csv_import import attach_import_metadata, parse_import_upload
 from app.enums.collection import CollectionSphere
 from app.models import Project, User
 from app.schemas.collection import (
@@ -27,10 +28,31 @@ from app.schemas.collection import (
 from app.schemas.option import CollectionOption
 from app.schemas.response import PagedApiResponse, ApiResponse, api_success
 from app.services import collection_service, permission_service
+from app.services import tabular_import_service
 from app.utils import parse_uuid
 
 router = APIRouter(prefix="/collections", tags=["集合 / collections"])
 router_views = APIRouter(tags=["集合 / collections"])
+
+
+@router.post("/imports", summary="导入集合 / Import Collections")
+async def import_collections(
+    session: SessionDep,
+    current_user: CurrentUser,
+    project_id: int = Form(...),
+    file: UploadFile = File(...),
+    dry_run: bool = Form(True),
+) -> Any:
+    """校验或原子导入集合。 / Validate or atomically import collections."""
+    if not permission_service.has_resource_permission(
+        session, current_user, "project", "write", project_id=project_id
+    ):
+        raise HTTPException(status_code=403, detail="No project:write permission")
+    parsed = parse_import_upload(file.filename or "", await file.read())
+    report = tabular_import_service.import_collections(
+        session, parsed.text, current_user, project_id, dry_run=dry_run
+    )
+    return api_success(message="Import validation completed" if dry_run else "Import completed", data=attach_import_metadata(report, parsed, dry_run=dry_run))
 
 
 @router_views.get("/collection-sphere-options", response_model=ApiResponse[list[str]], summary="获取领域选项(添加或者修改集合的时候用到) / Get Sphere Options")

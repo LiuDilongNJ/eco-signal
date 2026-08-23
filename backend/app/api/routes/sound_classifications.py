@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, File, Query, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Query, UploadFile
 
 from app.api.deps import SessionDep, get_current_active_superuser
 from app.api.responses import csv_response
@@ -14,7 +14,7 @@ from app.schemas.sound_classification import (
     SoundClassificationUpdate,
 )
 from app.services import sound_classification_service
-from app.services.upload_validation_service import extension_for, validate_csv_content
+from app.csv_import import attach_import_metadata, parse_import_upload
 
 router = APIRouter(prefix="/sound-classification-records", tags=["声景分类 / sound classifications"])
 
@@ -75,12 +75,12 @@ def export_sound_classifications(
 async def import_sound_classifications(
     session: SessionDep,
     file: UploadFile = File(..., description="声景分类 CSV 文件 / Sound classification CSV file"),
+    dry_run: bool = Form(True),
 ) -> Any:
-    """使用固定两列模板原子导入声景分类。 / Atomically import sound classifications using the two-column template."""
-    extension_for(file.filename or "", {"csv"})
-    text = validate_csv_content(await file.read())
-    result = sound_classification_service.import_sound_classifications_csv(session, text)
-    return api_success(data=result)
+    """使用固定两列模板导入声景分类。 / Import sound classifications using the two-column template."""
+    parsed = parse_import_upload(file.filename or "", await file.read())
+    result = sound_classification_service.import_sound_classifications_csv(session, parsed.text, dry_run=dry_run)
+    return api_success(message="Import validation completed" if dry_run else "Import completed", data=attach_import_metadata(result, parsed, dry_run=dry_run))
 
 
 @router.post(

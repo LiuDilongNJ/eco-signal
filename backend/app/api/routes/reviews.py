@@ -1,17 +1,49 @@
 from datetime import datetime
 from typing import Any
 
-from fastapi import APIRouter, Path, Query
+from fastapi import APIRouter, File, Form, Path, Query, UploadFile
 
 from app.api.deps import CurrentUser, SessionDep
 from app.api.responses import csv_response
+from app.csv_import import attach_import_metadata, parse_import_upload
 from app.enums import MediaType
 from app.schemas.response import ApiResponse, PagedApiResponse, api_page, api_success
 from app.schemas.review import ReviewCreate, ReviewRead, ReviewUpdate
-from app.services import review_service
+from app.services import permission_service, review_service, tabular_import_service
 
 router = APIRouter(prefix="/reviews", tags=["评审 / reviews"])
 router_views = APIRouter(tags=["评审 / reviews"])
+
+
+@router.post("/imports", summary="导入评审 / Import Reviews")
+async def import_reviews(
+    session: SessionDep,
+    current_user: CurrentUser,
+    project_id: int = Form(...),
+    collection_id: int = Form(...),
+    file: UploadFile = File(...),
+    dry_run: bool = Form(True),
+) -> Any:
+    """校验或原子导入评审。 / Validate or atomically import reviews."""
+    permission_service.require_collection_resource_permission(
+        session,
+        collection_id=collection_id,
+        project_id=project_id,
+        user=current_user,
+        resource_type="review",
+        action="write",
+        denied_detail="No review:write permission on collection",
+    )
+    parsed = parse_import_upload(file.filename or "", await file.read())
+    report = tabular_import_service.import_reviews(
+        session,
+        parsed.text,
+        current_user,
+        project_id,
+        collection_id,
+        dry_run=dry_run,
+    )
+    return api_success(message="Import validation completed" if dry_run else "Import completed", data=attach_import_metadata(report, parsed, dry_run=dry_run))
 
 
 @router.get("", response_model=PagedApiResponse[list[ReviewRead]], summary="获取评审列表 | Get reviews list")

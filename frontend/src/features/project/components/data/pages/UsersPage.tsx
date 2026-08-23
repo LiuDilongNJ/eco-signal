@@ -344,6 +344,14 @@ export function UsersPage() {
         <>
             <DataPageLayout
                 title="Users"
+                importConfig={{
+                    endpoint: "/v1/users/imports",
+                    resourceKey: "users",
+                    addLabel: "Add User",
+                    fields: { project_id: currentProjectId, collection_id: scopedCollectionId },
+                    disabled: !currentProjectId,
+                    disabledReason: "Select a project before importing users",
+                }}
                 columns={columns}
                 rows={rows as RowData[]}
                 formFields={FORM_FIELDS}

@@ -302,6 +302,7 @@ export function ProjectsPage() {
         <>
             <DataPageLayout
                 title="Projects"
+                importConfig={meIsAdmin ? { endpoint: "/v1/projects/imports", resourceKey: "projects", addLabel: "Add Project" } : undefined}
                 columns={COLUMNS}
                 rows={rows as RowData[]}
                 formFields={FORM_FIELDS}

@@ -265,6 +265,14 @@ export function ReviewsPage() {
         <>
             <DataPageLayout
                 title="Reviews"
+                importConfig={{
+                    endpoint: "/v1/reviews/imports",
+                    resourceKey: "reviews",
+                    importOnly: true,
+                    fields: { project_id: currentProjectId, collection_id: currentCollectionId },
+                    disabled: !currentProjectId || !currentCollectionId || currentCollectionId === "all",
+                    disabledReason: "Select a project and collection before importing reviews",
+                }}
                 icon={ClipboardCheck}
                 columns={COLUMNS}
                 rows={rows}

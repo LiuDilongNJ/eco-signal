@@ -1,5 +1,5 @@
 import { apiClient } from "../client"
-import type { CsvImportResult } from "../csvImport"
+import type { ImportResult as TabularImportResult } from "../tabularImport"
 
 export interface MicrophoneOption {
     microphone_id: number
@@ -40,7 +40,7 @@ export interface MicrophoneUpdateBody {
     sensitivity?: number | null
     signal_to_noise_ratio?: number | null
 }
-export type ImportResult = CsvImportResult
+export type ImportResult = TabularImportResult
 
 export interface ListMicrophonesParams {
     page?: number
@@ -95,9 +95,10 @@ export const microphonesApi = {
     delete(id: number) {
         return apiClient.delete<{ code: number; message: string }>(`/v1/microphones/${id}`)
     },
-    importCsv(file: File) {
+    importCsv(file: File, dryRun = true) {
         const formData = new FormData()
         formData.append("file", file)
+        formData.append("dry_run", String(dryRun))
         return apiClient.post<{ code: number; message: string; data: ImportResult }>("/v1/microphones/imports", formData)
     },
 

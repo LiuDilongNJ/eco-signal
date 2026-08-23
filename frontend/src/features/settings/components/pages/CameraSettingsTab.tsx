@@ -27,8 +27,6 @@ import { renderSettingsRelationPills } from "../settingsRelationPills"
 import { SettingsRelationDetailList } from "../SettingsRelationDetailList"
 import { buildCameraWritePayload } from "../../utils/settingsPayload"
 import { useSettingsCsvImport } from "../../utils/useSettingsCsvImport"
-import { CsvImportInstructionsDrawer } from "../CsvImportInstructionsDrawer"
-import { SETTINGS_CSV_IMPORT_CONFIG } from "../../utils/settingsCsvImportConfig"
 import { renderRequiredLabel } from "../../utils/formValidation"
 import { useTableFetchScheduler } from "@/hooks/useTableFetchScheduler"
 import { fetchLensListAll, type LensListItem } from "../../../../api/endpoints/lenses"
@@ -420,8 +418,9 @@ export function CameraSettingsTab() {
                 onTableStateChange={handleTableChange}
                 addDropdownItems={[
                     { key: "new", label: "New Camera", icon: <Plus size={14} />, onClick: openCreate },
-                    { key: "import", label: "Import CSV", icon: <FileUp size={14} />, onClick: csvImport.triggerImport },
-                    { key: "instructions", label: "CSV Instructions", icon: <Info size={14} />, onClick: csvImport.showInstructions },
+                    { type: "divider" as const },
+                    { key: "import", label: "Import Data", icon: <FileUp size={14} />, onClick: csvImport.triggerImport },
+                    { key: "instructions", label: "Import Instructions", icon: <Info size={14} />, onClick: csvImport.showInstructions },
                 ]}
                 addDisabled={csvImport.importing}
                 onEditCustom={handleEdit}
@@ -597,7 +596,6 @@ export function CameraSettingsTab() {
                 </CustomScrollArea>
             </FormDrawer>
 
-            <CsvImportInstructionsDrawer config={SETTINGS_CSV_IMPORT_CONFIG.cameras} isDark={isDark} open={csvImport.instructionsOpen} onClose={csvImport.hideInstructions} />
         </ConfigProvider>
     )
 }

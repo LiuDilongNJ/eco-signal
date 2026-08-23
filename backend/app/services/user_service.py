@@ -451,6 +451,8 @@ def create_user(
     user_in: UserCreate,
     project_id: int,
     collection_id: int | None = None,
+    *,
+    commit: bool = True,
 ) -> None:
     """Create a new user and bind them to the specified project or collection.
 
@@ -501,7 +503,7 @@ def create_user(
                 detail="No write permission on this collection",
             )
 
-        new_user = user_repository.create(session=session, obj_in=user_in)
+        new_user = user_repository.create(session=session, obj_in=user_in, commit=False)
 
         # Query collection:read permission from DB
         coll_perm = session.exec(
@@ -530,7 +532,10 @@ def create_user(
             permission_id=proj_perm.permission_id,
         ))
         
-        session.commit()
+        if commit:
+            session.commit()
+        else:
+            session.flush()
 
     else:
         # Scenario B: bind to project — requires project:write
@@ -542,7 +547,7 @@ def create_user(
                 detail="No write permission on this project",
             )
 
-        new_user = user_repository.create(session=session, obj_in=user_in)
+        new_user = user_repository.create(session=session, obj_in=user_in, commit=False)
 
         # Query project:read permission from DB
         perm = session.exec(
@@ -557,7 +562,10 @@ def create_user(
             permission_id=perm.permission_id,
         ))
         
-        session.commit()
+        if commit:
+            session.commit()
+        else:
+            session.flush()
 
     session.refresh(new_user)
 

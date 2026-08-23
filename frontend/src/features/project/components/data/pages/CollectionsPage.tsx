@@ -348,6 +348,14 @@ export function CollectionsPage() {
         <>
             <DataPageLayout
                 title="Collections"
+                importConfig={meIsProjectAdmin ? {
+                    endpoint: "/v1/collections/imports",
+                    resourceKey: "collections",
+                    addLabel: "Add Collection",
+                    fields: { project_id: currentProjectId },
+                    disabled: !currentProjectId,
+                    disabledReason: "Select a project before importing collections",
+                } : undefined}
                 columns={COLUMNS}
                 rows={rows}
                 formFields={FORM_FIELDS}

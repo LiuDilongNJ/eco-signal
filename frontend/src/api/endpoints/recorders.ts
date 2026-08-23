@@ -1,5 +1,5 @@
 import { apiClient } from "../client"
-import type { CsvImportResult } from "../csvImport"
+import type { ImportResult as TabularImportResult } from "../tabularImport"
 
 export interface RecorderOption {
     recorder_id: number
@@ -42,7 +42,7 @@ export interface RecorderUpdateBody {
     version?: string | null
     brand?: string | null
 }
-export type ImportResult = CsvImportResult
+export type ImportResult = TabularImportResult
 
 export interface ListRecordersParams {
     page?: number
@@ -93,9 +93,10 @@ export const recordersApi = {
     delete(id: number) {
         return apiClient.delete<{ code: number; message: string }>(`/v1/recorders/${id}`)
     },
-    importCsv(file: File) {
+    importCsv(file: File, dryRun = true) {
         const formData = new FormData()
         formData.append("file", file)
+        formData.append("dry_run", String(dryRun))
         return apiClient.post<{ code: number; message: string; data: ImportResult }>("/v1/recorders/imports", formData)
     },
 

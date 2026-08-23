@@ -354,6 +354,14 @@ export function AnnotationsPage() {
         <>
             <DataPageLayout
                 title="Annotations"
+                importConfig={{
+                    endpoint: "/v1/annotations/imports",
+                    resourceKey: "annotations",
+                    importOnly: true,
+                    fields: { project_id: currentProjectId, collection_id: currentCollectionId },
+                    disabled: !currentProjectId || !currentCollectionId || currentCollectionId === "all",
+                    disabledReason: "Select a project and collection before importing annotations",
+                }}
                 icon={FileText}
                 columns={COLUMNS}
                 rows={rows}

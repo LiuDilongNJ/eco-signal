@@ -289,6 +289,7 @@ class TestImportMicrophones:
         r = client.post(
             f"{BASE}/imports",
             headers=superuser_token_headers,
+            data={"dry_run": "false"},
             files={"file": ("microphones.csv", content, "text/csv")},
         )
         assert r.status_code == 200
@@ -313,6 +314,7 @@ class TestImportMicrophones:
         r = client.post(
             f"{BASE}/imports",
             headers=superuser_token_headers,
+            data={"dry_run": "false"},
             files={"file": ("microphones.csv", content, "text/csv")},
         )
         assert r.status_code == 200
@@ -335,6 +337,7 @@ class TestImportMicrophones:
         r = client.post(
             f"{BASE}/imports",
             headers=superuser_token_headers,
+            data={"dry_run": "false"},
             files={"file": ("microphones.csv", content, "text/csv")},
         )
         assert r.status_code == 200
@@ -350,17 +353,39 @@ class TestImportMicrophones:
         _make_microphone(db, "Import Existing Mic")
         content = (
             "name,microphone_element,sensitivity,signal_to_noise_ratio\n"
-            " import existing mic ,,,\n"
+            " import existing mic ,Electret,-35,80\n"
         )
         r = client.post(
             f"{BASE}/imports",
             headers=superuser_token_headers,
+            data={"dry_run": "false"},
             files={"file": ("microphones.csv", content, "text/csv")},
         )
         assert r.status_code == 200
         assert r.json()["data"]["committed"] is True
         assert r.json()["data"]["skipped"] == 1
         assert "Microphone name already exists" in r.json()["data"]["rows"][0]["reason"]
+
+    def test_import_rejects_conflicting_existing_microphone_name(
+        self, client: TestClient, superuser_token_headers: dict, db: Session
+    ) -> None:
+        _make_microphone(db, "Import Conflicting Mic")
+        content = (
+            "name,microphone_element,sensitivity,signal_to_noise_ratio\n"
+            "Import Conflicting Mic,condenser,12,80\n"
+        )
+
+        response = client.post(
+            f"{BASE}/imports",
+            headers=superuser_token_headers,
+            files={"file": ("microphones.csv", content, "text/csv")},
+        )
+
+        result = response.json()["data"]
+        assert response.status_code == 200
+        assert result["committed"] is False
+        assert result["failed"] == 1
+        assert "conflicts with an existing record" in result["rows"][0]["reason"]
 
     def test_import_rejects_duplicate_names_within_file(
         self, client: TestClient, superuser_token_headers: dict, db: Session
@@ -373,6 +398,7 @@ class TestImportMicrophones:
         r = client.post(
             f"{BASE}/imports",
             headers=superuser_token_headers,
+            data={"dry_run": "false"},
             files={"file": ("microphones.csv", content, "text/csv")},
         )
         assert r.status_code == 200

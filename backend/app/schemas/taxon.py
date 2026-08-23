@@ -140,9 +140,9 @@ class TaxonImportRow(SQLModel):
         return value or None
 
 
-from app.csv_import import CsvImportResult
+from app.csv_import import ImportResult
 
-TaxonImportResponse = CsvImportResult
+TaxonImportResponse = ImportResult
 
 
 class TaxonOption(SQLModel):

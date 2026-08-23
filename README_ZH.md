@@ -145,6 +145,62 @@
 
 ## 离线实地工作
 
+### CSV 与文本导入
+
+除 Queue 外，每个 Data 列表都将导入入口放在 **Add** 下拉菜单中，支持导入的 Settings 列表使用相同交互，Audio 和 Photo 则保留原有的 **Metadata** 名称。选择导入项后会直接打开文件选择器。可以上传 `.csv`、`.txt` 或 `.json` 文件；文本文件可使用逗号、Tab、分号或竖线作为分隔符，`.txt` 文件也可以直接包含 JSON 对象数组。第一次请求只校验全部数据行，不写入数据；校验通过后确认导入，前端会使用同一个文件发起一次原子事务。校验报告仅在浏览器中展示，不会持久化保存。
+
+导入使用与对应资源单条创建相同的字段校验和权限。导入集合范围资源前必须选择明确的项目和集合。重复行会被跳过，任何失败行都会阻止整批数据提交。
+
+可以从同一 Add 菜单选择 **Import Instructions**（Audio 和 Photo 为 **Metadata Instructions**），查看允许字段、CSV/TXT/JSON 示例，并下载对应资源的 CSV 模板。模板包含后端实际接收的表头和一条示例数据。
+
+资源接口统一为 `POST /api/v1/{resource}/imports`，请求使用 `multipart/form-data`：
+
+支持的资源包括 `projects`、`collections`、`sites`、`media`、`annotations`、`reviews`、`index-logs`、`tasks`、`users`、`recorders`、`microphones`、`cameras`、`lenses`、`taxons` 和 `sound-classification-records`。Queue 明确排除；离线集合包接口仍保持为 `/api/v1/data-imports`。
+
+| 字段 | 类型 | 必填 | 默认值 | 校验与含义 |
+|---|---|---:|---|---|
+| `file` | 文件 | 是 | — | 兼容 UTF-8/UTF-8 BOM 的 `.csv`、`.txt` 或 `.json`；最大 20 MiB、50,000 条记录、256 列 |
+| `dry_run` | 布尔值 | 否 | `true` | `true` 仅校验；`false` 仅在所有非跳过行均有效时提交 |
+| `project_id` | 整数 | 按资源 | — | 正整数项目 ID，用于范围权限校验 |
+| `collection_id` | 整数 | 按资源 | — | 正整数集合 ID；集合范围资源必填 |
+| `media_type` | `audio` 或 `photo` | 仅媒体 | — | 为 `/media/imports` 选择元数据 schema |
+
+CSV 和分隔文本必须包含表头。TXT 文件可使用逗号、Tab、分号、竖线分隔，也可以包含 JSON 对象数组。例如：
+
+```text
+name;brand;version
+Forest recorder;Example;2
+```
+
+```json
+[
+  {"name": "Forest recorder", "brand": "Example", "version": "2"}
+]
+```
+
+校验成功时返回 HTTP 200 和临时逐行报告：
+
+```json
+{
+  "code": 0,
+  "message": "Import validation completed",
+  "data": {
+    "source_format": "delimited_text",
+    "delimiter": ";",
+    "dry_run": true,
+    "total": 1,
+    "succeeded": 1,
+    "skipped": 0,
+    "failed": 0,
+    "committed": false,
+    "rows": [{"row_number": 2, "status": "succeeded", "field": null, "reason": null}],
+    "global_errors": []
+  }
+}
+```
+
+项目导入仅限管理员；集合导入要求 `project:write`；集合范围导入要求调用者在明确的项目和集合路径上拥有对应资源写权限，公开读权限不会提供导入权限；Settings 主数据导入保持仅管理员可用。接口不会返回导入的密码，也不会在逐行错误中包含密码值。
+
 EcoSignal 支持基于签名集合包的离线实地工作流，离线包可包含音频、图片、标注、审核和标签。
 
 ### 导出集合离线包

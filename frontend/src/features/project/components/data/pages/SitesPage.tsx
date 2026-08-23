@@ -320,6 +320,14 @@ export function SitesPage() {
         <>
             <DataPageLayout
                 title="Sites"
+                importConfig={{
+                    endpoint: "/v1/sites/imports",
+                    resourceKey: "sites",
+                    addLabel: "Add Site",
+                    fields: { project_id: currentProjectId, collection_id: currentCollectionId },
+                    disabled: !currentProjectId || !currentCollectionId || currentCollectionId === "all",
+                    disabledReason: "Select a project and collection before importing sites",
+                }}
                 icon={MapPin}
                 columns={COLUMNS}
                 rows={rows}

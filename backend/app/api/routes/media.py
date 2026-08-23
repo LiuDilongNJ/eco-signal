@@ -19,6 +19,7 @@ from app.api.deps import (
 from app.api.query_params import MediaFilterQueryParams
 from app.api.responses import build_download_content_disposition, csv_response
 from app.core.config import settings
+from app.csv_import import attach_import_metadata, parse_import_upload
 from app.models import User
 from app.schemas.media import (
     MediaBatchOperationResponse,
@@ -42,7 +43,6 @@ from app.schemas.response import (
     api_success,
 )
 from app.services import media_service, permission_service
-from app.services.upload_validation_service import extension_for, validate_csv_content
 from app.spectrogram import WINDOW_FUNCTIONS
 
 router = APIRouter(prefix="/media", tags=["媒体 / media"])
@@ -371,17 +371,18 @@ async def create_media(
 
 
 
-@router_views.post("/media-metadata-imports", summary="导入元数据 / Import Metadata")
+@router.post("/imports", summary="导入媒体元数据 / Import Media Metadata")
 async def import_metadata(
     session: SessionDep,
     current_user: ActiveManager,
     project_id: int = Form(..., description="项目 ID / Project ID"),
     collection_id: int = Form(..., description="目标集合 ID / Target collection ID"),
-    file: UploadFile = File(..., description="带有元数据的 CSV 文件 / CSV file with metadata"),
+    file: UploadFile = File(..., description="CSV、分隔文本或 JSON 元数据文件 / CSV, delimited text, or JSON metadata file"),
     media_type: Literal["audio", "photo"] = Form(default="audio", description="元数据类型：audio 或 photo / Metadata type: audio or photo"),
+    dry_run: bool = Form(default=True, description="仅校验不写入 / Validate without writing"),
 ) -> Any:
     """
-    从 CSV 文件导入媒体元数据。 / Import media metadata from a CSV file.
+    从 CSV、分隔文本或 JSON 文件导入媒体元数据。 / Import media metadata from CSV, delimited text, or JSON.
 
     CSV 列要求随 `media_type` 不同而不同： / Required CSV columns differ by `media_type`:
     - `audio`（默认）：date_time, duration_s, sampling_rate_hz, name, bit_depth, channel_num, duty_cycle_recording, duty_cycle_period /
@@ -405,14 +406,16 @@ async def import_metadata(
         denied_detail="No write permission on collection",
     )
 
-    extension_for(file.filename or "", {"csv"})
-    # validate_csv_content 已完成解码与严格 CSV 校验，直接复用其文本，避免重复读取解析。 /
-    # validate_csv_content already decoded and strictly validated the CSV; reuse its text to avoid re-reading/re-parsing.
-    text = validate_csv_content(await file.read())
+    parsed = parse_import_upload(file.filename or "", await file.read())
 
     try:
         data = media_service.import_metadata_csv(
-            session, text, collection_id, current_user, media_type=media_type
+            session,
+            parsed.text,
+            collection_id,
+            current_user,
+            media_type=media_type,
+            dry_run=dry_run,
         )
     except HTTPException as exc:
         message = (
@@ -425,7 +428,7 @@ async def import_metadata(
             message=message,
         )
         return JSONResponse(status_code=exc.status_code, content=error_payload.model_dump())
-    return api_success(data=data)
+    return api_success(message="Import validation completed" if dry_run else "Import completed", data=attach_import_metadata(data, parsed, dry_run=dry_run))
 
 
 @router.patch(

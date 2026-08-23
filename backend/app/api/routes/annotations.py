@@ -2,10 +2,11 @@
 from datetime import datetime
 from typing import Any, Optional
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, File, Form, Query, UploadFile
 
 from app.api.deps import CurrentUser, CurrentUserOptional, SessionDep
 from app.api.responses import csv_response
+from app.csv_import import attach_import_metadata, parse_import_upload
 from app.enums import MediaType
 from app.schemas.annotation import (
     AnnotationCreate,
@@ -14,10 +15,41 @@ from app.schemas.annotation import (
     AnnotationWithReviews,
 )
 from app.schemas.response import ApiResponse, PagedApiResponse, api_page, api_success
-from app.services import annotation_service
+from app.services import annotation_service, permission_service, tabular_import_service
 from app.utils import parse_range, parse_uuid
 
 router = APIRouter(prefix="/annotations", tags=["标注 / annotations"])
+
+
+@router.post("/imports", summary="导入标注 / Import Annotations")
+async def import_annotations(
+    session: SessionDep,
+    current_user: CurrentUser,
+    project_id: int = Form(...),
+    collection_id: int = Form(...),
+    file: UploadFile = File(...),
+    dry_run: bool = Form(True),
+) -> Any:
+    """校验或原子导入标注。 / Validate or atomically import annotations."""
+    permission_service.require_collection_resource_permission(
+        session,
+        collection_id=collection_id,
+        project_id=project_id,
+        user=current_user,
+        resource_type="annotation",
+        action="write",
+        denied_detail="No annotation:write permission on collection",
+    )
+    parsed = parse_import_upload(file.filename or "", await file.read())
+    report = tabular_import_service.import_annotations(
+        session,
+        parsed.text,
+        current_user,
+        project_id,
+        collection_id,
+        dry_run=dry_run,
+    )
+    return api_success(message="Import validation completed" if dry_run else "Import completed", data=attach_import_metadata(report, parsed, dry_run=dry_run))
 
 
 

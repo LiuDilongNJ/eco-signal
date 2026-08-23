@@ -3,12 +3,12 @@ from typing import Any
 
 from fastapi import HTTPException
 from pydantic import ValidationError
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 from app.csv_export import CsvColumn, export_columns_csv
 from app.csv_import import (
-    CsvImportResult,
-    CsvImportRowResult,
+    ImportResult,
+    ImportRowResult,
     effective_header_width,
     ensure_row_width,
     parse_csv,
@@ -60,14 +60,14 @@ def _import_rows(
     header_to_field: list[tuple[str, str]],
     factory: Callable[..., Any],
     export_columns: list[CsvColumn] | None = None,
-) -> tuple[CsvImportResult, list[tuple[int, Any]]]:
+) -> tuple[ImportResult, list[tuple[int, Any]]]:
     # CSV headers use the display labels shown in the settings list and are
     # matched by name, so exported files (whose columns are reordered or carry
     # extra display-only columns) can be re-imported directly.
     field_headers = {field: display for display, field in header_to_field}
     fields = [field for _, field in header_to_field]
     ignored_headers = _export_extra_headers(export_columns, header_to_field)
-    report = CsvImportResult()
+    report = ImportResult()
     try:
         parsed = parse_csv(text)
     except HTTPException as exc:
@@ -87,22 +87,22 @@ def _import_rows(
     rows: list[tuple[int, Any]] = []
     for row_number, row in enumerate(data_rows, start=2):
         if not row or not any(value.strip() for value in row):
-            report.rows.append(CsvImportRowResult(row_number=row_number, status="skipped", reason="Blank row"))
+            report.rows.append(ImportRowResult(row_number=row_number, status="skipped", reason="Blank row"))
             continue
         try:
             ensure_row_width(row, row_number, width)
         except HTTPException as exc:
-            report.rows.append(CsvImportRowResult(row_number=row_number, status="failed", reason=str(exc.detail)))
+            report.rows.append(ImportRowResult(row_number=row_number, status="failed", reason=str(exc.detail)))
             continue
         # Blank cells (e.g. exported NULL numeric values) must become None so
         # optional int fields do not fail parsing on the empty string.
         payload = {field: (read_cell(row, positions, field) or None) for field in fields}
         try:
             rows.append((row_number, factory(**payload)))
-            report.rows.append(CsvImportRowResult(row_number=row_number, status="succeeded"))
+            report.rows.append(ImportRowResult(row_number=row_number, status="succeeded"))
         except ValidationError as exc:
             detail = exc.errors()[0]
-            report.rows.append(CsvImportRowResult(row_number=row_number, status="failed", field=str(detail["loc"][-1]), reason=str(detail["msg"])))
+            report.rows.append(ImportRowResult(row_number=row_number, status="failed", field=str(detail["loc"][-1]), reason=str(detail["msg"])))
     return report.finalize(), rows
 
 
@@ -123,10 +123,15 @@ def _normalized_name(value: str | None) -> str:
     return value.strip()
 
 
-def _validate_device_names(session: Session, model: type, rows: list[tuple[int, Any]], label: str, report: CsvImportResult) -> list[Any]:
-    # Bulk-load existing normalized names once instead of one COUNT query per CSV row.
-    existing = device_repository.get_normalized_names(session, model)
-    seen: set[str] = set()
+def _validate_device_names(session: Session, model: type, rows: list[tuple[int, Any]], label: str, report: ImportResult) -> list[Any]:
+    # Bulk-load existing records once so exact duplicates can be distinguished
+    # from conflicting records that reuse the same unique name.
+    existing = {
+        item.name.strip().casefold(): item
+        for item in session.exec(select(model)).all()
+        if isinstance(item.name, str) and item.name.strip()
+    }
+    seen: dict[str, dict[str, Any]] = {}
     accepted: list[Any] = []
     row_results = {item.row_number: item for item in report.rows}
     for row_number, row in rows:
@@ -138,41 +143,62 @@ def _validate_device_names(session: Session, model: type, rows: list[tuple[int, 
             continue
         row.name = name
         key = name.casefold()
+        values = row.model_dump()
+        values["name"] = key
         if key in seen:
-            result.status, result.field, result.reason = "skipped", "name", f"Duplicate {label} name in file"
+            if seen[key] == values:
+                result.status, result.field, result.reason = "skipped", "name", f"Duplicate {label} name in file"
+            else:
+                result.status, result.field, result.reason = "failed", "name", f"{label.capitalize()} name conflicts with another row"
             continue
-        seen.add(key)
-        if key in existing:
-            result.status, result.field, result.reason = "skipped", "name", f"{label.capitalize()} name already exists"
+        seen[key] = values
+        existing_item = existing.get(key)
+        if existing_item is not None:
+            exact_duplicate = all(
+                (
+                    str(getattr(existing_item, field, "")).strip().casefold()
+                    if field == "name"
+                    else getattr(existing_item, field, None)
+                ) == value
+                for field, value in values.items()
+            )
+            if exact_duplicate:
+                result.status, result.field, result.reason = "skipped", "name", f"{label.capitalize()} name already exists"
+            else:
+                result.status, result.field, result.reason = "failed", "name", f"{label.capitalize()} name conflicts with an existing record"
             continue
         accepted.append(row)
     return accepted
 
 
-def _import_devices(session: Session, text: str, header_to_field: list[tuple[str, str]], factory: Callable[..., Any], export_columns: list[CsvColumn], model: type, label: str) -> CsvImportResult:
+def _import_devices(session: Session, text: str, header_to_field: list[tuple[str, str]], factory: Callable[..., Any], export_columns: list[CsvColumn], model: type, label: str, *, dry_run: bool = False) -> ImportResult:
     report, parsed_rows = _import_rows(
         text,
         header_to_field, factory, export_columns,
     )
     if report.global_errors or report.failed:
-        report.reject_candidates()
+        if not dry_run:
+            report.reject_candidates()
         return report
     rows = _validate_device_names(session, model, parsed_rows, label, report)
     report.finalize()
     if report.failed:
-        report.reject_candidates()
+        if not dry_run:
+            report.reject_candidates()
         return report
+    if dry_run:
+        return report.finalize()
     session.add_all([model(**row.model_dump()) for row in rows])
     session.commit()
     report.committed = True
     return report.finalize()
 
 
-def import_recorders_csv(session: Session, text: str) -> CsvImportResult:
-    return _import_devices(session, text, [("name", "name"), ("version", "version"), ("brand", "brand")], RecorderCreate, _RECORDER_EXPORT_COLUMNS, Recorder, "recorder")
+def import_recorders_csv(session: Session, text: str, *, dry_run: bool = False) -> ImportResult:
+    return _import_devices(session, text, [("name", "name"), ("version", "version"), ("brand", "brand")], RecorderCreate, _RECORDER_EXPORT_COLUMNS, Recorder, "recorder", dry_run=dry_run)
 
 
-def import_microphones_csv(session: Session, text: str) -> CsvImportResult:
+def import_microphones_csv(session: Session, text: str, *, dry_run: bool = False) -> ImportResult:
     return _import_devices(session, text,
         [
             ("name", "name"),
@@ -180,14 +206,14 @@ def import_microphones_csv(session: Session, text: str) -> CsvImportResult:
             ("sensitivity", "sensitivity"),
             ("signal_to_noise_ratio", "signal_to_noise_ratio"),
         ],
-        MicrophoneCreate, _MICROPHONE_EXPORT_COLUMNS, Microphone, "microphone")
+        MicrophoneCreate, _MICROPHONE_EXPORT_COLUMNS, Microphone, "microphone", dry_run=dry_run)
 
 
-def import_cameras_csv(session: Session, text: str) -> CsvImportResult:
-    return _import_devices(session, text, [("name", "name"), ("version", "version"), ("brand", "brand")], CameraCreate, _CAMERA_EXPORT_COLUMNS, Camera, "camera")
+def import_cameras_csv(session: Session, text: str, *, dry_run: bool = False) -> ImportResult:
+    return _import_devices(session, text, [("name", "name"), ("version", "version"), ("brand", "brand")], CameraCreate, _CAMERA_EXPORT_COLUMNS, Camera, "camera", dry_run=dry_run)
 
 
-def import_lenses_csv(session: Session, text: str) -> CsvImportResult:
+def import_lenses_csv(session: Session, text: str, *, dry_run: bool = False) -> ImportResult:
     return _import_devices(session, text,
         [
             ("name", "name"),
@@ -195,7 +221,7 @@ def import_lenses_csv(session: Session, text: str) -> CsvImportResult:
             ("max_aperture", "max_aperture"),
             ("brand", "brand"),
         ],
-        LensCreate, _LENS_EXPORT_COLUMNS, Lens, "lens")
+        LensCreate, _LENS_EXPORT_COLUMNS, Lens, "lens", dry_run=dry_run)
 
 
 def list_licenses(

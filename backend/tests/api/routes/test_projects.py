@@ -59,6 +59,119 @@ def image_upload(name: str, image_format: str, content_type: str) -> tuple[str, 
     return name, buffer, content_type
 
 
+class TestProjectImports:
+    def test_json_dry_run_then_atomic_commit(
+        self,
+        client: TestClient,
+        superuser_token_headers: dict[str, str],
+        db: Session,
+    ) -> None:
+        name = f"Imported Project {random_lower_string()[:8]}"
+        source = (
+            '[{"name":"%s","url":"https://example.com/imported",'
+            '"public":true,"active":true}]' % name
+        ).encode()
+
+        validation = client.post(
+            f"{settings.API_V1_STR}/projects/imports",
+            headers=superuser_token_headers,
+            data={"dry_run": "true"},
+            files={"file": ("projects.txt", source, "text/plain")},
+        )
+
+        assert validation.status_code == 200
+        assert validation.json()["data"]["succeeded"] == 1
+        assert validation.json()["data"]["committed"] is False
+        assert db.exec(select(Project).where(Project.name == name)).first() is None
+
+        committed = client.post(
+            f"{settings.API_V1_STR}/projects/imports",
+            headers=superuser_token_headers,
+            data={"dry_run": "false"},
+            files={"file": ("projects.txt", source, "text/plain")},
+        )
+
+        assert committed.status_code == 200
+        assert committed.json()["data"]["committed"] is True
+        assert db.exec(select(Project).where(Project.name == name)).first() is not None
+
+    def test_duplicate_rows_are_skipped(
+        self,
+        client: TestClient,
+        superuser_token_headers: dict[str, str],
+    ) -> None:
+        name = f"Duplicate Import {random_lower_string()[:8]}"
+        source = (
+            "name,url,public,active\n"
+            f"{name},https://example.com,true,true\n"
+            f"{name},https://example.com,true,true\n"
+        ).encode()
+
+        response = client.post(
+            f"{settings.API_V1_STR}/projects/imports",
+            headers=superuser_token_headers,
+            data={"dry_run": "true"},
+            files={"file": ("projects.csv", source, "text/csv")},
+        )
+
+        assert response.status_code == 200
+        assert response.json()["data"]["succeeded"] == 1
+        assert response.json()["data"]["skipped"] == 1
+
+    def test_failed_row_keeps_valid_report_and_prevents_all_writes(
+        self,
+        client: TestClient,
+        superuser_token_headers: dict[str, str],
+        db: Session,
+    ) -> None:
+        name = f"Atomic Import {random_lower_string()[:8]}"
+        source = (
+            "name,url,public,active\n"
+            f"{name},https://example.com,true,true\n"
+            ",https://example.com,true,true\n"
+        ).encode()
+
+        response = client.post(
+            f"{settings.API_V1_STR}/projects/imports",
+            headers=superuser_token_headers,
+            data={"dry_run": "true"},
+            files={"file": ("projects.csv", source, "text/csv")},
+        )
+
+        assert response.status_code == 200
+        result = response.json()["data"]
+        assert result["succeeded"] == 1
+        assert result["failed"] == 1
+        assert result["committed"] is False
+        assert db.exec(select(Project).where(Project.name == name)).first() is None
+
+    def test_existing_project_name_with_different_fields_is_a_conflict(
+        self,
+        client: TestClient,
+        superuser_token_headers: dict[str, str],
+        db: Session,
+    ) -> None:
+        project = create_test_project(db, name=f"Import Conflict {random_lower_string()[:8]}")
+        source = (
+            "name,url,public,active\n"
+            f"{project.name},https://example.com/different,false,true\n"
+        ).encode()
+
+        response = client.post(
+            f"{settings.API_V1_STR}/projects/imports",
+            headers=superuser_token_headers,
+            files={"file": ("projects.csv", source, "text/csv")},
+        )
+
+        result = response.json()["data"]
+        assert response.status_code == 200
+        assert result["committed"] is False
+        assert result["failed"] == 1
+        assert result["rows"][0]["field"] == "name"
+        db.refresh(project)
+        assert project.url != "https://example.com/different"
+
+
 class TestProjectList:
     """Tests for GET /projects endpoint."""
     

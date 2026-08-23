@@ -96,10 +96,19 @@ class AnnotationRepository(BaseRepository[Annotation, Any, Any]):
     def __init__(self):
         super().__init__(Annotation)
     
-    def create(self, session: Session, annotation: Annotation) -> Annotation:
+    def create(
+        self,
+        session: Session,
+        annotation: Annotation,
+        *,
+        commit: bool = True,
+    ) -> Annotation:
         """Create a single annotation."""
         session.add(annotation)
-        session.commit()
+        if commit:
+            session.commit()
+        else:
+            session.flush()
         session.refresh(annotation)
         return annotation
     

@@ -1,24 +1,34 @@
 import { Button as ESButton } from "@/components/ui"
 import { AlertTriangle, CheckCircle2, CircleX, Info, SkipForward } from "lucide-react"
 import { Modal } from "../../project/components/modals/Modal"
-import type { CsvImportResult, CsvImportRowResult } from "../../../api/csvImport"
+import type { ImportResult, ImportRowResult } from "../../../api/tabularImport"
 import "./style/settings-forms.css"
 
 interface CsvImportResultModalProps {
     open: boolean
     label: string
-    result: CsvImportResult | null
+    result: ImportResult | null
     onClose: () => void
+    onConfirm?: () => void
+    confirming?: boolean
 }
 
-function statusLabel(status: CsvImportRowResult["status"]): string {
+function statusLabel(status: ImportRowResult["status"]): string {
     if (status === "succeeded") return "Success"
     if (status === "skipped") return "Skipped"
     if (status === "failed") return "Failed"
     return status
 }
 
-function statusClass(status: CsvImportRowResult["status"]): string {
+function formatLabel(result: ImportResult): string {
+    if (result.source_format === "json") return "JSON"
+    if (result.delimiter === "\t") return "TXT (Tab)"
+    if (result.delimiter === ";") return "TXT (semicolon)"
+    if (result.delimiter === "|") return "TXT (pipe)"
+    return "CSV"
+}
+
+function statusClass(status: ImportRowResult["status"]): string {
     if (status === "succeeded") return "csv-import-result__status csv-import-result__status--success"
     if (status === "skipped") return "csv-import-result__status csv-import-result__status--skipped"
     if (status === "failed") return "csv-import-result__status csv-import-result__status--failed"
@@ -30,6 +40,8 @@ export function CsvImportResultModal({
     label,
     result,
     onClose,
+    onConfirm,
+    confirming = false,
 }: CsvImportResultModalProps) {
     if (!result) return null
 
@@ -44,9 +56,14 @@ export function CsvImportResultModal({
             width="760px"
             footer={
                 <div className="app-modal-footer-actions">
-                    <ESButton appearance="unstyled" className="app-modal-btn primary" onClick={onClose}>
+                    <ESButton appearance="unstyled" className="app-modal-btn" onClick={onClose}>
                         Close
                     </ESButton>
+                    {onConfirm && !result.committed && !hasErrors ? (
+                        <ESButton appearance="unstyled" className="app-modal-btn primary" disabled={confirming} onClick={onConfirm}>
+                            Confirm Import
+                        </ESButton>
+                    ) : null}
                 </div>
             }
         >
@@ -55,9 +72,11 @@ export function CsvImportResultModal({
                     {hasErrors ? <AlertTriangle size={18} /> : <CheckCircle2 size={18} />}
                     <div>
                         <strong>
-                            {committedRows > 0
-                                ? `${committedRows} row(s) written successfully.`
-                                : "0 rows were written."}
+                            {result.dry_run
+                                ? `${committedRows} row(s) passed validation.`
+                                : committedRows > 0
+                                    ? `${committedRows} row(s) written successfully.`
+                                    : "0 rows were written."}
                         </strong>
                         {!result.committed && committedRows === 0 ? (
                             <span>No data was written.</span>
@@ -66,8 +85,9 @@ export function CsvImportResultModal({
                 </div>
 
                 <div className="csv-import-result__summary" aria-label="Import summary">
+                    <div><span>Format</span><strong>{formatLabel(result)}</strong></div>
                     <div><span>Total rows</span><strong>{result.total}</strong></div>
-                    <div><span>Success</span><strong>{result.succeeded}</strong></div>
+                    <div><span>{result.dry_run ? "Valid" : "Success"}</span><strong>{result.succeeded}</strong></div>
                     <div><span>Skipped</span><strong>{result.skipped}</strong></div>
                     <div><span>Failed</span><strong>{result.failed}</strong></div>
                 </div>
