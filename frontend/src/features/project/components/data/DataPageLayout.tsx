@@ -1299,9 +1299,6 @@ export function DataPageLayout({
         })
     }
     if (importConfig) {
-        const hasAddItems = mergedAddDropdownItems.length > 0
-        const metadataMenu = importConfig.importLabel === "Metadata"
-        if (hasAddItems && !metadataMenu) mergedAddDropdownItems.push({ type: "divider" })
         mergedAddDropdownItems.push({
             key: "__import_data",
             label: importConfig.importLabel ?? "Import Data",
@@ -1310,7 +1307,6 @@ export function DataPageLayout({
             title: importConfig.disabled ? importConfig.disabledReason : undefined,
             onClick: tabularImport.triggerImport,
         })
-        if (!hasAddItems || metadataMenu) mergedAddDropdownItems.push({ type: "divider" })
         mergedAddDropdownItems.push({
             key: "__import_instructions",
             label: importConfig.instructionsLabel ?? "Import Instructions",
