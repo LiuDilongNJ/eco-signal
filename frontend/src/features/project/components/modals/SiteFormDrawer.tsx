@@ -109,7 +109,8 @@ function validateCoordRange(value: unknown, label: string, min: number, max: num
     if (value === null || value === undefined || value === "") return null
     const n = Number(value)
     if (!Number.isFinite(n)) return `${label} must be a valid number`
-    if (n < min || n > max) return `${label} must be between ${min} and ${max}`
+    if (n < min) return Number.isFinite(max) ? `${label} must be between ${min} and ${max}` : `${label} must be at least ${min}`
+    if (n > max) return `${label} must be between ${min} and ${max}`
     return null
 }
 
@@ -532,14 +533,8 @@ export function SiteFormDrawer({
         let innerElement: ReactNode = <Input />
 
         if (field.type === "number") {
-            // Keep out-of-range coordinates visible so the field validator can explain the error.
-            innerElement = (
-                <InputNumber
-                    {...numberFieldProps}
-                    min={field.key === "topography_m" ? TOPOGRAPHY_MIN_METERS : field.key === "freshwater_depth_m" ? 0 : undefined}
-                    max={field.key === "topography_m" ? TOPOGRAPHY_MAX_METERS : undefined}
-                />
-            )
+            // Range rules show an explicit validation error instead of silently correcting the value.
+            innerElement = <InputNumber {...numberFieldProps} />
         } else if (field.key === "gadm0_gid") {
             innerElement = (
                 <Select
