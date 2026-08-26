@@ -892,7 +892,7 @@ export function PhotoImageViewer({
             <div className="player-toolbar-bottom photo-player-toolbar-bottom">
                 <div style={{ flex: 1 }} />
                 <span className="photo-viewer-help">
-                    Shift + drag or middle-button drag to pan · click and drag to draw an annotation box
+                    Shift + drag or middle-button drag to pan · click and drag to draw an annotation box ·
                 </span>
                 <span>
                     {Math.round(scale * 100)}
