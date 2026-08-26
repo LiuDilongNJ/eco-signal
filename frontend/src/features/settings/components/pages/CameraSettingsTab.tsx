@@ -430,7 +430,8 @@ export function CameraSettingsTab() {
                     const selectedCameraId = selectedRows.size === 1 ? Number(Array.from(selectedRows)[0]) : undefined
                     return (
                         <Button
-                            type="text"
+                            appearance="unstyled"
+                            type="button"
                             className="data-btn"
                             title="Link a lens to the selected camera"
                             disabled={selectedCameraId == null || !Number.isFinite(selectedCameraId)}

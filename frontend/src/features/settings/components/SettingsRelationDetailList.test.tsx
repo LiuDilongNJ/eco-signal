@@ -22,7 +22,7 @@ describe("SettingsRelationDetailList", () => {
         expect(screen.getByText("Recorder A")).toBeInTheDocument()
         expect(screen.getByText("Recorder #2")).toBeInTheDocument()
         expect(screen.getByText("Primary recorder")).toBeInTheDocument()
-        expect(screen.getByText("DEFAULT")).toBeInTheDocument()
+        expect(screen.getByText("default")).toBeInTheDocument()
     })
 
     it("renders the empty state", () => {

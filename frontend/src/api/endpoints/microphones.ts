@@ -108,3 +108,37 @@ export const microphonesApi = {
         })
     },
 }
+
+export type FetchMicrophoneListAllParams = Omit<ListMicrophonesParams, "page" | "page_size">
+
+/**
+ * Loads all microphones via paginated GET `/v1/microphones` (server caps `page_size` at 100).
+ */
+export async function fetchMicrophoneListAll(params?: FetchMicrophoneListAllParams): Promise<{
+    data: MicrophoneListItem[]
+    errorMessage?: string
+}> {
+    const all: MicrophoneListItem[] = []
+    let page = 1
+    const page_size = 100
+    const order_by = params?.order_by ?? "name"
+    const order_dir = params?.order_dir ?? "asc"
+    for (;;) {
+        const res = await microphonesApi.list({
+            ...params,
+            page,
+            page_size,
+            order_by,
+            order_dir,
+        })
+        if (res.code !== 0 && res.code !== 200) {
+            return { data: [], errorMessage: res.message || "Failed to load microphones" }
+        }
+        const chunk = res.data ?? []
+        all.push(...chunk)
+        if (chunk.length < page_size) break
+        page += 1
+        if (page > 200) break
+    }
+    return { data: all }
+}

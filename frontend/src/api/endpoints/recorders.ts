@@ -42,6 +42,12 @@ export interface RecorderUpdateBody {
     version?: string | null
     brand?: string | null
 }
+
+export interface RecorderMicrophoneCreateBody {
+    microphone_id: number
+    is_default?: boolean
+    notes?: string | null
+}
 export type ImportResult = TabularImportResult
 
 export interface ListRecordersParams {
@@ -88,6 +94,19 @@ export const recordersApi = {
 
     update(id: number, body: RecorderUpdateBody) {
         return apiClient.put<{ code: number; message: string }>(`/v1/recorders/${id}`, body)
+    },
+
+    addMicrophone(recorderId: number, body: RecorderMicrophoneCreateBody) {
+        return apiClient.post<{ code: number; message: string; data: null }>(
+            `/v1/recorders/${recorderId}/microphones`,
+            body,
+        )
+    },
+
+    removeMicrophone(recorderId: number, microphoneId: number) {
+        return apiClient.delete<{ code: number; message: string }>(
+            `/v1/recorders/${recorderId}/microphones/${microphoneId}`,
+        )
     },
 
     delete(id: number) {

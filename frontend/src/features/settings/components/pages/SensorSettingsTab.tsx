@@ -1,11 +1,10 @@
 import { CustomScrollArea } from "@/components/ui"
 import { useCallback, useRef, useState } from "react"
-import { ConfigProvider, Form, Input, Select, Switch, message } from "@/components/ui"
+import { ConfigProvider, Form, Input, Select, message } from "@/components/ui"
 import { FormDrawer } from "@/components/ui"
 import { EmptyState } from "@/components/ui"
 import { LoadingState } from "@/components/ui"
 
-import { Radio } from "lucide-react"
 import { ApiError } from "../../../../api/client"
 import { camerasApi, type CameraListItem } from "../../../../api/endpoints/cameras"
 import { fetchLensListAll, type LensListItem } from "../../../../api/endpoints/lenses"
@@ -33,12 +32,11 @@ import { isSelectScrollNearBottom, usePagedSelectOptions } from "@/hooks/usePage
 import {
     buildSensorWritePayload,
     getUniqueDefaultLensId,
-    resolveCameraLensDefault,
-    resolveRecorderMicrophoneDefault,
     type SensorFormValues,
 } from "../../utils/sensorForm"
 import { useTableFetchScheduler } from "@/hooks/useTableFetchScheduler"
 import { SENSOR_COLUMNS } from "./sensorSettingsColumns"
+import { SensorIcon } from "../SensorIcon"
 
 const FORM_FIELDS: FormFieldDef[] = [{ key: "name", label: "Name", type: "text" }]
 
@@ -71,8 +69,6 @@ export function SensorSettingsTab() {
     const [editingId, setEditingId] = useState<number | null>(null)
     const [formSaving, setFormSaving] = useState(false)
     const [formAuxLoading, setFormAuxLoading] = useState(false)
-    const [cameraLensDefaultTouched, setCameraLensDefaultTouched] = useState(false)
-    const [recorderMicrophoneDefaultTouched, setRecorderMicrophoneDefaultTouched] = useState(false)
     const [form] = Form.useForm<SensorFormValues>()
 
     const [recorderSelectOptions, setRecorderSelectOptions] = useState<{ value: number; label: string }[]>([])
@@ -158,7 +154,6 @@ export function SensorSettingsTab() {
         if (cameraId == null) {
             setLensSelectOptions([])
             form.setFieldValue("lens_id", undefined)
-            form.setFieldValue("camera_lens_is_default", false)
             return
         }
         try {
@@ -180,52 +175,9 @@ export function SensorSettingsTab() {
             if (!compatibleLens) {
                 const defaultLensId = getUniqueDefaultLensId(lenses)
                 form.setFieldValue("lens_id", defaultLensId)
-                form.setFieldValue("camera_lens_is_default", defaultLensId != null)
             }
         } catch {
             if (requestId === lensRequestIdRef.current) setLensSelectOptions([])
-        }
-    }, [form])
-
-    const syncCameraLensDefault = useCallback(async (cameraId?: number, lensId?: number) => {
-        setCameraLensDefaultTouched(false)
-        form.setFieldValue("camera_lens_is_default", false)
-        if (cameraId == null) return
-
-        try {
-            const response = await camerasApi.get(cameraId)
-            if (response.code !== 0 && response.code !== 200) return
-            const lenses = response.data?.lenses ?? []
-            if (lensId == null) {
-                const defaultLensId = getUniqueDefaultLensId(lenses)
-                form.setFieldValue("lens_id", defaultLensId)
-                form.setFieldValue("camera_lens_is_default", defaultLensId != null)
-                return
-            }
-            form.setFieldValue(
-                "camera_lens_is_default",
-                resolveCameraLensDefault(lenses, lensId),
-            )
-        } catch {
-            // The backend still initializes a new association as non-default on save.
-        }
-    }, [form])
-
-    const syncRecorderMicrophoneDefault = useCallback(async (recorderId?: number, microphoneId?: number) => {
-        setRecorderMicrophoneDefaultTouched(false)
-        form.setFieldValue("recorder_microphone_is_default", false)
-        if (recorderId == null || microphoneId == null) return
-
-        try {
-            const response = await recordersApi.get(recorderId)
-            if (response.code !== 0 && response.code !== 200) return
-            const microphones = response.data?.microphones ?? []
-            form.setFieldValue(
-                "recorder_microphone_is_default",
-                resolveRecorderMicrophoneDefault(microphones, microphoneId),
-            )
-        } catch {
-            // The backend still initializes a new association as non-default on save.
         }
     }, [form])
 
@@ -308,8 +260,6 @@ export function SensorSettingsTab() {
         setFormMode("create")
         setEditingId(null)
         form.resetFields()
-        setCameraLensDefaultTouched(false)
-        setRecorderMicrophoneDefaultTouched(false)
         cameraOptions.reset()
         setFormAuxLoading(true)
         setFormOpen(true)
@@ -359,18 +309,12 @@ export function SensorSettingsTab() {
                 microphone_id: s.microphone_id ?? undefined,
                 camera_id: s.camera_id ?? undefined,
                 lens_id: s.lens_id ?? undefined,
-                camera_lens_is_default:
-                    s.camera_lens_is_default ?? (s.sensor_type === "photo" ? s.is_default ?? false : false),
-                recorder_microphone_is_default:
-                    s.recorder_microphone_is_default ?? (s.sensor_type === "audio" ? s.is_default ?? false : false),
                 description: s.description ?? "",
             })
             if (s.camera_id != null) {
                 await loadLensesForCamera(s.camera_id)
                 form.setFieldValue("lens_id", s.lens_id ?? undefined)
             }
-            setCameraLensDefaultTouched(false)
-            setRecorderMicrophoneDefaultTouched(false)
             if (s.sensor_type === "audio" && s.recorder_id != null) {
                 await loadMicsForRecorder(s.recorder_id)
             } else {
@@ -388,11 +332,7 @@ export function SensorSettingsTab() {
         try {
             const vals = await form.validateFields()
             setFormSaving(true)
-            const payload = buildSensorWritePayload(
-                vals,
-                cameraLensDefaultTouched,
-                recorderMicrophoneDefaultTouched,
-            )
+            const payload = buildSensorWritePayload(vals)
             if (formMode === "create") {
                 const res = await sensorsApi.create(payload)
                 if (res.code !== 0 && res.code !== 200) {
@@ -487,7 +427,7 @@ export function SensorSettingsTab() {
         <ConfigProvider theme={drawerTheme}>
             <DataPageLayout
                 title="Sensors"
-                icon={Radio}
+                icon={SensorIcon}
                 columns={SENSOR_COLUMNS}
                 rows={rows}
                 defaultSortKey="sensor_id"
@@ -600,7 +540,6 @@ export function SensorSettingsTab() {
                                                     onChange={(rid: number) => {
                                                         form.setFieldValue("microphone_id", undefined)
                                                         void loadMicsForRecorder(rid)
-                                                        void syncRecorderMicrophoneDefault(rid)
                                                     }}
                                                 />
                                             </Form.Item>
@@ -615,12 +554,6 @@ export function SensorSettingsTab() {
                                                     showSearch
                                                     optionFilterProp="label"
                                                     classNames={{ popup: { root: "form-drawer-select-popup" } }}
-                                                    onChange={(microphoneId: number) => {
-                                                        void syncRecorderMicrophoneDefault(
-                                                            form.getFieldValue("recorder_id"),
-                                                            microphoneId,
-                                                        )
-                                                    }}
                                                     notFoundContent={
                                                         micSelectOptions.length ? undefined : (
                                                             <EmptyState
@@ -632,17 +565,6 @@ export function SensorSettingsTab() {
                                                         )
                                                     }
                                                 />
-                                            </Form.Item>
-                                            <Form.Item
-                                                className="form-drawer-switch-row"
-                                                label="Default combination"
-                                                tooltip="Use this recorder–microphone pairing as the default when creating an audio sensor."
-                                                colon={false}
-                                                required={false}
-                                            >
-                                                <Form.Item name="recorder_microphone_is_default" valuePropName="checked" noStyle>
-                                                    <Switch onChange={() => setRecorderMicrophoneDefaultTouched(true)} />
-                                                </Form.Item>
                                             </Form.Item>
                                         </>
                                     )
@@ -690,7 +612,6 @@ export function SensorSettingsTab() {
                                                                 (option) => option.value === cameraId,
                                                             ) ?? null,
                                                         )
-                                                        setCameraLensDefaultTouched(false)
                                                         form.setFieldValue("lens_id", undefined)
                                                         void loadLensesForCamera(cameraId)
                                                     }}
@@ -707,9 +628,6 @@ export function SensorSettingsTab() {
                                                     options={lensSelectOptions}
                                                     showSearch
                                                     optionFilterProp="label"
-                                                    onChange={(lensId: number) => {
-                                                        void syncCameraLensDefault(form.getFieldValue("camera_id"), lensId)
-                                                    }}
                                                     notFoundContent={
                                                         lensSelectOptions.length ? undefined : (
                                                             <EmptyState
@@ -721,17 +639,6 @@ export function SensorSettingsTab() {
                                                         )
                                                     }
                                                 />
-                                            </Form.Item>
-                                            <Form.Item
-                                                className="form-drawer-switch-row"
-                                                label="Default combination"
-                                                tooltip="Use this camera–lens pairing as the default when creating a photo sensor."
-                                                colon={false}
-                                                required={false}
-                                            >
-                                                <Form.Item name="camera_lens_is_default" valuePropName="checked" noStyle>
-                                                    <Switch onChange={() => setCameraLensDefaultTouched(true)} />
-                                                </Form.Item>
                                             </Form.Item>
                                         </>
                                     )

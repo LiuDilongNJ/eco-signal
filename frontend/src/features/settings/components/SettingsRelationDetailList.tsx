@@ -1,5 +1,5 @@
 import { Button, Typography } from "@/components/ui"
-import { List as ListIcon, Trash2 } from "lucide-react"
+import { Eye, List as ListIcon, Trash2 } from "lucide-react"
 import type { ReactNode } from "react"
 
 const { Title } = Typography
@@ -18,6 +18,8 @@ interface SettingsRelationDetailListProps {
     emptyMessage: string
     isDark: boolean
     action?: ReactNode
+    onView?: (id: number) => void
+    viewingId?: number | null
     onRemove?: (id: number) => void
     removingId?: number | null
 }
@@ -29,6 +31,8 @@ export function SettingsRelationDetailList({
     emptyMessage,
     isDark,
     action,
+    onView,
+    viewingId,
     onRemove,
     removingId,
 }: SettingsRelationDetailListProps) {
@@ -75,21 +79,23 @@ export function SettingsRelationDetailList({
                             </div>
                             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                                 {item.isDefault && (
-                                    <span
-                                        style={{
-                                            fontSize: 10,
-                                            background: "var(--brand)",
-                                            color: "var(--text-invert)",
-                                            padding: "2px 6px",
-                                            borderRadius: 4,
-                                            fontWeight: 600,
-                                        }}
-                                    >
-                                        DEFAULT
-                                    </span>
+                                    <span className="sensor-settings__default-pill">default</span>
+                                )}
+                                {onView && (
+                                    <Button
+                                        className="settings-relation-action settings-relation-action--view"
+                                        type="text"
+                                        size="small"
+                                        icon={<Eye size={14} />}
+                                        loading={viewingId === item.id}
+                                        aria-label={`View ${item.name || `${fallbackLabel} #${item.id}`}`}
+                                        title={`View ${item.name || `${fallbackLabel} #${item.id}`}`}
+                                        onClick={() => onView(item.id)}
+                                    />
                                 )}
                                 {onRemove && (
                                     <Button
+                                        className="settings-relation-action settings-relation-action--remove"
                                         type="text"
                                         size="small"
                                         danger
