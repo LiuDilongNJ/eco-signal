@@ -1387,16 +1387,16 @@ export function DataPageLayout({
 
                             {useAddDropdown ? (
                                 ((showAddAction || importOnly) && (
-                                    <Tooltip mouseEnterDelay={0} title={importOnly ? "Import data" : importConfig ? "Add or import data" : addDisabled ? addDisabledTooltip : "Add a new record to this table"}>
+                                    <Tooltip mouseEnterDelay={0} title={addDisabled ? addDisabledTooltip : importOnly ? "Import data" : importConfig ? "Add or import data" : "Add a new record to this table"}>
                                         <span style={{ display: "inline-flex" }}>
                                             <DropdownMenu
                                                 items={mergedAddDropdownItems}
                                                 trigger={['click']}
                                                 placement="bottomLeft"
-                                                disabled={!importConfig && addDisabled}
+                                                disabled={addDisabled}
                                                 overlayClassName="data-add-dropdown"
                                             >
-                                                <ESButton appearance="unstyled" type="button" className="data-btn" title={importOnly ? "Import data" : importConfig ? "Add or import data" : "Add a new record to this table"} disabled={!importConfig && addDisabled}>
+                                                <ESButton appearance="unstyled" type="button" className="data-btn" title={addDisabled ? addDisabledTooltip : importOnly ? "Import data" : importConfig ? "Add or import data" : "Add a new record to this table"} disabled={addDisabled}>
                                                     {importOnly ? <FileUp size={14} /> : <Plus size={14} />} {importOnly ? "Import" : "Add"}
                                                     <ChevronDown size={14} className="data-btn__dropdown-icon" aria-hidden />
                                                 </ESButton>

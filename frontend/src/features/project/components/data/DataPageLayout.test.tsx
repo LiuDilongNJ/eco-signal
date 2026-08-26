@@ -247,4 +247,29 @@ describe("DataPageLayout collection context", () => {
         expect(await screen.findByText("Import Data")).toBeInTheDocument()
         expect(screen.getByText("Import Instructions")).toBeInTheDocument()
     })
+
+    it("keeps mixed add/import actions disabled with their disabled reason", async () => {
+        render(
+            <MemoryRouter>
+                <DataPageLayout
+                    title="Audios"
+                    columns={[{ key: "id", label: "ID", type: "number" }]}
+                    rows={[]}
+                    formFields={[]}
+                    importConfig={{ endpoint: "/v1/media/imports", resourceKey: "audioMetadata" }}
+                    addDropdownItems={[{ key: "audios", label: "Audios" }]}
+                    addDisabled
+                    addDisabledTooltip="Before uploading the media, please select a specific collection."
+                />
+            </MemoryRouter>,
+        )
+
+        const addButton = screen.getByRole("button", { name: "Add" })
+        expect(addButton).toBeDisabled()
+
+        await userEvent.hover(addButton.parentElement!)
+        expect(
+            await screen.findByText("Before uploading the media, please select a specific collection."),
+        ).toBeInTheDocument()
+    })
 })

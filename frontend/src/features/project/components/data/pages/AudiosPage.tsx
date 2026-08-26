@@ -365,7 +365,7 @@ export function AudiosPage() {
                 }
                 addDropdownItems={addDropdownItems}
                 addDisabled={!currentCollectionId || currentCollectionId === 'all'}
-                addDisabledTooltip="Please select a Collection before adding data."
+                addDisabledTooltip="Before uploading the media, please select a specific collection."
             />
 
             <UploadAudioDrawer
