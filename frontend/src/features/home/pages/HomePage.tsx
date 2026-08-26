@@ -683,8 +683,8 @@ export default function HomePage() {
                             <img src="/images/biosounds_logo_small.png" alt="" aria-hidden="true" />
                             <span>ecoSignal</span>
                         </div>
-                        <div className="hero-title">Open-source online<br />platform for ecoacoustics</div>
-                        <div className="hero-desc">Use ecoSignal to manage, navigate, visualize, annotate, and analyze soundscape recordings.</div>
+                        <div className="hero-title">Open-source collaborative<br />platform for biodiversity media</div>
+                        <div className="hero-desc">Manage, navigate, visualize, annotate, and analyze audios and photos from biodiversity surveys.</div>
                     </div>
                 </SwiperSlide>
 
