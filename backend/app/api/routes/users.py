@@ -1,7 +1,7 @@
 """用户 API 路由。 / Users API routes."""
 from typing import Any, Literal
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
 
 from app.api.deps import (
     ActiveManager,
@@ -9,6 +9,7 @@ from app.api.deps import (
     SessionDep,
 )
 from app.api.responses import csv_response
+from app.csv_import import attach_import_metadata, parse_import_upload
 from app.core.config import settings
 from app.repositories import permission_repository
 from app.schemas import (
@@ -26,10 +27,42 @@ from app.schemas.user import (
     UserPreferenceUpdate,
     UserPublic,
 )
-from app.services import permission_service, user_service
+from app.services import permission_service, tabular_import_service, user_service
 
 router = APIRouter(prefix="/users", tags=["用户 / users"])
 router_views = APIRouter(tags=["用户 / users"])
+
+
+@router.post("/imports", summary="导入用户 / Import Users")
+async def import_users(
+    session: SessionDep,
+    current_user: ActiveManager,
+    project_id: int = Form(...),
+    collection_id: int | None = Form(None),
+    file: UploadFile = File(...),
+    dry_run: bool = Form(True),
+) -> Any:
+    """校验或原子导入用户。 / Validate or atomically import users."""
+    resource_type = "collection" if collection_id is not None else "project"
+    if not permission_service.has_resource_permission(
+        session,
+        current_user,
+        resource_type,
+        "write",
+        project_id=project_id,
+        collection_id=collection_id,
+    ):
+        raise HTTPException(status_code=403, detail="No write permission on target scope")
+    parsed = parse_import_upload(file.filename or "", await file.read())
+    report = tabular_import_service.import_users(
+        session,
+        parsed.text,
+        current_user,
+        project_id,
+        collection_id,
+        dry_run=dry_run,
+    )
+    return api_success(message="Import validation completed" if dry_run else "Import completed", data=attach_import_metadata(report, parsed, dry_run=dry_run))
 
 
 @router.get(

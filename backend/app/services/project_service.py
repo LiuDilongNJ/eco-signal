@@ -150,7 +150,13 @@ def get_project(session: Session, project_id: int, user: User | None) -> Project
     return project_repository.get_with_relations(session, project_id)
 
 
-def create_project(session: Session, project_in: ProjectCreate, creator: User) -> int:
+def create_project(
+    session: Session,
+    project_in: ProjectCreate,
+    creator: User,
+    *,
+    commit: bool = True,
+) -> int:
     """
     Create a new project.
     
@@ -174,7 +180,10 @@ def create_project(session: Session, project_in: ProjectCreate, creator: User) -
     )
     session.add(project)
     try:
-        session.commit()
+        if commit:
+            session.commit()
+        else:
+            session.flush()
     except IntegrityError as exc:
         session.rollback()
         raise HTTPException(status_code=409, detail=PROJECT_NAME_CONFLICT_DETAIL) from exc

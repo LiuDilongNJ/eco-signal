@@ -42,7 +42,13 @@ class UserRepository(BaseRepository[User, UserCreate, UserUpdate]):
     def __init__(self):
         super().__init__(User)
     
-    def create(self, session: Session, *, obj_in: UserCreate) -> User:
+    def create(
+        self,
+        session: Session,
+        *,
+        obj_in: UserCreate,
+        commit: bool = True,
+    ) -> User:
         """
         Create a new user with hashed password.
 
@@ -65,7 +71,10 @@ class UserRepository(BaseRepository[User, UserCreate, UserUpdate]):
             },
         )
         session.add(db_obj)
-        session.commit()
+        if commit:
+            session.commit()
+        else:
+            session.flush()
         session.refresh(db_obj)
         return db_obj
     

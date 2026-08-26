@@ -1,8 +1,7 @@
-import { Input as ESInput } from "@/components/ui"
 import { CustomScrollArea } from "@/components/ui"
 import { FormDrawer } from "@/components/ui"
 import { downloadFile } from "@/utils/download"
-import { useCallback, useRef, useState, type ChangeEvent } from "react"
+import { useCallback, useState } from "react"
 import {
     ConfigProvider,
     Form,
@@ -10,13 +9,12 @@ import {
     message,
 } from "@/components/ui"
 import { AudioLines, FileUp, Info, Plus } from "lucide-react"
-
 import { ApiError } from "../../../../api/client"
+
 import {
     soundClassificationsApi,
     type SoundClassificationRecord,
 } from "../../../../api/endpoints/soundClassifications"
-import { emptyCsvImportResult, type CsvImportResult } from "../../../../api/csvImport"
 import { DataPageLayout } from "../../../project/components/data/DataPageLayout"
 import type { RowData, TableState } from "../../../project/components/data/DataPageLayout"
 import { useAppDefaultAntdBrandConfig } from "../../../project/hooks/useAntdBrandConfig"
@@ -36,9 +34,7 @@ import {
     soundWritePayload,
     type SoundFormValues,
 } from "../../utils/soundSettingsModel"
-import { CsvImportInstructionsDrawer } from "../CsvImportInstructionsDrawer"
-import { CsvImportResultModal } from "../CsvImportResultModal"
-import { SETTINGS_CSV_IMPORT_CONFIG } from "../../utils/settingsCsvImportConfig"
+import { useSettingsCsvImport } from "../../utils/useSettingsCsvImport"
 import "../../../project/components/modals/styles/FormDrawer.css"
 import "../style/settings-forms.css"
 import "../style/sound-settings.css"
@@ -64,11 +60,6 @@ export function SoundSettingsTab() {
     const [formSaving, setFormSaving] = useState(false)
     const [form] = Form.useForm<SoundFormValues>()
 
-    const importInputRef = useRef<HTMLInputElement | null>(null)
-    const [instructionsOpen, setInstructionsOpen] = useState(false)
-    const [importing, setImporting] = useState(false)
-    const [importResultOpen, setImportResultOpen] = useState(false)
-    const [importResult, setImportResult] = useState<CsvImportResult | null>(null)
 
     const fetchTableData = useCallback(async (state: TableState) => {
         setLoading(true)
@@ -114,6 +105,7 @@ export function SoundSettingsTab() {
     const refreshTable = () => {
         if (tableState) handleTableChange(tableState)
     }
+    const csvImport = useSettingsCsvImport("sounds", soundClassificationsApi.importCsv, refreshTable)
 
     const openCreate = () => {
         setFormMode("create")
@@ -222,59 +214,20 @@ export function SoundSettingsTab() {
         }
     }
 
-    const importCsv = async (event: ChangeEvent<HTMLInputElement>) => {
-        const input = event.currentTarget
-        const file = input.files?.[0]
-        if (!file || importing) return
-        if (!file.name.toLowerCase().endsWith(".csv")) {
-            message.error("Select a CSV file")
-            input.value = ""
-            return
-        }
-
-        setImporting(true)
-        const hideLoading = message.loading("Importing sounds...", 0)
-        try {
-            const response = await soundClassificationsApi.importCsv(file)
-            if (response.code !== 0 && response.code !== 200) {
-                message.error(response.message || "Import failed")
-                setImportResult(emptyCsvImportResult(response.message || "Import failed"))
-                setImportResultOpen(true)
-                return
-            }
-            setImportResult(response.data)
-            setImportResultOpen(true)
-            if (response.data.succeeded > 0) {
-                message.success(`Imported ${response.data.succeeded} of ${response.data.total} row(s)`)
-            } else {
-                message.info(`Import completed: 0 rows written out of ${response.data.total} row(s)`)
-            }
-            refreshTable()
-        } catch (error: unknown) {
-            const errorMessage = apiMessage(error, "Import failed")
-            message.error(errorMessage)
-            setImportResult(emptyCsvImportResult(errorMessage))
-            setImportResultOpen(true)
-        } finally {
-            hideLoading()
-            input.value = ""
-            setImporting(false)
-        }
-    }
-
     const addDropdownItems = [
         { key: "new", label: "New Sound", icon: <Plus size={14} />, onClick: openCreate },
+        { type: "divider" as const },
         {
             key: "import",
-            label: "Import CSV",
+            label: "Import Data",
             icon: <FileUp size={14} />,
-            onClick: () => importInputRef.current?.click(),
+            onClick: csvImport.triggerImport,
         },
         {
             key: "instructions",
-            label: "CSV Instructions",
+            label: "Import Instructions",
             icon: <Info size={14} />,
-            onClick: () => setInstructionsOpen(true),
+            onClick: csvImport.showInstructions,
         },
     ]
 
@@ -288,13 +241,7 @@ export function SoundSettingsTab() {
 
     return (
         <ConfigProvider theme={drawerTheme}>
-            <ESInput appearance="unstyled"
-                ref={importInputRef}
-                type="file"
-                accept=".csv,text/csv"
-                hidden
-                onChange={(event) => void importCsv(event)}
-            />
+            {csvImport.input}
             <DataPageLayout
                 title="Sounds"
                 icon={AudioLines}
@@ -310,7 +257,7 @@ export function SoundSettingsTab() {
                 rowKey="id"
                 onTableStateChange={handleTableChange}
                 addDropdownItems={addDropdownItems}
-                addDisabled={importing}
+                addDisabled={csvImport.importing}
                 onEditCustom={openEdit}
                 onDeleteCustom={handleDelete}
                 onExportCustom={handleExport}
@@ -358,18 +305,6 @@ export function SoundSettingsTab() {
                 </CustomScrollArea>
             </FormDrawer>
 
-            <CsvImportInstructionsDrawer
-                config={SETTINGS_CSV_IMPORT_CONFIG.sounds}
-                isDark={isDark}
-                open={instructionsOpen}
-                onClose={() => setInstructionsOpen(false)}
-            />
-            <CsvImportResultModal
-                open={importResultOpen}
-                label="sounds"
-                result={importResult}
-                onClose={() => setImportResultOpen(false)}
-            />
         </ConfigProvider>
     )
 }

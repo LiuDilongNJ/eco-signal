@@ -51,11 +51,16 @@ vi.mock("@/components/ui", async (importOriginal) => {
     const TestDrawer = ({ open, title, extra, children }: { open: boolean; title: ReactNode; extra: ReactNode; children: ReactNode }) => (
         open ? <section role="dialog">{title}{extra}{children}</section> : null
     )
+    const TestDialog = ({ open, title, footer, children }: { open: boolean; title?: ReactNode; footer?: ReactNode; children: ReactNode }) => (
+        open ? <section role="dialog">{title}{children}{footer}</section> : null
+    )
     return {
         ...actual,
+        Dialog: TestDialog,
         CustomScrollArea: ({ children }: { children: ReactNode }) => <div>{children}</div>,
         DetailDrawer: TestDrawer,
         FormDrawer: TestDrawer,
+        message: toast,
     }
 })
 
@@ -87,7 +92,7 @@ beforeEach(() => {
     api.importCsv.mockResolvedValue({
         code: 0,
         message: "ok",
-        data: { total: 1, succeeded: 1, skipped: 0, failed: 0, committed: true, rows: [], global_errors: [] },
+        data: { source_format: "delimited_text", delimiter: ",", dry_run: true, total: 1, succeeded: 1, skipped: 0, failed: 0, committed: false, rows: [], global_errors: [] },
     })
 })
 
@@ -107,11 +112,13 @@ describe("SoundSettingsTab interactions", () => {
             serverSide: true,
             defaultSortKey: "sound_id",
         })
-        expect((dataPageProps.current?.addDropdownItems as Array<{ label: string }>).map((item) => item.label)).toEqual([
+        const addItems = dataPageProps.current?.addDropdownItems as Array<{ label?: string; type?: string }>
+        expect(addItems.filter((item) => item.type !== "divider").map((item) => item.label)).toEqual([
             "New Sound",
-            "Import CSV",
-            "CSV Instructions",
+            "Import Data",
+            "Import Instructions",
         ])
+        expect(addItems[1]).toMatchObject({ type: "divider" })
 
         menuAction(0)
         expect(await screen.findByText("New Sound")).toBeInTheDocument()
@@ -152,9 +159,9 @@ describe("SoundSettingsTab interactions", () => {
     it("opens separate CSV instructions with the exact format guidance and template", () => {
         render(<SoundSettingsTab />)
 
-        menuAction(2)
+        menuAction(3)
 
-        expect(screen.getByText("CSV Upload Instructions")).toBeInTheDocument()
+        expect(screen.getByText("Data Import Instructions")).toBeInTheDocument()
         expect(screen.getByText("soundscape_component")).toBeInTheDocument()
         expect(screen.queryByText(/Duplicate rows are preserved/)).not.toBeInTheDocument()
         fireEvent.click(screen.getByRole("button", { name: "template CSV file" }))
@@ -171,23 +178,61 @@ describe("SoundSettingsTab interactions", () => {
         expect(input).not.toBeNull()
         const click = vi.spyOn(input!, "click")
 
-        menuAction(1)
+        menuAction(2)
 
         expect(click).toHaveBeenCalledOnce()
         expect(screen.queryByText("Import Sounds")).not.toBeInTheDocument()
     })
 
-    it("rejects a non-CSV file before upload", async () => {
+    it("rejects an unsupported file before upload", async () => {
         const { container } = render(<SoundSettingsTab />)
         const input = container.querySelector<HTMLInputElement>('input[type="file"]')
         expect(input).not.toBeNull()
 
         fireEvent.change(input!, {
-            target: { files: [new File(["not csv"], "sounds.txt", { type: "text/plain" })] },
+            target: { files: [new File(["not importable"], "sounds.pdf", { type: "application/pdf" })] },
         })
 
-        await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Select a CSV file"))
+        await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Select a CSV, TXT, or JSON file"))
         expect(api.importCsv).not.toHaveBeenCalled()
+    })
+
+    it.each([
+        ["sounds.txt", "soundscape_component|sound_type\nbiophony|bird\n"],
+        ["sounds.json", '[{"soundscape_component":"biophony","sound_type":"bird"}]'],
+    ])("sends %s through dry-run validation", async (filename, content) => {
+        const { container } = render(<SoundSettingsTab />)
+        const input = container.querySelector<HTMLInputElement>('input[type="file"]')!
+        const file = new File([content], filename)
+
+        fireEvent.change(input, { target: { files: [file] } })
+
+        await waitFor(() => expect(api.importCsv).toHaveBeenCalledWith(file, true))
+    })
+
+    it("confirms the same validated file and clears the result after commit", async () => {
+        api.importCsv
+            .mockResolvedValueOnce({
+                code: 0,
+                message: "Import validation completed",
+                data: { source_format: "delimited_text", delimiter: ",", dry_run: true, total: 1, succeeded: 1, skipped: 0, failed: 0, committed: false, rows: [], global_errors: [] },
+            })
+            .mockResolvedValueOnce({
+                code: 0,
+                message: "Import completed",
+                data: { source_format: "delimited_text", delimiter: ",", dry_run: false, total: 1, succeeded: 1, skipped: 0, failed: 0, committed: true, rows: [], global_errors: [] },
+            })
+        const { container } = render(<SoundSettingsTab />)
+        const input = container.querySelector<HTMLInputElement>('input[type="file"]')!
+        const file = new File(["soundscape_component,sound_type\nbiophony,bird\n"], "sounds.csv", { type: "text/csv" })
+
+        fireEvent.change(input, { target: { files: [file] } })
+        await screen.findByRole("button", { name: "Confirm Import" })
+        fireEvent.click(screen.getByRole("button", { name: "Confirm Import" }))
+
+        await waitFor(() => expect(api.importCsv).toHaveBeenNthCalledWith(2, file, false))
+        expect(screen.queryByText("sound Import Result")).not.toBeInTheDocument()
+        expect(toast.success).toHaveBeenCalledWith("Imported 1 of 1 row(s)")
     })
 
     it("disables Add while importing and allows the same CSV to be selected again", async () => {
@@ -202,18 +247,18 @@ describe("SoundSettingsTab interactions", () => {
         ], "sounds.csv", { type: "text/csv" })
 
         fireEvent.change(input, { target: { files: [file] } })
-        await waitFor(() => expect(api.importCsv).toHaveBeenCalledWith(file))
-        expect(dataPageProps.current?.addDisabled).toBe(true)
+        await waitFor(() => expect(api.importCsv).toHaveBeenCalledWith(file, true))
+        await waitFor(() => expect(dataPageProps.current?.addDisabled).toBe(true))
 
         await act(async () => {
             finishImport?.({
                 code: 0,
                 message: "ok",
-                data: { total: 1, succeeded: 1, skipped: 0, failed: 0, committed: true, rows: [], global_errors: [] },
+                data: { source_format: "delimited_text", delimiter: ",", dry_run: true, total: 1, succeeded: 1, skipped: 0, failed: 0, committed: false, rows: [], global_errors: [] },
             })
         })
         await waitFor(() => expect(dataPageProps.current?.addDisabled).toBe(false))
-        expect(toast.success).toHaveBeenCalledWith("Imported 1 of 1 row(s)")
+        expect(toast.success).toHaveBeenCalledWith("Validated 1 of 1 row(s)")
 
         fireEvent.change(input, { target: { files: [file] } })
         await waitFor(() => expect(api.importCsv).toHaveBeenCalledTimes(2))

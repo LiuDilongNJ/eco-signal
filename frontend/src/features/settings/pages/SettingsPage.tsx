@@ -11,7 +11,6 @@ import {
     Camera,
     Aperture,
     CassetteTape,
-    Radio,
     GitFork,
     Globe,
     Mic,
@@ -39,6 +38,7 @@ import { UserMenu } from "../../project/components/nav/UserMenu"
 import { useAppDefaultAntdBrandConfig } from "../../project/hooks/useAntdBrandConfig"
 import { NAV_BAR_ICON_SIZE } from "../../project/components/nav/navBarIconSize"
 import { CustomScrollArea } from "@/components/ui"
+import { SensorIcon } from "../components/SensorIcon"
 import "../../project/project.css" // Import project CSS for top-nav styling on direct load
 import "../../project/data-timeline.css"
 import "../../project/components/data/styles/DataPageLayout.css"
@@ -121,7 +121,7 @@ const SETTINGS_TABS: SettingsTabConfig[] = [
     {
         id: "sensor",
         label: "Sensors",
-        icon: Radio,
+        icon: SensorIcon,
         adminOnly: true,
         tableFill: true,
         render: () => <SensorSettingsTab />,

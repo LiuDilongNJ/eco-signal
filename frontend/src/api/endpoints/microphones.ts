@@ -1,5 +1,5 @@
 import { apiClient } from "../client"
-import type { CsvImportResult } from "../csvImport"
+import type { ImportResult as TabularImportResult } from "../tabularImport"
 
 export interface MicrophoneOption {
     microphone_id: number
@@ -40,7 +40,7 @@ export interface MicrophoneUpdateBody {
     sensitivity?: number | null
     signal_to_noise_ratio?: number | null
 }
-export type ImportResult = CsvImportResult
+export type ImportResult = TabularImportResult
 
 export interface ListMicrophonesParams {
     page?: number
@@ -95,9 +95,10 @@ export const microphonesApi = {
     delete(id: number) {
         return apiClient.delete<{ code: number; message: string }>(`/v1/microphones/${id}`)
     },
-    importCsv(file: File) {
+    importCsv(file: File, dryRun = true) {
         const formData = new FormData()
         formData.append("file", file)
+        formData.append("dry_run", String(dryRun))
         return apiClient.post<{ code: number; message: string; data: ImportResult }>("/v1/microphones/imports", formData)
     },
 
@@ -106,4 +107,38 @@ export const microphonesApi = {
             params: cleanParams(params as Record<string, unknown>),
         })
     },
+}
+
+export type FetchMicrophoneListAllParams = Omit<ListMicrophonesParams, "page" | "page_size">
+
+/**
+ * Loads all microphones via paginated GET `/v1/microphones` (server caps `page_size` at 100).
+ */
+export async function fetchMicrophoneListAll(params?: FetchMicrophoneListAllParams): Promise<{
+    data: MicrophoneListItem[]
+    errorMessage?: string
+}> {
+    const all: MicrophoneListItem[] = []
+    let page = 1
+    const page_size = 100
+    const order_by = params?.order_by ?? "name"
+    const order_dir = params?.order_dir ?? "asc"
+    for (;;) {
+        const res = await microphonesApi.list({
+            ...params,
+            page,
+            page_size,
+            order_by,
+            order_dir,
+        })
+        if (res.code !== 0 && res.code !== 200) {
+            return { data: [], errorMessage: res.message || "Failed to load microphones" }
+        }
+        const chunk = res.data ?? []
+        all.push(...chunk)
+        if (chunk.length < page_size) break
+        page += 1
+        if (page > 200) break
+    }
+    return { data: all }
 }

@@ -32,6 +32,49 @@
     line-height: 1.25;
 }
 
+.settings-relation-action.ant-btn {
+    width: 32px;
+    min-width: 32px;
+    height: 32px;
+    padding: 0;
+    border: 0 !important;
+    border-color: transparent !important;
+    border-radius: 50%;
+    color: var(--text-invert);
+    transition: background 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+}
+
+.settings-relation-action.ant-btn.settings-relation-action--view {
+    background: transparent;
+    color: var(--brand);
+}
+
+.settings-relation-action.ant-btn.settings-relation-action--view:hover:not(:disabled),
+.settings-relation-action.ant-btn.settings-relation-action--view:focus-visible:not(:disabled) {
+    background: var(--brand-hover);
+    color: var(--text-invert);
+}
+
+.settings-relation-action.ant-btn.settings-relation-action--remove {
+    background: transparent;
+    color: var(--error, #dc2626);
+}
+
+.settings-relation-action.ant-btn.settings-relation-action--remove:hover:not(:disabled),
+.settings-relation-action.ant-btn.settings-relation-action--remove:focus-visible:not(:disabled) {
+    background: var(--error-hover, #b91c1c);
+    color: #fff;
+}
+
+.settings-relation-action.ant-btn:focus-visible {
+    border-color: transparent !important;
+    box-shadow: none !important;
+}
+
+.settings-relation-action.ant-btn:disabled {
+    opacity: 0.55;
+}
+
 .camera-settings__detail-meta {
     margin-bottom: 16px;
 }

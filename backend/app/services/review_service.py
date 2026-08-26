@@ -117,6 +117,8 @@ def create_review(
     session: Session,
     user: User,
     data: ReviewCreate,
+    *,
+    commit: bool = True,
 ) -> None:
     """Create a new annotation review and mark the annotation task as reviewed."""
     annotation = session.get(Annotation, data.annotation_id)
@@ -166,7 +168,10 @@ def create_review(
         annotation_id=data.annotation_id,
         assignee_id=user.user_id,
     )
-    session.commit()
+    if commit:
+        session.commit()
+    else:
+        session.flush()
 
 
 def update_review(

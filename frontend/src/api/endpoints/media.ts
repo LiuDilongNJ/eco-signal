@@ -1,7 +1,6 @@
 import { apiClient } from "../client"
 import { getApiData } from "../utils"
 import type { FilterOptionLabel, FilterOptionUser } from "../utils"
-import type { CsvImportResult } from "../csvImport"
 
 export interface MediaPublic {
     media_id?: number
@@ -76,7 +75,6 @@ export interface PagedMediaResponse<T = MediaPublic> {
     }
 }
 
-export type MetadataImportResult = CsvImportResult
 
 interface CreateMediaPayloadBase {
     collection_id: number
@@ -278,16 +276,6 @@ export const mediaApi = {
     /** 批量创建媒体记录 */
     createMedia(payload: CreateMediaPayload, params?: CreateMediaParams) {
         return apiClient.post<{ code: number; message: string; data: MediaCreateResponse }>("/v1/media", payload, { params })
-    },
-
-    /** 导入媒体元数据 (CSV) */
-    importMetadata(projectId: number, collectionId: number, file: File, mediaType: "audio" | "photo" = "audio") {
-        const formData = new FormData()
-        formData.append("project_id", String(projectId))
-        formData.append("collection_id", String(collectionId))
-        formData.append("media_type", mediaType)
-        formData.append("file", file)
-        return apiClient.post<{ code: number; message: string; data: MetadataImportResult }>("/v1/media-metadata-imports", formData)
     },
 
     /** 获取媒体记录详情 */

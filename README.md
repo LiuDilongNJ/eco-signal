@@ -145,6 +145,62 @@ For standard audio and photo uploads, select one or more files and wait for thei
 
 ## Offline Field Work
 
+### CSV and text imports
+
+Every Data list except Queue provides its import options inside the **Add** menu. Importable settings lists use the same interaction, while Audio and Photo retain their existing **Metadata** labels. Selecting an import option opens the file chooser directly. Upload a `.csv`, `.txt`, or `.json` file; text files may use comma, tab, semicolon, or pipe delimiters, and `.txt` files may also contain a JSON object array. The first request validates every row without writing data. After a successful validation, confirm the import to submit the same file for one atomic transaction. Validation reports are displayed in the browser and are not stored.
+
+Imports use the same field validation and permissions as creating the corresponding resource. Select a specific project and collection before importing collection-scoped resources. Duplicate rows are skipped, while any failed row prevents the batch from being committed.
+
+Choose **Import Instructions** (or **Metadata Instructions** for Audio and Photo) from the same Add menu to view accepted fields, CSV/TXT/JSON examples, and download the resource-specific CSV template. Templates contain the exact accepted headers and one example row.
+
+The resource endpoints are `POST /api/v1/{resource}/imports` and accept `multipart/form-data`:
+
+Supported resources are `projects`, `collections`, `sites`, `media`, `annotations`, `reviews`, `index-logs`, `tasks`, `users`, `recorders`, `microphones`, `cameras`, `lenses`, `taxons`, and `sound-classification-records`. Queue is intentionally excluded. The offline collection-bundle endpoint remains `/api/v1/data-imports`.
+
+| Field | Type | Required | Default | Validation and meaning |
+|---|---|---:|---|---|
+| `file` | File | Yes | — | UTF-8/UTF-8 BOM compatible `.csv`, `.txt`, or `.json`; maximum 20 MiB, 50,000 records, and 256 columns |
+| `dry_run` | Boolean | No | `true` | `true` validates only; `false` commits only when every non-skipped row is valid |
+| `project_id` | Integer | Resource-dependent | — | Positive project ID used for scoped permission checks |
+| `collection_id` | Integer | Resource-dependent | — | Positive collection ID; required for collection-scoped resources |
+| `media_type` | `audio` or `photo` | Media only | — | Selects the metadata schema for `/media/imports` |
+
+CSV files and delimited text require a header row. TXT files accept comma, Tab, semicolon, or pipe delimiters, or a JSON object array. For example:
+
+```text
+name;brand;version
+Forest recorder;Example;2
+```
+
+```json
+[
+  {"name": "Forest recorder", "brand": "Example", "version": "2"}
+]
+```
+
+A successful validation returns HTTP 200 with a transient row report:
+
+```json
+{
+  "code": 0,
+  "message": "Import validation completed",
+  "data": {
+    "source_format": "delimited_text",
+    "delimiter": ";",
+    "dry_run": true,
+    "total": 1,
+    "succeeded": 1,
+    "skipped": 0,
+    "failed": 0,
+    "committed": false,
+    "rows": [{"row_number": 2, "status": "succeeded", "field": null, "reason": null}],
+    "global_errors": []
+  }
+}
+```
+
+Projects require an administrator. Collections require `project:write`. Collection-scoped imports require the matching resource write permission on the explicit project and collection path; public read access never grants import access. Settings master-data imports retain administrator-only access. The endpoints never return imported password values or include them in row errors.
+
 ecoSignal supports offline field work through a signed collection bundle containing audio, photos, annotations, reviews, and labels.
 
 ### Export a collection bundle

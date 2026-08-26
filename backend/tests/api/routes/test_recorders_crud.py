@@ -216,6 +216,7 @@ class TestImportRecorders:
         response = client.post(
             f"{BASE}/imports",
             headers=superuser_token_headers,
+            data={"dry_run": "false"},
             files={"file": ("recorders.csv", content, "text/csv")},
         )
 
@@ -246,6 +247,7 @@ class TestImportRecorders:
         response = client.post(
             f"{BASE}/imports",
             headers=superuser_token_headers,
+            data={"dry_run": "false"},
             files={"file": ("recorders.csv", content, "text/csv")},
         )
         assert response.status_code == 200
@@ -263,11 +265,12 @@ class TestImportRecorders:
         _make_recorder(db, "Import Existing Recorder")
         content = (
             "name,version,brand\n"
-            " import existing recorder ,,\n"
+            " import existing recorder ,,Wildlife Acoustics\n"
         )
         response = client.post(
             f"{BASE}/imports",
             headers=superuser_token_headers,
+            data={"dry_run": "false"},
             files={"file": ("recorders.csv", content, "text/csv")},
         )
         assert response.status_code == 200
@@ -281,6 +284,7 @@ class TestImportRecorders:
         response = client.post(
             f"{BASE}/imports",
             headers=superuser_token_headers,
+            data={"dry_run": "false"},
             files={
                 "file": (
                     "recorders.csv",
@@ -301,6 +305,7 @@ class TestImportRecorders:
         response = client.post(
             f"{BASE}/imports",
             headers=superuser_token_headers,
+            data={"dry_run": "false"},
             files={
                 "file": (
                     "recorders.csv",
@@ -327,6 +332,7 @@ class TestImportRecorders:
         response = client.post(
             f"{BASE}/imports",
             headers=superuser_token_headers,
+            data={"dry_run": "false"},
             files={"file": ("recorders.csv", content, "text/csv")},
         )
         assert response.status_code == 200
@@ -345,6 +351,7 @@ class TestImportRecorders:
         response = client.post(
             f"{BASE}/imports",
             headers=superuser_token_headers,
+            data={"dry_run": "false"},
             files={
                 "file": (
                     "recorders.csv",
@@ -353,9 +360,7 @@ class TestImportRecorders:
                 )
             },
         )
-        assert response.status_code == 200
-        assert response.json()["data"]["committed"] is False
-        assert "expected 3 columns" in response.json()["data"]["rows"][0]["reason"]
+        assert response.status_code == 400
         assert len(db.exec(select(Recorder)).all()) == before
 
 

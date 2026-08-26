@@ -2,7 +2,7 @@
 from datetime import date, datetime, time
 from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 
 from app.api.deps import SessionDep, get_current_active_superuser
 from app.api.responses import csv_response
@@ -20,7 +20,7 @@ from app.schemas.taxon import (
     TaxonUpdate,
 )
 from app.services import taxon_service
-from app.services.upload_validation_service import extension_for, validate_csv_content
+from app.csv_import import attach_import_metadata, parse_import_upload
 
 router = APIRouter(prefix="/taxons", tags=["分类群 / taxons"])
 router_views = APIRouter(tags=["分类群 / taxons"])
@@ -213,10 +213,11 @@ def export_taxons(
 
 
 @router.post("/imports", response_model=ApiResponse[TaxonImportResponse], dependencies=[Depends(get_current_active_superuser)], summary="导入分类群 / Import Taxons")
-async def import_taxons(session: SessionDep, file: UploadFile = File(...)) -> Any:
-    """使用固定 CSV 模板原子导入分类群。 / Atomically import taxons from the fixed CSV template."""
-    extension_for(file.filename or "", {"csv"})
-    return api_success(data=taxon_service.import_taxons_csv(session, validate_csv_content(await file.read())))
+async def import_taxons(session: SessionDep, file: UploadFile = File(...), dry_run: bool = Form(True)) -> Any:
+    """使用固定字段模板导入分类群。 / Import taxons using the fixed field template."""
+    parsed = parse_import_upload(file.filename or "", await file.read())
+    report = taxon_service.import_taxons_csv(session, parsed.text, dry_run=dry_run)
+    return api_success(message="Import validation completed" if dry_run else "Import completed", data=attach_import_metadata(report, parsed, dry_run=dry_run))
 
 
 @router.post(

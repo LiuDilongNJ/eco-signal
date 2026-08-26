@@ -207,11 +207,13 @@ def test_import_success_with_bom_blank_rows_and_null_sound_type(
     response = client.post(
         f"{BASE}/imports",
         headers=superuser_token_headers,
+        data={"dry_run": "false"},
         files={"file": ("sounds.csv", content, "text/csv")},
     )
 
     assert response.status_code == 200
     assert response.json()["data"] == {
+        "source_format": "delimited_text", "delimiter": ",", "dry_run": False,
         "total": 3, "succeeded": 2, "skipped": 1, "failed": 0,
         "committed": True,
         "rows": [
@@ -246,6 +248,7 @@ def test_import_tolerates_exported_id_column(
     response = client.post(
         f"{BASE}/imports",
         headers=superuser_token_headers,
+        data={"dry_run": "false"},
         files={"file": ("sounds.csv", content, "text/csv")},
     )
     assert response.status_code == 200
@@ -271,13 +274,10 @@ def test_import_rejects_row_width_mismatch(
     response = client.post(
         f"{BASE}/imports",
         headers=superuser_token_headers,
+        data={"dry_run": "false"},
         files={"file": ("sounds.csv", content, "text/csv")},
     )
-    assert response.status_code == 200
-    data = response.json()["data"]
-    assert data["committed"] is False
-    assert data["failed"] == 1
-    assert "expected 2 columns" in data["rows"][0]["reason"]
+    assert response.status_code == 400
     assert len(db.exec(select(SoundClassification)).all()) == before
 
 
@@ -296,6 +296,7 @@ def test_import_rejects_unclosed_quote(
     response = client.post(
         f"{BASE}/imports",
         headers=superuser_token_headers,
+        data={"dry_run": "false"},
         files={"file": ("sounds.csv", content, "text/csv")},
     )
     # Rejected either by the strict pre-guard (400) or the classification parser (422).
@@ -318,6 +319,7 @@ def test_import_skips_duplicate_rows_and_creates_one_record(
     response = client.post(
         f"{BASE}/imports",
         headers=superuser_token_headers,
+        data={"dry_run": "false"},
         files={"file": ("sounds.csv", content, "text/csv")},
     )
 
@@ -351,7 +353,8 @@ def test_import_rejects_bad_files_and_rolls_back(
     assert response.status_code == 200
     data = response.json()["data"]
     assert data["committed"] is False
-    assert data["failed"] == 2
+    assert data["failed"] == 1
+    assert data["succeeded"] == 1
     assert data["rows"][1]["field"] == "soundscape_component"
     assert len(db.exec(select(SoundClassification)).all()) == len(before)
     assert client.post(

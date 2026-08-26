@@ -6,7 +6,7 @@ from pydantic import field_serializer, field_validator, model_validator
 from sqlmodel import Field, SQLModel
 
 from app.utils import validate_required_http_url
-from app.csv_import import CsvImportResult
+from app.csv_import import ImportResult
 
 
 def _normalize_required_device_name(value: Any) -> str:
@@ -58,7 +58,7 @@ class LensOption(SQLModel):
     name: str
 
 
-DeviceImportResponse = CsvImportResult
+DeviceImportResponse = ImportResult
 
 
 

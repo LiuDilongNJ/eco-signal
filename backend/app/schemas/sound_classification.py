@@ -43,6 +43,6 @@ class SoundClassificationPublic(SQLModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-from app.csv_import import CsvImportResult
+from app.csv_import import ImportResult
 
-SoundClassificationImportResponse = CsvImportResult
+SoundClassificationImportResponse = ImportResult

@@ -4,8 +4,8 @@ from sqlmodel import Session
 
 from app.csv_export import CsvColumn, export_columns_csv
 from app.csv_import import (
-    CsvImportResult,
-    CsvImportRowResult,
+    ImportResult,
+    ImportRowResult,
     effective_header_width,
     ensure_row_width,
     parse_csv,
@@ -46,7 +46,7 @@ def export_taxons_csv(
     return export_columns_csv(_TAXON_EXPORT_COLUMNS, items)
 
 
-def import_taxons_csv(session: Session, text: str) -> CsvImportResult:
+def import_taxons_csv(session: Session, text: str, *, dry_run: bool = False) -> ImportResult:
     # CSV headers use the settings list display labels and are matched by name,
     # so an exported taxon CSV (with extra ID/Species/timestamp columns) can be
     # re-imported directly.
@@ -66,7 +66,7 @@ def import_taxons_csv(session: Session, text: str) -> CsvImportResult:
         for column in _TAXON_EXPORT_COLUMNS
         if column.header not in template_headers
     ]
-    report = CsvImportResult()
+    report = ImportResult()
     try:
         parsed_rows = parse_csv(text)
     except HTTPException as exc:
@@ -86,25 +86,26 @@ def import_taxons_csv(session: Session, text: str) -> CsvImportResult:
     rows: list[tuple[int, TaxonImportRow]] = []
     for row_number, row in enumerate(data_rows, start=2):
         if not row or not any(value.strip() for value in row):
-            report.rows.append(CsvImportRowResult(row_number=row_number, status="skipped", reason="Blank row"))
+            report.rows.append(ImportRowResult(row_number=row_number, status="skipped", reason="Blank row"))
             continue
         try:
             ensure_row_width(row, row_number, width)
         except HTTPException as exc:
-            report.rows.append(CsvImportRowResult(row_number=row_number, status="failed", reason=str(exc.detail)))
+            report.rows.append(ImportRowResult(row_number=row_number, status="failed", reason=str(exc.detail)))
             continue
         payload = {field: read_cell(row, positions, field) for field in fields}
         try:
             rows.append((row_number, TaxonImportRow(**payload)))
-            report.rows.append(CsvImportRowResult(row_number=row_number, status="succeeded"))
+            report.rows.append(ImportRowResult(row_number=row_number, status="succeeded"))
         except ValidationError as exc:
             error = exc.errors()[0]
-            report.rows.append(CsvImportRowResult(row_number=row_number, status="failed", field=str(error["loc"][-1]), reason=str(error["msg"])))
+            report.rows.append(ImportRowResult(row_number=row_number, status="failed", field=str(error["loc"][-1]), reason=str(error["msg"])))
     if report.failed:
-        report.reject_candidates()
+        if not dry_run:
+            report.reject_candidates()
         return report
     if not rows:
-        report.committed = True
+        report.committed = not dry_run
         return report.finalize()
 
     # Probe the remote dictionary and fetch all COL candidates once, instead of one
@@ -116,7 +117,8 @@ def import_taxons_csv(session: Session, text: str) -> CsvImportResult:
         )
     except RemoteTaxonLookupError as exc:
         report.global_errors.append(exc.detail)
-        report.reject_candidates()
+        if not dry_run:
+            report.reject_candidates()
         return report
 
     resolved_rows: list[dict[str, object]] = []
@@ -148,8 +150,11 @@ def import_taxons_csv(session: Session, text: str) -> CsvImportResult:
         kept_rows.append(values)
     report.finalize()
     if report.failed:
-        report.reject_candidates()
+        if not dry_run:
+            report.reject_candidates()
         return report
+    if dry_run:
+        return report.finalize()
     if kept_rows:
         taxon_repository.create_imported_taxons(session, kept_rows)
     report.committed = True

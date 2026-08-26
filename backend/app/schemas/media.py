@@ -232,9 +232,9 @@ class MediaPublic(MediaListPublic):
     image_height: Optional[int] = None
 
 
-from app.csv_import import CsvImportResult
+from app.csv_import import ImportResult
 
-MetadataImportResponse = CsvImportResult
+MetadataImportResponse = ImportResult
 
 
 class MediaOption(SQLModel):

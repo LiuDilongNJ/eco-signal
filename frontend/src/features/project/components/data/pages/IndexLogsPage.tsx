@@ -235,6 +235,14 @@ export function IndexLogsPage() {
     return (
         <DataPageLayout
             title="Index Logs"
+            importConfig={{
+                endpoint: "/v1/index-logs/imports",
+                resourceKey: "indexLogs",
+                importOnly: true,
+                fields: { project_id: currentProjectId, collection_id: currentCollectionId },
+                disabled: !currentProjectId || !currentCollectionId || currentCollectionId === "all",
+                disabledReason: "Select a project and collection before importing index logs",
+            }}
             icon={ScrollText}
             columns={COLUMNS}
             rows={rows}

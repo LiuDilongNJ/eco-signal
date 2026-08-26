@@ -1,7 +1,7 @@
 """相机 API 路由（管理员 CRUD、相机-镜头关联）。 / Cameras: admin CRUD and camera-lens links."""
 from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, File, Query, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Query, UploadFile
 
 from app.api.deps import SessionDep, get_current_active_superuser
 from app.schemas.device import (
@@ -14,7 +14,7 @@ from app.schemas.device import (
 )
 from app.schemas.response import ApiResponse, PagedApiResponse, api_page, api_success
 from app.services import device_service
-from app.services.upload_validation_service import extension_for, validate_csv_content
+from app.csv_import import attach_import_metadata, parse_import_upload
 from app.utils import parse_uuid
 
 router = APIRouter(prefix="/cameras", tags=["相机 / cameras"])
@@ -93,10 +93,11 @@ def export_cameras(
 
 
 @router.post("/imports", response_model=ApiResponse[DeviceImportResponse], dependencies=[Depends(get_current_active_superuser)], summary="导入相机 / Import Cameras")
-async def import_cameras(session: SessionDep, file: UploadFile = File(...)) -> Any:
-    """使用固定 CSV 模板原子导入相机。 / Atomically import cameras from the fixed CSV template."""
-    extension_for(file.filename or "", {"csv"})
-    return api_success(data=device_service.import_cameras_csv(session, validate_csv_content(await file.read())))
+async def import_cameras(session: SessionDep, file: UploadFile = File(...), dry_run: bool = Form(True)) -> Any:
+    """使用固定字段模板导入相机。 / Import cameras using the fixed field template."""
+    parsed = parse_import_upload(file.filename or "", await file.read())
+    report = device_service.import_cameras_csv(session, parsed.text, dry_run=dry_run)
+    return api_success(message="Import validation completed" if dry_run else "Import completed", data=attach_import_metadata(report, parsed, dry_run=dry_run))
 
 
 @router.post(

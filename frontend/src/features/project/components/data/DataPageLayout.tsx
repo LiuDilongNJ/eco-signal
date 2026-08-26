@@ -19,6 +19,8 @@ import {
     Pencil,
     Trash2,
     Download,
+    FileUp,
+    Info,
     RotateCcw,
     MoreHorizontal,
     Eye,
@@ -30,6 +32,9 @@ import { CrudFormModal } from "../modals/CrudFormModal"
 import { AIModelsPanel } from "../modals/AIModelsPanel"
 import { AcousticIndicesPanel } from "../modals/AcousticIndicesPanel"
 import { ConfirmDialog } from "../modals/ConfirmDialog"
+import { submitTabularImport } from "@/api/tabularImport"
+import { IMPORT_RESOURCE_CONFIGS, type ImportResourceKey } from "@/features/imports/importConfigs"
+import { useTabularImport } from "@/features/imports/useTabularImport"
 import { useProjectStore } from "../../stores/useProjectStore"
 import { Checkbox, Combobox, ConfigProvider, DataTable, DatePicker, DropdownMenu, getTooltipText, Input, RowActions, TableToolbar, Tooltip, theme as antdTheme } from "@/components/ui"
 import type { ThemeConfig } from "@/components/ui"
@@ -262,6 +267,18 @@ export type RowData = Record<string, string | number | boolean | null | undefine
 type SortDir = "asc" | "desc" | null
 export type DataNavFilter = "current" | "all"
 
+export interface TabularImportConfig {
+    endpoint: string
+    resourceKey: ImportResourceKey
+    importOnly?: boolean
+    fields?: Record<string, string | number | boolean | null | undefined>
+    disabled?: boolean
+    disabledReason?: string
+    importLabel?: string
+    instructionsLabel?: string
+    addLabel?: string
+}
+
 export interface TableState {
     page: number
     pageSize: number
@@ -331,6 +348,8 @@ export interface DataPageLayoutProps {
     onExportCustom?: () => void
     /** Hide the Export button completely */
     hideExport?: boolean
+    /** Optional synchronous CSV/TXT/JSON import endpoint for this list. */
+    importConfig?: TabularImportConfig
     /** View：选中行时跳转，传入当前选中行的 key 列表 */
     onViewCustom?: (selectedKeys: Key[]) => void
     /** Custom row double-click handler; when provided it replaces the default edit-on-double-click behavior. */
@@ -405,6 +424,7 @@ export function DataPageLayout({
     onExportCustom,
     renderAfterExportActions,
     hideExport = false,
+    importConfig,
     onViewCustom,
     onRowDoubleClickCustom,
     hideView,
@@ -425,6 +445,7 @@ export function DataPageLayout({
     const currentProjectId = useProjectStore((s) => s.currentProjectId)
     const currentCollectionId = useProjectStore((s) => s.currentCollectionId)
     const [brandPrimary, setBrandPrimary] = useState("var(--brand)")
+    const [importRefreshToken, setImportRefreshToken] = useState(0)
 
     useLayoutEffect(() => {
         const raw = getComputedStyle(document.documentElement).getPropertyValue("--brand").trim()
@@ -660,6 +681,15 @@ export function DataPageLayout({
     const [pageSize, setPageSize] = useState(pageSizeProp)
     const [selectedRows, setSelectedRows] = useState<Set<Key>>(new Set())
     const [crudModal, setCrudModal] = useState<{ open: boolean; mode: "add" | "edit" }>({ open: false, mode: "add" })
+    const tabularImport = useTabularImport({
+        label: importConfig ? IMPORT_RESOURCE_CONFIGS[importConfig.resourceKey].subject : "data",
+        config: importConfig ? IMPORT_RESOURCE_CONFIGS[importConfig.resourceKey] : IMPORT_RESOURCE_CONFIGS.projects,
+        submit: (file, dryRun) => {
+            if (!importConfig) return Promise.reject(new Error("Import is not configured"))
+            return submitTabularImport(importConfig.endpoint, file, dryRun, importConfig.fields)
+        },
+        onCommitted: () => setImportRefreshToken((value) => value + 1),
+    })
     const [aiModelsOpen, setAiModelsOpen] = useState(false)
     const [indicesOpen, setIndicesOpen] = useState(false)
     const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
@@ -1251,7 +1281,42 @@ export function DataPageLayout({
                 ...(showNavFilter ? { navFilter } : {}),
             });
         }
-    }, [currentPage, pageSize, columnFilters, searchQuery, sortKey, sortDir, navFilter, currentProjectId, currentCollectionId, onTableStateChange, title, showNavFilter, columns]);
+    }, [currentPage, pageSize, columnFilters, searchQuery, sortKey, sortDir, navFilter, currentProjectId, currentCollectionId, onTableStateChange, title, showNavFilter, columns, importRefreshToken]);
+
+    const mergedAddDropdownItems: MenuProps["items"] = []
+    if (addDropdownItems) {
+        mergedAddDropdownItems.push(...addDropdownItems.map((item) => {
+            if (!item || item.type === "divider") return item
+            return { ...item, disabled: addDisabled || (item as { disabled?: boolean }).disabled }
+        }))
+    } else if (!hideAdd) {
+        mergedAddDropdownItems.push({
+            key: "__add_record",
+            label: importConfig?.addLabel ?? `Add ${title.replace(/s$/, "")}`,
+            icon: <Plus size={14} />,
+            disabled: addDisabled,
+            onClick: () => onAddCustom ? onAddCustom() : setCrudModal({ open: true, mode: "add" }),
+        })
+    }
+    if (importConfig) {
+        mergedAddDropdownItems.push({
+            key: "__import_data",
+            label: importConfig.importLabel ?? "Import Data",
+            icon: <FileUp size={14} />,
+            disabled: importConfig.disabled || tabularImport.importing,
+            title: importConfig.disabled ? importConfig.disabledReason : undefined,
+            onClick: tabularImport.triggerImport,
+        })
+        mergedAddDropdownItems.push({
+            key: "__import_instructions",
+            label: importConfig.instructionsLabel ?? "Import Instructions",
+            icon: <Info size={14} />,
+            onClick: tabularImport.showInstructions,
+        })
+    }
+    const useAddDropdown = Boolean(importConfig || addDropdownItems)
+    const importOnly = importConfig?.importOnly === true
+    const showAddAction = !importOnly && (Boolean(importConfig) || !hideAdd)
 
     return (
         <ConfigProvider theme={antdThemeOverride ?? antdAppTheme}>
@@ -1320,19 +1385,19 @@ export function DataPageLayout({
                                 </ESButton>
                             )}
 
-                            {addDropdownItems ? (
-                                (!hideAdd && (
-                                    <Tooltip mouseEnterDelay={0} title={addDisabled ? addDisabledTooltip : "Add a new record to this table"}>
+                            {useAddDropdown ? (
+                                ((showAddAction || importOnly) && (
+                                    <Tooltip mouseEnterDelay={0} title={importOnly ? "Import data" : importConfig ? "Add or import data" : addDisabled ? addDisabledTooltip : "Add a new record to this table"}>
                                         <span style={{ display: "inline-flex" }}>
                                             <DropdownMenu
-                                                items={addDropdownItems}
+                                                items={mergedAddDropdownItems}
                                                 trigger={['click']}
                                                 placement="bottomLeft"
-                                                disabled={addDisabled}
+                                                disabled={!importConfig && addDisabled}
                                                 overlayClassName="data-add-dropdown"
                                             >
-                                                <ESButton appearance="unstyled" type="button" className="data-btn" title="Add a new record to this table" disabled={addDisabled}>
-                                                    <Plus size={14} /> Add
+                                                <ESButton appearance="unstyled" type="button" className="data-btn" title={importOnly ? "Import data" : importConfig ? "Add or import data" : "Add a new record to this table"} disabled={!importConfig && addDisabled}>
+                                                    {importOnly ? <FileUp size={14} /> : <Plus size={14} />} {importOnly ? "Import" : "Add"}
                                                     <ChevronDown size={14} className="data-btn__dropdown-icon" aria-hidden />
                                                 </ESButton>
                                             </DropdownMenu>
@@ -1384,6 +1449,8 @@ export function DataPageLayout({
                         </div>
                     </div>
                 </TableToolbar>
+
+                {importConfig ? tabularImport.controls : null}
 
                 {/* Table：scroll.y + CSS 固定表体高度（antd 默认 max-height 会随内容收缩，导致横条贴在行下） */}
                 <div

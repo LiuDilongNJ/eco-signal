@@ -720,6 +720,7 @@ class TestTaxonAdminAPI:
         response = client.post(
             f"{self.ADMIN_BASE}/imports",
             headers=superuser_token_headers,
+            data={"dry_run": "false"},
             files=taxon_csv_upload(content),
         )
 
@@ -763,6 +764,7 @@ class TestTaxonAdminAPI:
         response = client.post(
             f"{self.ADMIN_BASE}/imports",
             headers=superuser_token_headers,
+            data={"dry_run": "false"},
             files=taxon_csv_upload(content),
         )
         assert response.status_code == 200
@@ -776,6 +778,7 @@ class TestTaxonAdminAPI:
         empty_response = client.post(
             f"{self.ADMIN_BASE}/imports",
             headers=superuser_token_headers,
+            data={"dry_run": "false"},
             files=taxon_csv_upload(header + ",,,,,,\n"),
         )
         assert empty_response.status_code == 200
@@ -796,6 +799,7 @@ class TestTaxonAdminAPI:
         response = client.post(
             f"{self.ADMIN_BASE}/imports",
             headers=superuser_token_headers,
+            data={"dry_run": "false"},
             files=taxon_csv_upload(content),
         )
 
@@ -818,6 +822,7 @@ class TestTaxonAdminAPI:
         response = client.post(
             f"{self.ADMIN_BASE}/imports",
             headers=superuser_token_headers,
+            data={"dry_run": "false"},
             files=taxon_csv_upload(content),
         )
 
@@ -851,6 +856,7 @@ class TestTaxonAdminAPI:
         response = client.post(
             f"{self.ADMIN_BASE}/imports",
             headers=superuser_token_headers,
+            data={"dry_run": "false"},
             files=taxon_csv_upload(content),
         )
 
@@ -867,6 +873,7 @@ class TestTaxonAdminAPI:
         duplicate_response = client.post(
             f"{self.ADMIN_BASE}/imports",
             headers=superuser_token_headers,
+            data={"dry_run": "false"},
             files=taxon_csv_upload(header + row + row),
         )
         assert duplicate_response.status_code == 200
@@ -885,6 +892,7 @@ class TestTaxonAdminAPI:
         existing_response = client.post(
             f"{self.ADMIN_BASE}/imports",
             headers=superuser_token_headers,
+            data={"dry_run": "false"},
             files=taxon_csv_upload(header + row),
         )
         assert existing_response.status_code == 200

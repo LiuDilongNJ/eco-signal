@@ -2,7 +2,7 @@
 from datetime import datetime
 from typing import Any, Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
 
 from app.api.deps import (
     ActiveAdmin,
@@ -13,6 +13,7 @@ from app.api.deps import (
 )
 from app.api.responses import csv_response
 from app.core.config import settings
+from app.csv_import import attach_import_metadata, parse_import_upload
 from app.models import User
 from app.schemas.option import ProjectOption
 from app.schemas.project import (
@@ -27,10 +28,26 @@ from app.schemas.project import (
 from app.schemas.project_overview import ProjectOverviewResponse
 from app.schemas.response import PagedApiResponse, ApiResponse, api_success
 from app.services import permission_service, project_service, statistics_service
+from app.services import tabular_import_service
 from app.utils import parse_uuid
 
 router = APIRouter(prefix="/projects", tags=["项目 / projects"])
 router_views = APIRouter(tags=["项目 / projects"])
+
+
+@router.post("/imports", summary="导入项目 / Import Projects")
+async def import_projects(
+    session: SessionDep,
+    current_user: ActiveAdmin,
+    file: UploadFile = File(...),
+    dry_run: bool = Form(True),
+) -> Any:
+    """校验或原子导入项目。 / Validate or atomically import projects."""
+    parsed = parse_import_upload(file.filename or "", await file.read())
+    report = tabular_import_service.import_projects(
+        session, parsed.text, current_user, dry_run=dry_run
+    )
+    return api_success(message="Import validation completed" if dry_run else "Import completed", data=attach_import_metadata(report, parsed, dry_run=dry_run))
 
 
 @router_views.get("/project-options", response_model=ApiResponse[list[ProjectOption]], summary="获取项目选项 / Get Project Options")

@@ -7,10 +7,9 @@ import { useState, useCallback, useRef, useEffect } from "react"
 import { DataPageLayout } from "../DataPageLayout"
 import type { ColumnDef, FormFieldDef } from "../DataPageLayout"
 import { mediaApi } from "../../../../../api/endpoints/media"
-import { emptyCsvImportResult, type CsvImportResult } from "../../../../../api/csvImport"
 import { useProjectStore } from "../../../stores/useProjectStore"
 import { message } from "@/components/ui"
-import { Music2, FileText, Info, Link as LinkIcon, Tag as TagIcon, ClipboardList as ClipboardListIcon, Bot as BotIcon, Activity as ActivityIcon } from "lucide-react"
+import { Music2, Link as LinkIcon, Tag as TagIcon, ClipboardList as ClipboardListIcon, Bot as BotIcon, Activity as ActivityIcon } from "lucide-react"
 import { UploadAudioDrawer } from "../../modals/UploadAudioDrawer"
 import { EditMediaDrawer } from "../../modals/EditMediaDrawer"
 import { LinkItemToCollectionsDrawer } from "../../modals/LinkItemToCollectionsDrawer"
@@ -18,8 +17,6 @@ import { SetLabelsDrawer } from "../../modals/SetLabelsDrawer"
 import { AssignTasksDrawer } from "../../modals/AssignTasksDrawer"
 import { RunAIModelsDrawer } from "../../modals/RunAIModelsDrawer"
 import { AcousticIndicesDrawer } from "../../modals/AcousticIndicesDrawer"
-import { MetadataInstructionsDrawer } from "../../modals/MetadataInstructionsDrawer"
-import { CsvImportResultModal } from "../../../../settings/components/CsvImportResultModal"
 import { downloadFile } from "@/utils/download"
 import { buildMediaQueryParams } from "./mediaQueryParams"
 import { useMediaTableData } from "./useMediaTableData"
@@ -97,11 +94,7 @@ export function AudiosPage() {
     const [runAIMediaIds, setRunAIMediaIds] = useState<number[]>([])
     const [idxDrawerOpen, setIdxDrawerOpen] = useState(false)
     const [idxMediaIds, setIdxMediaIds] = useState<number[]>([])
-    const [instructionsOpen, setInstructionsOpen] = useState(false)
-    const [metadataImportResultOpen, setMetadataImportResultOpen] = useState(false)
-    const [metadataImportResult, setMetadataImportResult] = useState<CsvImportResult | null>(null)
     const audioInputRef = useRef<HTMLInputElement>(null)
-    const metadataInputRef = useRef<HTMLInputElement>(null)
     const mediaProcessingAbortRef = useRef<AbortController | null>(null)
 
     const currentProjectId = useProjectStore(s => s.currentProjectId)
@@ -245,16 +238,6 @@ export function AudiosPage() {
             label: (<span style={{ display: 'flex', alignItems: 'center', gap: 8 }}><Music2 size={16} /> Audios</span>),
             onClick: () => audioInputRef.current?.click(),
         },
-        {
-            key: 'metadata',
-            label: (<span style={{ display: 'flex', alignItems: 'center', gap: 8 }}><FileText size={16} /> Metadata</span>),
-            onClick: () => metadataInputRef.current?.click(),
-        },
-        {
-            key: 'instructions',
-            label: (<span style={{ display: 'flex', alignItems: 'center', gap: 8 }}><Info size={16} /> Metadata Instructions</span>),
-            onClick: () => setInstructionsOpen(true),
-        },
     ]
 
     return (
@@ -266,63 +249,17 @@ export function AudiosPage() {
                 await uploadQueue.startUploads(files)
             }} />
 
-            <ESInput appearance="unstyled" ref={metadataInputRef} type="file" accept=".csv" style={{ display: 'none' }} onChange={async (e) => {
-                const file = e.target.files?.[0]
-                if (!file) return
-
-                const collId = currentCollectionId && currentCollectionId !== 'all' ? Number(currentCollectionId) : null
-                if (!collId) {
-                    message.warning('Please select a specific collection to import metadata.')
-                    e.target.value = ''
-                    return
-                }
-
-                const hideLoading = message.loading('Importing metadata...', 0)
-                try {
-                    if (!currentProjectId) {
-                        message.warning('Please select a project first.')
-                        return
-                    }
-                    const res = await mediaApi.importMetadata(Number(currentProjectId), collId, file, "audio")
-                    if (res.code !== 0 && res.code !== 200) {
-                        message.error(res.message || 'Failed to import metadata')
-                        setMetadataImportResult(emptyCsvImportResult(res.message || "Failed to import metadata"))
-                        setMetadataImportResultOpen(true)
-                        return
-                    }
-                    setMetadataImportResult(res.data)
-                    setMetadataImportResultOpen(true)
-                    if ((res.data?.succeeded ?? 0) > 0) {
-                        message.success(`Imported ${res.data.succeeded} of ${res.data.total} row(s)`)
-                    } else {
-                        message.info(`Import completed: 0 rows written out of ${res.data?.total ?? 0} row(s)`)
-                    }
-                    refresh()
-                } catch (err: unknown) {
-                    const detailMessage =
-                        typeof err === "object" &&
-                        err !== null &&
-                        "data" in err &&
-                        typeof (err as { data?: unknown }).data === "object" &&
-                        (err as { data?: { detail?: unknown } }).data?.detail &&
-                        typeof (err as { data?: { detail?: { message?: unknown } } }).data?.detail === "object" &&
-                        typeof (err as { data?: { detail?: { message?: unknown } } }).data?.detail?.message === "string"
-                            ? (err as { data?: { detail?: { message?: string } } }).data?.detail?.message
-                            : null
-
-                    const errorMessage = detailMessage || (err instanceof Error ? err.message : 'Failed to import metadata')
-                    message.error(errorMessage)
-                    setMetadataImportResult(emptyCsvImportResult(errorMessage))
-                    setMetadataImportResultOpen(true)
-
-                } finally {
-                    hideLoading()
-                    e.target.value = ''
-                }
-            }} />
-
             <DataPageLayout
                 title="Audios"
+                importConfig={{
+                    endpoint: "/v1/media/imports",
+                    resourceKey: "audioMetadata",
+                    importLabel: "Metadata",
+                    instructionsLabel: "Metadata Instructions",
+                    fields: { project_id: currentProjectId, collection_id: currentCollectionId, media_type: "audio" },
+                    disabled: !currentProjectId || !currentCollectionId || currentCollectionId === "all",
+                    disabledReason: "Select a project and collection before importing audio metadata",
+                }}
                 columns={COLUMNS}
                 rows={rows}
                 formFields={FORM_FIELDS}
@@ -500,18 +437,6 @@ export function AudiosPage() {
                         return false
                     }
                 }}
-            />
-
-            <MetadataInstructionsDrawer
-                open={instructionsOpen}
-                mediaType="audio"
-                onClose={() => setInstructionsOpen(false)}
-            />
-            <CsvImportResultModal
-                open={metadataImportResultOpen}
-                label="audio metadata"
-                result={metadataImportResult}
-                onClose={() => setMetadataImportResultOpen(false)}
             />
 
             <EditMediaDrawer

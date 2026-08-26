@@ -20,7 +20,8 @@
     border-radius: 6px;
     background: var(--bg-surface-secondary, var(--bg-surface));
     color: var(--text-main);
-    overflow-wrap: anywhere;
+    overflow-x: auto;
+    white-space: pre;
 }
 
 .sound-settings-instructions__rules {

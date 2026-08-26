@@ -24,8 +24,8 @@ from sqlmodel import Session, select
 from app.core.config import settings
 from app.csv_export import CsvColumn, export_columns_csv
 from app.csv_import import (
-    CsvImportResult,
-    CsvImportRowResult,
+    ImportResult,
+    ImportRowResult,
     effective_header_width,
     ensure_row_width,
     parse_csv,
@@ -840,7 +840,7 @@ def _parse_metadata_required_float(
 
 
 def _parse_audio_metadata_csv_rows(
-    text: str, report: CsvImportResult
+    text: str, report: ImportResult
 ) -> list[dict[str, Any]]:
     rows = parse_csv(text)
     if not rows:
@@ -859,7 +859,7 @@ def _parse_audio_metadata_csv_rows(
     rows_data: list[dict[str, Any]] = []
     for i, row in enumerate(data_rows, start=2):
         if not row or not any(cell.strip() for cell in row):
-            report.rows.append(CsvImportRowResult(row_number=i, status="skipped", reason="Blank row"))
+            report.rows.append(ImportRowResult(row_number=i, status="skipped", reason="Blank row"))
             continue
         try:
             ensure_row_width(row, i, width)
@@ -893,10 +893,10 @@ def _parse_audio_metadata_csv_rows(
         except HTTPException as exc:
             reason = str(exc.detail)
             report.global_errors.append(reason)
-            report.rows.append(CsvImportRowResult(row_number=i, status="failed", reason=reason))
+            report.rows.append(ImportRowResult(row_number=i, status="failed", reason=reason))
             continue
         rows_data.append(data)
-        report.rows.append(CsvImportRowResult(row_number=i, status="succeeded"))
+        report.rows.append(ImportRowResult(row_number=i, status="succeeded"))
     return rows_data
 
 
@@ -1053,7 +1053,7 @@ def _persist_audio_metadata_media_rows(
 
 
 def _parse_photo_metadata_csv_rows(
-    text: str, report: CsvImportResult
+    text: str, report: ImportResult
 ) -> list[dict[str, Any]]:
     rows = parse_csv(text)
     if not rows:
@@ -1072,7 +1072,7 @@ def _parse_photo_metadata_csv_rows(
     rows_data: list[dict[str, Any]] = []
     for i, row in enumerate(data_rows, start=2):
         if not row or not any(cell.strip() for cell in row):
-            report.rows.append(CsvImportRowResult(row_number=i, status="skipped", reason="Blank row"))
+            report.rows.append(ImportRowResult(row_number=i, status="skipped", reason="Blank row"))
             continue
         try:
             ensure_row_width(row, i, width)
@@ -1095,10 +1095,10 @@ def _parse_photo_metadata_csv_rows(
         except HTTPException as exc:
             reason = str(exc.detail)
             report.global_errors.append(reason)
-            report.rows.append(CsvImportRowResult(row_number=i, status="failed", reason=reason))
+            report.rows.append(ImportRowResult(row_number=i, status="failed", reason=reason))
             continue
         rows_data.append(data)
-        report.rows.append(CsvImportRowResult(row_number=i, status="succeeded"))
+        report.rows.append(ImportRowResult(row_number=i, status="succeeded"))
     return rows_data
 
 
@@ -1218,7 +1218,9 @@ def import_metadata_csv(
     collection_id: int,
     user: User,
     media_type: Literal["audio", "photo"] = "audio",
-) -> CsvImportResult:
+    *,
+    dry_run: bool = False,
+) -> ImportResult:
     """
     Import media metadata from decoded CSV text.
 
@@ -1230,7 +1232,7 @@ def import_metadata_csv(
     `media_type` selects the CSV column schema (audio vs photo) and the
     resulting Media.media_type / setting table used.
     """
-    report = CsvImportResult()
+    report = ImportResult()
     try:
         if media_type == "photo":
             rows_data = _parse_photo_metadata_csv_rows(text, report)
@@ -1272,8 +1274,11 @@ def import_metadata_csv(
 
     report.finalize()
     if report.failed:
-        report.reject_candidates()
+        if not dry_run:
+            report.reject_candidates()
         return report
+    if dry_run:
+        return report.finalize()
     if media_type == "photo":
         created, linked = _persist_photo_metadata_media_rows(
             session,

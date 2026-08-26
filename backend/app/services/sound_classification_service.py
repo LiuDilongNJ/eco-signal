@@ -4,8 +4,8 @@ from sqlmodel import Session
 
 from app.csv_export import CsvColumn, export_columns_csv
 from app.csv_import import (
-    CsvImportResult,
-    CsvImportRowResult,
+    ImportResult,
+    ImportRowResult,
     effective_header_width,
     ensure_row_width,
     parse_csv,
@@ -116,8 +116,10 @@ def export_sound_classifications_csv(
 def import_sound_classifications_csv(
     session: Session,
     text: str,
-) -> CsvImportResult:
-    report = CsvImportResult()
+    *,
+    dry_run: bool = False,
+) -> ImportResult:
+    report = ImportResult()
     try:
         parsed = parse_csv(text)
     except HTTPException as exc:
@@ -137,21 +139,22 @@ def import_sound_classifications_csv(
     rows: list[tuple[int, SoundClassificationWrite]] = []
     for row_number, row in enumerate(data_rows, start=2):
         if not row or not any(cell.strip() for cell in row):
-            report.rows.append(CsvImportRowResult(row_number=row_number, status="skipped", reason="Blank row"))
+            report.rows.append(ImportRowResult(row_number=row_number, status="skipped", reason="Blank row"))
             continue
         try:
             ensure_row_width(row, row_number, width)
             item = SoundClassificationWrite(soundscape_component=read_cell(row, positions, "soundscape_component"), sound_type=read_cell(row, positions, "sound_type"))
         except HTTPException as exc:
-            report.rows.append(CsvImportRowResult(row_number=row_number, status="failed", reason=str(exc.detail)))
+            report.rows.append(ImportRowResult(row_number=row_number, status="failed", reason=str(exc.detail)))
         except ValidationError as exc:
             error = exc.errors()[0]
-            report.rows.append(CsvImportRowResult(row_number=row_number, status="failed", field=str(error["loc"][-1]), reason=str(error["msg"])))
+            report.rows.append(ImportRowResult(row_number=row_number, status="failed", field=str(error["loc"][-1]), reason=str(error["msg"])))
         else:
             rows.append((row_number, item))
-            report.rows.append(CsvImportRowResult(row_number=row_number, status="succeeded"))
+            report.rows.append(ImportRowResult(row_number=row_number, status="succeeded"))
     if report.failed:
-        report.reject_candidates()
+        if not dry_run:
+            report.reject_candidates()
         return report
     # Bulk-load existing normalized keys once instead of one COUNT query per CSV row.
     existing = sound_classification_repository.get_existing_keys(session)
@@ -170,8 +173,11 @@ def import_sound_classifications_csv(
         accepted.append(row)
     report.finalize()
     if report.failed:
-        report.reject_candidates()
+        if not dry_run:
+            report.reject_candidates()
         return report
+    if dry_run:
+        return report.finalize()
     try:
         sound_classification_repository.create_many(session, accepted)
     except Exception:

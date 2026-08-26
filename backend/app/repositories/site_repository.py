@@ -414,7 +414,14 @@ class SiteRepository(BaseRepository[Site, SiteCreate, SiteUpdate]):
 
     # Create / Update with geometry & geo lookup
 
-    def create_site(self, session: Session, *, data: SiteCreate, creator_id: int) -> Site:
+    def create_site(
+        self,
+        session: Session,
+        *,
+        data: SiteCreate,
+        creator_id: int,
+        commit: bool = True,
+    ) -> Site:
         """Create a new Site record and resolve location source by geo selection rules."""
         gadm0_gid = self._normalize_text(data.gadm0_gid)
         gadm1_gid = self._normalize_text(data.gadm1_gid)
@@ -462,7 +469,10 @@ class SiteRepository(BaseRepository[Site, SiteCreate, SiteUpdate]):
             iho_id=iho_id,
             adm_meta=iadm_meta,
         )
-        session.commit()
+        if commit:
+            session.commit()
+        else:
+            session.flush()
         session.refresh(site)
         return site
 
@@ -545,7 +555,12 @@ class SiteRepository(BaseRepository[Site, SiteCreate, SiteUpdate]):
     # Collection binding
 
     def bind_to_collections(
-        self, session: Session, *, site_id: int, collection_ids: list[int]
+        self,
+        session: Session,
+        *,
+        site_id: int,
+        collection_ids: list[int],
+        commit: bool = True,
     ) -> None:
         """Bind a site to one or more collections (replaces existing bindings)."""
         # Remove existing bindings
@@ -558,7 +573,10 @@ class SiteRepository(BaseRepository[Site, SiteCreate, SiteUpdate]):
         # Insert new bindings
         for cid in collection_ids:
             session.add(SiteCollection(site_id=site_id, collection_id=cid))
-        session.commit()
+        if commit:
+            session.commit()
+        else:
+            session.flush()
 
     def bind_to_projects(
         self, session: Session, *, site_id: int, project_ids: list[int]

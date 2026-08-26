@@ -1,9 +1,8 @@
 import { Input as ESInput, Button as ESButton } from "@/components/ui"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { message } from "@/components/ui"
-import { ClipboardList as ClipboardListIcon, FileText, Image, Info, Link as LinkIcon, Tag as TagIcon } from "lucide-react"
+import { ClipboardList as ClipboardListIcon, Image, Link as LinkIcon, Tag as TagIcon } from "lucide-react"
 import { mediaApi } from "../../../../../api/endpoints/media"
-import { emptyCsvImportResult, type CsvImportResult } from "../../../../../api/csvImport"
 import { downloadFile } from "@/utils/download"
 import { useProjectStore } from "../../../stores/useProjectStore"
 import { DataPageLayout } from "../DataPageLayout"
@@ -12,8 +11,6 @@ import { PhotoMediaDrawer } from "../../modals/UploadPhotoDrawer"
 import { LinkItemToCollectionsDrawer } from "../../modals/LinkItemToCollectionsDrawer"
 import { SetLabelsDrawer } from "../../modals/SetLabelsDrawer"
 import { AssignTasksDrawer } from "../../modals/AssignTasksDrawer"
-import { MetadataInstructionsDrawer } from "../../modals/MetadataInstructionsDrawer"
-import { CsvImportResultModal } from "../../../../settings/components/CsvImportResultModal"
 import { buildMediaQueryParams } from "./mediaQueryParams"
 import {
     openMediaDetailTab,
@@ -77,14 +74,10 @@ export function PhotosPage() {
     const currentProjectId = useProjectStore((state) => state.currentProjectId)
     const currentCollectionId = useProjectStore((state) => state.currentCollectionId)
     const fileInputRef = useRef<HTMLInputElement>(null)
-    const metadataInputRef = useRef<HTMLInputElement>(null)
     const [editMediaId, setEditMediaId] = useState<number | null>(null)
     const [linkMediaIds, setLinkMediaIds] = useState<number[]>([])
     const [labelMediaIds, setLabelMediaIds] = useState<number[]>([])
     const [assignMediaIds, setAssignMediaIds] = useState<number[]>([])
-    const [instructionsOpen, setInstructionsOpen] = useState(false)
-    const [metadataImportResultOpen, setMetadataImportResultOpen] = useState(false)
-    const [metadataImportResult, setMetadataImportResult] = useState<CsvImportResult | null>(null)
     const mediaProcessingAbortRef = useRef<AbortController | null>(null)
     const {
         rows,
@@ -206,16 +199,6 @@ export function PhotosPage() {
             label: (<span style={{ display: "flex", alignItems: "center", gap: 8 }}><Image size={16} /> Photos</span>),
             onClick: () => fileInputRef.current?.click(),
         },
-        {
-            key: "metadata",
-            label: (<span style={{ display: "flex", alignItems: "center", gap: 8 }}><FileText size={16} /> Metadata</span>),
-            onClick: () => metadataInputRef.current?.click(),
-        },
-        {
-            key: "instructions",
-            label: (<span style={{ display: "flex", alignItems: "center", gap: 8 }}><Info size={16} /> Metadata Instructions</span>),
-            onClick: () => setInstructionsOpen(true),
-        },
     ]
 
     return (
@@ -232,71 +215,17 @@ export function PhotosPage() {
                     await uploadQueue.startUploads(files)
                 }}
             />
-            <ESInput appearance="unstyled"
-                ref={metadataInputRef}
-                type="file"
-                accept=".csv"
-                hidden
-                onChange={async (event) => {
-                    const file = event.target.files?.[0]
-                    if (!file) return
-
-                    const collId =
-                        currentCollectionId && currentCollectionId !== "all"
-                            ? Number(currentCollectionId)
-                            : null
-                    if (!collId) {
-                        message.warning("Please select a specific collection to import metadata.")
-                        event.target.value = ""
-                        return
-                    }
-
-                    const hideLoading = message.loading("Importing metadata...", 0)
-                    try {
-                        if (!currentProjectId) {
-                            message.warning("Please select a project first.")
-                            return
-                        }
-                        const res = await mediaApi.importMetadata(Number(currentProjectId), collId, file, "photo")
-                        if (res.code !== 0 && res.code !== 200) {
-                            message.error(res.message || "Failed to import metadata")
-                            setMetadataImportResult(emptyCsvImportResult(res.message || "Failed to import metadata"))
-                            setMetadataImportResultOpen(true)
-                            return
-                        }
-                        setMetadataImportResult(res.data)
-                        setMetadataImportResultOpen(true)
-                        if ((res.data?.succeeded ?? 0) > 0) {
-                            message.success(`Imported ${res.data.succeeded} of ${res.data.total} row(s)`)
-                        } else {
-                            message.info(`Import completed: 0 rows written out of ${res.data?.total ?? 0} row(s)`)
-                        }
-                        refresh()
-                    } catch (err: unknown) {
-                        const detailMessage =
-                            typeof err === "object" &&
-                            err !== null &&
-                            "data" in err &&
-                            typeof (err as { data?: unknown }).data === "object" &&
-                            (err as { data?: { detail?: unknown } }).data?.detail &&
-                            typeof (err as { data?: { detail?: { message?: unknown } } }).data?.detail === "object" &&
-                            typeof (err as { data?: { detail?: { message?: unknown } } }).data?.detail?.message === "string"
-                                ? (err as { data?: { detail?: { message?: string } } }).data?.detail?.message
-                                : null
-
-                        const errorMessage = detailMessage || (err instanceof Error ? err.message : "Failed to import metadata")
-                        message.error(errorMessage)
-                        setMetadataImportResult(emptyCsvImportResult(errorMessage))
-                        setMetadataImportResultOpen(true)
-                    } finally {
-                        hideLoading()
-                        event.target.value = ""
-                    }
-                }}
-            />
-
             <DataPageLayout
                 title="Photos"
+                importConfig={{
+                    endpoint: "/v1/media/imports",
+                    resourceKey: "photoMetadata",
+                    importLabel: "Metadata",
+                    instructionsLabel: "Metadata Instructions",
+                    fields: { project_id: currentProjectId, collection_id: currentCollectionId, media_type: "photo" },
+                    disabled: !currentProjectId || !currentCollectionId || currentCollectionId === "all",
+                    disabledReason: "Select a project and collection before importing photo metadata",
+                }}
                 columns={COLUMNS}
                 rows={rows}
                 formFields={FORM_FIELDS}
@@ -384,18 +313,6 @@ export function PhotosPage() {
                 addDropdownItems={addDropdownItems}
                 addDisabled={!currentCollectionId || currentCollectionId === "all"}
                 addDisabledTooltip="Please select a Collection before adding data."
-            />
-
-            <MetadataInstructionsDrawer
-                open={instructionsOpen}
-                mediaType="photo"
-                onClose={() => setInstructionsOpen(false)}
-            />
-            <CsvImportResultModal
-                open={metadataImportResultOpen}
-                label="photo metadata"
-                result={metadataImportResult}
-                onClose={() => setMetadataImportResultOpen(false)}
             />
 
             <PhotoMediaDrawer

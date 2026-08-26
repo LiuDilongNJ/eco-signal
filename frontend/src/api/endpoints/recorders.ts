@@ -1,5 +1,5 @@
 import { apiClient } from "../client"
-import type { CsvImportResult } from "../csvImport"
+import type { ImportResult as TabularImportResult } from "../tabularImport"
 
 export interface RecorderOption {
     recorder_id: number
@@ -42,7 +42,13 @@ export interface RecorderUpdateBody {
     version?: string | null
     brand?: string | null
 }
-export type ImportResult = CsvImportResult
+
+export interface RecorderMicrophoneCreateBody {
+    microphone_id: number
+    is_default?: boolean
+    notes?: string | null
+}
+export type ImportResult = TabularImportResult
 
 export interface ListRecordersParams {
     page?: number
@@ -90,12 +96,26 @@ export const recordersApi = {
         return apiClient.put<{ code: number; message: string }>(`/v1/recorders/${id}`, body)
     },
 
+    addMicrophone(recorderId: number, body: RecorderMicrophoneCreateBody) {
+        return apiClient.post<{ code: number; message: string; data: null }>(
+            `/v1/recorders/${recorderId}/microphones`,
+            body,
+        )
+    },
+
+    removeMicrophone(recorderId: number, microphoneId: number) {
+        return apiClient.delete<{ code: number; message: string }>(
+            `/v1/recorders/${recorderId}/microphones/${microphoneId}`,
+        )
+    },
+
     delete(id: number) {
         return apiClient.delete<{ code: number; message: string }>(`/v1/recorders/${id}`)
     },
-    importCsv(file: File) {
+    importCsv(file: File, dryRun = true) {
         const formData = new FormData()
         formData.append("file", file)
+        formData.append("dry_run", String(dryRun))
         return apiClient.post<{ code: number; message: string; data: ImportResult }>("/v1/recorders/imports", formData)
     },
 

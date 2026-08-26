@@ -1,5 +1,5 @@
 import { apiClient } from "../client"
-import type { CsvImportResult } from "../csvImport"
+import type { ImportResult } from "../tabularImport"
 import { getApiData } from "../utils"
 import type { ApiResponse, PagedApiResponse } from "../../types"
 
@@ -73,7 +73,7 @@ export type TaxonCreateBody = {
 }
 
 export type TaxonUpdateBody = TaxonCreateBody
-export type TaxonImportResult = CsvImportResult
+export type TaxonImportResult = ImportResult
 
 /** GET /v1/taxons/options — 层级下拉选项 */
 export interface TaxonOption {
@@ -117,9 +117,10 @@ function taxonSearchParams(
 }
 
 export const taxonsApi = {
-    importCsv(file: File) {
+    importCsv(file: File, dryRun = true) {
         const formData = new FormData()
         formData.append("file", file)
+        formData.append("dry_run", String(dryRun))
         return apiClient.post<ApiResponse<TaxonImportResult>>("/v1/taxons/imports", formData)
     },
     /** 返回原始封装，便于调用方判断 code */

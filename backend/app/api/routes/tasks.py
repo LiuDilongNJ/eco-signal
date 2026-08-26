@@ -3,10 +3,11 @@ import logging
 from datetime import datetime
 from typing import Any
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, File, Form, Query, UploadFile
 
 from app.api.deps import CurrentUser, SessionDep
 from app.api.responses import csv_response
+from app.csv_import import attach_import_metadata, parse_import_upload
 from app.enums import MediaType
 from app.schemas.response import ApiResponse, PagedApiResponse, api_page, api_success
 from app.schemas.task import (
@@ -16,7 +17,7 @@ from app.schemas.task import (
     TaskListItem,
     TaskPublic,
 )
-from app.services import task_service
+from app.services import permission_service, tabular_import_service, task_service
 
 router = APIRouter(prefix="/media", tags=["任务 / tasks"])
 
@@ -113,6 +114,37 @@ def assign_tasks(
     return api_success(data=result)
 
 router_tasks = APIRouter(prefix="/tasks", tags=["任务列表 / task management"])
+
+
+@router_tasks.post("/imports", summary="导入任务 / Import Tasks")
+async def import_tasks(
+    session: SessionDep,
+    current_user: CurrentUser,
+    project_id: int = Form(...),
+    collection_id: int = Form(...),
+    file: UploadFile = File(...),
+    dry_run: bool = Form(True),
+) -> Any:
+    """校验或原子导入任务。 / Validate or atomically import tasks."""
+    permission_service.require_collection_resource_permission(
+        session,
+        collection_id=collection_id,
+        project_id=project_id,
+        user=current_user,
+        resource_type="audio",
+        action="write",
+        denied_detail="No audio:write permission on collection",
+    )
+    parsed = parse_import_upload(file.filename or "", await file.read())
+    report = tabular_import_service.import_tasks(
+        session,
+        parsed.text,
+        current_user,
+        project_id,
+        collection_id,
+        dry_run=dry_run,
+    )
+    return api_success(message="Import validation completed" if dry_run else "Import completed", data=attach_import_metadata(report, parsed, dry_run=dry_run))
 
 @router_tasks.get(
     "",

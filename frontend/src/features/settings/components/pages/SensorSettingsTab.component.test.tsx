@@ -131,7 +131,7 @@ beforeEach(() => {
 })
 
 describe("SensorSettingsTab form", () => {
-    it("loads the default value on edit and keeps the switch visible after changing recorder", async () => {
+    it("loads the sensor and refreshes microphones after changing recorder", async () => {
         render(<SensorSettingsTab />)
 
         await act(async () => {
@@ -140,14 +140,13 @@ describe("SensorSettingsTab form", () => {
         })
 
         expect(api.sensors.get).toHaveBeenCalledWith(7)
-        expect(screen.getByRole("switch")).toHaveAttribute("aria-checked", "true")
+        expect(screen.queryByRole("switch")).not.toBeInTheDocument()
 
         fireEvent.mouseDown(screen.getByLabelText(/Recorder/))
         fireEvent.click(await screen.findByText("Recorder B"))
 
         await waitFor(() => {
-            expect(screen.getByText("Default combination")).toBeInTheDocument()
-            expect(screen.getByRole("switch")).toHaveAttribute("aria-checked", "false")
+            expect(screen.queryByText("Default combination")).not.toBeInTheDocument()
         })
         expect(api.microphones.getOptions).toHaveBeenLastCalledWith({ recorder_id: 2 })
     })

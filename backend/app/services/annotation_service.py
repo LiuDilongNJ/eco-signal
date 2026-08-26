@@ -419,6 +419,8 @@ def create_annotation(
     session: Session,
     current_user: User,
     data: AnnotationCreate,
+    *,
+    commit: bool = True,
 ) -> None:
     """
     Create a new annotation.
@@ -471,7 +473,7 @@ def create_annotation(
         creation_date=datetime.now(UTC),
     )
     
-    annotation_repository.create(session, new_annotation)
+    annotation_repository.create(session, new_annotation, commit=commit)
 
 
 def update_annotation(

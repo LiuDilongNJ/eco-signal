@@ -2802,9 +2802,9 @@ class TestMediaExport:
 
         count_before = len(db.exec(select(Media)).all())
         r = client.post(
-            f"{settings.API_V1_STR}/media-metadata-imports",
+            f"{settings.API_V1_STR}/media/imports",
             headers=superuser_token_headers,
-            data={"project_id": project_id, "collection_id": public_collection_id},
+            data={"project_id": project_id, "collection_id": public_collection_id, "dry_run": "false"},
             files={"file": ("export.csv", buffer.getvalue().encode("utf-8"), "text/csv")},
         )
         assert r.status_code == 200
@@ -2836,7 +2836,7 @@ class TestMetadataImport:
     def test_import_metadata_unauthorized(self, client: TestClient) -> None:
         """Metadata import requires authentication."""
         r = client.post(
-            f"{settings.API_V1_STR}/media-metadata-imports",
+            f"{settings.API_V1_STR}/media/imports",
             data={"collection_id": 1},
             files={"file": ("test.csv", b"dummy data")}
         )
@@ -2847,7 +2847,7 @@ class TestMetadataImport:
     ) -> None:
         """Return HTTP 404 if collection not found."""
         r = client.post(
-            f"{settings.API_V1_STR}/media-metadata-imports",
+            f"{settings.API_V1_STR}/media/imports",
             headers=superuser_token_headers,
             data={"project_id": 1, "collection_id": 99999},
             files={"file": ("test.csv", b"dummy data")}
@@ -2869,9 +2869,9 @@ class TestMetadataImport:
         project_id = _ensure_project_for_collection(db, col.collection_id, user.user_id)
 
         r = client.post(
-            f"{settings.API_V1_STR}/media-metadata-imports",
+            f"{settings.API_V1_STR}/media/imports",
             headers=normal_user_token_headers,
-            data={"project_id": project_id, "collection_id": col.collection_id},
+            data={"project_id": project_id, "collection_id": col.collection_id, "dry_run": "false"},
             files={"file": ("test.csv", b"dummy data")}
         )
         assert r.status_code == 403
@@ -2900,9 +2900,9 @@ class TestMetadataImport:
         count_before = len(db.exec(select(Media)).all())
 
         r = client.post(
-            f"{settings.API_V1_STR}/media-metadata-imports",
+            f"{settings.API_V1_STR}/media/imports",
             headers=superuser_token_headers,
-            data={"project_id": project_id, "collection_id": col.collection_id},
+            data={"project_id": project_id, "collection_id": col.collection_id, "dry_run": "false"},
             files={"file": ("test.csv", csv_content, "text/csv")}
         )
         assert r.status_code == 200
@@ -2940,17 +2940,12 @@ class TestMetadataImport:
         count_before = len(db.exec(select(Media)).all())
 
         r = client.post(
-            f"{settings.API_V1_STR}/media-metadata-imports",
+            f"{settings.API_V1_STR}/media/imports",
             headers=superuser_token_headers,
-            data={"project_id": project_id, "collection_id": col.collection_id},
+            data={"project_id": project_id, "collection_id": col.collection_id, "dry_run": "false"},
             files={"file": ("test.csv", csv_content, "text/csv")}
         )
-        assert r.status_code == 200
-        data = r.json()["data"]
-        assert data["committed"] is False
-        assert data["total"] == 1
-        assert data["failed"] == 1
-        assert "expected 4 columns" in data["global_errors"][0]
+        assert r.status_code == 400
         assert len(db.exec(select(Media)).all()) == count_before
 
     def test_import_metadata_rejects_extra_trailing_cell_with_blank_header(
@@ -2975,9 +2970,9 @@ class TestMetadataImport:
         count_before = len(db.exec(select(Media)).all())
 
         r = client.post(
-            f"{settings.API_V1_STR}/media-metadata-imports",
+            f"{settings.API_V1_STR}/media/imports",
             headers=superuser_token_headers,
-            data={"project_id": project_id, "collection_id": col.collection_id},
+            data={"project_id": project_id, "collection_id": col.collection_id, "dry_run": "false"},
             files={"file": ("test.csv", csv_content, "text/csv")}
         )
         assert r.status_code == 200
@@ -3009,9 +3004,9 @@ class TestMetadataImport:
         count_before = len(db.exec(select(Media)).all())
 
         r = client.post(
-            f"{settings.API_V1_STR}/media-metadata-imports",
+            f"{settings.API_V1_STR}/media/imports",
             headers=superuser_token_headers,
-            data={"project_id": project_id, "collection_id": col.collection_id},
+            data={"project_id": project_id, "collection_id": col.collection_id, "dry_run": "false"},
             files={"file": ("test.csv", csv_content, "text/csv")}
         )
         # Rejected either by the strict pre-guard (400) or the metadata parser (422).
@@ -3037,9 +3032,9 @@ class TestMetadataImport:
         ).encode("utf-8")
 
         r = client.post(
-            f"{settings.API_V1_STR}/media-metadata-imports",
+            f"{settings.API_V1_STR}/media/imports",
             headers=superuser_token_headers,
-            data={"project_id": project_id, "collection_id": col.collection_id},
+            data={"project_id": project_id, "collection_id": col.collection_id, "dry_run": "false"},
             files={"file": ("test.csv", csv_content, "text/csv")}
         )
         assert r.status_code == 200
@@ -3077,9 +3072,9 @@ class TestMetadataImport:
         count_before = len(db.exec(select(Media)).all())
 
         r = client.post(
-            f"{settings.API_V1_STR}/media-metadata-imports",
+            f"{settings.API_V1_STR}/media/imports",
             headers=superuser_token_headers,
-            data={"project_id": project_id, "collection_id": col.collection_id},
+            data={"project_id": project_id, "collection_id": col.collection_id, "dry_run": "false"},
             files={"file": ("test.csv", csv_content, "text/csv")}
         )
         assert r.status_code == 200
@@ -3121,9 +3116,9 @@ class TestMetadataImport:
         ).encode("utf-8")
 
         r = client.post(
-            f"{settings.API_V1_STR}/media-metadata-imports",
+            f"{settings.API_V1_STR}/media/imports",
             headers=superuser_token_headers,
-            data={"project_id": project_id, "collection_id": col.collection_id},
+            data={"project_id": project_id, "collection_id": col.collection_id, "dry_run": "false"},
             files={"file": ("test.csv", csv_content, "text/csv")}
         )
         assert r.status_code == 200
@@ -3186,12 +3181,13 @@ class TestMetadataImport:
         ).encode("utf-8")
 
         r = client.post(
-            f"{settings.API_V1_STR}/media-metadata-imports",
+            f"{settings.API_V1_STR}/media/imports",
             headers=superuser_token_headers,
             data={
                 "project_id": project_id,
                 "collection_id": col.collection_id,
                 "media_type": "photo",
+                "dry_run": "false",
             },
             files={"file": ("test.csv", csv_content, "text/csv")}
         )
@@ -3236,12 +3232,13 @@ class TestMetadataImport:
         ).encode("utf-8")
 
         r = client.post(
-            f"{settings.API_V1_STR}/media-metadata-imports",
+            f"{settings.API_V1_STR}/media/imports",
             headers=superuser_token_headers,
             data={
                 "project_id": project_id,
                 "collection_id": col.collection_id,
                 "media_type": "photo",
+                "dry_run": "false",
             },
             files={"file": ("test.csv", csv_content, "text/csv")}
         )
@@ -3279,9 +3276,9 @@ class TestMetadataImport:
         count_before = len(db.exec(select(Media)).all())
 
         r = client.post(
-            f"{settings.API_V1_STR}/media-metadata-imports",
+            f"{settings.API_V1_STR}/media/imports",
             headers=superuser_token_headers,
-            data={"project_id": project_id, "collection_id": col.collection_id},
+            data={"project_id": project_id, "collection_id": col.collection_id, "dry_run": "false"},
             files={"file": ("test.csv", csv_content, "text/csv")}
         )
         assert r.status_code == 200
@@ -3314,9 +3311,9 @@ class TestMetadataImport:
         ).encode("utf-8")
 
         r = client.post(
-            f"{settings.API_V1_STR}/media-metadata-imports",
+            f"{settings.API_V1_STR}/media/imports",
             headers=superuser_token_headers,
-            data={"project_id": project_id, "collection_id": col.collection_id},
+            data={"project_id": project_id, "collection_id": col.collection_id, "dry_run": "false"},
             files={"file": ("test.csv", csv_content, "text/csv")}
         )
         assert r.status_code == 200
@@ -3349,9 +3346,9 @@ class TestMetadataImport:
         ).encode("utf-8")
 
         r1 = client.post(
-            f"{settings.API_V1_STR}/media-metadata-imports",
+            f"{settings.API_V1_STR}/media/imports",
             headers=superuser_token_headers,
-            data={"project_id": project_id, "collection_id": col.collection_id},
+            data={"project_id": project_id, "collection_id": col.collection_id, "dry_run": "false"},
             files={"file": ("test.csv", csv_content, "text/csv")}
         )
         assert r1.status_code == 200
@@ -3360,9 +3357,9 @@ class TestMetadataImport:
         count_after_first = len(db.exec(select(Media)).all())
 
         r2 = client.post(
-            f"{settings.API_V1_STR}/media-metadata-imports",
+            f"{settings.API_V1_STR}/media/imports",
             headers=superuser_token_headers,
-            data={"project_id": project_id, "collection_id": col.collection_id},
+            data={"project_id": project_id, "collection_id": col.collection_id, "dry_run": "false"},
             files={"file": ("test.csv", csv_content, "text/csv")}
         )
         assert r2.status_code == 200
@@ -3386,9 +3383,9 @@ class TestMetadataImport:
         project_id = _ensure_project_for_collection(db, col.collection_id, user.user_id)
 
         r = client.post(
-            f"{settings.API_V1_STR}/media-metadata-imports",
+            f"{settings.API_V1_STR}/media/imports",
             headers=normal_user_token_headers,
-            data={"project_id": project_id, "collection_id": col.collection_id, "media_type": "photo"},
+            data={"project_id": project_id, "collection_id": col.collection_id, "media_type": "photo", "dry_run": "false"},
             files={"file": ("test.csv", b"dummy data")}
         )
         assert r.status_code == 403
@@ -3988,7 +3985,7 @@ class TestMediaRouteScenarios:
         try:
             # Not a CSV
             response = client.post(
-                "/api/v1/media-metadata-imports",
+                "/api/v1/media/imports",
                 data={"project_id": project.project_id, "collection_id": col.collection_id},
                 files={"file": ("test.txt", b"not a csv", "text/plain")}
             )

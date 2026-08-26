@@ -36,8 +36,6 @@ import {
 import { displayApiDateTime } from "../../utils/dateTimeDisplay"
 import { nullableTrimmedText } from "../../utils/settingsPayload"
 import { useSettingsCsvImport } from "../../utils/useSettingsCsvImport"
-import { CsvImportInstructionsDrawer } from "../CsvImportInstructionsDrawer"
-import { SETTINGS_CSV_IMPORT_CONFIG } from "../../utils/settingsCsvImportConfig"
 import {
     type TaxonHierarchyRank,
     useTaxonHierarchyOptions,
@@ -494,8 +492,9 @@ export function TaxonSettingsTab() {
                 onTableStateChange={handleTableChange}
                 addDropdownItems={[
                     { key: "new", label: "New Taxon", icon: <Plus size={14} />, onClick: () => openCreate() },
-                    { key: "import", label: "Import CSV", icon: <FileUp size={14} />, onClick: csvImport.triggerImport },
-                    { key: "instructions", label: "CSV Instructions", icon: <Info size={14} />, onClick: csvImport.showInstructions },
+                    { type: "divider" as const },
+                    { key: "import", label: "Import Data", icon: <FileUp size={14} />, onClick: csvImport.triggerImport },
+                    { key: "instructions", label: "Import Instructions", icon: <Info size={14} />, onClick: csvImport.showInstructions },
                 ]}
                 addDisabled={csvImport.importing}
                 onEditCustom={(keys) => void handleEdit(keys)}
@@ -688,7 +687,6 @@ export function TaxonSettingsTab() {
                 </CustomScrollArea>
             </FormDrawer>
 
-            <CsvImportInstructionsDrawer config={SETTINGS_CSV_IMPORT_CONFIG.taxons} isDark={isDark} open={csvImport.instructionsOpen} onClose={csvImport.hideInstructions} />
         </ConfigProvider>
     )
 }

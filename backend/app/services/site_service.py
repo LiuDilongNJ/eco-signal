@@ -223,7 +223,13 @@ def _resolve_site_project_id(session: Session, site: Site) -> int | None:
     ).first()
 
 
-def create_site(session: Session, data: SiteCreate, current_user: User) -> SitePublic:
+def create_site(
+    session: Session,
+    data: SiteCreate,
+    current_user: User,
+    *,
+    commit: bool = True,
+) -> SitePublic:
     """Create a new site and bind it to collections.
 
     If collection_id is provided, binds to that single collection.
@@ -282,13 +288,26 @@ def create_site(session: Session, data: SiteCreate, current_user: User) -> SiteP
     )
 
     # Create site record
-    site = site_repository.create_site(session, data=data, creator_id=current_user.user_id)
+    site = site_repository.create_site(
+        session,
+        data=data,
+        creator_id=current_user.user_id,
+        commit=False,
+    )
 
     # Bind to collections
-    site_repository.bind_to_collections(session, site_id=site.site_id, collection_ids=collection_ids)
+    site_repository.bind_to_collections(
+        session,
+        site_id=site.site_id,
+        collection_ids=collection_ids,
+        commit=False,
+    )
     if requested_project_ids:
         site_repository.bind_to_projects(session, site_id=site.site_id, project_ids=requested_project_ids)
+    if commit:
         session.commit()
+    else:
+        session.flush()
 
     # Reload with relations for serialization
     site = site_repository.get_site_with_relations(session, site.site_id)

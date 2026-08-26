@@ -1,7 +1,7 @@
 """录音机 API 路由（管理员 CRUD、录音机-麦克风关联、公开选项）。 / Recorders: admin CRUD, recorder-mic links, public options."""
 from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, File, Query, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Query, UploadFile
 from sqlmodel import select
 
 from app.api.deps import SessionDep, get_current_active_superuser
@@ -17,7 +17,7 @@ from app.schemas.device import (
 )
 from app.schemas.response import ApiResponse, PagedApiResponse, api_page, api_success
 from app.services import device_service
-from app.services.upload_validation_service import extension_for, validate_csv_content
+from app.csv_import import attach_import_metadata, parse_import_upload
 from app.utils import parse_uuid
 
 router = APIRouter(prefix="/recorders", tags=["录音机 / recorders"])
@@ -110,10 +110,11 @@ def export_recorders(
 
 
 @router.post("/imports", response_model=ApiResponse[DeviceImportResponse], dependencies=[Depends(get_current_active_superuser)], summary="导入录音机 / Import Recorders")
-async def import_recorders(session: SessionDep, file: UploadFile = File(...)) -> Any:
-    """使用固定 CSV 模板原子导入录音机。 / Atomically import recorders from the fixed CSV template."""
-    extension_for(file.filename or "", {"csv"})
-    return api_success(data=device_service.import_recorders_csv(session, validate_csv_content(await file.read())))
+async def import_recorders(session: SessionDep, file: UploadFile = File(...), dry_run: bool = Form(True)) -> Any:
+    """使用固定字段模板导入录音机。 / Import recorders using the fixed field template."""
+    parsed = parse_import_upload(file.filename or "", await file.read())
+    report = device_service.import_recorders_csv(session, parsed.text, dry_run=dry_run)
+    return api_success(message="Import validation completed" if dry_run else "Import completed", data=attach_import_metadata(report, parsed, dry_run=dry_run))
 
 
 @router.post(

@@ -191,7 +191,14 @@ def build_collection_view_data(project: Project, collection: Collection) -> Coll
         description=collection.description or "",
     )
 
-def create_collection(session: Session, collection_in: CollectionCreate, creator: User, project_id: int) -> None:
+def create_collection(
+    session: Session,
+    collection_in: CollectionCreate,
+    creator: User,
+    project_id: int,
+    *,
+    commit: bool = True,
+) -> None:
     """
     Create a new collection and associate it with a project.
     
@@ -219,7 +226,10 @@ def create_collection(session: Session, collection_in: CollectionCreate, creator
     )
     session.add(project_collection)
     
-    session.commit()
+    if commit:
+        session.commit()
+    else:
+        session.flush()
     session.refresh(collection)
 
 

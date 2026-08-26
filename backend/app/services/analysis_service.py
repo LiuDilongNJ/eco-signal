@@ -222,32 +222,46 @@ class AnalysisService:
         session: Session,
         request: IndexLogCreateRequest,
         current_user: User,
+        *,
+        commit: bool = True,
     ) -> IndexLogCreateResponse:
         """Persist one confirmed acoustic index result group."""
+        self.validate_acoustic_index_preview(session, request, current_user)
+
+        log_id = index_log_repository.reserve_log_id(session)
+        repository_kwargs = {
+            "media_id": request.media_id,
+            "user_id": current_user.user_id,
+            "index_id": request.index_id,
+            "version": request.version,
+            "results": request.results,
+            "params": request.params,
+            "output_first": False,
+            "min_time": request.min_time,
+            "max_time": request.max_time,
+            "min_frequency": request.min_frequency,
+            "max_frequency": request.max_frequency,
+            "log_id": log_id,
+        }
+        if not commit:
+            repository_kwargs["commit"] = False
+
+        stored_count = index_log_repository.create_from_results(session, **repository_kwargs)
+        return IndexLogCreateResponse(log_id=log_id, stored_count=stored_count)
+
+    def validate_acoustic_index_preview(
+        self,
+        session: Session,
+        request: IndexLogCreateRequest,
+        current_user: User,
+    ) -> None:
+        """Validate an acoustic index result without reserving an ID or writing rows."""
         media = self.get_media_for_user(session, request.project_id, request.media_id, current_user)
         self._ensure_acoustic_write_access(session, request.project_id, request.media_id, media, current_user)
 
         index_type = index_type_repository.get_by_id(session, request.index_id)
         if index_type is None or not index_type.name:
             raise HTTPException(status_code=404, detail="Acoustic index not found")
-
-        log_id = index_log_repository.reserve_log_id(session)
-        stored_count = index_log_repository.create_from_results(
-            session,
-            media_id=request.media_id,
-            user_id=current_user.user_id,
-            index_id=request.index_id,
-            version=request.version,
-            results=request.results,
-            params=request.params,
-            output_first=False,
-            min_time=request.min_time,
-            max_time=request.max_time,
-            min_frequency=request.min_frequency,
-            max_frequency=request.max_frequency,
-            log_id=log_id,
-        )
-        return IndexLogCreateResponse(log_id=log_id, stored_count=stored_count)
 
     def analyze_and_store_acoustic_index(
         self,

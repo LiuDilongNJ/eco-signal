@@ -252,6 +252,14 @@ export function TasksPage() {
     return (
         <DataPageLayout
             title="Tasks"
+            importConfig={{
+                endpoint: "/v1/tasks/imports",
+                resourceKey: "tasks",
+                importOnly: true,
+                fields: { project_id: currentProjectId, collection_id: currentCollectionId },
+                disabled: !currentProjectId || !currentCollectionId || currentCollectionId === "all",
+                disabledReason: "Select a project and collection before importing tasks",
+            }}
             icon={ListChecks}
             columns={COLUMNS}
             rows={rows}

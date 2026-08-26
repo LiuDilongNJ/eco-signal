@@ -1,6 +1,6 @@
 import { apiClient } from "../client"
 import type { PagedApiResponse } from "../../types"
-import type { CsvImportResult } from "../csvImport"
+import type { ImportResult } from "../tabularImport"
 
 export interface SoundClassificationRecord {
     sound_id: number
@@ -23,7 +23,7 @@ export interface SoundClassificationWriteBody {
     sound_type: string | null
 }
 
-export type SoundClassificationImportResult = CsvImportResult
+export type SoundClassificationImportResult = ImportResult
 
 function cleanParams(params?: Record<string, unknown>) {
     if (!params) return undefined
@@ -65,9 +65,10 @@ export const soundClassificationsApi = {
         return apiClient.delete<{ code: number; message: string; data: null }>(`${BASE}/${soundId}`)
     },
 
-    importCsv(file: File) {
+    importCsv(file: File, dryRun = true) {
         const formData = new FormData()
         formData.append("file", file)
+        formData.append("dry_run", String(dryRun))
         return apiClient.post<{
             code: number
             message: string

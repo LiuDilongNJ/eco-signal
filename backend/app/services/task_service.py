@@ -86,6 +86,8 @@ def assign_tasks(
     task_type: str,
     assignments: list[dict],
     annotation_ids: list[int] | None = None,
+    *,
+    commit: bool = True,
 ) -> dict:
     """Batch assign tasks to users for a specific media."""
     require_media_write_access(session, media_id, current_user)
@@ -120,6 +122,7 @@ def assign_tasks(
                 task_type=AssignmentTaskType.ANNOTATION.value,
                 assignments=assignments,
                 annotation_id=ann_id,
+                commit=False,
             )
             total_count += count
     else:
@@ -129,7 +132,13 @@ def assign_tasks(
             assigner_id=current_user.user_id,
             task_type=task_type,
             assignments=assignments,
+            commit=False,
         )
+
+    if commit:
+        session.commit()
+    else:
+        session.flush()
 
     return {"assigned_count": total_count}
 
