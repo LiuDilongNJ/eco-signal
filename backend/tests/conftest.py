@@ -18,6 +18,20 @@ from tests.utils.user import authentication_token_from_email
 from tests.utils.utils import get_superuser_token_headers
 
 
+@pytest.fixture(scope="session", autouse=True)
+def _isolate_auth_environment() -> Generator[None, None, None]:
+    """Keep idle-timeout auth off unless a test explicitly opts into staging/production.
+
+    Host `.env` may set ENVIRONMENT=staging for the running app. Tests mint tokens
+    without a Redis session family and stub Redis without activity keys, so the
+    suite must not inherit that host setting.
+    """
+    original = settings.ENVIRONMENT
+    settings.ENVIRONMENT = "local"
+    yield
+    settings.ENVIRONMENT = original
+
+
 @pytest.fixture(scope="session")
 def db_engine():
     """

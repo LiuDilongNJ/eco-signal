@@ -204,11 +204,7 @@ def create_collection(
     
     Requires project:write permission (verified at controller).
     """
-    if collection_in.public_access:
-        project = session.get(Project, project_id)
-        if not project:
-            raise HTTPException(status_code=404, detail="Project not found")
-        _ensure_public_collection_allowed_in_projects(session, [project_id])
+    validate_collection_create(session, collection_in, project_id)
 
     # Add creator_id to the schema data
     collection_data = collection_in.model_dump()
@@ -231,6 +227,15 @@ def create_collection(
     else:
         session.flush()
     session.refresh(collection)
+
+
+def validate_collection_create(session: Session, collection_in: CollectionCreate, project_id: int) -> None:
+    """Validate a collection creation without allocating a collection ID."""
+    project = session.get(Project, project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    if collection_in.public_access:
+        _ensure_public_collection_allowed_in_projects(session, [project_id])
 
 
 def update_collection(

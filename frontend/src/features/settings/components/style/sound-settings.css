@@ -11,19 +11,6 @@
     line-height: 1.6;
 }
 
-.sound-settings-instructions__code {
-    display: block;
-    width: 100%;
-    box-sizing: border-box;
-    padding: 10px 12px;
-    border: 1px solid var(--border-color);
-    border-radius: 6px;
-    background: var(--bg-surface-secondary, var(--bg-surface));
-    color: var(--text-main);
-    overflow-x: auto;
-    white-space: pre;
-}
-
 .sound-settings-instructions__rules {
     margin: 0;
     padding-left: 20px;
@@ -32,13 +19,10 @@
     line-height: 1.6;
 }
 
-.sound-settings-instructions__download {
-    padding-inline: 4px !important;
-    color: var(--brand) !important;
-}
-
-.sound-settings-instructions__download:hover {
-    color: var(--brand-hover, var(--brand)) !important;
+.sound-settings-instructions__downloads {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
 }
 
 .csv-upload-instructions-drawer .ant-drawer-header {
@@ -60,6 +44,6 @@
     color: #fff !important;
 }
 
-.csv-upload-instructions-drawer .sound-settings-instructions__download {
+.csv-upload-instructions-drawer .sound-settings-instructions__downloads .ant-btn {
     border-radius: 999px;
 }

@@ -177,6 +177,142 @@ def test_creator_options_reject_unreachable_project(
     assert response.status_code == 403
 
 
+def test_creator_options_require_audio_write_in_requested_project(
+    client: TestClient,
+    normal_user_token_headers: dict[str, str],
+    db: Session,
+) -> None:
+    user = db.get(User, _normal_test_user_id(db))
+    assert user is not None
+    owner = create_test_user(db)
+    readable_project, _ = _create_project_with_collection(
+        db,
+        owner,
+        project_name="Creator Read Only Project",
+        collection_name="Creator Read Only Collection",
+    )
+    writable_project, _ = _create_project_with_collection(
+        db,
+        owner,
+        project_name="Creator Other Writable Project",
+        collection_name="Creator Other Writable Collection",
+    )
+    _grant_permission(db, user, "audio", "read", project_id=readable_project.project_id)
+    _grant_permission(db, user, "audio", "write", project_id=writable_project.project_id)
+
+    response = client.get(
+        f"{settings.API_V1_STR}/users/creators?project_id={readable_project.project_id}",
+        headers=normal_user_token_headers,
+    )
+
+    assert response.status_code == 403
+    assert response.json()["message"] == "No audio:write permission on the requested project or collection"
+
+
+def test_creator_options_allow_collection_audio_write_only_for_that_collection(
+    client: TestClient,
+    normal_user_token_headers: dict[str, str],
+    db: Session,
+) -> None:
+    user = db.get(User, _normal_test_user_id(db))
+    assert user is not None
+    owner = create_test_user(db)
+    project, writable_collection = _create_project_with_collection(
+        db,
+        owner,
+        project_name="Creator Collection Audio Write Project",
+        collection_name="Creator Writable Collection",
+    )
+    other_collection = Collection(name="Creator Read Only Collection", creator_id=owner.user_id)
+    db.add(other_collection)
+    db.commit()
+    db.refresh(other_collection)
+    db.add(ProjectCollection(
+        project_id=project.project_id,
+        collection_id=other_collection.collection_id,
+    ))
+    db.commit()
+    _grant_permission(
+        db,
+        user,
+        "audio",
+        "write",
+        project_id=project.project_id,
+        collection_id=writable_collection.collection_id,
+    )
+
+    allowed = client.get(
+        f"{settings.API_V1_STR}/users/creators?project_id={project.project_id}&collection_id={writable_collection.collection_id}",
+        headers=normal_user_token_headers,
+    )
+    denied = client.get(
+        f"{settings.API_V1_STR}/users/creators?project_id={project.project_id}&collection_id={other_collection.collection_id}",
+        headers=normal_user_token_headers,
+    )
+
+    assert allowed.status_code == 200
+    assert denied.status_code == 403
+
+
+def test_current_user_reports_scoped_audio_write_capability(
+    client: TestClient,
+    normal_user_token_headers: dict[str, str],
+    db: Session,
+) -> None:
+    user = db.get(User, _normal_test_user_id(db))
+    assert user is not None
+    owner = create_test_user(db)
+    project, writable_collection = _create_project_with_collection(
+        db,
+        owner,
+        project_name="Current User Audio Capability Project",
+        collection_name="Current User Writable Collection",
+    )
+    other_collection = Collection(name="Current User Read Only Collection", creator_id=owner.user_id)
+    db.add(other_collection)
+    db.commit()
+    db.refresh(other_collection)
+    db.add(ProjectCollection(
+        project_id=project.project_id,
+        collection_id=other_collection.collection_id,
+    ))
+    db.commit()
+    _grant_permission(db, user, "audio", "read", project_id=project.project_id)
+
+    read_only = client.get(
+        f"{settings.API_V1_STR}/current-user?project_id={project.project_id}",
+        headers=normal_user_token_headers,
+    )
+    assert read_only.status_code == 200
+    assert read_only.json()["data"]["can_write_audio"] is False
+
+    _grant_permission(
+        db,
+        user,
+        "audio",
+        "write",
+        project_id=project.project_id,
+        collection_id=writable_collection.collection_id,
+    )
+
+    all_collections = client.get(
+        f"{settings.API_V1_STR}/current-user?project_id={project.project_id}",
+        headers=normal_user_token_headers,
+    )
+    writable_scope = client.get(
+        f"{settings.API_V1_STR}/current-user?project_id={project.project_id}&collection_id={writable_collection.collection_id}",
+        headers=normal_user_token_headers,
+    )
+    read_only_scope = client.get(
+        f"{settings.API_V1_STR}/current-user?project_id={project.project_id}&collection_id={other_collection.collection_id}",
+        headers=normal_user_token_headers,
+    )
+
+    assert all_collections.json()["data"]["can_write_audio"] is True
+    assert writable_scope.json()["data"]["can_write_audio"] is True
+    assert read_only_scope.json()["data"]["can_write_audio"] is False
+
+
 def test_get_users_normal_user_me_with_project_write(
     client: TestClient,
     normal_user_token_headers: dict[str, str],
@@ -460,6 +596,7 @@ def test_get_existing_user(
     api_user = json_resp["data"]
     assert user.email == api_user["email"]
     assert api_user["color"] == "#00AAFF"
+    assert "can_write_audio" not in api_user
 
 
 def test_get_existing_user_current_user(client: TestClient, db: Session) -> None:

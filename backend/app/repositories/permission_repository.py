@@ -111,6 +111,31 @@ class PermissionRepository(BaseRepository[UserPermission, Any, Any]):
             stmt = stmt.where(UserEffectivePermission.project_id == project_id)
         return [(row[0], row[1]) for row in session.exec(stmt).all() if row[1] is not None]
 
+    def has_effective_collection_permission_in_project(
+        self,
+        session: Session,
+        user_id: int | None,
+        resource_type: str,
+        action: str,
+        project_id: int,
+    ) -> bool:
+        """Return whether a user has the permission on any collection in a project."""
+        if user_id is None:
+            return False
+        stmt = (
+            select(UserEffectivePermission.collection_id)
+            .where(
+                UserEffectivePermission.user_id == user_id,
+                UserEffectivePermission.project_id == project_id,
+                UserEffectivePermission.scope_type == "project_collection",
+                UserEffectivePermission.collection_id.is_not(None),
+                UserEffectivePermission.resource_type == resource_type,
+                UserEffectivePermission.action == action,
+            )
+            .limit(1)
+        )
+        return session.exec(stmt).first() is not None
+
     def get_public_collection_scopes(
         self,
         session: Session,

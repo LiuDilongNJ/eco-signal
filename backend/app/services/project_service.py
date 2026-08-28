@@ -162,17 +162,7 @@ def create_project(
     
     Only admins can create projects.
     """
-    payload = project_in.model_dump()
-    payload["url"] = payload.get("url") or ""
-    payload["doi"] = _normalize_project_doi(payload.get("doi"))
-
-    normalized_name = _normalize_project_name(payload["name"])
-    existing = project_repository.get_by_normalized_name(
-        session,
-        normalized_name=normalized_name,
-    )
-    if existing:
-        raise HTTPException(status_code=409, detail=PROJECT_NAME_CONFLICT_DETAIL)
+    payload = validate_project_create(session, project_in)
 
     project = Project(
         **payload,
@@ -189,6 +179,22 @@ def create_project(
         raise HTTPException(status_code=409, detail=PROJECT_NAME_CONFLICT_DETAIL) from exc
     session.refresh(project)
     return project.project_id
+
+
+def validate_project_create(session: Session, project_in: ProjectCreate) -> dict:
+    """Validate and normalize a project creation without persisting it."""
+    payload = project_in.model_dump()
+    payload["url"] = payload.get("url") or ""
+    payload["doi"] = _normalize_project_doi(payload.get("doi"))
+
+    normalized_name = _normalize_project_name(payload["name"])
+    existing = project_repository.get_by_normalized_name(
+        session,
+        normalized_name=normalized_name,
+    )
+    if existing:
+        raise HTTPException(status_code=409, detail=PROJECT_NAME_CONFLICT_DETAIL)
+    return payload
 
 
 def update_project(

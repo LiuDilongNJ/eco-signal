@@ -121,6 +121,28 @@ def create_review(
     commit: bool = True,
 ) -> None:
     """Create a new annotation review and mark the annotation task as reviewed."""
+    validate_review_create(session, user, data)
+
+    review = AnnotationReview(
+        annotation_id=data.annotation_id,
+        reviewer_id=user.user_id,
+        annotation_review_status_id=data.annotation_review_status_id,
+        taxon_id=data.taxon_id,
+        note=data.note,
+        creation_date=datetime.now(UTC),
+    )
+    session.add(review)
+    session.flush()
+
+    task_repository.mark_annotation_task_reviewed(session=session, annotation_id=data.annotation_id, assignee_id=user.user_id)
+    if commit:
+        session.commit()
+    else:
+        session.flush()
+
+
+def validate_review_create(session: Session, user: User, data: ReviewCreate) -> None:
+    """Validate review creation without persisting it."""
     annotation = session.get(Annotation, data.annotation_id)
     if not annotation:
         raise HTTPException(status_code=404, detail="Annotation not found")
@@ -152,26 +174,6 @@ def create_review(
     if existing:
         raise HTTPException(status_code=409, detail="Review already exists for this annotation by this user")
 
-    review = AnnotationReview(
-        annotation_id=data.annotation_id,
-        reviewer_id=user.user_id,
-        annotation_review_status_id=data.annotation_review_status_id,
-        taxon_id=data.taxon_id,
-        note=data.note,
-        creation_date=datetime.now(UTC),
-    )
-    session.add(review)
-    session.flush()
-
-    task_repository.mark_annotation_task_reviewed(
-        session=session,
-        annotation_id=data.annotation_id,
-        assignee_id=user.user_id,
-    )
-    if commit:
-        session.commit()
-    else:
-        session.flush()
 
 
 def update_review(

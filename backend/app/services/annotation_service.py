@@ -426,31 +426,8 @@ def create_annotation(
     Create a new annotation.
     Requires annotation:write on the host media's collection.
     """
-    # 1. Verify media exists and get its collection
-    collection_ids = _verify_media_and_get_project_collections(session, data.media_id, data.project_id)
+    payload = validate_annotation_create(session, current_user, data)
 
-    # 2. Check permission
-    has_permission = has_resource_permission_on_any_collection_path(
-        session,
-        current_user,
-        collection_ids,
-        "annotation",
-        "write",
-        project_id=data.project_id,
-    )
-    if not has_permission:
-        raise HTTPException(
-            status_code=403, 
-            detail="You do not have write permission for annotations in this media's collection"
-        )
-
-    media = session.get(Media, data.media_id)
-    if media is None:
-        raise HTTPException(status_code=404, detail="Media not found")
-    payload = _normalize_annotation_fields(media.media_type, data.model_dump())
-    _validate_annotation_bounds(session, data.media_id, data.min_x, data.max_x, data.min_y, data.max_y)
-        
-    # 3. Create annotation
     new_annotation = Annotation(
         media_id=data.media_id,
         min_x=data.min_x,
@@ -472,8 +449,39 @@ def create_annotation(
         animal_sound_type=payload["animal_sound_type"],
         creation_date=datetime.now(UTC),
     )
-    
     annotation_repository.create(session, new_annotation, commit=commit)
+
+
+def validate_annotation_create(
+    session: Session,
+    current_user: User,
+    data: AnnotationCreate,
+) -> dict:
+    """Validate and normalize annotation data without persisting it."""
+    collection_ids = _verify_media_and_get_project_collections(session, data.media_id, data.project_id)
+
+    # 2. Check permission
+    has_permission = has_resource_permission_on_any_collection_path(
+        session,
+        current_user,
+        collection_ids,
+        "annotation",
+        "write",
+        project_id=data.project_id,
+    )
+    if not has_permission:
+        raise HTTPException(
+            status_code=403,
+            detail="You do not have write permission for annotations in this media's collection"
+        )
+
+    media = session.get(Media, data.media_id)
+    if media is None:
+        raise HTTPException(status_code=404, detail="Media not found")
+    payload = _normalize_annotation_fields(media.media_type, data.model_dump())
+    _validate_annotation_bounds(session, data.media_id, data.min_x, data.max_x, data.min_y, data.max_y)
+
+    return payload
 
 
 def update_annotation(

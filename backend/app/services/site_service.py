@@ -237,7 +237,23 @@ def create_site(
 
     Permission: requires site:write on the target collection path.
     """
-    # Determine target collection IDs
+    data, collection_ids, requested_project_ids = validate_site_create(session, data, current_user)
+
+    site = site_repository.create_site(session, data=data, creator_id=current_user.user_id, commit=False)
+    site_repository.bind_to_collections(session, site_id=site.site_id, collection_ids=collection_ids, commit=False)
+    if requested_project_ids:
+        site_repository.bind_to_projects(session, site_id=site.site_id, project_ids=requested_project_ids)
+    if commit:
+        session.commit()
+    else:
+        session.flush()
+    site = site_repository.get_site_with_relations(session, site.site_id)
+    return _build_site_public(site)
+
+
+def validate_site_create(session: Session, data: SiteCreate, current_user: User) -> tuple[SiteCreate, list[int], list[int]]:
+    """Validate and normalize a site creation without persisting it."""
+    data = data.model_copy(deep=True)
     requested_project_ids: list[int] = []
     if data.collection_id:
         if data.project_id is None:
@@ -282,36 +298,10 @@ def create_site(
             )
         requested_project_ids = [data.project_id]
 
-    # Resolve IUCN IDs by lowest-level priority, deriving parent IDs automatically
     data.realm_id, data.biome_id, data.functional_type_id = _resolve_iucn_ids(
         session, data.realm_id, data.biome_id, data.functional_type_id
     )
-
-    # Create site record
-    site = site_repository.create_site(
-        session,
-        data=data,
-        creator_id=current_user.user_id,
-        commit=False,
-    )
-
-    # Bind to collections
-    site_repository.bind_to_collections(
-        session,
-        site_id=site.site_id,
-        collection_ids=collection_ids,
-        commit=False,
-    )
-    if requested_project_ids:
-        site_repository.bind_to_projects(session, site_id=site.site_id, project_ids=requested_project_ids)
-    if commit:
-        session.commit()
-    else:
-        session.flush()
-
-    # Reload with relations for serialization
-    site = site_repository.get_site_with_relations(session, site.site_id)
-    return _build_site_public(site)
+    return data, collection_ids, requested_project_ids
 
 
 def list_sites(

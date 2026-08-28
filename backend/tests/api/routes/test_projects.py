@@ -95,6 +95,37 @@ class TestProjectImports:
         assert committed.json()["data"]["committed"] is True
         assert db.exec(select(Project).where(Project.name == name)).first() is not None
 
+    def test_dry_run_does_not_consume_project_identifier(
+        self,
+        client: TestClient,
+        superuser_token_headers: dict[str, str],
+        db: Session,
+    ) -> None:
+        previous = create_test_project(db)
+        name = f"Identifier Check {random_lower_string()[:8]}"
+        source = f"name,url,public,active\n{name},https://example.com,true,true\n".encode()
+
+        validation = client.post(
+            f"{settings.API_V1_STR}/projects/imports",
+            headers=superuser_token_headers,
+            data={"dry_run": "true"},
+            files={"file": ("projects.csv", source, "text/csv")},
+        )
+
+        assert validation.status_code == 200
+        assert validation.json()["data"]["committed"] is False
+
+        committed = client.post(
+            f"{settings.API_V1_STR}/projects/imports",
+            headers=superuser_token_headers,
+            data={"dry_run": "false"},
+            files={"file": ("projects.csv", source, "text/csv")},
+        )
+
+        assert committed.status_code == 200
+        created = db.exec(select(Project).where(Project.name == name)).one()
+        assert created.project_id == previous.project_id + 1
+
     def test_duplicate_rows_are_skipped(
         self,
         client: TestClient,

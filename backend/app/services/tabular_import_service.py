@@ -193,26 +193,20 @@ def _execute(
                 continue
             seen.add(item_key)
 
-        savepoint = session.begin_nested()
         try:
-            (preflight or writer)(item)
-            savepoint.rollback()
-            session.expire_all()
+            if preflight is not None:
+                preflight(item)
         except HTTPException as exc:
-            if savepoint.is_active:
-                savepoint.rollback()
             result = results[row_number]
             if exc.status_code == 409 or "already exists" in str(exc.detail).lower():
                 result.status = "skipped"
             else:
                 result.status = "failed"
             result.reason = str(exc.detail)
-        except (IntegrityError, ValueError) as exc:
-            if savepoint.is_active:
-                savepoint.rollback()
+        except ValueError as exc:
             result = results[row_number]
             result.status = "failed"
-            result.reason = "Record violates a data constraint" if isinstance(exc, IntegrityError) else str(exc)
+            result.reason = str(exc)
         else:
             accepted.append((row_number, item))
 
@@ -224,10 +218,25 @@ def _execute(
     if dry_run:
         return report.finalize()
 
+    def fail_write(row_number: int, reason: str) -> ImportResult:
+        results[row_number].status = "failed"
+        results[row_number].reason = reason
+        session.rollback()
+        report.reject_candidates()
+        return report.finalize()
+
     try:
         for row_number, item in accepted:
-            if results[row_number].status == "succeeded":
+            if results[row_number].status != "succeeded":
+                continue
+            try:
                 writer(item)
+            except HTTPException as exc:
+                return fail_write(row_number, str(exc.detail))
+            except IntegrityError:
+                return fail_write(row_number, "Record violates a data constraint")
+            except ValueError as exc:
+                return fail_write(row_number, str(exc))
         session.commit()
     except Exception:
         session.rollback()
@@ -279,6 +288,7 @@ def import_projects(session: Session, text: str, user: User, *, dry_run: bool) -
         lambda item: project_service.create_project(session, item, user, commit=False),
         dry_run=dry_run,
         key=lambda item: str(item.name).strip().casefold(),
+        preflight=lambda item: project_service.validate_project_create(session, item),
     )
 
 
@@ -300,6 +310,7 @@ def import_collections(
         ),
         dry_run=dry_run,
         key=lambda item: str(item.name).strip().casefold(),
+        preflight=lambda item: collection_service.validate_collection_create(session, item, project_id),
     )
 
 
@@ -324,6 +335,7 @@ def import_sites(
         lambda item: site_service.create_site(session, item, user, commit=False),
         dry_run=dry_run,
         key=lambda item: str(item.name).strip().casefold(),
+        preflight=lambda item: site_service.validate_site_create(session, item, user),
     )
 
 
@@ -357,6 +369,10 @@ def import_annotations(
             item.taxon_id,
             item.sound_id,
         ),
+        preflight=lambda item: (
+            _require_media_scope(session, item.media_id, project_id, collection_id),
+            annotation_service.validate_annotation_create(session, user, item),
+        ),
     )
 
 
@@ -385,6 +401,10 @@ def import_reviews(
         ),
         dry_run=dry_run,
         key=lambda item: item.annotation_id,
+        preflight=lambda item: (
+            _require_media_scope(session, _annotation_media_id(session, item.annotation_id), project_id, collection_id),
+            review_service.validate_review_create(session, user, item),
+        ),
     )
 
 
@@ -462,6 +482,14 @@ def import_tasks(
         write,
         dry_run=dry_run,
         key=lambda item: (item.type, item.media_id, item.annotation_id, item.assignee_id),
+        preflight=lambda item: (
+            _require_media_scope(session, item.media_id, project_id, collection_id),
+            task_service.validate_task_assignments(
+                session, item.media_id, user, item.type,
+                [{"user_id": item.assignee_id, "comment": item.comment}],
+                [item.annotation_id] if item.annotation_id is not None else None,
+            ),
+        ),
     )
 
 
@@ -505,4 +533,7 @@ def import_users(
             commit=False,
         ),
         dry_run=dry_run,
+        preflight=lambda item: user_service.validate_user_create(
+            session, user, item, project_id, collection_id
+        ),
     )

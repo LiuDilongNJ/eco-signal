@@ -90,6 +90,37 @@ def assign_tasks(
     commit: bool = True,
 ) -> dict:
     """Batch assign tasks to users for a specific media."""
+    validate_task_assignments(session, media_id, current_user, task_type, assignments, annotation_ids)
+
+    total_count = 0
+
+    if task_type == AssignmentTaskType.ANNOTATION.value:
+        for ann_id in annotation_ids or []:
+            count = task_repository.upsert_assignments(
+                session=session, media_id=media_id, assigner_id=current_user.user_id,
+                task_type=AssignmentTaskType.ANNOTATION.value, assignments=assignments,
+                annotation_id=ann_id, commit=False,
+            )
+            total_count += count
+    else:
+        total_count = task_repository.upsert_assignments(
+            session=session, media_id=media_id, assigner_id=current_user.user_id,
+            task_type=task_type, assignments=assignments, commit=False,
+        )
+
+    if commit:
+        session.commit()
+    else:
+        session.flush()
+
+    return {"assigned_count": total_count}
+
+
+def validate_task_assignments(
+    session: Session, media_id: int, current_user: User, task_type: str,
+    assignments: list[dict], annotation_ids: list[int] | None = None,
+) -> None:
+    """Validate task assignments without creating or updating tasks."""
     require_media_write_access(session, media_id, current_user)
 
     if not assignments:
@@ -98,7 +129,10 @@ def assign_tasks(
     if task_type not in {task.value for task in AssignmentTaskType}:
         raise HTTPException(status_code=400, detail="task_type must be 'media' or 'annotation'")
 
-    total_count = 0
+    for item in assignments:
+        assignee_id = item.get("user_id")
+        if session.get(User, assignee_id) is None:
+            raise HTTPException(status_code=404, detail="Assignee not found")
 
     if task_type == AssignmentTaskType.ANNOTATION.value:
         if not annotation_ids:
@@ -114,33 +148,6 @@ def assign_tasks(
                     detail=f"Annotation {ann_id} does not belong to media {media_id}",
                 )
 
-        for ann_id in annotation_ids:
-            count = task_repository.upsert_assignments(
-                session=session,
-                media_id=media_id,
-                assigner_id=current_user.user_id,
-                task_type=AssignmentTaskType.ANNOTATION.value,
-                assignments=assignments,
-                annotation_id=ann_id,
-                commit=False,
-            )
-            total_count += count
-    else:
-        total_count = task_repository.upsert_assignments(
-            session=session,
-            media_id=media_id,
-            assigner_id=current_user.user_id,
-            task_type=task_type,
-            assignments=assignments,
-            commit=False,
-        )
-
-    if commit:
-        session.commit()
-    else:
-        session.flush()
-
-    return {"assigned_count": total_count}
 
 
 def list_tasks(

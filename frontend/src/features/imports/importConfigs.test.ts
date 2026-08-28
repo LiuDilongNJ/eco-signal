@@ -2,12 +2,42 @@ import { describe, expect, it } from "vitest"
 
 import { IMPORT_RESOURCE_CONFIGS } from "./importConfigs"
 
+function parseCsvRecord(record: string): string[] {
+    const values: string[] = []
+    let value = ""
+    let quoted = false
+
+    for (let index = 0; index < record.length; index += 1) {
+        const character = record[index]
+        if (character === '"') {
+            if (quoted && record[index + 1] === '"') {
+                value += character
+                index += 1
+            } else {
+                quoted = !quoted
+            }
+        } else if (character === "," && !quoted) {
+            values.push(value)
+            value = ""
+        } else {
+            value += character
+        }
+    }
+
+    values.push(value)
+    return values
+}
+
 describe("import resource templates", () => {
     it("keeps every template aligned with its accepted field list", () => {
         Object.values(IMPORT_RESOURCE_CONFIGS).forEach((config) => {
-            const [header, example] = config.template.trimEnd().split("\n")
+            const [header, example, additionalExample] = config.template.trimEnd().split("\n")
             expect(header).toBe(config.fields.map((field) => field.name).join(","))
             expect(example).toBeTruthy()
+            expect(parseCsvRecord(example!)).toHaveLength(config.fields.length)
+            expect(additionalExample).toBeTruthy()
+            expect(parseCsvRecord(additionalExample!)).toHaveLength(config.fields.length)
+            expect(config.template.trimEnd().split("\n")).toHaveLength(3)
             expect(config.templateFileName).toMatch(/_template\.csv$/)
         })
     })
@@ -26,5 +56,14 @@ describe("import resource templates", () => {
             forbidden.forEach((name) => expect(fields).not.toContain(name))
         })
         expect(IMPORT_RESOURCE_CONFIGS.users.fields.map((field) => field.name)).toContain("password")
+    })
+
+    it("uses schema-valid values without environment-specific geography identifiers", () => {
+        expect(IMPORT_RESOURCE_CONFIGS.collections.example.sphere).toBe("biosphere")
+        expect(IMPORT_RESOURCE_CONFIGS.sites.example.realm_id).toBeNull()
+        expect(IMPORT_RESOURCE_CONFIGS.sites.example.biome_id).toBeNull()
+        expect(IMPORT_RESOURCE_CONFIGS.sites.example.functional_type_id).toBeNull()
+        expect(IMPORT_RESOURCE_CONFIGS.annotations.example.object_type).toBeNull()
+        expect(IMPORT_RESOURCE_CONFIGS.annotations.example.taxon_id).toBeNull()
     })
 })

@@ -115,10 +115,9 @@ function buildUrl(endpoint: string, params?: RequestConfig["params"]): string {
     return url.toString()
 }
 
-import { authUtils, dispatchAuthChange, dispatchLoginRequired, AUTH_LANDING_PATH } from "../utils/auth"
+import { authUtils, dispatchAuthChange, dispatchLoginRequired } from "../utils/auth"
 
-/** 避免并发 403 重复跳转；登录接口 401 不触发登出跳转（密码错误等） */
-let redirecting403 = false
+/** 登录接口 401 不触发登录跳转（密码错误等）。 */
 let refreshAccessTokenPromise: Promise<string | null> | null = null
 
 function shouldIgnore401Redirect(endpoint: string): boolean {
@@ -134,12 +133,7 @@ function onUnauthorized(status: number, endpoint: string, ignoreRedirect = false
         return
     }
 
-    console.warn(`[apiClient] Forbidden (403) on endpoint: ${endpoint}. Redirecting to home...`)
-
-    if (redirecting403) return
-
-    redirecting403 = true
-    window.location.assign(AUTH_LANDING_PATH)
+    console.warn(`[apiClient] Forbidden (403) on endpoint: ${endpoint}.`)
 }
 
 function shouldAttemptRefresh(endpoint: string): boolean {

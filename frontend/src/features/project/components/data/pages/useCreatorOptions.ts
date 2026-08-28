@@ -13,33 +13,41 @@ export function useCreatorOptions(projectId: ScopeId, collectionId: ScopeId) {
 
     useEffect(() => {
         let cancelled = false
-        usersApi.getMe().then((response) => {
-            if (cancelled || !response.data) return
-            setCurrentUser({
-                user_id: response.data.user_id,
-                name: response.data.name || response.data.username || String(response.data.user_id),
-                username: response.data.username,
-            })
-        }).catch(() => {
-            if (!cancelled) setCurrentUser(null)
-        })
-        return () => { cancelled = true }
-    }, [])
-
-    useEffect(() => {
-        let cancelled = false
 
         const load = async () => {
             try {
                 if (!hasProjectScope(projectId)) {
                     setCreatorOptions([])
+                    setCurrentUser(null)
+                    return
+                }
+
+                const normalizedProjectId = Number(projectId)
+                const normalizedCollectionId = collectionId && collectionId !== "all"
+                    ? Number(collectionId)
+                    : undefined
+                const meResponse = await usersApi.getMe({
+                    project_id: normalizedProjectId,
+                    ...(normalizedCollectionId !== undefined ? { collection_id: normalizedCollectionId } : {}),
+                })
+                if (cancelled || !meResponse.data) return
+
+                const me: UserOption = {
+                    user_id: meResponse.data.user_id,
+                    name: meResponse.data.name || meResponse.data.username || String(meResponse.data.user_id),
+                    username: meResponse.data.username,
+                }
+                setCurrentUser(me)
+
+                if (!meResponse.data.can_write_audio) {
+                    setCreatorOptions([])
                     return
                 }
 
                 const response = await usersApi.getCreatorOptions({
-                    project_id: Number(projectId),
-                    ...(collectionId && collectionId !== "all"
-                        ? { collection_id: Number(collectionId) }
+                    project_id: normalizedProjectId,
+                    ...(normalizedCollectionId !== undefined
+                        ? { collection_id: normalizedCollectionId }
                         : {}),
                 })
                 if (cancelled) return
@@ -49,9 +57,9 @@ export function useCreatorOptions(projectId: ScopeId, collectionId: ScopeId) {
                     name: user.name || user.username || String(user.user_id),
                     username: user.username,
                 }))
-                if (currentUser && !options.some((user) => user.user_id === currentUser.user_id)) {
+                if (!options.some((user) => user.user_id === me.user_id)) {
                     options.unshift({
-                        ...currentUser,
+                        ...me,
                     })
                 }
                 setCreatorOptions(options)
@@ -59,6 +67,7 @@ export function useCreatorOptions(projectId: ScopeId, collectionId: ScopeId) {
                 if (cancelled) return
                 console.error("Failed to fetch creator options:", error)
                 setCreatorOptions([])
+                setCurrentUser(null)
             }
         }
 
@@ -66,7 +75,7 @@ export function useCreatorOptions(projectId: ScopeId, collectionId: ScopeId) {
         return () => {
             cancelled = true
         }
-    }, [collectionId, currentUser, projectId])
+    }, [collectionId, projectId])
 
     return { creatorOptions, currentUserId: currentUser?.user_id ?? null }
 }

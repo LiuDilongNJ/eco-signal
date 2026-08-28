@@ -15,6 +15,10 @@ export interface UserPublic {
     [key: string]: any
 }
 
+export interface CurrentUserPublic extends UserPublic {
+    can_write_audio: boolean
+}
+
 export interface UserOption {
     user_id: number
     name: string
@@ -98,13 +102,16 @@ export const usersApi = {
     deleteUser(user_id: number) {
         return apiClient.delete<{ code: number; message: string; data: any }>(`/v1/users/${user_id}`)
     },
-    getMe(config?: { ignoreUnauthorized?: boolean; project_id?: number }) {
-        const { project_id, ...requestConfig } = config ?? {}
+    getMe(config?: { ignoreUnauthorized?: boolean; project_id?: number; collection_id?: number }) {
+        const { project_id, collection_id, ...requestConfig } = config ?? {}
         const params =
             project_id !== undefined && project_id !== null
-                ? { project_id }
+                ? {
+                    project_id,
+                    ...(collection_id !== undefined && collection_id !== null ? { collection_id } : {}),
+                }
                 : undefined
-        return apiClient.get<{ code: number; message: string; data: UserPublic }>("/v1/current-user", {
+        return apiClient.get<{ code: number; message: string; data: CurrentUserPublic }>("/v1/current-user", {
             ...requestConfig,
             params,
         })
