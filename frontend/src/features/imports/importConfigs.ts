@@ -163,7 +163,7 @@ export const IMPORT_RESOURCE_CONFIGS = {
     },
     taxons: {
         subject: "Taxon",
-        templateFileName: "taxons_template.csv",
+        templateFileName: "taxa_template.csv",
         template: "cached_scientific_name,cached_common_name,col_genus_name,col_family_name,col_order_name,col_class_name,taxonomy_source\nCorvus cornix,Hooded Crow,Corvus,Corvidae,Passeriformes,Aves,CatalogueOfLife-XR\nCorvus corone,Carrion Crow,Corvus,Corvidae,Passeriformes,Aves,CatalogueOfLife-XR\n",
         example: { cached_scientific_name: "Corvus cornix", cached_common_name: "Hooded Crow", col_genus_name: "Corvus", col_family_name: "Corvidae", col_order_name: "Passeriformes", col_class_name: "Aves", taxonomy_source: "CatalogueOfLife-XR" },
         additionalExample: { cached_scientific_name: "Corvus corone", cached_common_name: "Carrion Crow", col_genus_name: "Corvus", col_family_name: "Corvidae", col_order_name: "Passeriformes", col_class_name: "Aves", taxonomy_source: "CatalogueOfLife-XR" },
