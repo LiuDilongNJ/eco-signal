@@ -30,7 +30,23 @@ const COLUMNS: ColumnDef[] = [
     },
     { key: "start_time", label: "Start Time", type: "date", width: "220px", sortable: true, filterable: true, filterType: "dateRange" },
     { key: "stop_time", label: "Stop Time", type: "date", width: "220px", sortable: true, filterable: true, filterType: "dateRange" },
-    { key: "error", label: "Error", type: "text", width: "220px", sortable: true, filterable: true },
+    {
+        key: "error",
+        label: "Error",
+        type: "text",
+        width: "220px",
+        sortable: true,
+        filterable: true,
+        renderCell: (value) => {
+            const error = value == null ? "" : String(value)
+            if (!error) return null
+            return (
+                <Tooltip title={error}>
+                    <span className="dpl-cell-text">{error}</span>
+                </Tooltip>
+            )
+        },
+    },
     {
         key: "warning",
         label: "Warning",
