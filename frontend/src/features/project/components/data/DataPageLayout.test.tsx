@@ -259,7 +259,7 @@ describe("DataPageLayout collection context", () => {
                     importConfig={{ endpoint: "/v1/media/imports", resourceKey: "audioMetadata" }}
                     addDropdownItems={[{ key: "audios", label: "Audios" }]}
                     addDisabled
-                    addDisabledTooltip="Before uploading the media, please select a specific collection."
+                    addDisabledTooltip="Before uploading media, please select a collection."
                 />
             </MemoryRouter>,
         )
@@ -269,7 +269,7 @@ describe("DataPageLayout collection context", () => {
 
         await userEvent.hover(addButton.parentElement!)
         expect(
-            await screen.findByText("Before uploading the media, please select a specific collection."),
+            await screen.findByText("Before uploading media, please select a collection."),
         ).toBeInTheDocument()
     })
 })
