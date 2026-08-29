@@ -36,6 +36,21 @@
     height: auto;
 }
 
+.photo-media-drawer-layout--add .form-drawer-side-col {
+    position: relative;
+    border-left: 0;
+}
+
+/* Keep the divider aligned with the last form control instead of the drawer body. */
+.photo-media-drawer-layout--add .form-drawer-side-col::before {
+    position: absolute;
+    top: 0;
+    bottom: 24px;
+    left: 0;
+    border-left: 1px solid var(--border-light);
+    content: "";
+}
+
 .photo-media-drawer-queue-header {
     display: flex;
     align-items: center;
@@ -140,6 +155,8 @@
     display: flex;
     justify-content: flex-end;
     margin-top: auto;
+    /* Align the upload button with the last form control, above Ant Form's bottom margin. */
+    margin-bottom: 24px;
 }
 
 .photo-media-drawer-upload-btn {

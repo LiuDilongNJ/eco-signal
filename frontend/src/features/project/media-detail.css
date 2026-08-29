@@ -1337,15 +1337,6 @@
     box-sizing: border-box;
 }
 
-.studio-annot-photo-form-grid .studio-annot-switch-field .ant-form-item-control-input-content {
-    align-items: flex-start;
-}
-
-.studio-annot-photo-form-grid .studio-annot-switch-field .ant-switch {
-    position: relative;
-    top: -5px;
-}
-
 .studio-annotation-form--antd .ant-input,
 .studio-annotation-form--antd .ant-input-number,
 .studio-annotation-form--antd .ant-input-affix-wrapper,
