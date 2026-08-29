@@ -25,6 +25,7 @@ import { UnifiedImage } from "@/components/ui"
 import {
     Info,
     Tag,
+    X,
     Headphones,
     SquareActivity,
     Eye,
@@ -3813,7 +3814,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
     }, [media?.labels])
 
 	    const applyLabelFromPopover = useCallback(
-	        async (labelId: number) => {
+	        async (labelId: number | null) => {
 	            setLabelPopoverSaving(true)
 	            try {
 	                if (currentProjectId == null) {
@@ -3822,14 +3823,19 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
 	                }
 	                const res = await labelsApi.setMediaLabels([mediaId], currentProjectId, labelId)
                 const c = res.code
-                if (c != null && c !== 0 && c !== 200) {
-                    message.error(res.message || "Failed to update label")
-                    return
-                }
+	                if (c != null && c !== 0 && c !== 200) {
+	                    message.error(res.message || "Failed to update label")
+	                    return
+	                }
+	                const failed = Array.isArray(res.data?.failed) ? res.data.failed : []
+	                if (failed.length > 0) {
+	                    message.error(failed[0]?.message || "Failed to update label")
+	                    return
+	                }
 	                const raw = await mediaApi.getRecordingDetail(mediaId, currentProjectId, true)
-                setMedia(normalizeRecordingDetail(raw))
-                setLabelPopoverSelectedId(labelId)
-                message.success("Label updated")
+	                setMedia(normalizeRecordingDetail(raw))
+	                setLabelPopoverSelectedId(labelId)
+	                message.success(labelId == null ? "Label removed" : "Label updated")
                 setLabelPopoverOpen(false)
             } catch (e: unknown) {
                 message.error(e instanceof Error ? e.message : "Failed to update label")
@@ -7821,6 +7827,22 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                                                                                 >
                                                                                     {l.name}
                                                                                 </ESButton>
+                                                                                {labelPopoverSelectedId === l.label_id ? (
+                                                                                    <ESButton
+                                                                                        appearance="unstyled"
+                                                                                        type="button"
+                                                                                        className="studio-label-popover-remove-btn"
+                                                                                        title="Remove label from this media"
+                                                                                        aria-label={`Remove ${l.name} from this media`}
+                                                                                        disabled={listBusy}
+                                                                                        onClick={(e) => {
+                                                                                            e.stopPropagation()
+                                                                                            void applyLabelFromPopover(null)
+                                                                                        }}
+                                                                                    >
+                                                                                        <X size={14} aria-hidden="true" />
+                                                                                    </ESButton>
+                                                                                ) : null}
                                                                                 {canDelete ? (
                                                                                     <Popconfirm
                                                                                         title="Delete this label?"

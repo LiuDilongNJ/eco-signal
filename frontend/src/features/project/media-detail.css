@@ -2505,6 +2505,43 @@ a.media-item-row {
     min-width: 0;
 }
 
+.studio-label-popover-remove-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 32px;
+    height: 32px;
+    min-height: 32px;
+    margin: 0;
+    padding: 0;
+    border: none;
+    border-radius: var(--es-radius-pill);
+    color: var(--es-color-text);
+    background: transparent;
+    cursor: pointer;
+    transition: background var(--es-duration-fast) var(--es-ease-standard), color var(--es-duration-fast) var(--es-ease-standard), opacity var(--es-duration-fast) var(--es-ease-standard);
+    opacity: 0;
+    pointer-events: none;
+}
+
+.studio-label-popover-row:hover .studio-label-popover-remove-btn,
+.studio-label-popover-row:focus-within .studio-label-popover-remove-btn {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.studio-label-popover-remove-btn:hover:not(:disabled) {
+    background: var(--es-color-danger);
+    color: var(--es-color-text-inverse);
+}
+
+.studio-label-popover-remove-btn:disabled {
+    color: var(--es-color-text-muted);
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
 .studio-label-popover-delete-btn {
     display: flex;
     align-items: center;
@@ -2588,6 +2625,11 @@ a.media-item-row {
     color: var(--es-color-text-inverse);
 }
 
+.studio-label-popover-item.selected:hover:not(:disabled) {
+    background: var(--es-color-brand);
+    color: var(--es-color-text-inverse);
+}
+
 [data-theme="dark"] .studio-label-popover-item {
     color: var(--es-color-text);
 }
@@ -2598,6 +2640,11 @@ a.media-item-row {
 }
 
 [data-theme="dark"] .studio-label-popover-item.selected {
+    background: var(--es-color-brand);
+    color: var(--es-color-text-inverse);
+}
+
+[data-theme="dark"] .studio-label-popover-item.selected:hover:not(:disabled) {
     background: var(--es-color-brand);
     color: var(--es-color-text-inverse);
 }
