@@ -73,7 +73,7 @@ function DataToolbarTooltips({ children }: { children: ReactNode }) {
                 ) : child
 
                 return (
-                    <Tooltip key={child.key} mouseEnterDelay={0} title={getTooltipText(title)}>
+                    <Tooltip key={child.key} title={getTooltipText(title)}>
                         {trigger}
                     </Tooltip>
                 )
@@ -1387,7 +1387,7 @@ export function DataPageLayout({
 
                             {useAddDropdown ? (
                                 ((showAddAction || importOnly) && (
-                                    <Tooltip mouseEnterDelay={0} title={addDisabled ? addDisabledTooltip : importOnly ? "Import data" : importConfig ? "Add or import data" : "Add a new record to this table"}>
+                                    <Tooltip title={addDisabled ? addDisabledTooltip : importOnly ? "Import data" : importConfig ? "Add or import data" : "Add a new record to this table"}>
                                         <span style={{ display: "inline-flex" }}>
                                             <DropdownMenu
                                                 items={mergedAddDropdownItems}
@@ -1406,7 +1406,7 @@ export function DataPageLayout({
                                 ))
                             ) : (
                                 !hideAdd && (
-                                    <Tooltip mouseEnterDelay={0} title={addDisabled ? addDisabledTooltip : "Add a new record to this table"}>
+                                    <Tooltip title={addDisabled ? addDisabledTooltip : "Add a new record to this table"}>
                                         <span style={{ display: "inline-flex" }}>
                                             <ESButton appearance="unstyled" type="button" className="data-btn" title="Add a new record to this table" disabled={addDisabled} onClick={() => onAddCustom ? onAddCustom() : setCrudModal({ open: true, mode: "add" })}>
                                                 <Plus size={14} /> Add
