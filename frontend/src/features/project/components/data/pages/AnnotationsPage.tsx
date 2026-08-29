@@ -9,7 +9,7 @@ import type { ColumnDef, FormFieldDef, RowData, TableState } from "../DataPageLa
 import { message } from "@/components/ui"
 import { annotationsApi } from "../../../../../api/endpoints/annotations"
 import { useProjectStore } from "../../../stores/useProjectStore"
-import { FileText, ClipboardList } from "lucide-react"
+import { ScanLine, ClipboardList } from "lucide-react"
 import { AssignTasksDrawer } from "../../modals/AssignTasksDrawer"
 import { AnnotationFormDrawer } from "../../modals/AnnotationFormDrawer"
 import { downloadFile } from "@/utils/download"
@@ -362,7 +362,7 @@ export function AnnotationsPage() {
                     disabled: !currentProjectId || !currentCollectionId || currentCollectionId === "all",
                     disabledReason: "Select a project and collection before importing annotations",
                 }}
-                icon={FileText}
+                icon={ScanLine}
                 columns={COLUMNS}
                 rows={rows}
                 formFields={FORM_FIELDS}
