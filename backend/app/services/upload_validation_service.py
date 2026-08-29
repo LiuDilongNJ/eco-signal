@@ -30,6 +30,12 @@ PHOTO_EXTENSIONS = {
     "tiff": frozenset({"TIFF"}),
 }
 AUDIO_EXTENSIONS = {"wav", "flac", "mp3", "ogg"}
+VALIDATION_ERROR_MESSAGES = {
+    "unsupported_file_type": "file extension is not allowed",
+    "file_type_mismatch": "file extension does not match the actual content",
+    "invalid_file_content": "file content cannot be decoded safely",
+    "unsafe_archive": "archive content failed security validation",
+}
 _IMAGE_MIME_TYPES = {
     "png": {"image/png"}, "jpg": {"image/jpeg"}, "jpeg": {"image/jpeg"},
     "gif": {"image/gif"}, "webp": {"image/webp"},
@@ -38,6 +44,12 @@ _IMAGE_MIME_TYPES = {
 
 def upload_error(code: str) -> HTTPException:
     return HTTPException(status_code=400, detail=code)
+
+
+def format_validation_error(code: str) -> str:
+    """Return a user-readable validation failure while retaining its stable code."""
+    message = VALIDATION_ERROR_MESSAGES.get(code)
+    return f"{code}: {message}" if message else code
 
 
 def validate_filename(filename: str) -> str:
@@ -86,7 +98,8 @@ def validate_audio_file(path: Path, filename: str) -> None:
     if detected != expected:
         raise upload_error("file_type_mismatch")
     command = [
-        "ffprobe", "-v", "error", "-show_entries", "format=format_name:stream=codec_type",
+        "ffprobe", "-v", "error", "-show_entries",
+        "format=format_name:stream=codec_type:stream_disposition=attached_pic",
         "-of", "json", "-i", str(path),
     ]
     try:
@@ -97,8 +110,22 @@ def validate_audio_file(path: Path, filename: str) -> None:
         raise upload_error("invalid_file_content") from exc
     format_names = set((payload.get("format", {}).get("format_name") or "").split(","))
     compatible = {"wav": {"wav"}, "flac": {"flac"}, "mp3": {"mp3"}, "ogg": {"ogg"}}
-    stream_types = {stream.get("codec_type") for stream in payload.get("streams", [])}
-    if not compatible[expected].intersection(format_names) or stream_types != {"audio"}:
+    streams = payload.get("streams", [])
+    has_audio_stream = any(stream.get("codec_type") == "audio" for stream in streams)
+    has_non_cover_stream = any(
+        stream.get("codec_type") != "audio"
+        and not (
+            stream.get("codec_type") == "video"
+            and stream.get("disposition", {}).get("attached_pic") == 1
+        )
+        for stream in streams
+    )
+    # FLAC and other audio containers may embed album artwork as an attached video stream.
+    if (
+        not compatible[expected].intersection(format_names)
+        or not has_audio_stream
+        or has_non_cover_stream
+    ):
         raise upload_error("file_type_mismatch")
 
 

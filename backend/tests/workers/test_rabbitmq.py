@@ -152,6 +152,12 @@ async def test_task_publisher_routes_analysis_to_analysis_lane(monkeypatch):
 async def test_process_message_acknowledges_success(monkeypatch):
     handler = AsyncMock(return_value={"status": "ok"})
     monkeypatch.setitem(rabbitmq_worker.TASK_REGISTRY, "unit_task", handler)
+    monkeypatch.setattr(
+        rabbitmq_worker,
+        "prepare_queue_for_execution",
+        MagicMock(return_value=QueueStatus.RUNNING),
+    )
+    monkeypatch.setattr(rabbitmq_worker, "cancellation_requested", MagicMock(return_value=False))
     message = FakeMessage(json.dumps({"task": "unit_task", "kwargs": {"queue_id": 1}}).encode())
 
     await rabbitmq_worker.process_message(message, FakeWorkerChannel())
@@ -213,6 +219,11 @@ async def test_process_message_does_not_retry_cancelled_queue(monkeypatch):
         raise TaskRetryError("try later", defer=9)
 
     monkeypatch.setitem(rabbitmq_worker.TASK_REGISTRY, "retry_task", handler)
+    monkeypatch.setattr(
+        rabbitmq_worker,
+        "prepare_queue_for_execution",
+        MagicMock(return_value=QueueStatus.RUNNING),
+    )
     monkeypatch.setattr(rabbitmq_worker, "cancellation_requested", MagicMock(return_value=True))
     finalize = MagicMock()
     monkeypatch.setattr(rabbitmq_worker, "finalize_queue_cancellation", finalize)
@@ -233,6 +244,12 @@ async def test_process_message_retries_task_retry(monkeypatch):
         raise TaskRetryError("try later", defer=9)
 
     monkeypatch.setitem(rabbitmq_worker.TASK_REGISTRY, "retry_task", handler)
+    monkeypatch.setattr(
+        rabbitmq_worker,
+        "prepare_queue_for_execution",
+        MagicMock(return_value=QueueStatus.RUNNING),
+    )
+    monkeypatch.setattr(rabbitmq_worker, "cancellation_requested", MagicMock(return_value=False))
     channel = FakeWorkerChannel()
     message = FakeMessage(json.dumps({"task": "retry_task", "kwargs": {"queue_id": 1}}).encode())
 

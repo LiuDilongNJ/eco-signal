@@ -337,17 +337,11 @@ def list_creator_options(
     collection_id: int | None = None,
 ) -> ApiResponse[list[CreatorOption]]:
     """Return scoped Creator candidates, including all system administrators."""
-    if not permission_service.is_admin(current_user):
-        if collection_id is None:
-            has_access = permission_service.has_resource_permission(
-                session,
-                current_user,
-                "project",
-                "read",
-                project_id=project_id,
-            )
-        else:
-            has_access = permission_service.has_resource_permission(
+    if permission_service.is_admin(current_user):
+        requester_user_id: int | None = None
+    else:
+        if collection_id is not None:
+            has_audio_write = permission_service.has_resource_permission(
                 session,
                 current_user,
                 "audio",
@@ -355,22 +349,26 @@ def list_creator_options(
                 project_id=project_id,
                 collection_id=collection_id,
             )
-        if not has_access:
-            raise HTTPException(status_code=403, detail="No access to the requested project or collection")
+        else:
+            has_audio_write = permission_repository.has_effective_collection_permission_in_project(
+                session,
+                current_user.user_id,
+                "audio",
+                "write",
+                project_id,
+            )
+        if not has_audio_write:
+            raise HTTPException(
+                status_code=403,
+                detail="No audio:write permission on the requested project or collection",
+            )
+        requester_user_id = current_user.user_id
 
-    allowed_project_ids, allowed_collection_scopes = _resolve_user_list_data_scope(
-        session,
-        current_user,
-        project_id=project_id,
-        collection_id=collection_id,
-        scope="current",
-    )
     candidates = user_repository.get_creator_candidates(
         session,
         project_id=project_id,
         collection_id=collection_id,
-        allowed_project_ids=allowed_project_ids,
-        allowed_collection_scopes=allowed_collection_scopes,
+        requester_user_id=requester_user_id,
     )
     return api_success(
         data=[
@@ -463,6 +461,29 @@ def create_user(
       The new user will be granted project:read on that project.
     Admin bypasses all permission checks.
     """
+    validate_user_create(session, current_user, user_in, project_id, collection_id)
+
+    if collection_id is not None:
+        new_user = user_repository.create(session=session, obj_in=user_in, commit=False)
+        coll_perm = session.exec(select(Permission).where(Permission.resource_type == "collection", Permission.action == "read")).one()
+        session.add(UserPermission(user_id=new_user.user_id, project_id=project_id, collection_id=collection_id, permission_id=coll_perm.permission_id))
+        proj_perm = session.exec(select(Permission).where(Permission.resource_type == "project", Permission.action == "read")).one()
+        session.add(UserPermission(user_id=new_user.user_id, project_id=project_id, permission_id=proj_perm.permission_id))
+    else:
+        new_user = user_repository.create(session=session, obj_in=user_in, commit=False)
+        perm = session.exec(select(Permission).where(Permission.resource_type == "project", Permission.action == "read")).one()
+        session.add(UserPermission(user_id=new_user.user_id, project_id=project_id, permission_id=perm.permission_id))
+    if commit:
+        session.commit()
+    else:
+        session.flush()
+    session.refresh(new_user)
+
+
+def validate_user_create(
+    session: Session, current_user: User, user_in: UserCreate, project_id: int, collection_id: int | None = None,
+) -> None:
+    """Validate a user creation and target permission scope without persisting it."""
     # Check email uniqueness
     existing_user = user_repository.get_by_email(session=session, email=user_in.email)
     if existing_user:
@@ -503,40 +524,6 @@ def create_user(
                 detail="No write permission on this collection",
             )
 
-        new_user = user_repository.create(session=session, obj_in=user_in, commit=False)
-
-        # Query collection:read permission from DB
-        coll_perm = session.exec(
-            select(Permission).where(
-                Permission.resource_type == "collection",
-                Permission.action == "read",
-            )
-        ).one()
-        session.add(UserPermission(
-            user_id=new_user.user_id,
-            project_id=project_id,
-            collection_id=collection_id,
-            permission_id=coll_perm.permission_id,
-        ))
-
-        # Also grant project:read permission
-        proj_perm = session.exec(
-            select(Permission).where(
-                Permission.resource_type == "project",
-                Permission.action == "read",
-            )
-        ).one()
-        session.add(UserPermission(
-            user_id=new_user.user_id,
-            project_id=project_id,
-            permission_id=proj_perm.permission_id,
-        ))
-        
-        if commit:
-            session.commit()
-        else:
-            session.flush()
-
     else:
         # Scenario B: bind to project — requires project:write
         if not permission_service.has_resource_permission(
@@ -547,27 +534,6 @@ def create_user(
                 detail="No write permission on this project",
             )
 
-        new_user = user_repository.create(session=session, obj_in=user_in, commit=False)
-
-        # Query project:read permission from DB
-        perm = session.exec(
-            select(Permission).where(
-                Permission.resource_type == "project",
-                Permission.action == "read",
-            )
-        ).one()
-        session.add(UserPermission(
-            user_id=new_user.user_id,
-            project_id=project_id,
-            permission_id=perm.permission_id,
-        ))
-        
-        if commit:
-            session.commit()
-        else:
-            session.flush()
-
-    session.refresh(new_user)
 
 
 def get_user_by_id(

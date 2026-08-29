@@ -17,6 +17,8 @@ interface ImportInstructionsDrawerProps {
     onClose: () => void
 }
 
+type TemplateFormat = "csv" | "txt" | "json"
+
 function textValue(value: unknown): string {
     if (value === null || value === undefined) return ""
     if (typeof value === "object") return JSON.stringify(value)
@@ -27,17 +29,36 @@ function delimitedExample(config: ImportResourceConfig, delimiter: string): stri
     const headers = config.fields.map((item) => item.name)
     return [
         headers.join(delimiter),
-        headers.map((name) => textValue(config.example[name])).join(delimiter),
+        ...[config.example, config.additionalExample].map((example) => (
+            headers.map((name) => textValue(example[name])).join(delimiter)
+        )),
     ].join("\n")
+}
+
+function templateFilename(config: ImportResourceConfig, format: TemplateFormat): string {
+    const basename = config.templateFileName.replace(/\.csv$/i, "")
+    return `${basename}.${format}`
+}
+
+function templateContent(config: ImportResourceConfig, format: TemplateFormat): string {
+    if (format === "csv") return config.template
+    if (format === "txt") return `${delimitedExample(config, "\t")}\n`
+    return `${JSON.stringify([config.example, config.additionalExample], null, 2)}\n`
+}
+
+const TEMPLATE_MIME_TYPES: Record<TemplateFormat, string> = {
+    csv: "text/csv;charset=utf-8",
+    txt: "text/plain;charset=utf-8",
+    json: "application/json;charset=utf-8",
 }
 
 export function ImportInstructionsDrawer({ config, open, onClose }: ImportInstructionsDrawerProps) {
     const isDark = useAppStore((state) => state.effectiveTheme === "dark")
 
-    const downloadTemplate = () => {
+    const downloadTemplate = (format: TemplateFormat) => {
         downloadFile(
-            { blob: new Blob([config.template], { type: "text/csv;charset=utf-8" }) },
-            config.templateFileName,
+            { blob: new Blob([templateContent(config, format)], { type: TEMPLATE_MIME_TYPES[format] }) },
+            templateFilename(config, format),
         )
     }
 
@@ -63,22 +84,16 @@ export function ImportInstructionsDrawer({ config, open, onClose }: ImportInstru
                             </div>
                         ))}
                     </div>
-                    <p>
-                        Download a{" "}
-                        <Button type="link" className="sound-settings-instructions__download" onClick={downloadTemplate}>
-                            template CSV file
-                        </Button>{" "}
-                        containing the exact accepted headers and one example row.
-                    </p>
-                    <strong>CSV example</strong>
-                    <pre className="sound-settings-instructions__code">{config.template.trimEnd()}</pre>
-                    <strong>Delimited TXT examples</strong>
-                    <p>TXT files may use Tab, semicolon, or pipe delimiters. The same delimiter must be used consistently.</p>
-                    <pre className="sound-settings-instructions__code">{delimitedExample(config, "\t")}</pre>
-                    <pre className="sound-settings-instructions__code">{delimitedExample(config, ";")}</pre>
-                    <pre className="sound-settings-instructions__code">{delimitedExample(config, "|")}</pre>
-                    <strong>JSON example</strong>
-                    <pre className="sound-settings-instructions__code">{JSON.stringify([config.example], null, 2)}</pre>
+                    <p>Download a template containing the exact accepted fields and two example records.</p>
+                    <div
+                        className="sound-settings-instructions__downloads"
+                        role="group"
+                        aria-label="Download import templates"
+                    >
+                        <Button onClick={() => downloadTemplate("csv")}>Download CSV Template</Button>
+                        <Button onClick={() => downloadTemplate("txt")}>Download TXT Template</Button>
+                        <Button onClick={() => downloadTemplate("json")}>Download JSON Template</Button>
+                    </div>
                 </div>
             </CustomScrollArea>
         </DetailDrawer>

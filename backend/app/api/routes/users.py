@@ -23,6 +23,7 @@ from app.schemas.response import PagedApiResponse, ApiResponse, api_success
 from app.schemas.user import (
     SetContributorRequest,
     CreatorOption,
+    CurrentUserPublic,
     UserListPublic,
     UserPreferenceUpdate,
     UserPublic,
@@ -123,7 +124,7 @@ def list_users(
 )
 def list_creator_candidates(
     session: SessionDep,
-    current_user: ActiveManager,
+    current_user: CurrentUser,
     project_id: int = Query(..., description="项目 ID / Project ID"),
     collection_id: int | None = Query(default=None, description="集合 ID / Collection ID"),
 ) -> Any:
@@ -253,11 +254,12 @@ def update_password_me(
     )
 
 
-@router_views.get("/current-user", response_model=ApiResponse[UserPublic], summary="获取当前用户 / Get Me")
+@router_views.get("/current-user", response_model=ApiResponse[CurrentUserPublic], summary="获取当前用户 / Get Me")
 def read_user_me(
     session: SessionDep,
     current_user: CurrentUser,
     project_id: int | None = Query(default=None, description="项目 ID（选填）/ Project ID (optional)"),
+    collection_id: int | None = Query(default=None, description="集合 ID（选填）/ Collection ID (optional)"),
 ) -> Any:
     """
     获取当前用户。 / Get current user.
@@ -280,12 +282,37 @@ def read_user_me(
                 )
             )
 
-    data = UserPublic.model_validate(
+    can_write_audio = False
+    if project_id is not None:
+        if collection_id is not None:
+            can_write_audio = permission_service.has_resource_permission(
+                session,
+                current_user,
+                "audio",
+                "write",
+                project_id=project_id,
+                collection_id=collection_id,
+            )
+        elif permission_service.is_admin(current_user):
+            can_write_audio = bool(
+                permission_repository.get_project_collection_ids(session, project_id)
+            )
+        elif current_user.user_id is not None:
+            can_write_audio = permission_repository.has_effective_collection_permission_in_project(
+                session,
+                current_user.user_id,
+                "audio",
+                "write",
+                project_id,
+            )
+
+    data = CurrentUserPublic.model_validate(
         {
             **current_user.model_dump(),
             "preference": current_user.preference,
             "is_admin": permission_service.is_admin(current_user),
             "is_project_admin": is_project_admin,
+            "can_write_audio": can_write_audio,
         }
     )
     return api_success(data=data)

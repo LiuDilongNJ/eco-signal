@@ -63,8 +63,6 @@ export function useTabularImport({ label, config, submit, onCommitted }: UseTabu
             setResultOpen(true)
             if (data.failed > 0 || data.global_errors.length > 0) {
                 message.warning("Validation completed with errors")
-            } else {
-                message.success(`Validated ${data.succeeded} of ${data.total} row(s)`)
             }
         } catch (error) {
             const reason = error instanceof ApiError ? error.message : "Import validation failed"

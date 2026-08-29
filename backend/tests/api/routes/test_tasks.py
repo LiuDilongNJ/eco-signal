@@ -399,6 +399,20 @@ class TestAssignTasks:
         data = r.json()["data"]
         assert data["assigned_count"] == 2
 
+    def test_unknown_assignee_rejected(
+        self, client: TestClient, superuser_token_headers: dict, db: Session
+    ) -> None:
+        media, _ = _create_media_with_collection(db)
+
+        response = client.put(
+            f"{settings.API_V1_STR}/media/{media.media_id}/tasks",
+            headers=superuser_token_headers,
+            json={"type": "media", "assignments": [{"user_id": 999999}]},
+        )
+
+        assert response.status_code == 404
+        assert response.json()["message"] == "Assignee not found"
+
 
 # GET /tasks/ (List & Export) and Detail/Delete
 
@@ -654,3 +668,94 @@ class TestTaskManagementAPI:
         )
         # Assuming normal user doesn't have assigner status for this task
         assert r.status_code in [403, 404]
+
+
+class TestTaskImports:
+    def _import_tasks(
+        self,
+        client: TestClient,
+        headers: dict,
+        project_id: int,
+        collection_id: int,
+        csv_text: str,
+        *,
+        dry_run: bool,
+    ):
+        return client.post(
+            f"{settings.API_V1_STR}/tasks/imports",
+            headers=headers,
+            data={
+                "project_id": str(project_id),
+                "collection_id": str(collection_id),
+                "dry_run": "true" if dry_run else "false",
+            },
+            files={"file": ("tasks.csv", csv_text.encode(), "text/csv")},
+        )
+
+    def test_unknown_assignee_fails_dry_run(
+        self, client: TestClient, superuser_token_headers: dict, db: Session
+    ) -> None:
+        media, collection = _create_media_with_collection(db)
+        project = _create_project_for_collection(db, collection)
+        csv_text = (
+            "media_id,type,annotation_id,assignee_id,comment\n"
+            f"{media.media_id},media,,999999,Review this recording\n"
+        )
+
+        response = self._import_tasks(
+            client,
+            superuser_token_headers,
+            project.project_id,
+            collection.collection_id,
+            csv_text,
+            dry_run=True,
+        )
+
+        assert response.status_code == 200
+        payload = response.json()["data"]
+        assert payload["failed"] == 1
+        assert payload["committed"] is False
+        assert payload["rows"][0]["reason"] == "Assignee not found"
+
+    def test_two_assignees_same_media_dry_run_then_commit(
+        self, client: TestClient, superuser_token_headers: dict, db: Session
+    ) -> None:
+        media, collection = _create_media_with_collection(db)
+        project = _create_project_for_collection(db, collection)
+        admin = db.exec(select(User).where(User.role_id == 1)).first()
+        assignee_a = _create_user(db, admin.role_id, "task_import_a", "Import A")
+        assignee_b = _create_user(db, admin.role_id, "task_import_b", "Import B")
+        csv_text = (
+            "media_id,type,annotation_id,assignee_id,comment\n"
+            f"{media.media_id},media,,{assignee_a.user_id},Review this recording\n"
+            f"{media.media_id},media,,{assignee_b.user_id},Review this recording too\n"
+        )
+
+        validation = self._import_tasks(
+            client,
+            superuser_token_headers,
+            project.project_id,
+            collection.collection_id,
+            csv_text,
+            dry_run=True,
+        )
+        assert validation.status_code == 200
+        assert validation.json()["data"]["failed"] == 0
+        assert validation.json()["data"]["succeeded"] == 2
+
+        committed = self._import_tasks(
+            client,
+            superuser_token_headers,
+            project.project_id,
+            collection.collection_id,
+            csv_text,
+            dry_run=False,
+        )
+        assert committed.status_code == 200
+        payload = committed.json()["data"]
+        assert payload["committed"] is True
+        assert payload["succeeded"] == 2
+        assert payload["failed"] == 0
+
+        tasks = db.exec(select(Task).where(Task.media_id == media.media_id)).all()
+        assert {task.assignee_id for task in tasks} == {assignee_a.user_id, assignee_b.user_id}

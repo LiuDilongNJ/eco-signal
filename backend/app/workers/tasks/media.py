@@ -29,6 +29,7 @@ from app.services.media_preview_service import (
     generate_media_previews,
     generate_photo_thumbnail,
 )
+from app.services.upload_validation_service import format_validation_error
 from app.spectrogram import generate_player_spectrogram, generate_thumbnail
 
 logger = logging.getLogger(__name__)
@@ -450,6 +451,24 @@ def _sync_batch_completed(queue_id: int, item_ids: list[int]) -> None:
         session.commit()
 
 
+def _batch_file_failure_message(file_upload: FileUpload | None) -> str:
+    filename = file_upload.name if file_upload and file_upload.name else "unknown"
+    error = file_upload.error.strip() if file_upload and file_upload.error else "unknown processing error"
+    return f"File {filename} failed to process: {format_validation_error(error)}"
+
+
+def _resolve_batch_queue_status(
+    *,
+    has_failures: bool,
+    has_warning: bool,
+) -> tuple[QueueStatus, str]:
+    if has_failures:
+        return QueueStatus.ERROR, "error"
+    if has_warning:
+        return QueueStatus.WARNING, "warning"
+    return QueueStatus.COMPLETED, "completed"
+
+
 def _merge_batch_file(
     file_upload_id: int,
     media_type: str,
@@ -579,16 +598,16 @@ async def process_media_batch(
             queue.warning = "; ".join(
                 warning for warning in (queue.warning, duplicate_warning) if warning
             )
+        queue_status, result_status = _resolve_batch_queue_status(
+            has_failures=bool(failures),
+            has_warning=bool(queue.warning),
+        )
         if failures:
             queue.error = "; ".join(
-                f"File {item.name if item else 'unknown'} failed to process"
+                _batch_file_failure_message(item)
                 for item in failures
             )
-            queue.status = QueueStatus.ERROR
-        elif queue.warning:
-            queue.status = QueueStatus.WARNING
-        else:
-            queue.status = QueueStatus.COMPLETED
+        queue.status = queue_status
         queue.stop_time = dt.now(datetime.UTC)
         session.add(queue)
         session.commit()
@@ -597,5 +616,5 @@ async def process_media_batch(
         "queue_id": queue_id,
         "completed": len(successes),
         "total": len(item_ids),
-        "status": "error" if failures else "warning" if queue.warning else "completed",
+        "status": result_status,
     }

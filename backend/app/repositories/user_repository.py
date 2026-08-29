@@ -1,7 +1,7 @@
 from typing import Any
 
 from sqlalchemy import and_, false, or_
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import aliased, selectinload
 from sqlmodel import Session, select, func
 
 from app.core.config import settings
@@ -410,14 +410,13 @@ class UserRepository(BaseRepository[User, UserCreate, UserUpdate]):
         *,
         project_id: int,
         collection_id: int | None,
-        allowed_project_ids: list[int] | None,
-        allowed_collection_scopes: list[tuple[int, int]] | None,
+        requester_user_id: int | None,
     ) -> list[User]:
         """Return scoped Creator candidates plus all system administrators."""
         admin_condition = User.role_id.in_(
             select(Role.role_id).where(Role.name == settings.ADMIN_ROLE_NAME)
         )
-        if allowed_project_ids is None and allowed_collection_scopes is None:
+        if requester_user_id is None:
             if collection_id is not None:
                 scoped_condition = User.user_id.in_(
                     select(UserEffectivePermission.user_id).where(
@@ -433,9 +432,22 @@ class UserRepository(BaseRepository[User, UserCreate, UserUpdate]):
                     )
                 )
         else:
-            scoped_condition = self.build_manager_scope_user_condition(
-                allowed_project_ids or [],
-                allowed_collection_scopes or [],
+            candidate_scope = aliased(UserEffectivePermission)
+            requester_scope = aliased(UserEffectivePermission)
+            scope_filters = [
+                candidate_scope.project_id == project_id,
+                candidate_scope.scope_type == "project_collection",
+                requester_scope.user_id == requester_user_id,
+                requester_scope.project_id == project_id,
+                requester_scope.scope_type == "project_collection",
+                requester_scope.resource_type == "audio",
+                requester_scope.action == "write",
+                requester_scope.collection_id == candidate_scope.collection_id,
+            ]
+            if collection_id is not None:
+                scope_filters.append(candidate_scope.collection_id == collection_id)
+            scoped_condition = User.user_id.in_(
+                select(candidate_scope.user_id).join(requester_scope, and_(*scope_filters))
             )
 
         stmt = (

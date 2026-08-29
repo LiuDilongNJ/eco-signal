@@ -105,6 +105,16 @@ class AuthRefreshSessionRepository:
         """Atomically validate and extend a session family's inactivity window."""
         if timeout_seconds <= 0:
             return "active"
+        if not hasattr(redis, "eval"):
+            # Lightweight in-memory implementations used by isolated callers do
+            # not expose Lua scripting. Real Redis clients always use the
+            # atomic branch below.
+            if await redis.get(_family_revoked_key(family_id)):
+                return "revoked"
+            if not await redis.get(_family_activity_key(family_id)):
+                return "expired"
+            await redis.set(_family_activity_key(family_id), "1", ex=timeout_seconds)
+            return "active"
         result = await redis.eval(
             _TOUCH_FAMILY_ACTIVITY_SCRIPT,
             2,

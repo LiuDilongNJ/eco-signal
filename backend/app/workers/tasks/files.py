@@ -13,6 +13,7 @@ from app.media_paths import normalize_media_relative_path
 from app.models import FileUpload, Queue
 from app.services.data_import_service import data_import_service
 from app.services.file_service import file_service
+from app.services.upload_validation_service import format_validation_error
 from app.workers.publisher import TaskPublisher
 from app.core.task_cancellation import (
     TASK_CANCELLED_MESSAGE,
@@ -22,17 +23,8 @@ from app.core.task_cancellation import (
 
 logger = logging.getLogger(__name__)
 
-_VALIDATION_ERROR_MESSAGES = {
-    "unsupported_file_type": "file extension is not allowed",
-    "file_type_mismatch": "file extension does not match the actual content",
-    "invalid_file_content": "file content cannot be decoded safely",
-    "unsafe_archive": "archive content failed security validation",
-}
-
-
 def _validation_failure_reason(code: str) -> str:
-    message = _VALIDATION_ERROR_MESSAGES.get(code)
-    return f"{code}: {message}" if message else code
+    return format_validation_error(code)
 
 
 def _update_merge_queue(

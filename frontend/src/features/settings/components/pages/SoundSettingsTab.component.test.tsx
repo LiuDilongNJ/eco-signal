@@ -101,6 +101,15 @@ function menuAction(index: number) {
     act(() => items[index]?.onClick?.())
 }
 
+function readBlob(blob: Blob): Promise<string> {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader()
+        reader.addEventListener("load", () => resolve(String(reader.result)))
+        reader.addEventListener("error", () => reject(reader.error))
+        reader.readAsText(blob)
+    })
+}
+
 describe("SoundSettingsTab interactions", () => {
     it("configures the standard table and creates a normalized sound", async () => {
         const { container } = render(<SoundSettingsTab />)
@@ -156,7 +165,7 @@ describe("SoundSettingsTab interactions", () => {
         expect(screen.getByLabelText("Sound Type")).not.toHaveAttribute("placeholder")
     })
 
-    it("opens separate CSV instructions with the exact format guidance and template", () => {
+    it("shows concise import guidance with downloadable CSV, TXT, and JSON templates", async () => {
         render(<SoundSettingsTab />)
 
         menuAction(3)
@@ -164,11 +173,33 @@ describe("SoundSettingsTab interactions", () => {
         expect(screen.getByText("Data Import Instructions")).toBeInTheDocument()
         expect(screen.getByText("soundscape_component")).toBeInTheDocument()
         expect(screen.queryByText(/Duplicate rows are preserved/)).not.toBeInTheDocument()
-        fireEvent.click(screen.getByRole("button", { name: "template CSV file" }))
-        expect(downloadFile).toHaveBeenCalledWith(
-            expect.objectContaining({ blob: expect.any(Blob) }),
+        expect(screen.queryByText("CSV example")).not.toBeInTheDocument()
+        expect(screen.queryByText("Delimited TXT examples")).not.toBeInTheDocument()
+        expect(screen.queryByText("JSON example")).not.toBeInTheDocument()
+
+        fireEvent.click(screen.getByRole("button", { name: "Download CSV Template" }))
+        fireEvent.click(screen.getByRole("button", { name: "Download TXT Template" }))
+        fireEvent.click(screen.getByRole("button", { name: "Download JSON Template" }))
+
+        expect(downloadFile).toHaveBeenCalledTimes(3)
+        expect(downloadFile.mock.calls.map(([, filename]) => filename)).toEqual([
             "sounds_template.csv",
-        )
+            "sounds_template.txt",
+            "sounds_template.json",
+        ])
+
+        const csvResponse = downloadFile.mock.calls[0]![0]
+        const txtResponse = downloadFile.mock.calls[1]![0]
+        const jsonResponse = downloadFile.mock.calls[2]![0]
+        expect(csvResponse.blob.type).toBe("text/csv;charset=utf-8")
+        expect(txtResponse.blob.type).toBe("text/plain;charset=utf-8")
+        expect(jsonResponse.blob.type).toBe("application/json;charset=utf-8")
+        expect(await readBlob(csvResponse.blob)).toBe("soundscape_component,sound_type\nbiophony,snapping shrimps\ngeophony,rainfall\n")
+        expect(await readBlob(txtResponse.blob)).toBe("soundscape_component\tsound_type\nbiophony\tsnapping shrimps\ngeophony\trainfall\n")
+        expect(JSON.parse(await readBlob(jsonResponse.blob))).toEqual([
+            { soundscape_component: "biophony", sound_type: "snapping shrimps" },
+            { soundscape_component: "geophony", sound_type: "rainfall" },
+        ])
         expect(screen.queryByText("Choose or drop a CSV file here")).not.toBeInTheDocument()
     })
 
@@ -258,7 +289,7 @@ describe("SoundSettingsTab interactions", () => {
             })
         })
         await waitFor(() => expect(dataPageProps.current?.addDisabled).toBe(false))
-        expect(toast.success).toHaveBeenCalledWith("Validated 1 of 1 row(s)")
+        expect(toast.success).not.toHaveBeenCalledWith("Validated 1 of 1 row(s)")
 
         fireEvent.change(input, { target: { files: [file] } })
         await waitFor(() => expect(api.importCsv).toHaveBeenCalledTimes(2))

@@ -41,10 +41,25 @@ def test_audio_content_validation_requires_matching_probe_result(tmp_path: Path,
 
     monkeypatch.setattr(
         "app.services.upload_validation_service.subprocess.run",
-        lambda *args, **kwargs: CompletedProcess(args[0], 0, '{"format":{"format_name":"wav"},"streams":[{"codec_type":"video"}]}'),
+        lambda *args, **kwargs: CompletedProcess(args[0], 0, '{"format":{"format_name":"wav"},"streams":[{"codec_type":"audio"},{"codec_type":"video","disposition":{"attached_pic":0}}]}'),
     )
     with pytest.raises(HTTPException, match="file_type_mismatch"):
         validate_audio_file(path, path.name)
+
+
+def test_audio_content_validation_accepts_embedded_cover_art(tmp_path: Path, monkeypatch) -> None:
+    path = tmp_path / "recording.flac"
+    path.write_bytes(b"fLaC" + b"\x00" * 12)
+    monkeypatch.setattr(
+        "app.services.upload_validation_service.subprocess.run",
+        lambda *args, **kwargs: CompletedProcess(
+            args[0],
+            0,
+            '{"format":{"format_name":"flac"},"streams":[{"codec_type":"audio"},{"codec_type":"video","disposition":{"attached_pic":1}}]}',
+        ),
+    )
+
+    validate_audio_file(path, path.name)
 
 
 @pytest.mark.parametrize(

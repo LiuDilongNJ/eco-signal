@@ -143,6 +143,11 @@ class UserPublic(SQLModel):
     def convert_none_to_empty_string(cls, v: Optional[str]) -> str:
         return v if v is not None else ""
 
+
+class CurrentUserPublic(UserPublic):
+    """Current-user response with capabilities evaluated for the requested scope."""
+    can_write_audio: bool = False
+
 class UserListPublic(SQLModel):
     """Schema for user list/export response (without preferences)."""
     user_id: int

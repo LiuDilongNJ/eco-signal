@@ -16,12 +16,32 @@ from tests.utils.utils import random_email, random_lower_string
 class FakeRedis:
     def __init__(self):
         self.store: dict[str, str] = {}
+        self.sets: dict[str, set[str]] = {}
 
     async def set(self, key, value, ex=None):
         self.store[key] = value
 
     async def get(self, key):
         return self.store.get(key)
+
+    async def delete(self, key):
+        self.store.pop(key, None)
+        self.sets.pop(key, None)
+
+    async def sadd(self, key, value):
+        self.sets.setdefault(key, set()).add(value)
+
+    async def smembers(self, key):
+        return self.sets.get(key, set())
+
+    async def expire(self, key, ex):
+        return True
+
+    async def exists(self, key):
+        return int(key in self.store or key in self.sets)
+
+    async def eval(self, *_args, **_kwargs):
+        return 1
 
 
 async def _fake_redis_dependency(redis: FakeRedis):

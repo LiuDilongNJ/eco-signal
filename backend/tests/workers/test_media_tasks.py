@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from sqlmodel import Session
 
+from app.enums import QueueStatus
 from app.models import (
     AudioSetting,
     Collection,
@@ -16,13 +17,53 @@ from app.models import (
     Role,
     User,
 )
-from app.workers.tasks.media import _find_duplicate_media, _md5_file, process_media
+from app.workers.tasks.media import (
+    _batch_file_failure_message,
+    _find_duplicate_media,
+    _md5_file,
+    _resolve_batch_queue_status,
+    process_media,
+)
 
 
 def test_md5_file_reads_incrementally(tmp_path: Path):
     path = tmp_path / "large.bin"
     path.write_bytes(b"a" * (2 * 1024 * 1024 + 17))
     assert _md5_file(path) == "35de9c6a8ff96d68db9e284d3f7c6aa7"
+
+
+def test_batch_file_failure_message_includes_validation_reason():
+    file_upload = FileUpload(
+        filename="recording.flac",
+        name="recording.flac",
+        uploader_id=1,
+        directory=1,
+        error="file_type_mismatch",
+    )
+    assert _batch_file_failure_message(file_upload) == (
+        "File recording.flac failed to process: "
+        "file_type_mismatch: file extension does not match the actual content"
+    )
+
+
+@pytest.mark.parametrize(
+    ("has_failures", "has_warning", "expected_queue_status", "expected_result_status"),
+    [
+        (True, True, QueueStatus.ERROR, "error"),
+        (False, True, QueueStatus.WARNING, "warning"),
+        (False, False, QueueStatus.COMPLETED, "completed"),
+    ],
+)
+def test_resolve_batch_queue_status(
+    has_failures: bool,
+    has_warning: bool,
+    expected_queue_status: QueueStatus,
+    expected_result_status: str,
+):
+    assert _resolve_batch_queue_status(
+        has_failures=has_failures,
+        has_warning=has_warning,
+    ) == (expected_queue_status, expected_result_status)
 
 
 def test_find_duplicate_media_scoped_to_collection(db: Session):
