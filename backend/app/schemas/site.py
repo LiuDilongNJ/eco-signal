@@ -111,6 +111,7 @@ class SiteMapLightPoint(SQLModel):
 
 class SiteMapLightGeometry(SQLModel):
     point: Optional[SiteMapLightPoint] = None
+    point_source: Optional[str] = None
 
 
 class SiteMapLightMarker(SQLModel):

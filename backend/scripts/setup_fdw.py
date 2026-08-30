@@ -8,8 +8,7 @@ It connects to the main database and:
 1. Creates the postgres_fdw extension.
 2. Creates a foreign server pointing to geo_db.
 3. Creates a user mapping.
-4. Imports iho_sea_area and adm_0/adm_1/adm_2 as foreign tables.
-5. Creates a dedicated XR taxon foreign table mapping:
+4. Creates a dedicated XR taxon foreign table mapping:
    geo_col_xr_taxon_species -> geo_db.public.col_xr_taxon_species
 """
 
@@ -92,27 +91,9 @@ def setup_fdw() -> None:
             """))
             log.info("User mapping configured.")
 
-            # 4. Drop existing foreign tables and re-import from geo_db
-            # Only import if the geo_db tables exist (i.e., data has been loaded)
-            try:
-                conn.execute(text("DROP FOREIGN TABLE IF EXISTS iho_sea_area CASCADE"))
-                conn.execute(text("DROP FOREIGN TABLE IF EXISTS adm_0 CASCADE"))
-                conn.execute(text("DROP FOREIGN TABLE IF EXISTS adm_1 CASCADE"))
-                conn.execute(text("DROP FOREIGN TABLE IF EXISTS adm_2 CASCADE"))
-                conn.execute(text("""
-                    IMPORT FOREIGN SCHEMA public
-                        LIMIT TO (iho_sea_area, adm_0, adm_1, adm_2)
-                        FROM SERVER geo_server
-                        INTO public
-                """))
-                log.info("Foreign tables (iho_sea_area, adm_0, adm_1, adm_2) imported successfully.")
-            except Exception as e:
-                # geo_db tables may not exist yet (before first data import)
-                log.warning(
-                    "Could not import foreign tables (geo_db may be empty, run import_geo_data.py first): %s", e
-                )
-
-            # 5. Ensure XR taxon foreign table exists with a stable local name
+            # 4. Ensure XR taxon foreign table exists with a stable local name.
+            # GADM and IHO reads use a direct geo_db connection so PostGIS work
+            # remains on the server that owns the spatial indexes.
             #    We create this explicitly to avoid name collisions and to keep
             #    API-side queries predictable.
             try:

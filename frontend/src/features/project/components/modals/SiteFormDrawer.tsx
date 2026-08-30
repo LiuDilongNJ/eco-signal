@@ -13,6 +13,7 @@ import { useGeoOptions, type GeoOptionsFilter } from "../hooks/useGeoOptions"
 import { CustomScrollArea } from "@/components/ui"
 import { isSelectScrollNearBottom } from "@/hooks/usePagedSelectOptions"
 import { CircleHelp } from "lucide-react"
+import { geoApi } from "@/api/endpoints/geo"
 import "./styles/FormDrawer.css"
 
 function gadmSelectOptions(opts: { gid?: string; name: string; name_zh?: string }[]) {
@@ -160,10 +161,16 @@ export function SiteFormDrawer({
     const drawerWasOpenRef = useRef(false)
     /** Edit: full hydrate only when `initialData` ref from parent changes; later option loads only patch labels. */
     const lastEditInitialRef = useRef<Record<string, unknown> | undefined>(undefined)
+    const locationFieldSourceRef = useRef<Record<"gadm0_gid" | "gadm1_gid" | "gadm2_gid" | "iho_id", "empty" | "auto" | "manual">>({
+        gadm0_gid: "empty", gadm1_gid: "empty", gadm2_gid: "empty", iho_id: "empty",
+    })
+    const coordinateLookupVersionRef = useRef(0)
     const [form] = Form.useForm()
 
     const gadm0FieldVal = Form.useWatch("gadm0_gid", form)
     const gadm1FieldVal = Form.useWatch("gadm1_gid", form)
+    const latitudeWatch = Form.useWatch("latitude", form)
+    const longitudeWatch = Form.useWatch("longitude", form)
     const realmIdWatch = Form.useWatch("realm_id", form)
     const biomeIdWatch = Form.useWatch("biome_id", form)
     const gadm0ParentGid = gadmWatchToGid(gadm0FieldVal)
@@ -270,6 +277,58 @@ export function SiteFormDrawer({
             drawerWasOpenRef.current = true
         }
     }, [open, mode, form])
+
+    useEffect(() => {
+        if (!open) {
+            locationFieldSourceRef.current = { gadm0_gid: "empty", gadm1_gid: "empty", gadm2_gid: "empty", iho_id: "empty" }
+            return
+        }
+        if (mode === "edit" && initialData) {
+            locationFieldSourceRef.current = { gadm0_gid: "manual", gadm1_gid: "manual", gadm2_gid: "manual", iho_id: "manual" }
+        }
+    }, [open, mode, initialData])
+
+    useEffect(() => {
+        const longitude = Number(longitudeWatch)
+        const latitude = Number(latitudeWatch)
+        if (!Number.isFinite(longitude) || !Number.isFinite(latitude) || longitude < -180 || longitude > 180 || latitude < -90 || latitude > 90) return
+        const version = ++coordinateLookupVersionRef.current
+        const timer = window.setTimeout(async () => {
+            try {
+                const response = await geoApi.getCoordinateMatches(longitude, latitude, true)
+                if (version !== coordinateLookupVersionRef.current || response.code !== 0 && response.code !== 200) return
+                const matched = response.data
+                if (!matched) return
+                const updates: Record<string, unknown> = {}
+                const applyGadm = (key: "gadm0_gid" | "gadm1_gid" | "gadm2_gid", option: { gid: string; name: string } | null) => {
+                    if (!option || locationFieldSourceRef.current[key] === "manual") return
+                    updates[key] = { value: option.gid, label: option.name }
+                    locationFieldSourceRef.current[key] = "auto"
+                }
+                if (matched.gadm.status === "matched") {
+                    applyGadm("gadm0_gid", matched.gadm.gadm0)
+                    applyGadm("gadm1_gid", matched.gadm.gadm1)
+                    applyGadm("gadm2_gid", matched.gadm.gadm2)
+                    if (matched.gadm.gadm0) gadm0State.setCurrentOption(matched.gadm.gadm0)
+                    if (matched.gadm.gadm1) gadm1State.setCurrentOption(matched.gadm.gadm1)
+                    if (matched.gadm.gadm2) gadm2State.setCurrentOption(matched.gadm.gadm2)
+                }
+                if (matched.iho.status === "matched" && matched.iho.option && locationFieldSourceRef.current.iho_id !== "manual") {
+                    updates.iho_id = { value: Number(matched.iho.option.gid), label: matched.iho.option.name }
+                    locationFieldSourceRef.current.iho_id = "auto"
+                    ihoState.setCurrentOption({ gid: matched.iho.option.gid, name: matched.iho.option.name })
+                }
+                if (Object.keys(updates).length) form.setFieldsValue(updates)
+            } catch {
+                // Coordinate assistance must not block manual geographic input.
+            }
+        }, 350)
+        return () => window.clearTimeout(timer)
+    }, [
+        open, latitudeWatch, longitudeWatch, form,
+        gadm0State.setCurrentOption, gadm1State.setCurrentOption,
+        gadm2State.setCurrentOption, ihoState.setCurrentOption,
+    ])
 
     // Edit: full hydrate only when parent gives a new `initialData` object; when only geo lists load, patch GADM labels only.
     useEffect(() => {
@@ -552,6 +611,7 @@ export function SiteFormDrawer({
                     }}
                     popupRender={(menu) => renderPagedPopup(menu, gadm0Loading)}
                     onChange={(value) => {
+                        if (!isInitializing.current) locationFieldSourceRef.current.gadm0_gid = "manual"
                         const id = gadmWatchToGid(value)
                         gadm0State.setCurrentOption(
                             id ? gadm0Options.find((option) => option.gid === id) ?? null : null,
@@ -582,6 +642,7 @@ export function SiteFormDrawer({
                     }}
                     popupRender={(menu) => renderPagedPopup(menu, gadm1Loading)}
                     onChange={(value) => {
+                        if (!isInitializing.current) locationFieldSourceRef.current.gadm1_gid = "manual"
                         const id = gadmWatchToGid(value)
                         gadm1State.setCurrentOption(
                             id ? gadm1Options.find((option) => option.gid === id) ?? null : null,
@@ -611,6 +672,7 @@ export function SiteFormDrawer({
                     }}
                     popupRender={(menu) => renderPagedPopup(menu, gadm2Loading)}
                     onChange={(value) => {
+                        if (!isInitializing.current) locationFieldSourceRef.current.gadm2_gid = "manual"
                         const id = gadmWatchToGid(value)
                         gadm2State.setCurrentOption(
                             id ? gadm2Options.find((option) => option.gid === id) ?? null : null,
@@ -638,6 +700,7 @@ export function SiteFormDrawer({
                     }}
                     popupRender={(menu) => renderPagedPopup(menu, ihoLoading)}
                     onChange={(value) => {
+                        if (!isInitializing.current) locationFieldSourceRef.current.iho_id = "manual"
                         const rawId =
                             value && typeof value === "object" && "value" in value
                                 ? value.value

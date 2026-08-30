@@ -406,6 +406,12 @@ def _build_marker_geometry(row: dict, *, include_polygons: bool = True) -> dict:
 
     return {
         "point": point,
+        "point_source": (
+            "coordinates" if has_point
+            else "gadm" if location is not None
+            else "iho" if location_iho is not None
+            else None
+        ),
         "location": location,
         "location_iho": location_iho,
     }
@@ -422,7 +428,7 @@ def _build_site_map_light_marker(row: dict) -> SiteMapLightMarker:
     return SiteMapLightMarker(
         site_id=row["site_id"],
         name=row.get("name") or "",
-        geometry=SiteMapLightGeometry(point=point),
+        geometry=SiteMapLightGeometry(point=point, point_source=row.get("point_source")),
         media_count=row["media_count"],
         realm_id=row.get("realm_id"),
         realm_name=row.get("realm_name"),
@@ -442,7 +448,7 @@ def _build_site_map_light_marker_dict(row: dict) -> dict:
     return {
         "site_id": row["site_id"],
         "name": row.get("name") or "",
-        "geometry": {"point": point},
+        "geometry": {"point": point, "point_source": row.get("point_source")},
         "media_count": row["media_count"],
         "realm_id": row.get("realm_id"),
         "realm_name": row.get("realm_name"),

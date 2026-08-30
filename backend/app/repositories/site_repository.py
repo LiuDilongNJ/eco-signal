@@ -2,17 +2,18 @@ import time
 from dataclasses import dataclass
 from typing import Any, Literal, Optional
 
-from sqlalchemy import false, func, literal, or_, text
+from sqlalchemy import case, false, func, literal, or_, text
 from sqlalchemy.orm import aliased, selectinload
 from sqlmodel import Session, select
 
 from app.core.exceptions import AppValidationError
 from app.models.media import Media, MediaCollection
 from app.models.project import ProjectCollection
-from app.models.site import IhoSeaArea, IucnGet, Site, SiteCollection, SiteProject
+from app.models.site import IucnGet, Site, SiteCollection, SiteProject
 from app.models.user import User
 from app.repositories.base import BaseRepository
 from app.repositories.collection_scope import resolve_project_collection_scope
+from app.repositories.geo_repository import GeoDataUnavailableError, geo_repository
 from app.repositories.permission_repository import permission_repository
 from app.repositories.query_helpers import (
     FilterOp,
@@ -119,15 +120,15 @@ class SiteRepository(BaseRepository[Site, SiteCreate, SiteUpdate]):
     def _lookup_iho_name_by_id(self, session: Session, iho_id: Optional[int]) -> Optional[str]:
         if iho_id is None:
             return None
-        name = session.exec(select(IhoSeaArea.name).where(IhoSeaArea.id == iho_id)).first()
-        if name is None:
+        option = geo_repository.resolve_iho(session, iho_id)
+        if option is None:
             raise AppValidationError(f"Invalid IHO id: {iho_id}")
-        return name
+        return option.name
 
     def _lookup_iho_id_by_name(self, session: Session, iho_name: Optional[str]) -> Optional[int]:
         if not iho_name:
             return None
-        return session.exec(select(IhoSeaArea.id).where(IhoSeaArea.name == iho_name)).first()
+        return geo_repository.resolve_iho_id_by_name(session, iho_name)
 
     def _resolve_adm_hierarchy_by_gids(
         self,
@@ -143,111 +144,21 @@ class SiteRepository(BaseRepository[Site, SiteCreate, SiteUpdate]):
         - gadm0/gadm1/gadm2
         - gadm0_gid/gadm1_gid/gadm2_gid
         """
-        if not gadm0_gid:
-            return {
-                "gadm0": None,
-                "gadm1": None,
-                "gadm2": None,
-                "gadm0_gid": None,
-                "gadm1_gid": None,
-                "gadm2_gid": None,
-            }
-
-        g0 = session.execute(
-            text(
-                """
-                SELECT "COUNTRY" AS name, "GID_0" AS gid
-                FROM adm_0
-                WHERE "GID_0" = :gid
-                LIMIT 2
-                """
-            ),
-            {"gid": gadm0_gid},
-        ).fetchall()
-        if not g0:
-            raise AppValidationError(f"Invalid GADM level 0 gid: {gadm0_gid}")
-        if len(g0) > 1:
-            raise AppValidationError(f"Ambiguous GADM level 0 gid: {gadm0_gid}")
-        g0_name, g0_gid = g0[0]
-
-        g1_name = g1_gid = None
-        if gadm1_gid:
-            g1 = session.execute(
-                text(
-                    """
-                    SELECT "NAME_1" AS name, "GID_1" AS gid
-                    FROM adm_1
-                    WHERE "GID_1" = :gid_1
-                      AND "GID_0" = :gid_0
-                    LIMIT 2
-                    """
-                ),
-                {"gid_1": gadm1_gid, "gid_0": g0_gid},
-            ).fetchall()
-            if not g1:
-                raise AppValidationError(f"Invalid GADM level 1 gid: {gadm1_gid}")
-            if len(g1) > 1:
-                raise AppValidationError(f"Ambiguous GADM level 1 gid: {gadm1_gid}")
-            g1_name, g1_gid = g1[0]
-
-        g2_name = g2_gid = None
-        if gadm2_gid:
-            params: dict[str, Any] = {"gid_2": gadm2_gid, "gid_0": g0_gid}
-            if gadm1_gid:
-                params["gid_1"] = gadm1_gid
-                g2_sql = """
-                    SELECT "NAME_2" AS name, "GID_2" AS gid
-                    FROM adm_2
-                    WHERE "GID_2" = :gid_2
-                      AND "GID_0" = :gid_0
-                      AND "GID_1" = :gid_1
-                    LIMIT 2
-                """
-            else:
-                g2_sql = """
-                    SELECT "NAME_2" AS name, "GID_2" AS gid
-                    FROM adm_2
-                    WHERE "GID_2" = :gid_2
-                      AND "GID_0" = :gid_0
-                    LIMIT 2
-                """
-            g2 = session.execute(text(g2_sql), params).fetchall()
-            if not g2:
-                raise AppValidationError(f"Invalid GADM level 2 gid: {gadm2_gid}")
-            if len(g2) > 1:
-                raise AppValidationError(f"Ambiguous GADM level 2 gid: {gadm2_gid}")
-            g2_name, g2_gid = g2[0]
-
-            if g1_gid is None:
-                inferred = session.execute(
-                    text(
-                        """
-                        SELECT "NAME_1", "GID_1"
-                        FROM adm_1
-                        WHERE "GID_1" = (
-                            SELECT "GID_1"
-                            FROM adm_2
-                            WHERE "GID_2" = :gid_2
-                            LIMIT 1
-                        )
-                        LIMIT 1
-                        """
-                    ),
-                    {"gid_2": g2_gid},
-                ).first()
-                if inferred:
-                    g1_name, g1_gid = inferred[0], inferred[1]
-
-        return {
-            "gadm0": g0_name,
-            "gadm1": g1_name,
-            "gadm2": g2_name,
-            "gadm0_gid": g0_gid,
-            "gadm1_gid": g1_gid,
-            "gadm2_gid": g2_gid,
-        }
+        try:
+            return geo_repository.resolve_gadm_hierarchy(session, gadm0_gid, gadm1_gid, gadm2_gid)
+        except GeoDataUnavailableError:
+            raise
+        except ValueError as exc:
+            raise AppValidationError(str(exc)) from exc
 
     def _set_location_iho_shape(self, session: Session, site_id: int, iho_id: int) -> None:
+        geometry = geo_repository.geometry_ewkb(session, "iho", iho_id)
+        if geometry is not None:
+            session.execute(
+                text("UPDATE site SET location_iho = ST_GeomFromEWKB(:geometry) WHERE site_id = :id"),
+                {"geometry": geometry, "id": site_id},
+            )
+            return
         session.execute(
             text(
                 """
@@ -294,6 +205,22 @@ class SiteRepository(BaseRepository[Site, SiteCreate, SiteUpdate]):
         )
 
     def _set_location_from_adm(self, session: Session, site_id: int, adm_meta: dict[str, Optional[str]]) -> None:
+        source: str | None = None
+        identifier: str | None = None
+        if adm_meta.get("gadm2_gid"):
+            source, identifier = "gadm2", adm_meta["gadm2_gid"]
+        elif adm_meta.get("gadm1_gid"):
+            source, identifier = "gadm1", adm_meta["gadm1_gid"]
+        elif adm_meta.get("gadm0_gid"):
+            source, identifier = "gadm0", adm_meta["gadm0_gid"]
+        if source and identifier:
+            geometry = geo_repository.geometry_ewkb(session, source, identifier)  # type: ignore[arg-type]
+            if geometry is not None:
+                session.execute(
+                    text("UPDATE site SET location = ST_GeomFromEWKB(:geometry) WHERE site_id = :id"),
+                    {"geometry": geometry, "id": site_id},
+                )
+                return
         if adm_meta.get("gadm2_gid"):
             sql = """
                 UPDATE site
@@ -1127,6 +1054,12 @@ class SiteRepository(BaseRepository[Site, SiteCreate, SiteUpdate]):
             Site.name.label("name"),
             coord["resolved_lat"].label("latitude"),
             coord["resolved_lon"].label("longitude"),
+            case(
+                ((Site.longitude.is_not(None) & Site.latitude.is_not(None)), literal("coordinates")),
+                (Site.location.is_not(None), literal("gadm")),
+                (Site.location_iho.is_not(None), literal("iho")),
+                else_=literal(None),
+            ).label("point_source"),
             Site.realm_id.label("realm_id"),
             realm.name.label("realm_name"),
             Site.biome_id.label("biome_id"),
