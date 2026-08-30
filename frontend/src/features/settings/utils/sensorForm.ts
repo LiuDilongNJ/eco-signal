@@ -1,4 +1,3 @@
-import type { CameraLensInfo } from "../../../api/endpoints/cameras"
 import type { SensorCreateBody } from "../../../api/endpoints/sensors"
 import { nullableTrimmedText } from "./settingsPayload"
 
@@ -10,11 +9,6 @@ export type SensorFormValues = {
     camera_id?: number
     lens_id?: number
     description?: string
-}
-
-export function getUniqueDefaultLensId(lenses: CameraLensInfo[]): number | undefined {
-    const defaults = lenses.filter((lens) => lens.is_default)
-    return defaults.length === 1 ? defaults[0]?.lens_id : undefined
 }
 
 export function buildSensorWritePayload(values: SensorFormValues): SensorCreateBody {

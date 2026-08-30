@@ -137,8 +137,19 @@ class TestListRecorders:
         high = _make_recorder(db, "SortMicCountHigh")
         mic1 = _make_microphone(db, "SortMicCount1")
         mic2 = _make_microphone(db, "SortMicCount2")
+        mic3 = _make_microphone(db, "SortMicCount3")
+        mic4 = _make_microphone(db, "SortMicCount4")
+        mic5 = _make_microphone(db, "SortMicCount5")
+        mic6 = _make_microphone(db, "SortMicCount6")
+        mic7 = _make_microphone(db, "SortMicCount7")
+        db.add(RecorderMicrophone(recorder_id=low.recorder_id, microphone_id=mic1.microphone_id))
+        db.add(RecorderMicrophone(recorder_id=low.recorder_id, microphone_id=mic2.microphone_id))
+        db.add(RecorderMicrophone(recorder_id=low.recorder_id, microphone_id=mic3.microphone_id))
+        db.add(RecorderMicrophone(recorder_id=high.recorder_id, microphone_id=mic4.microphone_id))
+        db.add(RecorderMicrophone(recorder_id=high.recorder_id, microphone_id=mic5.microphone_id))
         db.add(RecorderMicrophone(recorder_id=high.recorder_id, microphone_id=mic1.microphone_id))
-        db.add(RecorderMicrophone(recorder_id=high.recorder_id, microphone_id=mic2.microphone_id))
+        db.add(RecorderMicrophone(recorder_id=high.recorder_id, microphone_id=mic6.microphone_id))
+        db.add(RecorderMicrophone(recorder_id=high.recorder_id, microphone_id=mic7.microphone_id))
         db.commit()
 
         r = client.get(
@@ -170,7 +181,6 @@ class TestExportRecorders:
             RecorderMicrophone(
                 recorder_id=recorder.recorder_id,
                 microphone_id=mic.microphone_id,
-                is_default=True,
                 notes="Primary rig",
             )
         )
@@ -189,7 +199,7 @@ class TestExportRecorders:
         assert rows[0] == ["recorder_id", "uuid", "name", "version", "brand", "microphone_names"]
         assert len(rows) == 2
         assert rows[1][0] == str(recorder.recorder_id)
-        assert rows[1][5] == "ExportRecorderMic [default] (Primary rig)"
+        assert rows[1][5] == "ExportRecorderMic (Primary rig)"
 
 
 # POST /recorders/imports  (admin)
@@ -417,7 +427,6 @@ class TestGetRecorder:
         assoc = RecorderMicrophone(
             recorder_id=recorder.recorder_id,
             microphone_id=mic.microphone_id,
-            is_default=True,
             notes="Primary microphone",
         )
         db.add(assoc)
@@ -429,7 +438,6 @@ class TestGetRecorder:
         assert len(data["microphones"]) == 1
         assert data["microphones"][0]["microphone_id"] == mic.microphone_id
         assert data["microphones"][0]["name"] == mic.name
-        assert data["microphones"][0]["is_default"] is True
         assert data["microphones"][0]["notes"] == "Primary microphone"
 
     def test_get_without_microphones_returns_empty_list(
@@ -519,7 +527,7 @@ class TestAddRecorderMicrophone:
         r = client.post(
             f"{BASE}/{recorder.recorder_id}/microphones",
             headers=superuser_token_headers,
-            json={"microphone_id": mic.microphone_id, "is_default": True, "notes": "primary"},
+            json={"microphone_id": mic.microphone_id, "notes": "primary"},
         )
         assert r.status_code == 200
         assert r.json()["data"] is None
@@ -527,6 +535,20 @@ class TestAddRecorderMicrophone:
         assert r2.status_code == 200
         mics = r2.json()["data"]["microphones"]
         assert any(m["microphone_id"] == mic.microphone_id for m in mics)
+
+    def test_add_association_rejects_retired_default_field(
+        self, client: TestClient, superuser_token_headers: dict, db: Session
+    ) -> None:
+        recorder = _make_recorder(db, "RetiredDefaultRecorder")
+        mic = _make_microphone(db, "RetiredDefaultMic")
+
+        response = client.post(
+            f"{BASE}/{recorder.recorder_id}/microphones",
+            headers=superuser_token_headers,
+            json={"microphone_id": mic.microphone_id, "is_default": True},
+        )
+
+        assert response.status_code == 422
 
     def test_add_duplicate_rejected(
         self, client: TestClient, superuser_token_headers: dict, db: Session

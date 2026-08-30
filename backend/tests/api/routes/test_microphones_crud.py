@@ -490,7 +490,6 @@ class TestGetMicrophone:
             RecorderMicrophone(
                 recorder_id=recorder_a.recorder_id,
                 microphone_id=microphone.microphone_id,
-                is_default=True,
                 notes="Primary recorder",
             ),
         ])
@@ -504,7 +503,6 @@ class TestGetMicrophone:
         assert recorders[0] == {
             "recorder_id": recorder_a.recorder_id,
             "name": "Recorder A",
-            "is_default": True,
             "notes": "Primary recorder",
         }
 

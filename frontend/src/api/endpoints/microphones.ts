@@ -9,7 +9,6 @@ export interface MicrophoneOption {
 export interface MicrophoneRecorderInfo {
     recorder_id: number
     name?: string | null
-    is_default?: boolean | null
     notes?: string | null
 }
 

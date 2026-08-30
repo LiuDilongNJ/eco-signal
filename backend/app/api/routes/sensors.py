@@ -163,9 +163,7 @@ def create_sensor(session: SessionDep, body: SensorCreate) -> Any:
     device_service.create_sensor(
         session, body.name, body.sensor_type,
         body.recorder_id, body.microphone_id, body.camera_id, body.lens_id,
-        body.camera_lens_is_default,
         body.description,
-        body.recorder_microphone_is_default,
     )
     return api_success()
 

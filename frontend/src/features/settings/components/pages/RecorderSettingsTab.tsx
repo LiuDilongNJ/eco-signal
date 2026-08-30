@@ -1,6 +1,6 @@
 import { CustomScrollArea } from "@/components/ui"
 import { useCallback, useState } from "react"
-import { Button, ConfigProvider, Descriptions, Form, Input, Modal, Select, Space, Switch, message } from "@/components/ui"
+import { Button, ConfigProvider, Descriptions, Form, Input, Modal, Select, Space, message } from "@/components/ui"
 import { FormDrawer } from "@/components/ui"
 
 import { CassetteTape, FileUp, Info, Link2, Plus } from "lucide-react"
@@ -74,7 +74,6 @@ type RecorderFormValues = {
 
 type RecorderMicrophoneFormValues = {
     microphone_id: number
-    is_default?: boolean
     notes?: string
 }
 
@@ -320,7 +319,6 @@ export function RecorderSettingsTab() {
             setRelationSaving(true)
             const response = await recordersApi.addMicrophone(relationRecorderId, {
                 microphone_id: values.microphone_id,
-                is_default: values.is_default ?? false,
                 notes: values.notes?.trim() || null,
             })
             if (response.code !== 0 && response.code !== 200) {
@@ -569,7 +567,6 @@ export function RecorderSettingsTab() {
                                     items={detailRecorder.microphones.map((microphone) => ({
                                         id: microphone.microphone_id,
                                         name: microphone.name,
-                                        isDefault: microphone.is_default,
                                         notes: microphone.notes,
                                     }))}
                                 />
@@ -657,16 +654,6 @@ export function RecorderSettingsTab() {
                                     }))}
                                     notFoundContent={relationLoading ? "Loading microphones…" : "No unlinked microphones available"}
                                 />
-                            </Form.Item>
-                            <Form.Item
-                                className="form-drawer-switch-row"
-                                label="Default combination"
-                                colon={false}
-                                required={false}
-                            >
-                                <Form.Item name="is_default" valuePropName="checked" noStyle initialValue={false}>
-                                    <Switch />
-                                </Form.Item>
                             </Form.Item>
                             <Form.Item name="notes" label="Notes" rules={[{ max: 500, message: "Notes must be at most 500 characters" }]}>
                                 <Input.TextArea rows={4} maxLength={500} showCount />

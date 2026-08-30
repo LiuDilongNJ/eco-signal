@@ -249,7 +249,6 @@ class TestGetCamera:
         assoc = CameraLens(
             camera_id=camera.camera_id,
             lens_id=lens.lens_id,
-            is_default=True,
             notes="Default lens",
         )
         db.add(assoc)
@@ -260,7 +259,6 @@ class TestGetCamera:
         assert len(data["lenses"]) == 1
         assert data["lenses"][0]["lens_id"] == lens.lens_id
         assert data["lenses"][0]["name"] == lens.name
-        assert data["lenses"][0]["is_default"] is True
         assert data["lenses"][0]["notes"] == "Default lens"
 
     def test_get_without_lenses_returns_empty_list(
@@ -360,7 +358,7 @@ class TestAddCameraLens:
         r = client.post(
             f"{BASE}/{camera.camera_id}/lenses",
             headers=superuser_token_headers,
-            json={"lens_id": lens.lens_id, "is_default": True},
+            json={"lens_id": lens.lens_id},
         )
         assert r.status_code == 200
         assert r.json()["data"] is None
@@ -368,30 +366,19 @@ class TestAddCameraLens:
         lenses = r2.json()["data"]["lenses"]
         assert any(l["lens_id"] == lens.lens_id for l in lenses)
 
-    def test_add_default_lens_replaces_existing_default(
+    def test_add_lens_rejects_retired_default_field(
         self, client: TestClient, superuser_token_headers: dict, db: Session
     ) -> None:
-        camera = _make_camera(db, "ReplaceCameraDefault")
-        old_lens = _make_lens(db, "ReplaceCameraOldLens")
-        new_lens = _make_lens(db, "ReplaceCameraNewLens")
-        old_association = CameraLens(
-            camera_id=camera.camera_id,
-            lens_id=old_lens.lens_id,
-            is_default=True,
-        )
-        db.add(old_association)
-        db.commit()
+        camera = _make_camera(db, "RetiredDefaultCamera")
+        lens = _make_lens(db, "RetiredDefaultLens")
 
         response = client.post(
             f"{BASE}/{camera.camera_id}/lenses",
             headers=superuser_token_headers,
-            json={"lens_id": new_lens.lens_id, "is_default": True},
+            json={"lens_id": lens.lens_id, "is_default": True},
         )
 
-        assert response.status_code == 200
-        db.refresh(old_association)
-        assert old_association.is_default is False
-        assert db.get(CameraLens, (camera.camera_id, new_lens.lens_id)).is_default is True
+        assert response.status_code == 422
 
     def test_add_duplicate_rejected(
         self, client: TestClient, superuser_token_headers: dict, db: Session

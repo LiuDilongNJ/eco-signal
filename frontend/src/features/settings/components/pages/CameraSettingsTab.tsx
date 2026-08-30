@@ -1,6 +1,6 @@
 import { CustomScrollArea } from "@/components/ui"
 import { useCallback, useEffect, useState } from "react"
-import { Button, ConfigProvider, Descriptions, Form, Input, Modal, Select, Space, Switch, message } from "@/components/ui"
+import { Button, ConfigProvider, Descriptions, Form, Input, Modal, Select, Space, message } from "@/components/ui"
 import { FormDrawer } from "@/components/ui"
 
 import { Camera, FileUp, Info, Link2, Plus } from "lucide-react"
@@ -33,7 +33,6 @@ import { fetchLensListAll, type LensListItem } from "../../../../api/endpoints/l
 
 type CameraLensFormValues = {
     lens_id: number
-    is_default?: boolean
     notes?: string
 }
 
@@ -290,7 +289,6 @@ export function CameraSettingsTab() {
             setRelationSaving(true)
             const response = await camerasApi.addLens(relationCameraId, {
                 lens_id: values.lens_id,
-                is_default: values.is_default ?? false,
                 notes: values.notes?.trim() || null,
             })
             if (response.code !== 0 && response.code !== 200) {
@@ -535,7 +533,6 @@ export function CameraSettingsTab() {
                                     items={detailCamera.lenses.map((lens) => ({
                                         id: lens.lens_id,
                                         name: lens.name,
-                                        isDefault: lens.is_default,
                                         notes: lens.notes,
                                     }))}
                                 />
@@ -578,16 +575,6 @@ export function CameraSettingsTab() {
                                     }))}
                                     notFoundContent={relationLoading ? "Loading lenses…" : "No unlinked lenses available"}
                                 />
-                            </Form.Item>
-                            <Form.Item
-                                className="form-drawer-switch-row"
-                                label="Default combination"
-                                colon={false}
-                                required={false}
-                            >
-                                <Form.Item name="is_default" valuePropName="checked" noStyle initialValue={false}>
-                                    <Switch />
-                                </Form.Item>
                             </Form.Item>
                             <Form.Item name="notes" label="Notes" rules={[{ max: 500, message: "Notes must be at most 500 characters" }]}>
                                 <Input.TextArea rows={4} maxLength={500} showCount />

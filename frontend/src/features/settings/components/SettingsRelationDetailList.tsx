@@ -7,7 +7,6 @@ const { Title } = Typography
 export interface SettingsRelationDetailItem {
     id: number
     name?: string | null
-    isDefault?: boolean | null
     notes?: string | null
 }
 
@@ -78,9 +77,6 @@ export function SettingsRelationDetailList({
                                 )}
                             </div>
                             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                                {item.isDefault && (
-                                    <span className="sensor-settings__default-pill">default</span>
-                                )}
                                 {onView && (
                                     <Button
                                         className="settings-relation-action settings-relation-action--view"

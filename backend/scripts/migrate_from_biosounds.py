@@ -394,9 +394,9 @@ DERIVED_FIELD_COVERAGE_SPEC: list[dict[str, object]] = [
     {
         "name": "recording->recorder_microphone",
         "source_tables": ["recording"],
-        "derived_fields": ["recorder_id", "microphone_id", "is_default", "notes"],
+        "derived_fields": ["recorder_id", "microphone_id", "notes"],
         "target_table": "recorder_microphone",
-        "target_fields": ["recorder_id", "microphone_id", "is_default", "notes"],
+        "target_fields": ["recorder_id", "microphone_id", "notes"],
     },
 ]
 
@@ -1874,14 +1874,13 @@ def migrate_recorder_microphones(mysql_conn, pg_conn, dry_run: bool) -> int:
     rows = fetch_all(
         mysql_conn,
         """
-        SELECT recorder_id, microphone_id, COUNT(*) AS usage_count
+        SELECT recorder_id, microphone_id
         FROM recording
         WHERE recorder_id IS NOT NULL
           AND microphone_id IS NOT NULL
           AND recorder_id > 0
           AND microphone_id > 0
         GROUP BY recorder_id, microphone_id
-        ORDER BY recorder_id, usage_count DESC, microphone_id ASC
         """,
     )
     valid_recorder_ids: set[int] = set()
@@ -1892,14 +1891,6 @@ def migrate_recorder_microphones(mysql_conn, pg_conn, dry_run: bool) -> int:
             valid_recorder_ids = {row[0] for row in cur.fetchall()}
             cur.execute("SELECT microphone_id FROM microphone")
             valid_microphone_ids = {row[0] for row in cur.fetchall()}
-
-    top_microphone_by_recorder: dict[int, int] = {}
-    for row in rows:
-        rec_id = safe_int(row["recorder_id"])
-        mic_id = safe_int(row["microphone_id"])
-        if rec_id is None or mic_id is None or rec_id in top_microphone_by_recorder:
-            continue
-        top_microphone_by_recorder[rec_id] = mic_id
 
     count = 0
     skipped_orphans = 0
@@ -1919,11 +1910,11 @@ def migrate_recorder_microphones(mysql_conn, pg_conn, dry_run: bool) -> int:
             inserted = pg_exec(
                 pg_conn,
                 """
-                INSERT INTO recorder_microphone (recorder_id, microphone_id, is_default, notes)
-                VALUES (%s, %s, %s, %s)
+                INSERT INTO recorder_microphone (recorder_id, microphone_id, notes)
+                VALUES (%s, %s, %s)
                 ON CONFLICT DO NOTHING
                 """,
-                (rec_id, mic_id, mic_id == top_microphone_by_recorder.get(rec_id), None),
+                (rec_id, mic_id, None),
             )
             if inserted == 0:
                 deduplicated += 1

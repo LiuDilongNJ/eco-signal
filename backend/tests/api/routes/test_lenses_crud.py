@@ -324,7 +324,6 @@ class TestGetLens:
             CameraLens(
                 camera_id=camera_a.camera_id,
                 lens_id=lens.lens_id,
-                is_default=True,
                 notes="Primary camera",
             ),
         ])
@@ -338,7 +337,6 @@ class TestGetLens:
         assert cameras[0] == {
             "camera_id": camera_a.camera_id,
             "name": "Camera A",
-            "is_default": True,
             "notes": "Primary camera",
         }
 

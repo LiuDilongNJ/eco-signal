@@ -20,7 +20,7 @@ describe("recordersApi microphone associations", () => {
     beforeEach(() => vi.clearAllMocks())
 
     it("maps add and remove requests to the recorder microphone endpoints", () => {
-        const body = { microphone_id: 8, is_default: true, notes: "primary" }
+        const body = { microphone_id: 8, notes: "primary" }
 
         recordersApi.addMicrophone(4, body)
         recordersApi.removeMicrophone(4, 8)

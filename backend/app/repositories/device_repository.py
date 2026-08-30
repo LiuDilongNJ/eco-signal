@@ -1,6 +1,5 @@
 from typing import Any
 
-from sqlalchemy import case
 from sqlalchemy.orm import selectinload
 from sqlmodel import Session, func, select
 
@@ -71,12 +70,6 @@ _MICROPHONE_SORT_FIELDS: dict[str, Any] = {
     "sensitivity":           Microphone.sensitivity,
     "signal_to_noise_ratio": Microphone.signal_to_noise_ratio,
 }
-
-_SENSOR_IS_DEFAULT = case(
-    (Sensor.sensor_type == "audio", RecorderMicrophone.is_default),
-    (Sensor.sensor_type == "photo", CameraLens.is_default),
-    else_=None,
-)
 
 _SENSOR_FILTER_SPECS: list[FilterSpec] = [
     ("sensor_id",     Sensor.sensor_id,     FilterOp.EQ),
@@ -327,53 +320,25 @@ def ensure_recorder_microphone(
     session: Session,
     recorder_id: int,
     microphone_id: int,
-    is_default: bool | None = None,
 ) -> RecorderMicrophone:
-    """Stage a recorder-microphone association and optionally update its default flag."""
+    """Stage a recorder-microphone association when it is missing."""
     existing = get_recorder_microphone(session, recorder_id, microphone_id)
     if existing:
-        if is_default is True:
-            _clear_recorder_default_microphones(session, recorder_id)
-            existing.is_default = True
-            session.add(existing)
-        elif is_default is False:
-            existing.is_default = False
-            session.add(existing)
         return existing
 
-    if is_default is True:
-        _clear_recorder_default_microphones(session, recorder_id)
     obj = RecorderMicrophone(
         recorder_id=recorder_id,
         microphone_id=microphone_id,
-        is_default=is_default is True,
         notes=None,
     )
     session.add(obj)
     return obj
 
-
-def _clear_recorder_default_microphones(session: Session, recorder_id: int) -> None:
-    """Clear the current default before assigning a new one for a recorder."""
-    session.exec(
-        select(Recorder.recorder_id)
-        .where(Recorder.recorder_id == recorder_id)
-        .with_for_update()
-    ).one()
-    stmt = select(RecorderMicrophone).where(
-        RecorderMicrophone.recorder_id == recorder_id,
-        RecorderMicrophone.is_default.is_(True),
-    )
-    for association in session.exec(stmt).all():
-        association.is_default = False
-        session.add(association)
-
-
 def add_recorder_microphone(
     session: Session, recorder_id: int, microphone_id: int,
-    is_default: bool | None, notes: str | None
+    notes: str | None
 ) -> RecorderMicrophone:
-    obj = ensure_recorder_microphone(session, recorder_id, microphone_id, is_default)
+    obj = ensure_recorder_microphone(session, recorder_id, microphone_id)
     obj.notes = notes
     session.add(obj)
     session.commit()
@@ -585,53 +550,25 @@ def ensure_camera_lens(
     session: Session,
     camera_id: int,
     lens_id: int,
-    is_default: bool | None = None,
 ) -> CameraLens:
-    """Stage a camera-lens association and optionally update its default flag."""
+    """Stage a camera-lens association when it is missing."""
     existing = get_camera_lens(session, camera_id, lens_id)
     if existing:
-        if is_default is True:
-            _clear_camera_default_lenses(session, camera_id)
-            existing.is_default = True
-            session.add(existing)
-        elif is_default is False:
-            existing.is_default = False
-            session.add(existing)
         return existing
 
-    if is_default is True:
-        _clear_camera_default_lenses(session, camera_id)
     obj = CameraLens(
         camera_id=camera_id,
         lens_id=lens_id,
-        is_default=is_default is True,
         notes=None,
     )
     session.add(obj)
     return obj
 
-
-def _clear_camera_default_lenses(session: Session, camera_id: int) -> None:
-    """Clear the current default before assigning a new one for a camera."""
-    session.exec(
-        select(Camera.camera_id)
-        .where(Camera.camera_id == camera_id)
-        .with_for_update()
-    ).one()
-    stmt = select(CameraLens).where(
-        CameraLens.camera_id == camera_id,
-        CameraLens.is_default.is_(True),
-    )
-    for association in session.exec(stmt).all():
-        association.is_default = False
-        session.add(association)
-
-
 def add_camera_lens(
     session: Session, camera_id: int, lens_id: int,
-    is_default: bool | None, notes: str | None
+    notes: str | None
 ) -> CameraLens:
-    obj = ensure_camera_lens(session, camera_id, lens_id, is_default)
+    obj = ensure_camera_lens(session, camera_id, lens_id)
     obj.notes = notes
     session.add(obj)
     session.commit()
@@ -746,22 +683,11 @@ def get_sensors(
             Microphone.name.label("microphone_name"),
             Camera.name.label("camera_name"),
             Lens.name.label("lens_name"),
-            _SENSOR_IS_DEFAULT.label("is_default"),
         )
         .outerjoin(Recorder, Sensor.recorder_id == Recorder.recorder_id)
         .outerjoin(Microphone, Sensor.microphone_id == Microphone.microphone_id)
         .outerjoin(Camera, Sensor.camera_id == Camera.camera_id)
         .outerjoin(Lens, Sensor.lens_id == Lens.lens_id)
-        .outerjoin(
-            CameraLens,
-            (Sensor.camera_id == CameraLens.camera_id)
-            & (Sensor.lens_id == CameraLens.lens_id),
-        )
-        .outerjoin(
-            RecorderMicrophone,
-            (Sensor.recorder_id == RecorderMicrophone.recorder_id)
-            & (Sensor.microphone_id == RecorderMicrophone.microphone_id),
-        )
     )
     base_stmt = apply_filters(base_stmt, filters, _SENSOR_FILTER_SPECS)
 
@@ -784,22 +710,11 @@ def get_sensor_by_id(session: Session, sensor_id: int) -> tuple | None:
             Microphone.name.label("microphone_name"),
             Camera.name.label("camera_name"),
             Lens.name.label("lens_name"),
-            _SENSOR_IS_DEFAULT.label("is_default"),
         )
         .outerjoin(Recorder, Sensor.recorder_id == Recorder.recorder_id)
         .outerjoin(Microphone, Sensor.microphone_id == Microphone.microphone_id)
         .outerjoin(Camera, Sensor.camera_id == Camera.camera_id)
         .outerjoin(Lens, Sensor.lens_id == Lens.lens_id)
-        .outerjoin(
-            CameraLens,
-            (Sensor.camera_id == CameraLens.camera_id)
-            & (Sensor.lens_id == CameraLens.lens_id),
-        )
-        .outerjoin(
-            RecorderMicrophone,
-            (Sensor.recorder_id == RecorderMicrophone.recorder_id)
-            & (Sensor.microphone_id == RecorderMicrophone.microphone_id),
-        )
         .where(Sensor.sensor_id == sensor_id)
     ).first()
     return row

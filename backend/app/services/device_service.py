@@ -297,7 +297,6 @@ def _build_recorder_public(recorder: Recorder, recorder_microphones: list[Record
         RecorderMicrophoneInfo(
             microphone_id=rm.microphone_id,
             name=rm.microphone.name if rm.microphone else None,
-            is_default=rm.is_default,
             notes=rm.notes,
         )
         for rm in recorder_microphones
@@ -366,8 +365,6 @@ def _format_linked_microphones(microphones: list[RecorderMicrophoneInfo]) -> str
     parts: list[str] = []
     for microphone in microphones:
         label = microphone.name or f"Microphone #{microphone.microphone_id}"
-        if microphone.is_default:
-            label = f"{label} [default]"
         if microphone.notes:
             label = f"{label} ({microphone.notes})"
         parts.append(label)
@@ -427,9 +424,7 @@ def add_recorder_microphone(
     existing = device_repository.get_recorder_microphone(session, recorder_id, data.microphone_id)
     if existing:
         raise HTTPException(status_code=400, detail="This microphone is already associated with the recorder")
-    device_repository.add_recorder_microphone(
-        session, recorder_id, data.microphone_id, data.is_default, data.notes
-    )
+    device_repository.add_recorder_microphone(session, recorder_id, data.microphone_id, data.notes)
 
 
 def remove_recorder_microphone(session: Session, recorder_id: int, microphone_id: int) -> None:
@@ -490,7 +485,6 @@ def _build_microphone_public(
         MicrophoneRecorderInfo(
             recorder_id=rm.recorder_id,
             name=rm.recorder.name if rm.recorder else None,
-            is_default=rm.is_default,
             notes=rm.notes,
         )
         for rm in recorder_microphones
@@ -555,7 +549,6 @@ def _build_camera_public(camera: Camera, camera_lenses: list[CameraLens]) -> Cam
         CameraLensInfo(
             lens_id=cl.lens_id,
             name=cl.lens.name if cl.lens else None,
-            is_default=cl.is_default,
             notes=cl.notes,
         )
         for cl in camera_lenses
@@ -660,7 +653,7 @@ def add_camera_lens(session: Session, camera_id: int, data: CameraLensCreate) ->
     existing = device_repository.get_camera_lens(session, camera_id, data.lens_id)
     if existing:
         raise HTTPException(status_code=400, detail="This lens is already associated with the camera")
-    device_repository.add_camera_lens(session, camera_id, data.lens_id, data.is_default, data.notes)
+    device_repository.add_camera_lens(session, camera_id, data.lens_id, data.notes)
 
 
 def remove_camera_lens(session: Session, camera_id: int, lens_id: int) -> None:
@@ -719,7 +712,6 @@ def _build_lens_public(lens: Lens, camera_lenses: list[CameraLens]) -> LensPubli
         LensCameraInfo(
             camera_id=cl.camera_id,
             name=cl.camera.name if cl.camera else None,
-            is_default=cl.is_default,
             notes=cl.notes,
         )
         for cl in camera_lenses
@@ -784,7 +776,6 @@ def _build_sensor_public(row: tuple) -> SensorPublic:
         microphone_name,
         camera_name,
         lens_name,
-        is_default,
     ) = row
     return SensorPublic(
         sensor_id=sensor.sensor_id,
@@ -799,7 +790,6 @@ def _build_sensor_public(row: tuple) -> SensorPublic:
         camera_name=camera_name,
         lens_id=sensor.lens_id,
         lens_name=lens_name,
-        is_default=is_default,
         description=sensor.description,
         creation_date=sensor.creation_date,
     )
@@ -823,7 +813,7 @@ _SENSOR_EXPORT_COLUMNS = [
     CsvColumn("recorder_name"), CsvColumn("microphone_id"),
     CsvColumn("microphone_name"), CsvColumn("camera_id"),
     CsvColumn("camera_name"), CsvColumn("lens_id"),
-    CsvColumn("lens_name"), CsvColumn("is_default"), CsvColumn("description"),
+    CsvColumn("lens_name"), CsvColumn("description"),
     CsvColumn("creation_date"),
 ]
 
@@ -870,16 +860,9 @@ def _validate_sensor_type_constraint(
     microphone_id: int | None,
     camera_id: int | None,
     lens_id: int | None,
-    camera_lens_is_default: bool | None = None,
-    recorder_microphone_is_default: bool | None = None,
 ) -> None:
     """Validate audio/photo device combination to match DB check constraint."""
     if sensor_type == "audio":
-        if camera_lens_is_default is not None:
-            raise HTTPException(
-                status_code=422,
-                detail="camera_lens_is_default is only valid for photo sensors",
-            )
         if not recorder_id or not microphone_id:
             raise HTTPException(
                 status_code=422,
@@ -891,11 +874,6 @@ def _validate_sensor_type_constraint(
                 detail="Audio sensor must not have camera_id or lens_id"
             )
     elif sensor_type == "photo":
-        if recorder_microphone_is_default is not None:
-            raise HTTPException(
-                status_code=422,
-                detail="recorder_microphone_is_default is only valid for audio sensors",
-            )
         if not camera_id or not lens_id:
             raise HTTPException(
                 status_code=422,
@@ -916,9 +894,7 @@ def create_sensor(
     microphone_id: int | None,
     camera_id: int | None,
     lens_id: int | None,
-    camera_lens_is_default: bool | None,
     description: str | None,
-    recorder_microphone_is_default: bool | None = None,
 ) -> None:
     name = _normalized_name(name)
     if device_repository.has_normalized_name(session, Sensor, name):
@@ -930,15 +906,11 @@ def create_sensor(
         microphone_id,
         camera_id,
         lens_id,
-        camera_lens_is_default,
-        recorder_microphone_is_default,
     )
     if sensor_type == "photo" and camera_id is not None and lens_id is not None:
-        device_repository.ensure_camera_lens(session, camera_id, lens_id, camera_lens_is_default)
+        device_repository.ensure_camera_lens(session, camera_id, lens_id)
     if sensor_type == "audio" and recorder_id is not None and microphone_id is not None:
-        device_repository.ensure_recorder_microphone(
-            session, recorder_id, microphone_id, recorder_microphone_is_default
-        )
+        device_repository.ensure_recorder_microphone(session, recorder_id, microphone_id)
     device_repository.create_sensor(
         session, name, sensor_type, recorder_id, microphone_id, camera_id, lens_id, description
     )
@@ -970,51 +942,28 @@ def update_sensor(session: Session, sensor_id: int, body: SensorUpdate) -> None:
     effective_mic = body.microphone_id if "microphone_id" in fields else sensor.microphone_id
     effective_camera = body.camera_id if "camera_id" in fields else sensor.camera_id
     effective_lens = body.lens_id if "lens_id" in fields else sensor.lens_id
-    camera_lens_is_default = (
-        body.camera_lens_is_default if "camera_lens_is_default" in fields else None
-    )
-    recorder_microphone_is_default = (
-        body.recorder_microphone_is_default
-        if "recorder_microphone_is_default" in fields
-        else None
-    )
     _validate_sensor_type_constraint(
         effective_type,
         effective_recorder,
         effective_mic,
         effective_camera,
         effective_lens,
-        camera_lens_is_default,
-        recorder_microphone_is_default,
     )
 
     if effective_type == "photo" and effective_camera is not None and effective_lens is not None:
-        device_repository.ensure_camera_lens(
-            session,
-            effective_camera,
-            effective_lens,
-            camera_lens_is_default,
-        )
+        device_repository.ensure_camera_lens(session, effective_camera, effective_lens)
     if (
         effective_type == "audio"
         and effective_recorder is not None
         and effective_mic is not None
     ):
-        device_repository.ensure_recorder_microphone(
-            session,
-            effective_recorder,
-            effective_mic,
-            recorder_microphone_is_default,
-        )
+        device_repository.ensure_recorder_microphone(session, effective_recorder, effective_mic)
 
     # Pass only explicitly-set fields so null means "clear" and omitted means "keep"
     device_repository.update_sensor(
         session,
         sensor,
-        body.model_dump(
-            include=fields,
-            exclude={"camera_lens_is_default", "recorder_microphone_is_default"},
-        ),
+        body.model_dump(include=fields),
     )
 
 

@@ -123,7 +123,6 @@ beforeEach(() => {
             recorder_name: "Recorder A",
             microphone_id: 10,
             microphone_name: "Microphone A",
-            is_default: true,
             description: null,
             creation_date: "2026-08-04 09:00:00",
         },

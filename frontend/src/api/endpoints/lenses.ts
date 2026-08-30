@@ -4,7 +4,6 @@ import type { ImportResult as TabularImportResult } from "../tabularImport"
 export interface LensCameraInfo {
     camera_id: number
     name?: string | null
-    is_default?: boolean | null
     notes?: string | null
 }
 

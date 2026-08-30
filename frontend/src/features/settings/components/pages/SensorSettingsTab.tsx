@@ -31,7 +31,6 @@ import { displayApiDateTime } from "../../utils/dateTimeDisplay"
 import { isSelectScrollNearBottom, usePagedSelectOptions } from "@/hooks/usePagedSelectOptions"
 import {
     buildSensorWritePayload,
-    getUniqueDefaultLensId,
     type SensorFormValues,
 } from "../../utils/sensorForm"
 import { useTableFetchScheduler } from "@/hooks/useTableFetchScheduler"
@@ -173,8 +172,7 @@ export function SensorSettingsTab() {
             const selectedLensId = form.getFieldValue("lens_id") as number | undefined
             const compatibleLens = lenses.some((lens) => lens.lens_id === selectedLensId)
             if (!compatibleLens) {
-                const defaultLensId = getUniqueDefaultLensId(lenses)
-                form.setFieldValue("lens_id", defaultLensId)
+                form.setFieldValue("lens_id", undefined)
             }
         } catch {
             if (requestId === lensRequestIdRef.current) setLensSelectOptions([])
@@ -221,7 +219,6 @@ export function SensorSettingsTab() {
                         id: r.sensor_id,
                         uuid: String(r.uuid),
                         name: r.name ?? "",
-                        is_default: r.is_default ?? false,
                         sensor_type: r.sensor_type ?? "",
                         recorder_name: r.recorder_name ?? "",
                         microphone_name: r.microphone_name ?? "",

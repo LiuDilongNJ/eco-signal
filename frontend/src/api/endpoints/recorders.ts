@@ -9,7 +9,6 @@ export interface RecorderOption {
 export interface RecorderMicrophoneInfo {
     microphone_id: number
     name?: string
-    is_default?: boolean
     notes?: string
 }
 
@@ -45,7 +44,6 @@ export interface RecorderUpdateBody {
 
 export interface RecorderMicrophoneCreateBody {
     microphone_id: number
-    is_default?: boolean
     notes?: string | null
 }
 export type ImportResult = TabularImportResult

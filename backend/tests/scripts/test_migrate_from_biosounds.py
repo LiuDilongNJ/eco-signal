@@ -1790,7 +1790,7 @@ def test_migrate_site_projects_derives_distinct_links(monkeypatch):
     assert set(pg_conn.inserted_site_projects) == {(11, 101), (12, 102)}
 
 
-def test_migrate_recorder_microphones_marks_most_used_as_default(monkeypatch):
+def test_migrate_recorder_microphones_preserves_unique_combinations(monkeypatch):
     module = _load_script_module()
     mysql_conn = FakeConnection()
     pg_conn = FakeConnection()
@@ -1801,8 +1801,8 @@ def test_migrate_recorder_microphones_marks_most_used_as_default(monkeypatch):
         module,
         "fetch_all",
         lambda conn, sql, params=None: [
-            {"recorder_id": 7, "microphone_id": 21, "usage_count": 5},
-            {"recorder_id": 7, "microphone_id": 22, "usage_count": 3},
+            {"recorder_id": 7, "microphone_id": 21},
+            {"recorder_id": 7, "microphone_id": 22},
         ],
     )
 
@@ -1810,8 +1810,8 @@ def test_migrate_recorder_microphones_marks_most_used_as_default(monkeypatch):
 
     assert migrated == 2
     assert pg_conn.inserted_recorder_microphones == [
-        (7, 21, True, None),
-        (7, 22, False, None),
+        (7, 21, None),
+        (7, 22, None),
     ]
 
 

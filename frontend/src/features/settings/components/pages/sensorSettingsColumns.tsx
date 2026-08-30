@@ -11,12 +11,9 @@ export const SENSOR_COLUMNS: ColumnDef[] = [
         sortable: true,
         filterable: true,
         ellipsis: false,
-        renderCell: (value, record) => (
+        renderCell: (value) => (
             <span className="sensor-settings__name-cell">
                 <span className="sensor-settings__name">{String(value ?? "")}</span>
-                {record.is_default === true ? (
-                    <span className="sensor-settings__default-pill">default</span>
-                ) : null}
             </span>
         ),
     },
