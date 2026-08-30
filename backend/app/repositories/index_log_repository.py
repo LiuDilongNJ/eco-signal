@@ -183,6 +183,26 @@ class IndexLogRepository(BaseRepository[IndexLog, Any, Any]):
         stmt = select(IndexLog.log_id).where(IndexLog.log_id == log_id).limit(1)
         return session.exec(stmt).first() is not None
 
+    def get_group_user_id(
+        self,
+        session: Session,
+        *,
+        log_id: int,
+        media_id: int,
+        index_id: int,
+    ) -> int | None:
+        """Return the owner of an exact index-log group."""
+        stmt = (
+            select(IndexLog.user_id)
+            .where(
+                IndexLog.log_id == log_id,
+                IndexLog.media_id == media_id,
+                IndexLog.index_id == index_id,
+            )
+            .limit(1)
+        )
+        return session.exec(stmt).first()
+
     def delete_group(
         self,
         session: Session,

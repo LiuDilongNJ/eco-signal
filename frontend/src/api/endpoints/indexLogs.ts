@@ -1,5 +1,6 @@
 import dayjs from "dayjs"
 import { apiClient } from "../client"
+import type { RowCapabilities } from "../capabilities"
 
 export interface IndexLogDeleteItem {
     log_id: number
@@ -61,6 +62,7 @@ export interface IndexLogPublic {
     media_name?: string | null
     user_name?: string | null
     index_name?: string | null
+    capabilities?: RowCapabilities
 }
 
 export interface PagedIndexLogsResponse {
@@ -167,7 +169,10 @@ export const indexLogsApi = {
         })
     },
 
-    deleteGroups(items: IndexLogDeleteItem[]) {
-        return apiClient.delete<any>("/v1/index-logs", { body: items })
+    deleteGroups(projectId: number, items: IndexLogDeleteItem[]) {
+        return apiClient.delete<any>("/v1/index-logs", {
+            params: { project_id: projectId },
+            body: items,
+        })
     },
 }

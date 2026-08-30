@@ -466,7 +466,7 @@ def delete_site(
     """
     删除指定站点。 / Delete a specific site.
 
-    - 仅管理员或站点创建者可删除。 / Only admin or the site creator can delete.
+    - 需要当前项目路径下的 site:write 权限。 / Requires site:write on the current project path.
     - 若该站点有关联媒体，则无法删除（返回 409）。
       Returns 409 if the site still has associated media records.
     """

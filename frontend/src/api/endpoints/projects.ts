@@ -2,6 +2,7 @@ import { apiClient } from "../client"
 import type { FilterOptionUser } from "../utils"
 import type { ApiResponse } from "../../types"
 import type { Contributor, ProjectStats } from "../../features/project/types"
+import type { RowCapabilities } from "../capabilities"
 
 // ---------- 类型定义 ----------
 
@@ -16,6 +17,7 @@ export interface ProjectPublic {
     creation_date: string
     public: boolean
     active: boolean
+    capabilities?: RowCapabilities
     // allow extra fields
     [key: string]: any
 }

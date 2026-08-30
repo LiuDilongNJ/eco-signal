@@ -472,6 +472,7 @@ def import_tasks(
             task.type,
             [{"user_id": task.assignee_id, "comment": task.comment}],
             [task.annotation_id] if task.annotation_id is not None else None,
+            project_id=project_id,
             commit=False,
         )
 

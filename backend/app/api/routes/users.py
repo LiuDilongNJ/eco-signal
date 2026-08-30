@@ -6,6 +6,7 @@ from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
 from app.api.deps import (
     ActiveManager,
     CurrentUser,
+    CurrentUserOptional,
     SessionDep,
 )
 from app.api.responses import csv_response
@@ -23,6 +24,7 @@ from app.schemas.response import PagedApiResponse, ApiResponse, api_success
 from app.schemas.user import (
     SetContributorRequest,
     CreatorOption,
+    CurrentUserPermissionsPublic,
     CurrentUserPublic,
     UserListPublic,
     UserPreferenceUpdate,
@@ -314,6 +316,46 @@ def read_user_me(
             "is_project_admin": is_project_admin,
             "can_write_audio": can_write_audio,
         }
+    )
+    return api_success(data=data)
+
+
+@router_views.get(
+    "/current-user/permissions",
+    response_model=ApiResponse[CurrentUserPermissionsPublic],
+    summary="获取当前用户有效权限 / Get My Effective Permissions",
+)
+def read_user_me_permissions(
+    session: SessionDep,
+    current_user: CurrentUserOptional,
+    project_id: int | None = Query(default=None, description="项目 ID（选填）/ Project ID (optional)"),
+    collection_id: int | None = Query(default=None, description="集合 ID（选填）/ Collection ID (optional)"),
+) -> Any:
+    """
+    获取当前用户在指定范围下的有效权限，供前端按权限禁用或隐藏操作入口。
+    / Get the current user's effective permissions for a scope, so the client can
+    disable or hide actions the user is not allowed to perform.
+
+    传 project_id + collection_id 返回该路径的精确权限；仅传 project_id 时只返回
+    覆盖整个项目的权限，记录间差异由列表行级 capabilities 表达。
+    / Passing both ids resolves the exact path. With only project_id the result
+    contains grants that apply across the whole project; list row capabilities
+    express record-specific differences.
+    """
+    # A collection is only meaningful inside a project path.
+    effective_collection_id = collection_id if project_id is not None else None
+
+    permissions = permission_service.get_current_user_effective_permissions(
+        session,
+        current_user,
+        project_id=project_id,
+        collection_id=effective_collection_id,
+    )
+    data = CurrentUserPermissionsPublic(
+        is_admin=bool(current_user and permission_service.is_admin(current_user)),
+        project_id=project_id,
+        collection_id=effective_collection_id,
+        permissions=permissions,
     )
     return api_success(data=data)
 

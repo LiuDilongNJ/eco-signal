@@ -24,7 +24,7 @@ interface AssignTasksDrawerProps {
     onSuccess?: () => void
 }
 
-export function AssignTasksDrawer({ open, mediaId, mediaIds, annotationIds, onClose, onSuccess }: AssignTasksDrawerProps) {
+export function AssignTasksDrawer({ open, mediaId, mediaIds, projectId, annotationIds, onClose, onSuccess }: AssignTasksDrawerProps) {
     const isDark = useAppStore((s) => s.effectiveTheme === "dark")
     const drawerTheme = useAntdBrandConfig(isDark)
     const [loading, setLoading] = useState(false)
@@ -55,12 +55,13 @@ export function AssignTasksDrawer({ open, mediaId, mediaIds, annotationIds, onCl
     }, [open, targetMediaIds])
 
     const fetchData = async () => {
+        if (!projectId) return
         setLoading(true)
         try {
             setComments({})
 
             if (targetMediaIds.length === 1) {
-                const res = await tasksApi.getAssignableUsers(targetMediaIds[0]!)
+                const res = await tasksApi.getAssignableUsers(projectId, targetMediaIds[0]!)
                 if (res.code !== 0 && res.code !== 200) {
                     message.error(res.message || "Failed to fetch users")
                     return
@@ -79,7 +80,7 @@ export function AssignTasksDrawer({ open, mediaId, mediaIds, annotationIds, onCl
                 return
             }
 
-            const responses = await Promise.all(targetMediaIds.map((id) => tasksApi.getAssignableUsers(id)))
+            const responses = await Promise.all(targetMediaIds.map((id) => tasksApi.getAssignableUsers(projectId, id)))
             const userMap = new Map<number, any>()
 
             for (const res of responses) {
@@ -152,7 +153,11 @@ export function AssignTasksDrawer({ open, mediaId, mediaIds, annotationIds, onCl
                     }
                 }
 
-                const res = await tasksApi.assignTasks(currentMediaId, payload)
+                if (!projectId) {
+                    failedMediaIds.push(currentMediaId)
+                    continue
+                }
+                const res = await tasksApi.assignTasks(projectId, currentMediaId, payload)
                 if (isSuccessfulDrawerResponse(res.code, res.message)) {
                     succeededMediaIds.push(currentMediaId)
                 } else {

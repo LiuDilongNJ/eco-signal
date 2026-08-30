@@ -6,6 +6,7 @@ from pydantic import Field, ConfigDict, field_serializer, field_validator
 from sqlmodel import SQLModel
 
 from app.enums.collection import CollectionSphere
+from app.schemas.capability import RowCapabilities
 from app.utils import validate_optional_http_url
 
 
@@ -86,6 +87,7 @@ class CollectionPublic(SQLModel):
     creator_name: Optional[str] = None
     creation_date: datetime
     project_ids: list[int] = Field(default_factory=list)
+    capabilities: RowCapabilities = Field(default_factory=RowCapabilities)
     
     taxons: list[Any] = []
     

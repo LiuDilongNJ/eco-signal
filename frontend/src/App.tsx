@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useState } from "react"
 import { AuthLoginHost } from "@/components/auth/AuthLoginHost"
 import { AuthSessionWatcher } from "@/components/auth/AuthSessionWatcher"
+import { PermissionDeniedWatcher } from "@/components/auth/PermissionDeniedWatcher"
 import { CookieConsentBanner } from "@/components/cookie/CookieConsentBanner"
 import { AppProviders } from "@/providers/AppProviders"
 import { StageOverlayProvider, StageOverlayRoot } from "@/providers/StageOverlayContext"
@@ -107,6 +108,7 @@ function App() {
                                 <AppRouter />
                                 <AuthLoginHost />
                                 <AuthSessionWatcher />
+                                <PermissionDeniedWatcher />
                                 <CookieConsentBanner />
                             </AppProviders>
                         </div>

@@ -188,6 +188,7 @@ def delete_index_logs(
     session: SessionDep,
     current_user: CurrentUser,
     delete_items: list[IndexLogDeleteItem] = Body(..., description="要删除的日志三元组列表 / List of index log identity tuples"),
+    project_id: int = Query(..., description="项目 ID / Project ID"),
 ) -> Any:
     """
     批量删除指数日志。 / Batch delete index logs.
@@ -196,5 +197,6 @@ def delete_index_logs(
         session=session,
         current_user=current_user,
         delete_items=delete_items,
+        project_id=project_id,
     )
     return api_success(deleted_count, message=f"Successfully deleted {deleted_count} log groups")

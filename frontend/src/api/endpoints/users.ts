@@ -1,5 +1,6 @@
 import { apiClient } from "../client"
 import { getApiData } from "../utils"
+import type { RowCapabilities } from "../capabilities"
 
 export interface UserPublic {
     user_id: number
@@ -12,11 +13,20 @@ export interface UserPublic {
     active: boolean
     is_project_admin?: boolean
     preference?: UserPreference | null
+    capabilities?: RowCapabilities
     [key: string]: any
 }
 
 export interface CurrentUserPublic extends UserPublic {
     can_write_audio: boolean
+}
+
+/** Effective `resource:action` grants for a scope, used to gate action buttons. */
+export interface CurrentUserPermissions {
+    is_admin: boolean
+    project_id: number | null
+    collection_id: number | null
+    permissions: string[]
 }
 
 export interface UserOption {
@@ -115,6 +125,17 @@ export const usersApi = {
             ...requestConfig,
             params,
         })
+    },
+    getMyPermissions(params?: { project_id?: number; collection_id?: number }) {
+        const cleanParams = params
+            ? Object.fromEntries(
+                Object.entries(params).filter(([_, value]) => value !== undefined && value !== null),
+            )
+            : undefined
+        return apiClient.get<{ code: number; message: string; data: CurrentUserPermissions }>(
+            "/v1/current-user/permissions",
+            { params: cleanParams as any, ignoreUnauthorized: true },
+        )
     },
     updateMe(
         payload: {

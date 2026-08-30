@@ -38,6 +38,7 @@ import { useTabularImport } from "@/features/imports/useTabularImport"
 import { useProjectStore } from "../../stores/useProjectStore"
 import { Checkbox, Combobox, ConfigProvider, DataTable, DatePicker, DropdownMenu, getTooltipText, Input, RowActions, TableToolbar, Tooltip, theme as antdTheme } from "@/components/ui"
 import type { ThemeConfig } from "@/components/ui"
+import type { RowCapabilities } from "@/api/capabilities"
 import type { MenuProps } from "@/components/ui"
 import { INTERNAL_COL_DEFINE } from "@/components/ui"
 import "./styles/DataPageLayout.css"
@@ -262,7 +263,7 @@ export interface FormFieldDef {
     readonly?: boolean
 }
 
-export type RowData = Record<string, string | number | boolean | null | undefined>
+export type RowData = Record<string, any> & { capabilities?: Partial<RowCapabilities> }
 
 type SortDir = "asc" | "desc" | null
 export type DataNavFilter = "current" | "all"
@@ -373,6 +374,20 @@ export interface DataPageLayoutProps {
     /** Hide the Delete button completely */
     hideDelete?: boolean
     /**
+     * 写权限门禁：为 false 时禁用对应操作入口（含双击行进入编辑）。
+     * 权限未加载完成时应传 false，避免先可点后禁用。
+     * / Write gating: disable the matching entry point (including edit-on-double-click)
+     * when false. Pass false while permissions load so the control never flips
+     * from enabled to disabled.
+     */
+    canAdd?: boolean
+    canEdit?: boolean
+    canDelete?: boolean
+    canEditRecord?: (record: RowData) => boolean
+    canDeleteRecord?: (record: RowData) => boolean
+    /** 权限不足时按钮的提示文案 / Tooltip shown when an action is gated by permissions */
+    noPermissionTooltip?: string
+    /**
      * 表头筛选联动清空：某列筛选变更时，清空列出的子列筛选值（如 realm_name → biome / functional_type）
      */
     filterCascadeClear?: Record<string, string[]>
@@ -436,6 +451,12 @@ export function DataPageLayout({
     hideAdd = false,
     hideEdit = false,
     hideDelete = false,
+    canAdd = true,
+    canEdit = true,
+    canDelete = true,
+    canEditRecord,
+    canDeleteRecord,
+    noPermissionTooltip = "You do not have permission to perform this action",
     filterCascadeClear,
     currentRowHighlight,
     taskPill,
@@ -785,6 +806,17 @@ export function DataPageLayout({
         if (typeof rowKey === "function") return rowKey(record)
         return record[rowKey as string] as Key
     }, [rowKey])
+
+    const selectedRecords = useMemo(
+        () => allRows.filter((record) => selectedRows.has(getRecordKey(record))),
+        [allRows, getRecordKey, selectedRows],
+    )
+    const selectionCanEdit = canEdit
+        && selectedRecords.length === 1
+        && (canEditRecord?.(selectedRecords[0]!) ?? true)
+    const selectionCanDelete = canDelete
+        && selectedRecords.length > 0
+        && selectedRecords.every((record) => canDeleteRecord?.(record) ?? true)
 
     const deleteConfirmationName = useMemo(() => {
         if (!deleteConfirmation || selectedRows.size !== 1) return null
@@ -1283,18 +1315,21 @@ export function DataPageLayout({
         }
     }, [currentPage, pageSize, columnFilters, searchQuery, sortKey, sortDir, navFilter, currentProjectId, currentCollectionId, onTableStateChange, title, showNavFilter, columns, importRefreshToken]);
 
+    const addBlocked = addDisabled || !canAdd
+    const addBlockedTooltip = !canAdd ? noPermissionTooltip : addDisabledTooltip
+
     const mergedAddDropdownItems: MenuProps["items"] = []
     if (addDropdownItems) {
         mergedAddDropdownItems.push(...addDropdownItems.map((item) => {
             if (!item || item.type === "divider") return item
-            return { ...item, disabled: addDisabled || (item as { disabled?: boolean }).disabled }
+            return { ...item, disabled: addBlocked || (item as { disabled?: boolean }).disabled }
         }))
     } else if (!hideAdd) {
         mergedAddDropdownItems.push({
             key: "__add_record",
             label: importConfig?.addLabel ?? `Add ${title.replace(/s$/, "")}`,
             icon: <Plus size={14} />,
-            disabled: addDisabled,
+            disabled: addBlocked,
             onClick: () => onAddCustom ? onAddCustom() : setCrudModal({ open: true, mode: "add" }),
         })
     }
@@ -1387,16 +1422,16 @@ export function DataPageLayout({
 
                             {useAddDropdown ? (
                                 ((showAddAction || importOnly) && (
-                                    <Tooltip title={addDisabled ? addDisabledTooltip : importOnly ? "Import data" : importConfig ? "Add or import data" : "Add a new record to this table"}>
+                                    <Tooltip title={addBlocked ? addBlockedTooltip : importOnly ? "Import data" : importConfig ? "Add or import data" : "Add a new record to this table"}>
                                         <span style={{ display: "inline-flex" }}>
                                             <DropdownMenu
                                                 items={mergedAddDropdownItems}
                                                 trigger={['click']}
                                                 placement="bottomLeft"
-                                                disabled={addDisabled}
+                                                disabled={addBlocked}
                                                 overlayClassName="data-add-dropdown"
                                             >
-                                                <ESButton appearance="unstyled" type="button" className="data-btn" title={addDisabled ? addDisabledTooltip : importOnly ? "Import data" : importConfig ? "Add or import data" : "Add a new record to this table"} disabled={addDisabled}>
+                                                <ESButton appearance="unstyled" type="button" className="data-btn" title={addBlocked ? addBlockedTooltip : importOnly ? "Import data" : importConfig ? "Add or import data" : "Add a new record to this table"} disabled={addBlocked}>
                                                     {importOnly ? <FileUp size={14} /> : <Plus size={14} />} {importOnly ? "Import" : "Add"}
                                                     <ChevronDown size={14} className="data-btn__dropdown-icon" aria-hidden />
                                                 </ESButton>
@@ -1406,9 +1441,9 @@ export function DataPageLayout({
                                 ))
                             ) : (
                                 !hideAdd && (
-                                    <Tooltip title={addDisabled ? addDisabledTooltip : "Add a new record to this table"}>
+                                    <Tooltip title={addBlocked ? addBlockedTooltip : "Add a new record to this table"}>
                                         <span style={{ display: "inline-flex" }}>
-                                            <ESButton appearance="unstyled" type="button" className="data-btn" title="Add a new record to this table" disabled={addDisabled} onClick={() => onAddCustom ? onAddCustom() : setCrudModal({ open: true, mode: "add" })}>
+                                            <ESButton appearance="unstyled" type="button" className="data-btn" title={addBlocked ? addBlockedTooltip : "Add a new record to this table"} disabled={addBlocked} onClick={() => onAddCustom ? onAddCustom() : setCrudModal({ open: true, mode: "add" })}>
                                                 <Plus size={14} /> Add
                                             </ESButton>
                                         </span>
@@ -1416,7 +1451,13 @@ export function DataPageLayout({
                                 )
                             )}
                             {!hideEdit && (
-                                <ESButton appearance="unstyled" className="data-btn" title="Edit the selected record" disabled={selectedRows.size !== 1} onClick={() => onEditCustom ? onEditCustom(Array.from(selectedRows)) : setCrudModal({ open: true, mode: "edit" })}>
+                                <ESButton
+                                    appearance="unstyled"
+                                    className="data-btn"
+                                    title={selectionCanEdit ? "Edit the selected record" : noPermissionTooltip}
+                                    disabled={!selectionCanEdit}
+                                    onClick={() => onEditCustom ? onEditCustom(Array.from(selectedRows)) : setCrudModal({ open: true, mode: "edit" })}
+                                >
                                     <Pencil size={14} /> Edit
                                 </ESButton>
                             )}
@@ -1427,12 +1468,14 @@ export function DataPageLayout({
                                 <ESButton
                                     appearance="unstyled"
                                     className="data-btn danger"
-                                    title={deleteConfirmation && selectedRows.size !== 1
-                                        ? "Select one record to delete"
-                                        : deleteConfirmation && !deleteConfirmationName
-                                            ? "This record has no name to confirm"
-                                            : "Delete"}
-                                    disabled={selectedRows.size === 0 || Boolean(deleteConfirmation && (selectedRows.size !== 1 || !deleteConfirmationName))}
+                                    title={!selectionCanDelete
+                                        ? noPermissionTooltip
+                                        : deleteConfirmation && selectedRows.size !== 1
+                                            ? "Select one record to delete"
+                                            : deleteConfirmation && !deleteConfirmationName
+                                                ? "This record has no name to confirm"
+                                                : "Delete"}
+                                    disabled={!selectionCanDelete || Boolean(deleteConfirmation && (selectedRows.size !== 1 || !deleteConfirmationName))}
                                     onClick={() => setDeleteConfirmOpen(true)}
                                 >
                                     <Trash2 size={14} /> Delete
@@ -1508,7 +1551,7 @@ export function DataPageLayout({
                                         onRowDoubleClickCustom(record)
                                         return
                                     }
-                                    if (hideEdit) return
+                                    if (hideEdit || !canEdit || (canEditRecord && !canEditRecord(record))) return
                                     openEditForRecord(record)
                                 },
                             })}

@@ -1,5 +1,6 @@
 import { apiClient } from "../client"
 import type { FilterOptionUser } from "../utils"
+import type { RowCapabilities } from "../capabilities"
 
 export interface CollectionPublic {
     collection_id: number;
@@ -14,6 +15,7 @@ export interface CollectionPublic {
     public_tags: boolean;
     creator_id: number;
     creation_date: string;
+    capabilities?: RowCapabilities;
     creator?: {
         user_id: number;
         name: string;

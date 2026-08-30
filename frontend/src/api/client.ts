@@ -116,6 +116,7 @@ function buildUrl(endpoint: string, params?: RequestConfig["params"]): string {
 }
 
 import { authUtils, dispatchAuthChange, dispatchLoginRequired } from "../utils/auth"
+import { dispatchPermissionDenied } from "../utils/permissionNotice"
 
 /** 登录接口 401 不触发登录跳转（密码错误等）。 */
 let refreshAccessTokenPromise: Promise<string | null> | null = null
@@ -124,7 +125,7 @@ function shouldIgnore401Redirect(endpoint: string): boolean {
     return endpoint.includes("/auth-tokens") || endpoint.includes("/auth-token-refreshes")
 }
 
-function onUnauthorized(status: number, endpoint: string, ignoreRedirect = false) {
+function onUnauthorized(status: number, endpoint: string, data: unknown, ignoreRedirect = false) {
     if (shouldIgnore401Redirect(endpoint) || ignoreRedirect) return
 
     if (status === 401) {
@@ -133,7 +134,11 @@ function onUnauthorized(status: number, endpoint: string, ignoreRedirect = false
         return
     }
 
+    // 403 表示会话有效但权限不足：只提示，不能触发登录流程。
+    // 403 means the session is valid but the grant is missing: notify only,
+    // never start the login flow.
     console.warn(`[apiClient] Forbidden (403) on endpoint: ${endpoint}.`)
+    dispatchPermissionDenied(endpoint, data)
 }
 
 function shouldAttemptRefresh(endpoint: string): boolean {
@@ -234,7 +239,7 @@ function handleUnauthorizedAndThrow(
         if (response.status === 401 && isIdleTimeoutResponse(response) && !ignoreUnauthorized) {
             dispatchLoginRequired("idle_timeout")
         } else {
-            onUnauthorized(response.status, endpoint, ignoreUnauthorized)
+            onUnauthorized(response.status, endpoint, data, ignoreUnauthorized)
         }
     }
     throw new ApiError(response.status, response.statusText, data)

@@ -9,7 +9,8 @@ from app.models import User
 from app.models.annotation import Annotation
 from app.models.media import Media, MediaCollection
 from app.repositories import permission_repository, task_repository
-from app.services import permission_service
+from app.schemas.capability import RowCapabilities
+from app.services import permission_service, row_capability_service
 
 _TASK_EXPORT_COLUMNS = [
     CsvColumn("task_id"), CsvColumn("type"), CsvColumn("media_name"), CsvColumn("media_type"),
@@ -34,6 +35,7 @@ def require_media_write_access(
     session: Session,
     media_id: int,
     current_user: User,
+    project_id: int | None = None,
 ) -> Media:
     """Verify media exists and current user has write permission on at least
     one of its collections (or is admin)."""
@@ -58,6 +60,7 @@ def require_media_write_access(
             [mc.collection_id for mc in mc_list],
             "collection",
             "write",
+            project_id=project_id,
         )
         if not has_access:
             raise HTTPException(
@@ -67,15 +70,15 @@ def require_media_write_access(
     return media
 
 
-def get_assignable_users(session: Session, media_id: int, current_user: User) -> list[dict]:
+def get_assignable_users(session: Session, media_id: int, current_user: User, project_id: int | None = None) -> list[dict]:
     """Get users assignable to tasks for the given media."""
-    require_media_write_access(session, media_id, current_user)
+    require_media_write_access(session, media_id, current_user, project_id)
     return task_repository.get_assignable_users(session, media_id)
 
 
-def get_media_tasks(session: Session, media_id: int, current_user: User) -> list[dict]:
+def get_media_tasks(session: Session, media_id: int, current_user: User, project_id: int | None = None) -> list[dict]:
     """Get all tasks for the given media."""
-    require_media_write_access(session, media_id, current_user)
+    require_media_write_access(session, media_id, current_user, project_id)
     return task_repository.get_tasks_by_media(session, media_id)
 
 
@@ -86,11 +89,12 @@ def assign_tasks(
     task_type: str,
     assignments: list[dict],
     annotation_ids: list[int] | None = None,
+    project_id: int | None = None,
     *,
     commit: bool = True,
 ) -> dict:
     """Batch assign tasks to users for a specific media."""
-    validate_task_assignments(session, media_id, current_user, task_type, assignments, annotation_ids)
+    validate_task_assignments(session, media_id, current_user, task_type, assignments, annotation_ids, project_id)
 
     total_count = 0
 
@@ -119,9 +123,10 @@ def assign_tasks(
 def validate_task_assignments(
     session: Session, media_id: int, current_user: User, task_type: str,
     assignments: list[dict], annotation_ids: list[int] | None = None,
+    project_id: int | None = None,
 ) -> None:
     """Validate task assignments without creating or updating tasks."""
-    require_media_write_access(session, media_id, current_user)
+    require_media_write_access(session, media_id, current_user, project_id)
 
     if not assignments:
         raise HTTPException(status_code=400, detail="assignments list cannot be empty")
@@ -185,7 +190,7 @@ def list_tasks(
             action="write" # user must have collection:write to see all tasks in collection
         )
 
-    return task_repository.list_tasks(
+    total, items = task_repository.list_tasks(
         session=session,
         user_id=current_user.user_id,
         is_admin=is_admin,
@@ -206,6 +211,21 @@ def list_tasks(
             "collection_id": collection_id,
         }.items() if v is not None}
     )
+    media_ids = {int(item["media_id"]) for item in items if item.get("media_id") is not None}
+    media_collections = row_capability_service.media_collection_map(
+        session, media_ids, project_id
+    )
+    writable_ids = row_capability_service.project_collection_ids(
+        session, current_user, project_id, "collection", "write"
+    )
+    for item in items:
+        linked_ids = media_collections.get(item.get("media_id"), set())
+        item["capabilities"] = RowCapabilities(
+            delete=is_admin
+            or item.get("assigner_id") == current_user.user_id
+            or bool(linked_ids & writable_ids)
+        )
+    return total, items
 
 
 def export_tasks(
@@ -285,7 +305,7 @@ def get_task(
     return task_dict
 
 
-def delete_task(session: Session, current_user: User, task_id: int):
+def delete_task(session: Session, current_user: User, task_id: int, project_id: int | None = None):
     task = task_repository.get(session, task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
@@ -302,6 +322,7 @@ def delete_task(session: Session, current_user: User, task_id: int):
                 list(media_cols),
                 "collection",
                 "write",
+                project_id=project_id,
             ):
                 raise HTTPException(status_code=403, detail="You do not have permission to delete this task.")
         else:

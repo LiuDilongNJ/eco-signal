@@ -20,6 +20,7 @@ from app.schemas.project import (
     ProjectPublic,
     ProjectUpdate,
 )
+from app.schemas.capability import RowCapabilities
 from app.schemas.response import ApiResponse, PagedApiResponse, api_page
 from app.services import permission_service
 
@@ -91,7 +92,9 @@ def get_projects(
     skip = (page - 1) * page_size
 
     # Admins automatically see all projects
-    if user and permission_service.is_admin(user):
+    admin = bool(user and permission_service.is_admin(user))
+    manageable_project_ids: list[int] = []
+    if admin:
         projects = project_repository.get_multi_filtered(
             session, skip=skip, limit=page_size, order_by=order_by, order_dir=order_dir, **filters
         )
@@ -115,6 +118,12 @@ def get_projects(
         p_dict = p.model_dump()
         if p.creator:
             p_dict["creator_name"] = p.creator.name
+        writable = admin or p.project_id in manageable_project_ids
+        p_dict["capabilities"] = RowCapabilities(
+            edit=writable,
+            delete=admin,
+            link=writable,
+        )
         data.append(ProjectPublic.model_validate(p_dict))
     
     return api_page(data=data, total=count, page=page, page_size=page_size)

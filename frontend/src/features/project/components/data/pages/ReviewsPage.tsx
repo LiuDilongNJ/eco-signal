@@ -8,6 +8,8 @@ import { ClipboardCheck } from "lucide-react"
 import { ReviewFormDrawer } from "../../modals/ReviewFormDrawer"
 import { downloadFile } from "@/utils/download"
 import { useTableFetchScheduler } from "@/hooks/useTableFetchScheduler"
+import { usePermissions } from "@/hooks/usePermissions"
+import { rowCan } from "../rowCapabilities"
 
 const COLUMNS: ColumnDef[] = [
     { key: "annotation_id", label: "Annotation ID", type: "number", width: "160px", sortable: true, filterable: true },
@@ -81,6 +83,8 @@ export function ReviewsPage() {
 
     const currentProjectId = useProjectStore((s) => s.currentProjectId)
     const currentCollectionId = useProjectStore((s) => s.currentCollectionId)
+    const { can } = usePermissions(currentProjectId, currentCollectionId)
+    const canWriteReview = can("review:write")
 
     const fetchTableData = useCallback(
         async (state: TableState) => {
@@ -270,8 +274,10 @@ export function ReviewsPage() {
                     resourceKey: "reviews",
                     importOnly: true,
                     fields: { project_id: currentProjectId, collection_id: currentCollectionId },
-                    disabled: !currentProjectId || !currentCollectionId || currentCollectionId === "all",
-                    disabledReason: "Select a project and collection before importing reviews",
+                    disabled: !canWriteReview || !currentProjectId || !currentCollectionId || currentCollectionId === "all",
+                    disabledReason: canWriteReview
+                        ? "Select a project and collection before importing reviews"
+                        : "You do not have permission to import reviews",
                 }}
                 icon={ClipboardCheck}
                 columns={COLUMNS}
@@ -289,6 +295,8 @@ export function ReviewsPage() {
                 onExportCustom={handleExport}
                 hideView={true}
                 hideAdd={true}
+                canEditRecord={(record) => rowCan(record, "edit")}
+                canDeleteRecord={(record) => rowCan(record, "delete")}
             />
             <ReviewFormDrawer
                 open={editDrawerOpen}

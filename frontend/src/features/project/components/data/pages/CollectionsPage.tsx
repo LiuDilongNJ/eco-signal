@@ -8,7 +8,6 @@ import { DataPageLayout } from "../DataPageLayout"
 import type { ColumnDef, FormFieldDef, RowData, TableState } from "../DataPageLayout"
 import { FileArchive, Library, PackageOpen } from "lucide-react"
 import { collectionsApi } from "../../../../../api/endpoints/collections"
-import { usersApi } from "../../../../../api/endpoints/users"
 import { AddCollectionDrawer } from "../../modals/AddCollectionDrawer"
 import type { CollectionTaxonDraft } from "../../modals/SetTaxonsDrawer"
 import {
@@ -21,6 +20,8 @@ import { useProjectStore } from "../../../stores/useProjectStore"
 import { useTabStore } from "../../../stores/useTabStore"
 import { downloadFile } from "@/utils/download"
 import { useTableFetchScheduler } from "@/hooks/useTableFetchScheduler"
+import { usePermissions } from "@/hooks/usePermissions"
+import { rowCan, selectionCan } from "../rowCapabilities"
 
 function renderTaxonPills(_value: unknown, record: RowData) {
     const taxons = Array.isArray((record as any).taxons) ? (record as any).taxons : []
@@ -75,7 +76,6 @@ export function CollectionsPage() {
 
     const [addDrawerOpen, setAddDrawerOpen] = useState(false)
     const [editCollectionId, setEditCollectionId] = useState<number | null>(null)
-    const [meIsProjectAdmin, setMeIsProjectAdmin] = useState(false)
     const [importBundleOpen, setImportBundleOpen] = useState(false)
     const [exportBundleOpen, setExportBundleOpen] = useState(false)
     const [exportBundleCollection, setExportBundleCollection] = useState<{
@@ -109,32 +109,10 @@ export function CollectionsPage() {
         return firstReal?.id ?? null
     }, [currentCollectionId, collectionOptions])
 
-    useEffect(() => {
-        let cancelled = false
-        ;(async () => {
-            try {
-                const projectIdNum =
-                    currentProjectId != null && String(currentProjectId).trim() !== ""
-                        ? Number(currentProjectId)
-                        : NaN
-                const res = await usersApi.getMe({
-                    ignoreUnauthorized: true,
-                    ...(Number.isFinite(projectIdNum) ? { project_id: projectIdNum } : {}),
-                })
-                if (!cancelled && (res.code === 0 || res.code === 200) && res.data) {
-                    setMeIsProjectAdmin(!!res.data.is_project_admin)
-                }
-            } catch (error) {
-                console.error("Failed to fetch current user:", error)
-                if (!cancelled) {
-                    setMeIsProjectAdmin(false)
-                }
-            }
-        })()
-        return () => {
-            cancelled = true
-        }
-    }, [currentProjectId])
+    const { can } = usePermissions(currentProjectId)
+    // Creating, deleting and importing collections are project-level operations;
+    // editing one only needs write on the collection itself.
+    const canWriteProject = can("project:write")
 
     const fetchTableData = useCallback(async (state: TableState) => {
         const requestId = ++tableRequestIdRef.current
@@ -348,7 +326,7 @@ export function CollectionsPage() {
         <>
             <DataPageLayout
                 title="Collections"
-                importConfig={meIsProjectAdmin ? {
+                importConfig={canWriteProject ? {
                     endpoint: "/v1/collections/imports",
                     resourceKey: "collections",
                     addLabel: "Add Collection",
@@ -373,7 +351,9 @@ export function CollectionsPage() {
                 onTableStateChange={handleTableChange}
                 defaultSortKey="collection_id"
                 defaultSortDir="asc"
-                addDisabled={!meIsProjectAdmin}
+                canAdd={canWriteProject}
+                canEditRecord={(record) => rowCan(record, "edit")}
+                canDeleteRecord={(record) => rowCan(record, "delete")}
                 onViewCustom={(selectedKeys) => {
                     if (selectedKeys.length === 1) {
                         selectCollection(selectedKeys[0] as number)
@@ -400,7 +380,7 @@ export function CollectionsPage() {
                         disabled={
                             selectedRows.size !== 1 ||
                             !currentProjectId ||
-                            !meIsProjectAdmin
+                            !selectionCan(selectedRows, rows, "collection_id", "export_bundle")
                         }
                         onClick={() => {
                             const collectionId = Number(Array.from(selectedRows)[0])
@@ -421,7 +401,7 @@ export function CollectionsPage() {
                     <ESButton appearance="unstyled"
                         className="data-btn"
                         title="Import Bundle"
-                        disabled={!currentProjectId || !meIsProjectAdmin}
+                        disabled={!currentProjectId || !canWriteProject}
                         onClick={() => setImportBundleOpen(true)}
                     >
                         <PackageOpen size={14} /> Import Bundle

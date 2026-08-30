@@ -14,6 +14,8 @@ import { AssignTasksDrawer } from "../../modals/AssignTasksDrawer"
 import { AnnotationFormDrawer } from "../../modals/AnnotationFormDrawer"
 import { downloadFile } from "@/utils/download"
 import { useTableFetchScheduler } from "@/hooks/useTableFetchScheduler"
+import { usePermissions } from "@/hooks/usePermissions"
+import { rowCan, selectionCan } from "../rowCapabilities"
 
 const COLUMNS: ColumnDef[] = [
     { key: "annotation_id", label: "ID", type: "number", width: "80px", sortable: true, filterable: true },
@@ -90,6 +92,8 @@ export function AnnotationsPage() {
     const [loading, setLoading] = useState(true)
     const currentProjectId = useProjectStore(s => s.currentProjectId)
     const currentCollectionId = useProjectStore(s => s.currentCollectionId)
+    const { can } = usePermissions(currentProjectId, currentCollectionId)
+    const canWriteAnnotation = can("annotation:write")
 
     // Assignment drawer state（tag 任务需 annotation_ids；单选行时为当前标注 ID）
     const [assignTasksOpen, setAssignTasksOpen] = useState(false)
@@ -359,8 +363,10 @@ export function AnnotationsPage() {
                     resourceKey: "annotations",
                     importOnly: true,
                     fields: { project_id: currentProjectId, collection_id: currentCollectionId },
-                    disabled: !currentProjectId || !currentCollectionId || currentCollectionId === "all",
-                    disabledReason: "Select a project and collection before importing annotations",
+                    disabled: !canWriteAnnotation || !currentProjectId || !currentCollectionId || currentCollectionId === "all",
+                    disabledReason: canWriteAnnotation
+                        ? "Select a project and collection before importing annotations"
+                        : "You do not have permission to import annotations",
                 }}
                 icon={ScanLine}
                 columns={COLUMNS}
@@ -380,6 +386,8 @@ export function AnnotationsPage() {
                 viewRequiresSingle={false}
                 hideView={false}
                 hideAdd={true}
+                canEditRecord={(record) => rowCan(record, "edit")}
+                canDeleteRecord={(record) => rowCan(record, "delete")}
                 renderCustomActions={(selectedRows) => {
                     const selectedIds = Array.from(selectedRows).map((id) => Number(id))
                     const selectedAnnotations = rows.filter((row) => selectedIds.includes(Number(row.annotation_id)))
@@ -390,12 +398,16 @@ export function AnnotationsPage() {
                                 .filter((id) => Number.isFinite(id) && id > 0),
                         ),
                     )
-                    const canAssign = selectedAnnotations.length > 0 && mediaIds.length === 1
+                    const canAssign = selectionCan(selectedRows, rows, "annotation_id", "assign")
+                        && selectedAnnotations.length > 0
+                        && mediaIds.length === 1
 
                     return (
                         <ESButton appearance="unstyled"
                             className="data-btn"
-                            title="Assign a task to the selected annotation rows"
+                            title={canAssign
+                                ? "Assign a task to the selected annotation rows"
+                                : "You do not have permission to assign tasks"}
                             disabled={!canAssign}
                             onClick={() => {
                                 if (selectedAnnotations.length === 0) {

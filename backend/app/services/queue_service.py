@@ -9,6 +9,7 @@ from app.enums import QueueStatus
 from app.models.user import User
 from app.repositories import queue_repository
 from app.schemas.queue import QueueDeletionResult, QueueDetail, QueueListItem
+from app.schemas.capability import RowCapabilities
 from app.schemas.response import ApiResponse, PagedApiResponse, api_page, api_success
 from app.services import permission_service
 from app.repositories.collection_bundle_export_repository import collection_bundle_export_repository
@@ -102,6 +103,7 @@ def list_queues(
             stop_time=queue.stop_time,
             error=queue.error,
             warning=queue.warning,
+            capabilities=RowCapabilities(delete=is_admin or queue.user_id == current_user.user_id),
         ))
 
     return api_page(

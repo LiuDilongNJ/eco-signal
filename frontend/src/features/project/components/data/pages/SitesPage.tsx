@@ -14,6 +14,8 @@ import { LinkSiteToCollectionsDrawer } from "../../modals/LinkSiteToCollectionsD
 import { MapPin, Link as LinkIcon } from "lucide-react"
 import { downloadFile } from "@/utils/download"
 import { useTableFetchScheduler } from "@/hooks/useTableFetchScheduler"
+import { usePermissions } from "@/hooks/usePermissions"
+import { rowCan, selectionCan } from "../rowCapabilities"
 
 const COLUMNS: ColumnDef[] = [
     { key: "site_id", label: "ID", type: "number", width: "80px", sortable: true, filterable: true },
@@ -141,6 +143,8 @@ export function SitesPage() {
 
     const currentProjectId = useProjectStore(s => s.currentProjectId)
     const currentCollectionId = useProjectStore(s => s.currentCollectionId)
+    const { can } = usePermissions(currentProjectId, currentCollectionId)
+    const canWriteSite = can("site:write")
 
     const fetchTableData = useCallback(async (state: TableState) => {
         setLoading(true)
@@ -325,8 +329,10 @@ export function SitesPage() {
                     resourceKey: "sites",
                     addLabel: "Add Site",
                     fields: { project_id: currentProjectId, collection_id: currentCollectionId },
-                    disabled: !currentProjectId || !currentCollectionId || currentCollectionId === "all",
-                    disabledReason: "Select a project and collection before importing sites",
+                    disabled: !canWriteSite || !currentProjectId || !currentCollectionId || currentCollectionId === "all",
+                    disabledReason: canWriteSite
+                        ? "Select a project and collection before importing sites"
+                        : "You do not have permission to import sites",
                 }}
                 icon={MapPin}
                 columns={COLUMNS}
@@ -344,12 +350,23 @@ export function SitesPage() {
                 onDeleteCustom={handleDelete}
                 onExportCustom={handleExport}
                 hideView={true}
+                canAdd={canWriteSite}
+                canEditRecord={(record) => rowCan(record, "edit")}
+                canDeleteRecord={(record) => rowCan(record, "delete")}
                 renderCustomActions={(selectedRows) => (
                     <>
-                        <ESButton appearance="unstyled" className="data-btn" title="Link the selected sites to collections" disabled={selectedRows.size === 0} onClick={() => {
-                            setLinkSiteIds(Array.from(selectedRows) as number[])
-                            setLinkDrawerOpen(true)
-                        }}>
+                        <ESButton
+                            appearance="unstyled"
+                            className="data-btn"
+                            title={selectionCan(selectedRows, rows, "site_id", "link")
+                                ? "Link the selected sites to collections"
+                                : "You do not have permission to link sites"}
+                            disabled={!selectionCan(selectedRows, rows, "site_id", "link")}
+                            onClick={() => {
+                                setLinkSiteIds(Array.from(selectedRows) as number[])
+                                setLinkDrawerOpen(true)
+                            }}
+                        >
                             <LinkIcon size={14} /> Link
                         </ESButton>
                     </>

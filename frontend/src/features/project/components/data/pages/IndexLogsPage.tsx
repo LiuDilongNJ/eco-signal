@@ -17,6 +17,7 @@ import { useProjectStore } from "../../../stores/useProjectStore"
 import { ScrollText } from "lucide-react"
 import { downloadFile } from "@/utils/download"
 import { useTableFetchScheduler } from "@/hooks/useTableFetchScheduler"
+import { rowCan } from "../rowCapabilities"
 
 const COLUMNS: ColumnDef[] = [
     { key: "log_id", label: "ID", type: "number", width: "120px", sortable: true, filterable: true },
@@ -217,7 +218,11 @@ export function IndexLogsPage() {
 
             const hideLoading = message.loading(`Deleting ${payload.length} log group${payload.length > 1 ? "s" : ""}...`, 0)
             try {
-                await indexLogsApi.deleteGroups(payload)
+                if (!currentProjectId) {
+                    message.error("Select a project before deleting index logs")
+                    return
+                }
+                await indexLogsApi.deleteGroups(Number(currentProjectId), payload)
                 message.success(`Successfully deleted ${payload.length} log group${payload.length > 1 ? "s" : ""}`)
                 if (tableState) {
                     handleTableChange(tableState)
@@ -229,7 +234,7 @@ export function IndexLogsPage() {
                 hideLoading()
             }
         },
-        [deletePayloadByRowKey, handleTableChange, tableState],
+        [currentProjectId, deletePayloadByRowKey, handleTableChange, tableState],
     )
 
     return (
@@ -256,6 +261,7 @@ export function IndexLogsPage() {
             defaultSortDir="asc"
             onExportCustom={handleExport}
             onDeleteCustom={handleDelete}
+            canDeleteRecord={(record) => rowCan(record, "delete")}
             hideView={true}
             hideAdd={true}
             hideEdit={true}

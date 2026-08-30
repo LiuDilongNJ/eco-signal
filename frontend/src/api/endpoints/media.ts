@@ -1,6 +1,7 @@
 import { apiClient } from "../client"
 import { getApiData } from "../utils"
 import type { FilterOptionLabel, FilterOptionUser } from "../utils"
+import type { RowCapabilities } from "../capabilities"
 
 export interface MediaPublic {
     media_id?: number
@@ -45,6 +46,7 @@ export interface MediaPublic {
     media_url?: string | null
     image_width?: number | null
     image_height?: number | null
+    capabilities?: RowCapabilities
     [key: string]: any
 }
 
