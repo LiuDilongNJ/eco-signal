@@ -15,6 +15,15 @@ def _normalize_required_device_name(value: Any) -> str:
     return value.strip()
 
 
+def _normalize_optional_serial_number(value: Any) -> str | None:
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise ValueError("serial_number must be a string")
+    stripped = value.strip()
+    return stripped or None
+
+
 class RecorderOption(SQLModel):
     """Recorder option for dropdown menus."""
     recorder_id: int
@@ -44,6 +53,7 @@ class SensorOption(SQLModel):
     sensor_id: int
     name: str
     sensor_type: str
+    serial_number: Optional[str] = None
 
 
 class CameraOption(SQLModel):
@@ -313,6 +323,9 @@ class SensorCreate(SQLModel):
     camera_id: Optional[int] = None
     lens_id: Optional[int] = None
     description: Optional[str] = None
+    serial_number: Optional[str] = Field(default=None, max_length=100)
+
+    _normalize_serial_number = field_validator("serial_number")(_normalize_optional_serial_number)
 
 
 class SensorUpdate(SQLModel):
@@ -326,6 +339,9 @@ class SensorUpdate(SQLModel):
     camera_id: Optional[int] = None
     lens_id: Optional[int] = None
     description: Optional[str] = None
+    serial_number: Optional[str] = Field(default=None, max_length=100)
+
+    _normalize_serial_number = field_validator("serial_number")(_normalize_optional_serial_number)
 
 
 class SensorPublic(SQLModel):
@@ -343,6 +359,7 @@ class SensorPublic(SQLModel):
     lens_id: Optional[int] = None
     lens_name: Optional[str] = None
     description: Optional[str] = None
+    serial_number: Optional[str] = None
     creation_date: datetime
 
     @field_serializer("creation_date")

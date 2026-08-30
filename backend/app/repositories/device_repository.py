@@ -75,6 +75,7 @@ _SENSOR_FILTER_SPECS: list[FilterSpec] = [
     ("sensor_id",     Sensor.sensor_id,     FilterOp.EQ),
     ("uuid",          Sensor.uuid,          FilterOp.EQ),
     ("name",          Sensor.name,          FilterOp.LIKE),
+    ("serial_number", Sensor.serial_number, FilterOp.LIKE),
     ("description",   Sensor.description,   FilterOp.LIKE),
     ("sensor_type",   Sensor.sensor_type,   FilterOp.LIKE),
     ("recorder_id",   Sensor.recorder_id,   FilterOp.EQ),
@@ -92,6 +93,7 @@ _SENSOR_SORT_FIELDS: dict[str, Any] = {
     "sensor_id":        Sensor.sensor_id,
     "uuid":             Sensor.uuid,
     "name":             Sensor.name,
+    "serial_number":    Sensor.serial_number,
     "sensor_type":      Sensor.sensor_type,
     "recorder_name":    Recorder.name,
     "microphone_name":  Microphone.name,
@@ -729,6 +731,7 @@ def create_sensor(
     camera_id: int | None,
     lens_id: int | None,
     description: str | None,
+    serial_number: str | None = None,
 ) -> Sensor:
     obj = Sensor(
         name=name,
@@ -738,6 +741,7 @@ def create_sensor(
         camera_id=camera_id,
         lens_id=lens_id,
         description=description,
+        serial_number=serial_number,
     )
     session.add(obj)
     session.commit()

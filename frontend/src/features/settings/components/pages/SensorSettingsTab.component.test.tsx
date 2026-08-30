@@ -35,6 +35,11 @@ const { api, cameraOptions, dataPageProps, fetchLensListAll, toast } = vi.hoiste
     },
 }))
 
+vi.mock("@/components/ui/DataTable", () => ({
+    DataTable: () => null,
+    INTERNAL_COL_DEFINE: {},
+}))
+
 vi.mock("antd", async (importOriginal) => {
     const actual = await importOriginal<typeof import("antd")>()
     return { ...actual, message: toast }
@@ -123,6 +128,7 @@ beforeEach(() => {
             recorder_name: "Recorder A",
             microphone_id: 10,
             microphone_name: "Microphone A",
+            serial_number: "AM-7",
             description: null,
             creation_date: "2026-08-04 09:00:00",
         },
@@ -148,5 +154,25 @@ describe("SensorSettingsTab form", () => {
             expect(screen.queryByText("Default combination")).not.toBeInTheDocument()
         })
         expect(api.microphones.getOptions).toHaveBeenLastCalledWith({ recorder_id: 2 })
+    })
+
+    it("includes serial_number in the update payload", async () => {
+        api.sensors.update.mockResolvedValue({ code: 0, message: "ok", data: null })
+        render(<SensorSettingsTab />)
+
+        await act(async () => {
+            const edit = dataPageProps.current?.onEditCustom as (keys: unknown[]) => Promise<void>
+            await edit([7])
+        })
+
+        fireEvent.change(screen.getByLabelText(/Serial number/), { target: { value: " AM-2048 " } })
+        fireEvent.click(screen.getByRole("button", { name: "Save" }))
+
+        await waitFor(() => {
+            expect(api.sensors.update).toHaveBeenCalledWith(
+                7,
+                expect.objectContaining({ serial_number: "AM-2048" }),
+            )
+        })
     })
 })

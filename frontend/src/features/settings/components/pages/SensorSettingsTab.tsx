@@ -44,6 +44,7 @@ function orderByForApi(sortKey: string | null): string {
         sortKey === "sensor_id" ||
         sortKey === "uuid" ||
         sortKey === "name" ||
+        sortKey === "serial_number" ||
         sortKey === "sensor_type" ||
         sortKey === "recorder_name" ||
         sortKey === "microphone_name" ||
@@ -188,6 +189,7 @@ export function SensorSettingsTab() {
                 page: state.page,
                 page_size: state.pageSize,
                 name: (state.searchQuery?.trim() || state.filters.name?.trim()) || undefined,
+                serial_number: state.filters.serial_number?.trim() || undefined,
                 sensor_type: state.filters.sensor_type?.trim() || undefined,
                 sensor_id:
                     state.filters.sensor_id && String(state.filters.sensor_id).trim() !== ""
@@ -219,6 +221,7 @@ export function SensorSettingsTab() {
                         id: r.sensor_id,
                         uuid: String(r.uuid),
                         name: r.name ?? "",
+                        serial_number: r.serial_number ?? "",
                         sensor_type: r.sensor_type ?? "",
                         recorder_name: r.recorder_name ?? "",
                         microphone_name: r.microphone_name ?? "",
@@ -301,6 +304,7 @@ export function SensorSettingsTab() {
             }
             form.setFieldsValue({
                 name: s.name,
+                serial_number: s.serial_number ?? "",
                 sensor_type: s.sensor_type as "audio" | "photo",
                 recorder_id: s.recorder_id ?? undefined,
                 microphone_id: s.microphone_id ?? undefined,
@@ -385,6 +389,7 @@ export function SensorSettingsTab() {
             const order_dir: "asc" | "desc" = tableState.sortDir === "desc" ? "desc" : "asc"
             const base = {
                 name: (tableState.searchQuery?.trim() || tableState.filters.name?.trim()) || undefined,
+                serial_number: tableState.filters.serial_number?.trim() || undefined,
                 sensor_type: tableState.filters.sensor_type?.trim() || undefined,
                 sensor_id:
                     tableState.filters.sensor_id && String(tableState.filters.sensor_id).trim() !== ""
@@ -489,6 +494,13 @@ export function SensorSettingsTab() {
                             ]}
                         >
                             <Input maxLength={255} />
+                        </Form.Item>
+                        <Form.Item
+                            name="serial_number"
+                            label="Serial number"
+                            rules={[{ max: 100, message: "Serial number must be at most 100 characters" }]}
+                        >
+                            <Input maxLength={100} />
                         </Form.Item>
                         <Form.Item
                             name="sensor_type"

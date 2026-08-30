@@ -19,6 +19,7 @@ import type { UserOption } from "../../../../api/endpoints/users"
 import {
     buildMediaUpdatePayload,
     filterSensorsForMediaType,
+    formatSensorOptionLabel,
     MEDIA_ADD_TITLES,
     MEDIA_EDIT_TITLES,
 } from "./mediaForm"
@@ -280,7 +281,7 @@ export function PhotoMediaDrawer(props: PhotoMediaDrawerProps) {
                     optionFilterProp="label"
                     className="form-drawer-select"
                     classNames={{ popup: { root: selectPopupClassName } }}
-                    options={photoSensors.map((sensor) => ({ value: sensor.sensor_id, label: sensor.name }))}
+                    options={photoSensors.map((sensor) => ({ value: sensor.sensor_id, label: formatSensorOptionLabel(sensor) }))}
                     allowClear
                     notFoundContent={selectEmptyState}
                 />

@@ -18,6 +18,15 @@ export const SENSOR_COLUMNS: ColumnDef[] = [
         ),
     },
     {
+        key: "serial_number",
+        label: "Serial number",
+        type: "text",
+        width: "200px",
+        sortable: true,
+        filterable: true,
+        ellipsis: false,
+    },
+    {
         key: "sensor_type",
         label: "Type",
         type: "text",

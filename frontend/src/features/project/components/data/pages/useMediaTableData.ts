@@ -6,6 +6,7 @@ import { sensorsApi, type SensorOption } from "../../../../../api/endpoints/sens
 import type { RowData, TableState } from "../DataPageLayout"
 import { buildMediaQueryParams } from "./mediaQueryParams"
 import { useTableFetchScheduler } from "@/hooks/useTableFetchScheduler"
+import { formatSensorOptionLabel } from "../../modals/mediaForm"
 
 export function useMediaTableData(
     mediaType: "audio" | "photo",
@@ -75,8 +76,7 @@ export function useMediaTableData(
                         license?.name ||
                         String(item.license_id || ""),
                     sensor_name:
-                        item.sensor_name?.trim() ||
-                        sensor?.name ||
+                        (sensor ? formatSensorOptionLabel(sensor) : item.sensor_name?.trim()) ||
                         String(item.sensor_id || ""),
                     recording_gain_db: item.audio_setting?.recording_gain_db,
                     sampling_rate_hz: item.audio_setting?.sampling_rate_hz,

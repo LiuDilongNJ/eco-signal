@@ -23,3 +23,4 @@ class TestSensorOptions:
             for opt in options:
                 assert "sensor_id" in opt
                 assert "name" in opt
+                assert "serial_number" in opt

@@ -72,6 +72,9 @@ class TestSensorOptions:
         assert r.status_code == 200
         data = r.json()["data"]
         assert any(item["name"] == "OptionSensor" for item in data)
+        option = next(item for item in data if item["name"] == "OptionSensor")
+        assert "serial_number" in option
+        assert option["serial_number"] is None
 
 
 # GET /sensors  (admin)
@@ -185,6 +188,27 @@ class TestListSensors:
 
         response = client.get(
             f"{BASE}?description=canopy&page_size=100",
+            headers=superuser_token_headers,
+        )
+
+        assert response.status_code == 200, response.json()
+        sensor_ids = {item["sensor_id"] for item in response.json()["data"]}
+        assert matching.sensor_id in sensor_ids
+        assert non_matching.sensor_id not in sensor_ids
+
+    def test_list_filter_by_serial_number_uses_fuzzy_match(
+        self, client: TestClient, superuser_token_headers: dict, db: Session
+    ) -> None:
+        matching = _make_sensor_audio(db, "SerialMatch")
+        matching.serial_number = "AM-2048"
+        non_matching = _make_sensor_audio(db, "SerialMiss")
+        non_matching.serial_number = "SM4-001"
+        db.add(matching)
+        db.add(non_matching)
+        db.commit()
+
+        response = client.get(
+            f"{BASE}?serial_number=2048&page_size=100",
             headers=superuser_token_headers,
         )
 
@@ -339,7 +363,7 @@ class TestExportSensors:
         )
         rows = read_csv_rows(r.text)
         assert rows[0] == [
-            "sensor_id", "uuid", "name", "sensor_type", "recorder_id", "recorder_name",
+            "sensor_id", "uuid", "name", "serial_number", "sensor_type", "recorder_id", "recorder_name",
             "microphone_id", "microphone_name", "camera_id", "camera_name", "lens_id",
             "lens_name", "description", "creation_date",
         ]
@@ -373,6 +397,43 @@ class TestCreateSensor:
         assert row is not None
         assert row.sensor_type == "audio"
         assert row.uuid is not None
+        assert row.serial_number is None
+
+    def test_create_with_serial_number(
+        self, client: TestClient, superuser_token_headers: dict, db: Session
+    ) -> None:
+        recorder = _make_recorder(db, "SerialRecorder")
+        mic = _make_microphone(db, "SerialMic")
+        r = client.post(BASE, headers=superuser_token_headers, json={
+            "name": "SerialSensor",
+            "sensor_type": "audio",
+            "recorder_id": recorder.recorder_id,
+            "microphone_id": mic.microphone_id,
+            "serial_number": "  AM-1001  ",
+        })
+        assert r.status_code == 200
+        row = db.exec(select(Sensor).where(Sensor.name == "SerialSensor").order_by(Sensor.sensor_id.desc())).first()
+        assert row is not None
+        assert row.serial_number == "AM-1001"
+
+    def test_create_blank_serial_number_stores_null(
+        self, client: TestClient, superuser_token_headers: dict, db: Session
+    ) -> None:
+        recorder = _make_recorder(db, "BlankSerialRecorder")
+        mic = _make_microphone(db, "BlankSerialMic")
+        r = client.post(BASE, headers=superuser_token_headers, json={
+            "name": "BlankSerialSensor",
+            "sensor_type": "audio",
+            "recorder_id": recorder.recorder_id,
+            "microphone_id": mic.microphone_id,
+            "serial_number": "   ",
+        })
+        assert r.status_code == 200
+        row = db.exec(
+            select(Sensor).where(Sensor.name == "BlankSerialSensor").order_by(Sensor.sensor_id.desc())
+        ).first()
+        assert row is not None
+        assert row.serial_number is None
 
     def test_create_rejects_normalized_duplicate_name(
         self, client: TestClient, superuser_token_headers: dict, db: Session
@@ -793,6 +854,28 @@ class TestUpdateSensor:
         db.refresh(obj)
         assert obj.name == "Updated Sensor"
         assert obj.description == "New desc"
+
+    def test_update_serial_number(
+        self, client: TestClient, superuser_token_headers: dict, db: Session
+    ) -> None:
+        obj = _make_sensor_audio(db)
+        r = client.put(
+            f"{BASE}/{obj.sensor_id}",
+            headers=superuser_token_headers,
+            json={"serial_number": " SM4-77 "},
+        )
+        assert r.status_code == 200
+        db.refresh(obj)
+        assert obj.serial_number == "SM4-77"
+
+        r = client.put(
+            f"{BASE}/{obj.sensor_id}",
+            headers=superuser_token_headers,
+            json={"serial_number": "  "},
+        )
+        assert r.status_code == 200
+        db.refresh(obj)
+        assert obj.serial_number is None
 
     def test_update_rejects_normalized_duplicate_name(
         self, client: TestClient, superuser_token_headers: dict, db: Session

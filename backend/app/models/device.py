@@ -170,6 +170,7 @@ class Sensor(SQLModel, table=True):
         index=True
     )
     description: Optional[str] = Field(default=None)
+    serial_number: Optional[str] = Field(default=None, max_length=100)
     creation_date: datetime = Field(default_factory=datetime.utcnow)
     
     # Relationships

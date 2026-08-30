@@ -791,6 +791,7 @@ def _build_sensor_public(row: tuple) -> SensorPublic:
         lens_id=sensor.lens_id,
         lens_name=lens_name,
         description=sensor.description,
+        serial_number=sensor.serial_number,
         creation_date=sensor.creation_date,
     )
 
@@ -809,7 +810,7 @@ def list_sensors(
 
 _SENSOR_EXPORT_COLUMNS = [
     CsvColumn("sensor_id"), CsvColumn("uuid"), CsvColumn("name"),
-    CsvColumn("sensor_type"), CsvColumn("recorder_id"),
+    CsvColumn("serial_number"), CsvColumn("sensor_type"), CsvColumn("recorder_id"),
     CsvColumn("recorder_name"), CsvColumn("microphone_id"),
     CsvColumn("microphone_name"), CsvColumn("camera_id"),
     CsvColumn("camera_name"), CsvColumn("lens_id"),
@@ -895,6 +896,7 @@ def create_sensor(
     camera_id: int | None,
     lens_id: int | None,
     description: str | None,
+    serial_number: str | None = None,
 ) -> None:
     name = _normalized_name(name)
     if device_repository.has_normalized_name(session, Sensor, name):
@@ -912,7 +914,8 @@ def create_sensor(
     if sensor_type == "audio" and recorder_id is not None and microphone_id is not None:
         device_repository.ensure_recorder_microphone(session, recorder_id, microphone_id)
     device_repository.create_sensor(
-        session, name, sensor_type, recorder_id, microphone_id, camera_id, lens_id, description
+        session, name, sensor_type, recorder_id, microphone_id, camera_id, lens_id,
+        description, serial_number,
     )
 
 
