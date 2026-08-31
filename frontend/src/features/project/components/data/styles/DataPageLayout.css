@@ -649,6 +649,8 @@ input[type="number"].dpl-filter-input {
 /* 勾选列横向滚动时冻结在左侧 */
 .data-table-wrapper .ant-table-thead > tr > th.dpl-th-selection,
 .data-table-wrapper .ant-table-tbody > tr > td.dpl-td-selection,
+.data-table-wrapper .ant-table-thead > tr > th.ant-table-cell-fix-start,
+.data-table-wrapper .ant-table-tbody > tr > td.ant-table-cell-fix-start,
 .data-table-wrapper .ant-table-thead > tr > th.ant-table-cell-fix-left,
 .data-table-wrapper .ant-table-tbody > tr > td.ant-table-cell-fix-left {
     position: sticky !important;
@@ -656,18 +658,22 @@ input[type="number"].dpl-filter-input {
 }
 
 .data-table-wrapper .ant-table-thead > tr > th.dpl-th-selection,
+.data-table-wrapper .ant-table-thead > tr > th.ant-table-cell-fix-start,
 .data-table-wrapper .ant-table-thead > tr > th.ant-table-cell-fix-left {
     z-index: 5 !important;
     background: var(--es-color-bg-subtle) !important;
 }
 
 .data-table-wrapper .ant-table-tbody > tr > td.dpl-td-selection,
+.data-table-wrapper .ant-table-tbody > tr > td.ant-table-cell-fix-start,
 .data-table-wrapper .ant-table-tbody > tr > td.ant-table-cell-fix-left {
-    z-index: 2 !important;
+    z-index: 3 !important;
     background: var(--card-bg) !important;
+    isolation: isolate;
 }
 
 .data-table-wrapper .ant-table-tbody > tr:hover > td.dpl-td-selection,
+.data-table-wrapper .ant-table-tbody > tr:hover > td.ant-table-cell-fix-start,
 .data-table-wrapper .ant-table-tbody > tr:hover > td.ant-table-cell-fix-left {
     background: var(--bg-surface-secondary) !important;
 }
@@ -816,9 +822,11 @@ input[type="number"].dpl-filter-input {
 
 .data-table-wrapper .ant-table-tbody>tr.dpl-row-selected>td.dpl-td-selection,
 .data-table-wrapper .ant-table-tbody>tr.dpl-row-selected:hover>td.dpl-td-selection,
+.data-table-wrapper .ant-table-tbody>tr.dpl-row-selected>td.ant-table-cell-fix-start,
+.data-table-wrapper .ant-table-tbody>tr.dpl-row-selected:hover>td.ant-table-cell-fix-start,
 .data-table-wrapper .ant-table-tbody>tr.dpl-row-selected>td.ant-table-cell-fix-left,
 .data-table-wrapper .ant-table-tbody>tr.dpl-row-selected:hover>td.ant-table-cell-fix-left {
-    background: var(--es-color-brand-soft) !important;
+    background: color-mix(in srgb, var(--es-color-brand) 10%, var(--card-bg)) !important;
 }
 
 .data-table-wrapper .ant-table-placeholder {

@@ -518,6 +518,8 @@
 .studio-annotation-table-wrap .ant-table-tbody>tr>td.ant-table-selection-column,
 .studio-annotation-table-wrap .ant-table-thead>tr>th.studio-annot-th-selection,
 .studio-annotation-table-wrap .ant-table-tbody>tr>td.studio-annot-td-selection,
+.studio-annotation-table-wrap .ant-table-thead>tr>th.ant-table-cell-fix-start,
+.studio-annotation-table-wrap .ant-table-tbody>tr>td.ant-table-cell-fix-start,
 .studio-annotation-table-wrap .ant-table-thead>tr>th.ant-table-cell-fix-left,
 .studio-annotation-table-wrap .ant-table-tbody>tr>td.ant-table-cell-fix-left {
     position: sticky !important;
@@ -526,14 +528,19 @@
 
 .studio-annotation-table-wrap .ant-table-thead>tr>th.ant-table-selection-column,
 .studio-annotation-table-wrap .ant-table-thead>tr>th.studio-annot-th-selection,
+.studio-annotation-table-wrap .ant-table-thead>tr>th.ant-table-cell-fix-start,
 .studio-annotation-table-wrap .ant-table-thead>tr>th.ant-table-cell-fix-left {
     z-index: 34 !important;
+    background: var(--es-color-bg-subtle) !important;
 }
 
 .studio-annotation-table-wrap .ant-table-tbody>tr>td.ant-table-selection-column,
 .studio-annotation-table-wrap .ant-table-tbody>tr>td.studio-annot-td-selection,
+.studio-annotation-table-wrap .ant-table-tbody>tr>td.ant-table-cell-fix-start,
 .studio-annotation-table-wrap .ant-table-tbody>tr>td.ant-table-cell-fix-left {
     z-index: 3 !important;
+    background: var(--es-color-bg-surface) !important;
+    isolation: isolate;
 }
 
 .studio-annotation-table-wrap .studio-annot-th-selection,
