@@ -2,8 +2,10 @@ import { Input as ESInput, Button as ESButton, Label } from "@/components/ui"
 import { LoadingState } from "@/components/ui"
 import { useCallback, useEffect, useState } from "react"
 import { message, Modal, Switch } from "@/components/ui"
+import { HardDrive, RefreshCw } from "lucide-react"
 import { ApiError } from "../../../../api/client"
 import { networkApi, type NetworkSettings } from "../../../../api/endpoints/network"
+import { systemApi, type StorageStatus } from "../../../../api/endpoints/system"
 import {
     renderRequiredLabel,
     validateFederationUrl,
@@ -12,6 +14,7 @@ import {
     validateRequiredCoordRange,
 } from "../../utils/formValidation"
 import "../style/settings-forms.css"
+import { formatStorageBytes, storageHealthLabel } from "../../utils/storageStatus"
 
 type FederationField = "server_name" | "app_url" | "host_url" | "latStr" | "lonStr"
 
@@ -26,6 +29,9 @@ export function FederationSettingsTab() {
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
     const [forbidden, setForbidden] = useState(false)
+    const [storage, setStorage] = useState<StorageStatus | null>(null)
+    const [storageLoading, setStorageLoading] = useState(true)
+    const [storageError, setStorageError] = useState<string | null>(null)
     const [form, setForm] = useState({
         server_name: "",
         app_url: "",
@@ -73,6 +79,29 @@ export function FederationSettingsTab() {
     useEffect(() => {
         void load()
     }, [load])
+
+    const loadStorage = useCallback(async () => {
+        try {
+            setStorageLoading(true)
+            setStorageError(null)
+            const res = await systemApi.getStorageStatus()
+            if (res.code !== 0 && res.code !== 200) {
+                setStorage(null)
+                setStorageError(res.message || "Storage status is unavailable")
+                return
+            }
+            setStorage(res.data ?? null)
+        } catch {
+            setStorage(null)
+            setStorageError("Storage status is unavailable")
+        } finally {
+            setStorageLoading(false)
+        }
+    }, [])
+
+    useEffect(() => {
+        void loadStorage()
+    }, [loadStorage])
 
     const validateForm = (): boolean => {
         const nextErrors: Partial<Record<FederationField, string>> = {}
@@ -180,6 +209,55 @@ export function FederationSettingsTab() {
 
     return (
         <div className="settings-form">
+            <section className="settings-storage" aria-labelledby="server-storage-title">
+                <div className="settings-storage__header">
+                    <div className="settings-storage__title">
+                        <HardDrive size={18} aria-hidden />
+                        <h3 id="server-storage-title">Server Disk Space</h3>
+                    </div>
+                    <ESButton appearance="unstyled"
+                        type="button"
+                        className="settings-storage__refresh"
+                        onClick={() => void loadStorage()}
+                        disabled={storageLoading}
+                    >
+                        <RefreshCw size={15} aria-hidden />
+                        Refresh
+                    </ESButton>
+                </div>
+
+                {storageLoading ? (
+                    <LoadingState label="Loading storage status..." variant="inline" size="sm" />
+                ) : storageError || !storage ? (
+                    <div className="settings-form__status settings-form__status--error" role="alert">
+                        {storageError || "Storage status is unavailable"}
+                    </div>
+                ) : (
+                    <div className="settings-storage__content">
+                        <div className="settings-storage__summary">
+                            <span>Used: {formatStorageBytes(storage.used_bytes)} / {formatStorageBytes(storage.total_bytes)}</span>
+                            <span>Free: {formatStorageBytes(storage.free_bytes)}</span>
+                        </div>
+                        <div className="settings-storage__progress-row">
+                            <div
+                                className={`settings-storage__progress settings-storage__progress--${storage.status}`}
+                                role="progressbar"
+                                aria-label="Container disk usage"
+                                aria-valuemin={0}
+                                aria-valuemax={100}
+                                aria-valuenow={storage.used_percent}
+                            >
+                                <span style={{ width: `${Math.min(Math.max(storage.used_percent, 0), 100)}%` }} />
+                            </div>
+                            <span className={`settings-storage__status settings-storage__status--${storage.status}`}>
+                                {storageHealthLabel(storage.status)}
+                            </span>
+                        </div>
+                        <div className="settings-storage__percent">{storage.used_percent.toFixed(1)}% full</div>
+                    </div>
+                )}
+            </section>
+
             <div className="settings-form__field">
                 <Label className="settings-form__label" htmlFor="fed-server-name">
                     {renderRequiredLabel("Server name")}
