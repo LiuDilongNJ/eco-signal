@@ -322,6 +322,22 @@ export default function HomePage() {
     }, []);
 
     useEffect(() => {
+        const syncAuth = () => {
+            const token = authUtils.getToken()
+            const user = authUtils.getUser()
+            setLoggedInUser(token && user ? user : null)
+            if (!token || !user) setShowUserMenu(false)
+        }
+
+        window.addEventListener("eco-auth-change", syncAuth)
+        window.addEventListener("storage", syncAuth)
+        return () => {
+            window.removeEventListener("eco-auth-change", syncAuth)
+            window.removeEventListener("storage", syncAuth)
+        }
+    }, [])
+
+    useEffect(() => {
         if (activePage === 2) {
             const timer = setTimeout(() => {
                 setStatsActive(true);

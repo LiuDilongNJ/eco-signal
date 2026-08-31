@@ -18,6 +18,8 @@ export interface LoginRequiredDetail {
 
 const SESSION_IDLE_TIMEOUT_KEY = "authSessionIdleTimeoutSeconds"
 const SESSION_LAST_ACTIVITY_KEY = "authSessionLastActivityAt"
+/** Changes only when the account session changes; access-token refreshes do not. */
+export const AUTH_SESSION_VERSION_KEY = "authSessionVersion"
 const SESSION_ACTIVITY_EVENT = "eco-auth-session-activity"
 
 let loginRequiredDispatchPending = false
@@ -42,6 +44,13 @@ export function dispatchLoginRequired(reason: LoginRequiredReason = "unauthorize
 /** Allow a subsequent 401 to open the login modal again. */
 export function resetLoginRequiredDispatch() {
     loginRequiredDispatchPending = false
+}
+
+function createAuthSessionVersion(): string {
+    if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+        return crypto.randomUUID()
+    }
+    return `${Date.now()}-${Math.random().toString(36).slice(2)}`
 }
 
 function resolveApiBaseUrlForAuth(): string {
@@ -106,6 +115,11 @@ export const authUtils = {
     setUser: (username: string) => localStorage.setItem("loggedInUser", username),
     removeUser: () => localStorage.removeItem("loggedInUser"),
 
+    getSessionVersion: () => localStorage.getItem(AUTH_SESSION_VERSION_KEY),
+    /** Mark a successful login/recovered session for cross-tab account-change detection. */
+    setSessionVersion: () => localStorage.setItem(AUTH_SESSION_VERSION_KEY, createAuthSessionVersion()),
+    removeSessionVersion: () => localStorage.removeItem(AUTH_SESSION_VERSION_KEY),
+
     getIdleTimeoutSeconds: () => Number(localStorage.getItem(SESSION_IDLE_TIMEOUT_KEY) ?? 0),
     getLastActivityAt: () => Number(localStorage.getItem(SESSION_LAST_ACTIVITY_KEY) ?? 0),
     setIdleTimeoutSeconds: (seconds: number) => {
@@ -130,11 +144,13 @@ export const authUtils = {
         const hadAuth =
             localStorage.getItem("accessToken") !== null ||
             localStorage.getItem("loggedInUser") !== null ||
+            localStorage.getItem(AUTH_SESSION_VERSION_KEY) !== null ||
             localStorage.getItem(SESSION_IDLE_TIMEOUT_KEY) !== null ||
             localStorage.getItem(SESSION_LAST_ACTIVITY_KEY) !== null
         if (!hadAuth) return
         localStorage.removeItem("accessToken")
         localStorage.removeItem("loggedInUser")
+        localStorage.removeItem(AUTH_SESSION_VERSION_KEY)
         localStorage.removeItem(SESSION_IDLE_TIMEOUT_KEY)
         localStorage.removeItem(SESSION_LAST_ACTIVITY_KEY)
         dispatchAuthChange()

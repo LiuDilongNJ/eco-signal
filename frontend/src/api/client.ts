@@ -204,6 +204,9 @@ export async function bootstrapSessionFromRefreshCookie(): Promise<void> {
     try {
         const token = await refreshAccessToken()
         if (!token) return
+        // A cookie-recovered session is also a new session from this tab's
+        // perspective and must notify other tabs of an account change.
+        authUtils.setSessionVersion()
         const res = await fetch(buildUrl("/v1/current-user"), {
             headers: { Authorization: `Bearer ${token}` },
             credentials: "include",

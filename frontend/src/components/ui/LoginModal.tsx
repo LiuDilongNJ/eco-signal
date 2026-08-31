@@ -60,6 +60,9 @@ export function LoginModal({
             }
 
             authUtils.setToken(accessToken)
+            // A session version identifies an account login without treating
+            // ordinary access-token rotation as an account switch.
+            authUtils.setSessionVersion()
             authUtils.setIdleTimeoutSeconds(raw.session_idle_timeout_seconds ?? 0)
             let displayName = loginInput
             try {

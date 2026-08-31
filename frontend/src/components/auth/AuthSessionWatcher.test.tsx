@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
     applyAccountTheme: vi.fn(),
     getPreference: vi.fn(),
     getToken: vi.fn(),
+    getSessionVersion: vi.fn(),
     startMonitor: vi.fn(),
     stopMonitor: vi.fn(),
 }))
@@ -22,7 +23,9 @@ vi.mock("@/store/useAppStore", () => ({
 }))
 
 vi.mock("@/utils/auth", () => ({
-    authUtils: { getToken: mocks.getToken },
+    AUTH_LANDING_PATH: "/",
+    AUTH_SESSION_VERSION_KEY: "authSessionVersion",
+    authUtils: { getToken: mocks.getToken, getSessionVersion: mocks.getSessionVersion },
 }))
 
 vi.mock("@/utils/sessionActivityMonitor", () => ({
@@ -35,6 +38,7 @@ import { AuthSessionWatcher } from "./AuthSessionWatcher"
 describe("AuthSessionWatcher theme synchronization", () => {
     beforeEach(() => {
         vi.clearAllMocks()
+        mocks.getSessionVersion.mockReturnValue(null)
     })
 
     it("applies the signed-in account theme", async () => {
@@ -77,5 +81,19 @@ describe("AuthSessionWatcher theme synchronization", () => {
         await Promise.resolve()
 
         expect(mocks.applyAccountTheme).toHaveBeenCalledTimes(1)
+    })
+
+    it("clears account-scoped cache and broadcasts an external session change", async () => {
+        mocks.getToken.mockReturnValue("token-a")
+        mocks.getSessionVersion.mockReturnValueOnce("session-a").mockReturnValue("session-b")
+        mocks.getPreference.mockResolvedValue({ theme: "light" })
+        const onAuthChange = vi.fn()
+        window.addEventListener("eco-auth-change", onAuthChange)
+
+        render(<AuthSessionWatcher />)
+        window.dispatchEvent(new StorageEvent("storage", { key: "authSessionVersion", newValue: "session-b" }))
+
+        await waitFor(() => expect(onAuthChange).toHaveBeenCalledTimes(1))
+        window.removeEventListener("eco-auth-change", onAuthChange)
     })
 })

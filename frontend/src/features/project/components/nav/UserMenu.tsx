@@ -19,16 +19,19 @@ export function UserMenu() {
     useEffect(() => {
         // 同步当前登录状态
         const syncAuth = () => {
+            const token = authUtils.getToken()
             const user = authUtils.getUser()
-            setLoggedInUser(user ?? null)
+            setLoggedInUser(token && user ? user : null)
         }
         syncAuth()
 
         // 监听全局登录/登出事件（LoginModal、登出按钮等任意入口触发）
         window.addEventListener("eco-auth-change", syncAuth)
+        window.addEventListener("storage", syncAuth)
 
         return () => {
             window.removeEventListener("eco-auth-change", syncAuth)
+            window.removeEventListener("storage", syncAuth)
         }
     }, [])
 

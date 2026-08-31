@@ -94,4 +94,23 @@ describe("authUtils.clearAuth idempotency", () => {
 
         expect(authChangeCount).toBe(0)
     })
+
+    it("tracks a session version separately from access-token rotation", () => {
+        authUtils.setToken("token-a")
+        authUtils.setSessionVersion()
+        const firstVersion = authUtils.getSessionVersion()
+
+        authUtils.setToken("token-b")
+
+        expect(firstVersion).toBeTruthy()
+        expect(authUtils.getSessionVersion()).toBe(firstVersion)
+    })
+
+    it("clears the session version with the rest of auth state", () => {
+        authUtils.setSessionVersion()
+
+        authUtils.clearAuth()
+
+        expect(authUtils.getSessionVersion()).toBeNull()
+    })
 })
