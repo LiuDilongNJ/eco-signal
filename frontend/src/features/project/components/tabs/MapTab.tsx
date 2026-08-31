@@ -13,6 +13,7 @@ import "leaflet/dist/leaflet.css"
 import "leaflet.markercluster/dist/leaflet.markercluster.js"
 import "leaflet.markercluster/dist/MarkerCluster.css"
 import "leaflet.markercluster/dist/MarkerCluster.Default.css"
+import { CARTO_ATTRIBUTION, cartoTileUrl } from "@/utils/mapTiles"
 import "../../map.css"
 import {
     X,
@@ -78,8 +79,6 @@ const MAP_FIT_MAX_LNG_SPAN = 55
 const MAP_FIT_ALL_MAX_ZOOM = 15
 /** 地图上只剩 1 个站点时的 flyTo zoom */
 const MAP_FIT_SINGLE_SITE_ZOOM = 10
-/** 点击标点按围栏 fit 时的最大 zoom */
-const MAP_SITE_FENCE_MAX_ZOOM = 17
 /** 无有效围栏时 flyTo 中心至少达到的 zoom */
 const MAP_SITE_NO_FENCE_MIN_ZOOM = 10
 /** 到这个缩放级别后不再聚合，直接拆开站点（过低会导致近距离点“叠在一起”） */
@@ -330,80 +329,11 @@ type MarkerWithSite = L.Marker & { __site?: Site }
 
 /** 点击单个站点标点（无更下层聚合）时，将视图移到该站点围栏，并返回目标缩放级别 */
 function fitMapToSiteFence(map: L.Map, site: Site): number {
-    // 合并 GADM 多边形和 IHO 多边形的所有点来计算边界
-    const allPoints: [number, number][] = [...site.polygon]
-    for (const ring of site.ihoPolygons) {
-        allPoints.push(...ring)
-    }
-
-    if (allPoints.length >= 2) {
-        const bounds = L.latLngBounds(allPoints)
-        if (bounds.isValid()) {
-            const sw = bounds.getSouthWest()
-            const ne = bounds.getNorthEast()
-            const tiny =
-                Math.abs(sw.lat - ne.lat) < 1e-8 && Math.abs(sw.lng - ne.lng) < 1e-8
-            if (!tiny) {
-                // 计算 flyToBounds 最终会达到的 zoom
-                const targetZoom = Math.min(map.getBoundsZoom(bounds, false, L.point(52, 52)), MAP_SITE_FENCE_MAX_ZOOM)
-                map.flyToBounds(bounds, {
-                    padding: [52, 52],
-                    maxZoom: MAP_SITE_FENCE_MAX_ZOOM,
-                    duration: 0.75,
-                })
-                return targetZoom
-            }
-        }
-    }
-
     const targetZoom = Math.max(map.getZoom(), MAP_SITE_NO_FENCE_MIN_ZOOM)
     map.flyTo(site.center, targetZoom, {
         duration: 0.75,
     })
     return targetZoom
-}
-
-function siteHasFenceData(site: Site): boolean {
-    if (site.polygon.length >= 2) return true
-    return site.ihoPolygons.some((ring) => ring.length >= 2)
-}
-
-/** geometry 异步返回后，将视图缩放到选中站点围栏 */
-function FitSelectedSiteFenceOnGeometry({
-    site,
-    onSelectionZoomChange,
-    lastSelectionTimeRef,
-}: {
-    site: Site | null
-    onSelectionZoomChange: (zoom: number | null) => void
-    lastSelectionTimeRef: React.MutableRefObject<number>
-}) {
-    const map = useMap()
-    const prevSiteIdRef = useRef<string | null>(null)
-    const fenceFittedRef = useRef(false)
-
-    useEffect(() => {
-        if (!site) {
-            prevSiteIdRef.current = null
-            fenceFittedRef.current = false
-            return
-        }
-
-        if (site.id !== prevSiteIdRef.current) {
-            prevSiteIdRef.current = site.id
-            fenceFittedRef.current = siteHasFenceData(site)
-            return
-        }
-
-        if (siteHasFenceData(site) && !fenceFittedRef.current) {
-            fenceFittedRef.current = true
-            lastSelectionTimeRef.current = Date.now()
-            const targetZoom = fitMapToSiteFence(map, site)
-            onSelectionZoomChange(targetZoom)
-        }
-    }, [site, map, onSelectionZoomChange, lastSelectionTimeRef])
-
-    return null
 }
 
 /** Leaflet.markercluster：近距站点合并为聚合圆，点击可展开 / 放大 */
@@ -1288,7 +1218,10 @@ export function MapTab() {
                         fadeAnimation={false}
                         style={{ width: "100%", height: "100%" }}
                     >
-                        <TileLayer url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png" />
+                        <TileLayer
+                            url={cartoTileUrl("light_all")}
+                            attribution={CARTO_ATTRIBUTION}
+                        />
                         <FitBoundsHelper
                             sites={filteredSites}
                             apiCenter={mapCenterFromApi}
@@ -1304,11 +1237,6 @@ export function MapTab() {
                         />
                         <SiteIhoPolygons site={selectedSite} />
                         <SiteSelectionPolygon site={selectedSite} />
-                        <FitSelectedSiteFenceOnGeometry
-                            site={selectedSite}
-                            onSelectionZoomChange={setSelectionZoom}
-                            lastSelectionTimeRef={lastMapSelectionTimeRef}
-                        />
                         <ClusteredSiteMarkers
                             sites={filteredSites}
                             selectedSite={selectedSite}

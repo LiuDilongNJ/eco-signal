@@ -98,6 +98,7 @@ src/
 | `VITE_API_BASE_URL` | API 根路径（优先）。开发时未设置则固定为 `/api`（走 Vite 代理、避免 CORS） | `/api`      |
 | `VITE_API_URL`     | 生产 / `vite preview` 用；`npm run dev` 不读取，请走代理 | — |
 | `VITE_APP_TITLE`   | 应用标题   | `EcoSignal` |
+| `VITE_CARTO_BASEMAP_KEY` | CARTO 栅格底图 API Key | — |
 
 若接口大量 **500**，多为后端异常（如数据库未启动）。本地可看后端终端日志；`ENVIRONMENT=local` 时响应体里 `detail` 常带具体错误信息。
 

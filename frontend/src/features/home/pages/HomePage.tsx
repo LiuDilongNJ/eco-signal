@@ -24,6 +24,7 @@ import { NAV_BAR_ICON_SIZE } from '@/features/project/components/nav/navBarIconS
 import { CustomScrollArea } from '@/components/ui';
 import { useProjectStore } from '@/features/project/stores/useProjectStore';
 import { useAppStore } from '@/store/useAppStore';
+import { CARTO_ATTRIBUTION, cartoTileUrl } from '@/utils/mapTiles';
 import {
     openCookiePreferences,
 } from '../cookieConsent';
@@ -952,7 +953,7 @@ export default function HomePage() {
                                 center={mapInitialCenter}
                                 zoom={5.5}
                                 zoomControl={false}
-                                attributionControl={false}
+                                attributionControl={true}
                                 scrollWheelZoom={false}
                                 id="map-pane"
                                 style={{ width: '100%', height: '100%' }}
@@ -962,8 +963,11 @@ export default function HomePage() {
                                     savedViewRef={savedMapViewRef}
                                     mapPageActive={activePage === 2}
                                 />
-                                <TileLayer url="https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png" />
-                                <TileLayer url="https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png" opacity={0.7} />
+                                <TileLayer
+                                    url={cartoTileUrl("light_nolabels")}
+                                    attribution={CARTO_ATTRIBUTION}
+                                />
+                                <TileLayer url={cartoTileUrl("light_only_labels")} opacity={0.7} />
                                 {networkNodes
                                     .filter(
                                         (n) => n.latitude != null && n.longitude != null

@@ -38,6 +38,7 @@ export interface SiteMapMarker {
             latitude: number
             longitude: number
         } | null
+        point_source?: "coordinates" | "gadm" | "iho" | null
     } | null
     media_count?: number
     realm_id?: number | null

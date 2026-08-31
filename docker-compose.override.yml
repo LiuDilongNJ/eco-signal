@@ -124,6 +124,7 @@ services:
         - NODE_ENV=development
     environment:
       - VITE_API_PROXY_TARGET=http://backend:8000
+      - VITE_CARTO_BASEMAP_KEY=${VITE_CARTO_BASEMAP_KEY:-}
     develop:
       watch:
         - path: ./frontend/package.json

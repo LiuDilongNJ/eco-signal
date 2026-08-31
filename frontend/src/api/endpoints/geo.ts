@@ -21,7 +21,28 @@ export type GeoPageParams = {
     page_size?: number
 }
 
+export type CoordinateGeoOption = { gid: string; name: string }
+export type CoordinateMatches = {
+    gadm: {
+        status: "matched" | "unmatched" | "ambiguous"
+        gadm0: CoordinateGeoOption | null
+        gadm1: CoordinateGeoOption | null
+        gadm2: CoordinateGeoOption | null
+    }
+    iho: {
+        status: "matched" | "unmatched" | "ambiguous"
+        option: CoordinateGeoOption | null
+    }
+}
+
 export const geoApi = {
+    getCoordinateMatches(longitude: number, latitude: number, ignoreUnauthorized?: boolean) {
+        return apiClient.get<{ code: number; message?: string; data?: CoordinateMatches }>(
+            "/v1/geo/coordinate-matches",
+            { params: { longitude, latitude }, ignoreUnauthorized },
+        )
+    },
+
     /** 
      * 获取 GADM 行政区划选项 / Get GADM administrative options
      * @param params - Query parameters
