@@ -1,6 +1,7 @@
 import type { ApiResponse, PagedApiResponse } from "../../types"
 import { apiClient } from "../client"
 import { getApiData } from "../utils"
+import type { RowCapabilities } from "../capabilities"
 
 export interface TaskListItem {
     task_id: number
@@ -16,6 +17,7 @@ export interface TaskListItem {
     datetime: string | null
     media_name: string | null
     media_type?: string | null
+    capabilities?: RowCapabilities
 }
 
 export interface AssignableUserPublic {
@@ -73,28 +75,23 @@ export const tasksApi = {
     },
 
     /** 删除单个 Task */
-    deleteTask(taskId: number) {
-        return apiClient.delete<{ code: number; message: string; data: any }>(`/v1/tasks/${taskId}`)
+    deleteTask(projectId: number, taskId: number) {
+        return apiClient.delete<{ code: number; message: string; data: any }>(`/v1/tasks/${taskId}`, { params: { project_id: projectId } })
     },
 
-    getAssignableUsers(mediaId: number) {
-        return apiClient.get<ApiResponse<AssignableUserPublic[]>>(`/v1/media/${mediaId}/task-assignee-options`)
+    getAssignableUsers(projectId: number, mediaId: number) {
+        return apiClient.get<ApiResponse<AssignableUserPublic[]>>(`/v1/media/${mediaId}/task-assignee-options`, { params: { project_id: projectId } })
     },
 
-    assignTasks(mediaId: number, payload: TaskAssignmentRequest) {
-        return apiClient.put<ApiResponse<TaskAssignmentResult>>(`/v1/media/${mediaId}/tasks`, payload)
+    assignTasks(projectId: number, mediaId: number, payload: TaskAssignmentRequest) {
+        return apiClient.put<ApiResponse<TaskAssignmentResult>>(`/v1/media/${mediaId}/tasks`, payload, { params: { project_id: projectId } })
     },
 
-    async listAssignableUsers(mediaId: number, ignoreUnauthorized?: boolean): Promise<AssignableUserPublic[]> {
+    async listAssignableUsers(projectId: number, mediaId: number, ignoreUnauthorized?: boolean): Promise<AssignableUserPublic[]> {
         const response = await apiClient.get<ApiResponse<AssignableUserPublic[]>>(
             `/v1/media/${mediaId}/task-assignee-options`,
-            { ignoreUnauthorized },
+            { params: { project_id: projectId }, ignoreUnauthorized },
         )
-        return getApiData(response)
-    },
-
-    async assign(mediaId: number, payload: TaskAssignmentRequest): Promise<TaskAssignmentResult> {
-        const response = await apiClient.put<ApiResponse<TaskAssignmentResult>>(`/v1/media/${mediaId}/tasks`, payload)
         return getApiData(response)
     },
 

@@ -29,6 +29,7 @@ from app.schemas.site import (
     SiteUpdate,
 )
 from app.services import permission_service
+from app.services import row_capability_service
 
 _SITE_EXPORT_COLUMNS = [
     CsvColumn("site_id"), CsvColumn("uuid"), CsvColumn("name"),
@@ -324,7 +325,23 @@ def list_sites(
         order_by=order_by,
         order_dir=order_dir,
     )
-    site_list = [_build_site_public(s) for s in items]
+    writable_ids = row_capability_service.project_collection_ids(
+        session,
+        current_user,
+        filters.get("project_id"),
+        "site",
+        "write",
+    )
+    site_list = []
+    for site in items:
+        item = _build_site_public(site)
+        item.capabilities = row_capability_service.linked_capabilities(
+            set(item.collection_ids),
+            writable_collection_ids=writable_ids,
+            assignable_collection_ids=set(),
+            run_analysis=False,
+        )
+        site_list.append(item)
     return api_page(data=site_list, total=total, page=page, page_size=page_size)
 
 
@@ -406,6 +423,12 @@ def _build_marker_geometry(row: dict, *, include_polygons: bool = True) -> dict:
 
     return {
         "point": point,
+        "point_source": (
+            "coordinates" if has_point
+            else "gadm" if location is not None
+            else "iho" if location_iho is not None
+            else None
+        ),
         "location": location,
         "location_iho": location_iho,
     }
@@ -422,7 +445,7 @@ def _build_site_map_light_marker(row: dict) -> SiteMapLightMarker:
     return SiteMapLightMarker(
         site_id=row["site_id"],
         name=row.get("name") or "",
-        geometry=SiteMapLightGeometry(point=point),
+        geometry=SiteMapLightGeometry(point=point, point_source=row.get("point_source")),
         media_count=row["media_count"],
         realm_id=row.get("realm_id"),
         realm_name=row.get("realm_name"),
@@ -442,7 +465,7 @@ def _build_site_map_light_marker_dict(row: dict) -> dict:
     return {
         "site_id": row["site_id"],
         "name": row.get("name") or "",
-        "geometry": {"point": point},
+        "geometry": {"point": point, "point_source": row.get("point_source")},
         "media_count": row["media_count"],
         "realm_id": row.get("realm_id"),
         "realm_name": row.get("realm_name"),

@@ -25,6 +25,7 @@ from app.schemas.collection import (
     CollectionUpdate,
     CollectionViewResponse,
 )
+from app.schemas.capability import RowCapabilities
 from app.schemas.response import ApiResponse, PagedApiResponse, api_page
 from app.services import permission_service
 
@@ -121,11 +122,39 @@ def get_collections(
             session, user_id, action=action, **filters
         )
     
+    admin = bool(user and permission_service.is_admin(user))
+    requested_project_id = filters.get("project_id")
+    writable_ids = (
+        set(permission_repository.get_project_collection_ids(session, requested_project_id))
+        if admin and requested_project_id is not None
+        else set(
+            permission_repository.get_accessible_project_collection_ids(
+                session,
+                user.user_id if user else None,
+                requested_project_id,
+                "collection",
+                "write",
+            )
+        ) if requested_project_id is not None else {c.collection_id for c in collections}
+    )
+    writable_project_ids = (
+        set(permission_repository.get_project_ids_with_write_permission(session, user.user_id))
+        if user and not admin
+        else set()
+    )
     data = []
     for c in collections:
         item = CollectionPublic.model_validate(c)
         item.project_ids = [pc.project_id for pc in c.project_collections]
         item.creator_name = c.creator.name if c.creator else None
+        writable = admin or c.collection_id in writable_ids
+        project_writable = admin or bool(set(item.project_ids) & writable_project_ids)
+        item.capabilities = RowCapabilities(
+            edit=writable,
+            delete=project_writable,
+            set_taxons=writable,
+            export_bundle=project_writable,
+        )
         data.append(item)
     return api_page(data=data, total=count, page=page, page_size=page_size)
 

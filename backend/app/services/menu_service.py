@@ -11,15 +11,6 @@ def _menu_item(name: str, visible: bool) -> MenuItemPublic:
     return MenuItemPublic(name=name, visible=visible)
 
 
-def _effective_permission_pairs(session: Session, user_id: int) -> set[tuple[str, str]]:
-    rows = session.exec(
-        select(UserEffectivePermission.resource_type, UserEffectivePermission.action)
-        .where(UserEffectivePermission.user_id == user_id)
-        .distinct()
-    ).all()
-    return {(resource_type, action) for resource_type, action in rows}
-
-
 def get_current_user_menu_items(
     session: Session,
     current_user: User,
@@ -32,7 +23,9 @@ def get_current_user_menu_items(
     permission_pairs = (
         set()
         if is_admin
-        else _effective_permission_pairs(session, current_user.user_id)
+        else permission_service.get_effective_permission_pairs(
+            session, current_user.user_id
+        )
     )
 
     has_project_write_here = is_admin or permission_service.has_resource_permission(

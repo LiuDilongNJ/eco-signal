@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest"
 import { SettingsRelationDetailList } from "./SettingsRelationDetailList"
 
 describe("SettingsRelationDetailList", () => {
-    it("renders names, fallback labels, notes, and default state", () => {
+    it("renders names, fallback labels, and notes", () => {
         render(
             <SettingsRelationDetailList
                 title="Linked Recorders"
@@ -12,7 +12,7 @@ describe("SettingsRelationDetailList", () => {
                 emptyMessage="No recorders associated."
                 isDark={false}
                 items={[
-                    { id: 1, name: "Recorder A", isDefault: true, notes: "Primary recorder" },
+                    { id: 1, name: "Recorder A", notes: "Primary recorder" },
                     { id: 2, name: null },
                 ]}
             />,
@@ -22,7 +22,6 @@ describe("SettingsRelationDetailList", () => {
         expect(screen.getByText("Recorder A")).toBeInTheDocument()
         expect(screen.getByText("Recorder #2")).toBeInTheDocument()
         expect(screen.getByText("Primary recorder")).toBeInTheDocument()
-        expect(screen.getByText("default")).toBeInTheDocument()
     })
 
     it("renders the empty state", () => {

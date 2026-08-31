@@ -273,3 +273,156 @@ describe("DataPageLayout collection context", () => {
         ).toBeInTheDocument()
     })
 })
+
+describe("DataPageLayout permission gating", () => {
+    const COLUMNS = [
+        { key: "id", label: "ID", type: "number" as const },
+        { key: "name", label: "Name", type: "text" as const },
+    ]
+    const ROWS = [{ id: 1, name: "Forest Sounds" }]
+    const NO_PERMISSION = "You do not have permission to perform this action"
+
+    it("enables Edit for one selected row when the action is allowed", async () => {
+        render(
+            <DataPageLayout title="Reviews" columns={COLUMNS} rows={ROWS} formFields={[]} canEdit />,
+        )
+
+        await userEvent.click(screen.getAllByRole("checkbox")[1]!)
+
+        expect(screen.getByRole("button", { name: "Edit" })).toBeEnabled()
+    })
+
+    it("disables Edit when the user lacks write permission", async () => {
+        render(
+            <DataPageLayout
+                title="Reviews"
+                columns={COLUMNS}
+                rows={ROWS}
+                formFields={[]}
+                canEdit={false}
+            />,
+        )
+
+        await userEvent.click(screen.getAllByRole("checkbox")[1]!)
+
+        const editButton = screen.getByRole("button", { name: "Edit" })
+        expect(editButton).toBeDisabled()
+        // The toolbar moves the hint into an antd Tooltip when the button is disabled.
+        await userEvent.hover(editButton.parentElement!)
+        expect(await screen.findByText(NO_PERMISSION)).toBeInTheDocument()
+    })
+
+    it("disables Delete when the user lacks write permission", async () => {
+        render(
+            <DataPageLayout
+                title="Reviews"
+                columns={COLUMNS}
+                rows={ROWS}
+                formFields={[]}
+                canDelete={false}
+            />,
+        )
+
+        await userEvent.click(screen.getAllByRole("checkbox")[1]!)
+
+        expect(screen.getByRole("button", { name: "Delete" })).toBeDisabled()
+    })
+
+    it("uses the selected row capability for Edit", async () => {
+        render(
+            <DataPageLayout
+                title="Audios"
+                columns={COLUMNS}
+                rows={[
+                    { id: 1, name: "Writable", capabilities: { edit: true } },
+                    { id: 2, name: "Read only", capabilities: { edit: false } },
+                ]}
+                formFields={[]}
+                canEditRecord={(record) => record.capabilities?.edit === true}
+            />,
+        )
+
+        const checkboxes = screen.getAllByRole("checkbox")
+        await userEvent.click(checkboxes[2]!)
+        expect(screen.getByRole("button", { name: "Edit" })).toBeDisabled()
+        await userEvent.click(checkboxes[2]!)
+        await userEvent.click(checkboxes[1]!)
+        expect(screen.getByRole("button", { name: "Edit" })).toBeEnabled()
+    })
+
+    it("disables batch Delete when any selected row lacks capability", async () => {
+        render(
+            <DataPageLayout
+                title="Audios"
+                columns={COLUMNS}
+                rows={[
+                    { id: 1, name: "Writable", capabilities: { delete: true } },
+                    { id: 2, name: "Read only", capabilities: { delete: false } },
+                ]}
+                formFields={[]}
+                canDeleteRecord={(record) => record.capabilities?.delete === true}
+            />,
+        )
+
+        const checkboxes = screen.getAllByRole("checkbox")
+        await userEvent.click(checkboxes[1]!)
+        expect(screen.getByRole("button", { name: "Delete" })).toBeEnabled()
+        await userEvent.click(checkboxes[2]!)
+        expect(screen.getByRole("button", { name: "Delete" })).toBeDisabled()
+    })
+
+    it("disables Add when the user lacks write permission", async () => {
+        render(
+            <MemoryRouter>
+                <DataPageLayout
+                    title="Sites"
+                    columns={COLUMNS}
+                    rows={ROWS}
+                    formFields={[]}
+                    canAdd={false}
+                />
+            </MemoryRouter>,
+        )
+
+        const addButton = screen.getByRole("button", { name: "Add" })
+        expect(addButton).toBeDisabled()
+        await userEvent.hover(addButton.parentElement!)
+        expect(await screen.findByText(NO_PERMISSION)).toBeInTheDocument()
+    })
+
+    it("does not open the edit form on row double-click without permission", async () => {
+        const overlay = addOverlayRoot()
+        render(
+            <DataPageLayout
+                title="Reviews"
+                columns={COLUMNS}
+                rows={ROWS}
+                formFields={[{ key: "name", label: "Name", type: "text" }]}
+                canEdit={false}
+            />,
+        )
+
+        await userEvent.dblClick(screen.getByText("Forest Sounds"))
+
+        expect(overlay).not.toHaveTextContent("Edit Review")
+        overlay.remove()
+    })
+
+    it("opens the edit form on row double-click when permitted", async () => {
+        const overlay = addOverlayRoot()
+        render(
+            <DataPageLayout
+                title="Reviews"
+                columns={COLUMNS}
+                rows={ROWS}
+                formFields={[{ key: "name", label: "Name", type: "text" }]}
+                canEdit
+            />,
+        )
+
+        await userEvent.dblClick(screen.getByText("Forest Sounds"))
+
+        expect(await screen.findByText("Edit Review", { selector: "h3" })).toBeInTheDocument()
+        overlay.remove()
+    })
+})

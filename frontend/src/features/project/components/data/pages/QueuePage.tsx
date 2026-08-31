@@ -12,6 +12,7 @@ import { Activity } from "lucide-react"
 import { downloadFile } from "@/utils/download"
 import { applyQueueFilters, resolveQueueOrderBy } from "./queueQueryParams"
 import { useTableFetchScheduler } from "@/hooks/useTableFetchScheduler"
+import { rowCan } from "../rowCapabilities"
 
 const COLUMNS: ColumnDef[] = [
     { key: "queue_id", label: "ID", type: "number", width: "220px", sortable: true, filterable: true },
@@ -205,6 +206,7 @@ export function QueuePage() {
             defaultSortDir="asc"
             onExportCustom={handleExport}
             onDeleteCustom={handleDelete}
+            canDeleteRecord={(record) => rowCan(record, "delete")}
             hideView={true}
             hideAdd={true}
             hideEdit={true}

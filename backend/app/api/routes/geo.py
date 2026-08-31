@@ -4,11 +4,27 @@ from fastapi import APIRouter, HTTPException, Query
 
 from app.api.deps import SessionDep
 from app.repositories.geo_repository import GeoDataUnavailableError
-from app.schemas.geo import GeoOption, IucnOption
-from app.schemas.response import PagedApiResponse, api_page
+from app.schemas.geo import CoordinateMatchesResponse, GeoOption, IucnOption
+from app.schemas.response import ApiResponse, PagedApiResponse, api_page, api_success
 from app.services import geo_service
 
 router = APIRouter(prefix="/geo", tags=["地理字典 / Geo Dictionary"])
+
+
+@router.get(
+    "/coordinate-matches",
+    response_model=ApiResponse[CoordinateMatchesResponse],
+    summary="按坐标匹配地理区域 / Match Geographic Areas by Coordinates",
+)
+def get_coordinate_matches(
+    longitude: float = Query(..., ge=-180, le=180, description="经度 / Longitude"),
+    latitude: float = Query(..., ge=-90, le=90, description="纬度 / Latitude"),
+) -> Any:
+    """返回可用于表单预选的唯一 GADM/IHO 匹配。 / Return unique matches for form assistance."""
+    try:
+        return api_success(data=geo_service.get_coordinate_matches(longitude, latitude))
+    except GeoDataUnavailableError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
 
 @router.get(
     "/gadm",

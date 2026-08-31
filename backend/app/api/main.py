@@ -29,6 +29,7 @@ from app.api.routes import (
     sensors,
     sites,
     sound_classifications,
+    storage,
     tasks,
     taxons,
     users,
@@ -81,4 +82,5 @@ api_router.include_router(reviews.router_views)
 api_router.include_router(index_logs.router)
 api_router.include_router(network.router)
 api_router.include_router(operation_logs.router, prefix="/system/operation-logs", tags=["系统管理 / system"])
+api_router.include_router(storage.router, prefix="/system")
 api_router.include_router(data_imports.router)

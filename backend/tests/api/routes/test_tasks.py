@@ -129,7 +129,7 @@ class TestAssignableUsers:
     ) -> None:
         """Return 404 when media does not exist."""
         r = client.get(
-            f"{settings.API_V1_STR}/media/999999/task-assignee-options",
+            f"{settings.API_V1_STR}/media/999999/task-assignee-options?project_id=1",
             headers=superuser_token_headers,
         )
         assert r.status_code == 404
@@ -141,7 +141,7 @@ class TestAssignableUsers:
         media, _ = _create_media_with_collection(db)
 
         r = client.get(
-            f"{settings.API_V1_STR}/media/{media.media_id}/task-assignee-options",
+            f"{settings.API_V1_STR}/media/{media.media_id}/task-assignee-options?project_id=1",
             headers=superuser_token_headers,
         )
         assert r.status_code == 200
@@ -164,7 +164,7 @@ class TestAssignableUsers:
         _create_task(db, media.media_id, admin.user_id, admin.user_id, "pre-existing")
 
         r = client.get(
-            f"{settings.API_V1_STR}/media/{media.media_id}/task-assignee-options",
+            f"{settings.API_V1_STR}/media/{media.media_id}/task-assignee-options?project_id=1",
             headers=superuser_token_headers,
         )
         assert r.status_code == 200
@@ -189,7 +189,7 @@ class TestGetMediaTasks:
     ) -> None:
         """Return 404 when media does not exist."""
         r = client.get(
-            f"{settings.API_V1_STR}/media/999999/tasks",
+            f"{settings.API_V1_STR}/media/999999/tasks?project_id=1",
             headers=superuser_token_headers,
         )
         assert r.status_code == 404
@@ -201,7 +201,7 @@ class TestGetMediaTasks:
         media, _ = _create_media_with_collection(db)
 
         r = client.get(
-            f"{settings.API_V1_STR}/media/{media.media_id}/tasks",
+            f"{settings.API_V1_STR}/media/{media.media_id}/tasks?project_id=1",
             headers=superuser_token_headers,
         )
         assert r.status_code == 200
@@ -217,7 +217,7 @@ class TestGetMediaTasks:
         task = _create_task(db, media.media_id, admin.user_id, admin.user_id, "check this")
 
         r = client.get(
-            f"{settings.API_V1_STR}/media/{media.media_id}/tasks",
+            f"{settings.API_V1_STR}/media/{media.media_id}/tasks?project_id=1",
             headers=superuser_token_headers,
         )
         assert r.status_code == 200
@@ -292,7 +292,7 @@ class TestAssignTasks:
     ) -> None:
         """Return 404 when media does not exist."""
         r = client.put(
-            f"{settings.API_V1_STR}/media/999999/tasks",
+            f"{settings.API_V1_STR}/media/999999/tasks?project_id=1",
             headers=superuser_token_headers,
             json={"type": "media", "assignments": [{"user_id": 1}]},
         )
@@ -304,7 +304,7 @@ class TestAssignTasks:
         """Return 400 when assignments list is empty."""
         media, _ = _create_media_with_collection(db)
         r = client.put(
-            f"{settings.API_V1_STR}/media/{media.media_id}/tasks",
+            f"{settings.API_V1_STR}/media/{media.media_id}/tasks?project_id=1",
             headers=superuser_token_headers,
             json={"type": "media", "assignments": []},
         )
@@ -318,7 +318,7 @@ class TestAssignTasks:
         admin = db.exec(select(User).where(User.role_id == 1)).first()
 
         r = client.put(
-            f"{settings.API_V1_STR}/media/{media.media_id}/tasks",
+            f"{settings.API_V1_STR}/media/{media.media_id}/tasks?project_id=1",
             headers=superuser_token_headers,
             json={
                 "type": "media",
@@ -354,7 +354,7 @@ class TestAssignTasks:
 
         # Re-assign with new comment
         r = client.put(
-            f"{settings.API_V1_STR}/media/{media.media_id}/tasks",
+            f"{settings.API_V1_STR}/media/{media.media_id}/tasks?project_id=1",
             headers=superuser_token_headers,
             json={
                 "type": "media",
@@ -391,7 +391,7 @@ class TestAssignTasks:
         ]
 
         r = client.put(
-            f"{settings.API_V1_STR}/media/{media.media_id}/tasks",
+            f"{settings.API_V1_STR}/media/{media.media_id}/tasks?project_id=1",
             headers=superuser_token_headers,
             json={"type": "media", "assignments": assignments},
         )
@@ -405,7 +405,7 @@ class TestAssignTasks:
         media, _ = _create_media_with_collection(db)
 
         response = client.put(
-            f"{settings.API_V1_STR}/media/{media.media_id}/tasks",
+            f"{settings.API_V1_STR}/media/{media.media_id}/tasks?project_id=1",
             headers=superuser_token_headers,
             json={"type": "media", "assignments": [{"user_id": 999999}]},
         )
@@ -634,7 +634,7 @@ class TestTaskManagementAPI:
         task = _create_task(db, media.media_id, admin.user_id, admin.user_id, "detail check")
 
         r = client.get(
-            f"{settings.API_V1_STR}/tasks/{task.task_id}",
+            f"{settings.API_V1_STR}/tasks/{task.task_id}?project_id=1",
             headers=superuser_token_headers,
         )
         assert r.status_code == 200
@@ -648,7 +648,7 @@ class TestTaskManagementAPI:
         task = _create_task(db, media.media_id, admin.user_id, admin.user_id, "delete check")
 
         r = client.delete(
-            f"{settings.API_V1_STR}/tasks/{task.task_id}",
+            f"{settings.API_V1_STR}/tasks/{task.task_id}?project_id=1",
             headers=superuser_token_headers,
         )
         assert r.status_code == 200
@@ -663,7 +663,7 @@ class TestTaskManagementAPI:
         task = _create_task(db, media.media_id, admin.user_id, admin.user_id, "normal user delete check")
         
         r = client.delete(
-            f"{settings.API_V1_STR}/tasks/{task.task_id}",
+            f"{settings.API_V1_STR}/tasks/{task.task_id}?project_id=1",
             headers=normal_user_token_headers,
         )
         # Assuming normal user doesn't have assigner status for this task

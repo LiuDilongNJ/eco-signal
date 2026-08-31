@@ -6,6 +6,7 @@ from pydantic import ConfigDict, field_serializer, model_validator
 from sqlmodel import SQLModel, Field
 
 from app.schemas.coordinates import Latitude, Longitude
+from app.schemas.capability import RowCapabilities
 
 
 class SiteCreate(SQLModel):
@@ -94,6 +95,7 @@ class SitePublic(SQLModel):
     creator_name: Optional[str] = None
     creation_date: datetime
     collection_ids: list[int] = []
+    capabilities: RowCapabilities = Field(default_factory=RowCapabilities)
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -111,6 +113,7 @@ class SiteMapLightPoint(SQLModel):
 
 class SiteMapLightGeometry(SQLModel):
     point: Optional[SiteMapLightPoint] = None
+    point_source: Optional[str] = None
 
 
 class SiteMapLightMarker(SQLModel):

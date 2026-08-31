@@ -2,7 +2,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import HTTPException
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 from app.csv_export import CsvColumn, export_columns_csv
 from app.models.annotation import Annotation, AnnotationReview
@@ -10,7 +10,8 @@ from app.models.user import User
 from app.repositories import permission_repository, review_repository
 from app.repositories.task_repository import task_repository
 from app.schemas.review import ReviewCreate, ReviewRead
-from app.services import permission_service
+from app.schemas.capability import RowCapabilities
+from app.services import permission_service, row_capability_service
 
 _REVIEW_EXPORT_COLUMNS = [
     CsvColumn("annotation_id"), CsvColumn("media_name"), CsvColumn("media_type"),
@@ -67,7 +68,32 @@ def list_reviews(
         order_dir=order_dir,
         **filters,
     )
-    return [ReviewRead.model_validate(item).model_dump(mode="json") for item in items], total
+    project_id = filters.get("project_id")
+    annotation_ids = {int(item["annotation_id"]) for item in items}
+    annotation_media = dict(
+        session.exec(
+            select(Annotation.annotation_id, Annotation.media_id).where(
+                Annotation.annotation_id.in_(annotation_ids)
+            )
+        ).all()
+    ) if annotation_ids else {}
+    media_collections = row_capability_service.media_collection_map(
+        session, set(annotation_media.values()), project_id
+    )
+    writable_ids = row_capability_service.project_collection_ids(
+        session, user, project_id, "review", "write"
+    )
+    data = []
+    for item in items:
+        linked_ids = media_collections.get(annotation_media.get(item["annotation_id"]), set())
+        writable = admin or bool(linked_ids & writable_ids)
+        payload = dict(item)
+        payload["capabilities"] = RowCapabilities(
+            edit=writable,
+            delete=writable or item["reviewer_id"] == user.user_id,
+        )
+        data.append(ReviewRead.model_validate(payload).model_dump(mode="json"))
+    return data, total
 
 
 def get_review_export_data(

@@ -421,10 +421,9 @@ export function LensSettingsTab() {
                             emptyMessage="No cameras associated with this lens."
                             isDark={isDark}
                             items={detailLens.cameras.map((camera) => ({
-                                id: camera.camera_id,
-                                name: camera.name,
-                                isDefault: camera.is_default,
-                                notes: camera.notes,
+                                        id: camera.camera_id,
+                                        name: camera.name,
+                                        notes: camera.notes,
                             }))}
                         />
                     </Space>

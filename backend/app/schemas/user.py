@@ -5,6 +5,7 @@ from pydantic import EmailStr, field_serializer, field_validator
 from sqlmodel import Field, SQLModel
 
 from app.models import UserPreference
+from app.schemas.capability import RowCapabilities
 
 
 def _normalize_hex_color(v: Optional[str]) -> Optional[str]:
@@ -148,6 +149,15 @@ class CurrentUserPublic(UserPublic):
     """Current-user response with capabilities evaluated for the requested scope."""
     can_write_audio: bool = False
 
+
+class CurrentUserPermissionsPublic(SQLModel):
+    """Effective `resource:action` grants for the requested scope, for UI gating."""
+    is_admin: bool = False
+    project_id: Optional[int] = None
+    collection_id: Optional[int] = None
+    permissions: list[str] = []
+
+
 class UserListPublic(SQLModel):
     """Schema for user list/export response (without preferences)."""
     user_id: int
@@ -160,6 +170,7 @@ class UserListPublic(SQLModel):
     role_id: int
     contrib: Optional[str] = None
     is_admin: bool
+    capabilities: RowCapabilities = Field(default_factory=RowCapabilities)
 
     @field_serializer('orcid')
     @classmethod

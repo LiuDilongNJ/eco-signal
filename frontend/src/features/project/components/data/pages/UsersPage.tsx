@@ -19,6 +19,8 @@ import { UserPlus, Shield } from "lucide-react"
 import { useProjectStore } from "../../../stores/useProjectStore"
 import { downloadFile } from "@/utils/download"
 import { useTableFetchScheduler } from "@/hooks/useTableFetchScheduler"
+import { usePermissions } from "@/hooks/usePermissions"
+import { rowCan, selectionCan } from "../rowCapabilities"
 
 function normalizeHexColor(raw: unknown): string | null {
     const value = String(raw ?? "").trim()
@@ -105,6 +107,10 @@ export function UsersPage() {
         const n = Number(currentCollectionId)
         return Number.isFinite(n) ? n : null
     }, [currentCollectionId])
+    const { can } = usePermissions(currentProjectId, scopedCollectionId)
+    const canManageScope = scopedCollectionId != null
+        ? can("collection:write")
+        : can("project:write")
 
     useEffect(() => {
         let cancelled = false
@@ -349,8 +355,10 @@ export function UsersPage() {
                     resourceKey: "users",
                     addLabel: "Add User",
                     fields: { project_id: currentProjectId, collection_id: scopedCollectionId },
-                    disabled: !currentProjectId,
-                    disabledReason: "Select a project before importing users",
+                    disabled: !currentProjectId || !canManageScope,
+                    disabledReason: canManageScope
+                        ? "Select a project before importing users"
+                        : "You do not have permission to import users in this scope",
                 }}
                 columns={columns}
                 rows={rows as RowData[]}
@@ -381,9 +389,12 @@ export function UsersPage() {
                 }}
                 onDeleteCustom={handleDeleteSubmit}
                 onExportCustom={handleExport}
+                canAdd={canManageScope}
+                canEditRecord={(record) => rowCan(record, "edit")}
+                canDeleteRecord={(record) => rowCan(record, "delete")}
                 renderCustomActions={(selectedRows) => (
                     <>
-                        <ESButton appearance="unstyled" className="data-btn" title="Permissions" disabled={selectedRows.size === 0} onClick={() => {
+                        <ESButton appearance="unstyled" className="data-btn" title="Permissions" disabled={!selectionCan(selectedRows, rows, "user_id", "manage_permissions")} onClick={() => {
                             const userIds = Array.from(selectedRows)
                                 .map((id) => Number(id))
                                 .filter((id) => Number.isFinite(id) && id > 0)
@@ -393,7 +404,7 @@ export function UsersPage() {
                             <Shield size={14} /> Permissions
                         </ESButton>
 
-                        <ESButton appearance="unstyled" className="data-btn" title="Contributor" disabled={selectedRows.size === 0} onClick={() => {
+                        <ESButton appearance="unstyled" className="data-btn" title="Contributor" disabled={!canManageScope || !selectionCan(selectedRows, rows, "user_id", "set_contributor")} onClick={() => {
                             const userIds = Array.from(selectedRows)
                                 .map((id) => Number(id))
                                 .filter((id) => Number.isFinite(id) && id > 0)
@@ -407,7 +418,7 @@ export function UsersPage() {
                             <UserPlus size={14} /> Contributor
                         </ESButton>
 
-                        <ESButton appearance="unstyled" className="data-btn" title="Reset Password" disabled={selectedRows.size !== 1} onClick={() => {
+                        <ESButton appearance="unstyled" className="data-btn" title="Reset Password" disabled={selectedRows.size !== 1 || !selectionCan(selectedRows, rows, "user_id", "reset_password")} onClick={() => {
                             const userId = Array.from(selectedRows)[0] as number
                             setResetPwdUserId(userId)
                             setResetPasswordOpen(true)

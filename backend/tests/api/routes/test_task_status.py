@@ -232,11 +232,13 @@ class TestAnnotationTaskAssignment:
         self, client: TestClient, superuser_token_headers: dict, db: Session
     ) -> None:
         media, col, admin = _setup_media_env(db)
+        project_id = _project_id_for_collection(db, col.collection_id)
         ann = _setup_annotation(db, media.media_id, admin.user_id)
 
         r = client.put(
             f"{settings.API_V1_STR}/media/{media.media_id}/tasks",
             headers=superuser_token_headers,
+            params={"project_id": project_id},
             json={
                 "type": "annotation",
                 "annotation_ids": [ann.annotation_id],
@@ -263,9 +265,11 @@ class TestAnnotationTaskAssignment:
         self, client: TestClient, superuser_token_headers: dict, db: Session
     ) -> None:
         media, col, admin = _setup_media_env(db)
+        project_id = _project_id_for_collection(db, col.collection_id)
         r = client.put(
             f"{settings.API_V1_STR}/media/{media.media_id}/tasks",
             headers=superuser_token_headers,
+            params={"project_id": project_id},
             json={
                 "type": "annotation",
                 "assignments": [{"user_id": admin.user_id}],
@@ -279,12 +283,14 @@ class TestAnnotationTaskAssignment:
     ) -> None:
         """Annotation must belong to the specified media."""
         media1, col, admin = _setup_media_env(db)
+        project_id = _project_id_for_collection(db, col.collection_id)
         media2, _, _ = _setup_media_env(db)
         ann = _setup_annotation(db, media2.media_id, admin.user_id)
 
         r = client.put(
             f"{settings.API_V1_STR}/media/{media1.media_id}/tasks",
             headers=superuser_token_headers,
+            params={"project_id": project_id},
             json={
                 "type": "annotation",
                 "annotation_ids": [ann.annotation_id],
@@ -298,12 +304,14 @@ class TestAnnotationTaskAssignment:
         self, client: TestClient, superuser_token_headers: dict, db: Session
     ) -> None:
         media, col, admin = _setup_media_env(db)
+        project_id = _project_id_for_collection(db, col.collection_id)
         ann1 = _setup_annotation(db, media.media_id, admin.user_id)
         ann2 = _setup_annotation(db, media.media_id, admin.user_id)
 
         r = client.put(
             f"{settings.API_V1_STR}/media/{media.media_id}/tasks",
             headers=superuser_token_headers,
+            params={"project_id": project_id},
             json={
                 "type": "annotation",
                 "annotation_ids": [ann1.annotation_id, ann2.annotation_id],

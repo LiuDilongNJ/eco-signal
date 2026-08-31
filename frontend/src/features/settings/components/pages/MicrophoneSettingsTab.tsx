@@ -439,7 +439,6 @@ export function MicrophoneSettingsTab() {
                                     items={detailMicrophone.recorders.map((recorder) => ({
                                         id: recorder.recorder_id,
                                         name: recorder.name,
-                                        isDefault: recorder.is_default,
                                         notes: recorder.notes,
                                     }))}
                                 />

@@ -2,7 +2,7 @@ import uuid as uuid_lib
 from datetime import datetime
 from typing import Any, Literal, Optional
 
-from pydantic import field_serializer, field_validator, model_validator
+from pydantic import ConfigDict, field_serializer, field_validator, model_validator
 from sqlmodel import Field, SQLModel
 
 from app.utils import validate_required_http_url
@@ -13,6 +13,15 @@ def _normalize_required_device_name(value: Any) -> str:
     if not isinstance(value, str) or not value.strip():
         raise ValueError("Name is required")
     return value.strip()
+
+
+def _normalize_optional_serial_number(value: Any) -> str | None:
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise ValueError("serial_number must be a string")
+    stripped = value.strip()
+    return stripped or None
 
 
 class RecorderOption(SQLModel):
@@ -44,6 +53,7 @@ class SensorOption(SQLModel):
     sensor_id: int
     name: str
     sensor_type: str
+    serial_number: Optional[str] = None
 
 
 class CameraOption(SQLModel):
@@ -96,7 +106,6 @@ class RecorderMicrophoneInfo(SQLModel):
     """Microphone info embedded in recorder detail."""
     microphone_id: int
     name: Optional[str] = None
-    is_default: Optional[bool] = None
     notes: Optional[str] = None
 
 
@@ -136,8 +145,9 @@ class RecorderListItem(SQLModel):
 
 class RecorderMicrophoneCreate(SQLModel):
     """Schema for associating a microphone with a recorder."""
+    model_config = ConfigDict(extra="forbid")
+
     microphone_id: int
-    is_default: Optional[bool] = False
     notes: Optional[str] = None
 
 
@@ -162,7 +172,6 @@ class MicrophoneRecorderInfo(SQLModel):
     """Recorder info embedded in microphone detail."""
     recorder_id: int
     name: Optional[str] = None
-    is_default: Optional[bool] = None
     notes: Optional[str] = None
 
 
@@ -193,7 +202,6 @@ class CameraLensInfo(SQLModel):
     """Lens info embedded in camera detail."""
     lens_id: int
     name: Optional[str] = None
-    is_default: Optional[bool] = None
     notes: Optional[str] = None
 
 
@@ -242,8 +250,9 @@ class CameraListItem(SQLModel):
 
 class CameraLensCreate(SQLModel):
     """Schema for associating a lens with a camera."""
+    model_config = ConfigDict(extra="forbid")
+
     lens_id: int
-    is_default: Optional[bool] = False
     notes: Optional[str] = None
 
 
@@ -277,7 +286,6 @@ class LensCameraInfo(SQLModel):
     """Camera info embedded in lens detail."""
     camera_id: int
     name: Optional[str] = None
-    is_default: Optional[bool] = None
     notes: Optional[str] = None
 
 
@@ -306,28 +314,34 @@ class LensListItem(SQLModel):
 
 class SensorCreate(SQLModel):
     """Schema for creating a sensor."""
+    model_config = ConfigDict(extra="forbid")
+
     name: str
     sensor_type: Literal["audio", "photo"]
     recorder_id: Optional[int] = None
     microphone_id: Optional[int] = None
     camera_id: Optional[int] = None
     lens_id: Optional[int] = None
-    camera_lens_is_default: Optional[bool] = None
-    recorder_microphone_is_default: Optional[bool] = None
     description: Optional[str] = None
+    serial_number: Optional[str] = Field(default=None, max_length=100)
+
+    _normalize_serial_number = field_validator("serial_number")(_normalize_optional_serial_number)
 
 
 class SensorUpdate(SQLModel):
     """Schema for updating a sensor."""
+    model_config = ConfigDict(extra="forbid")
+
     name: Optional[str] = None
     sensor_type: Optional[Literal["audio", "photo"]] = None
     recorder_id: Optional[int] = None
     microphone_id: Optional[int] = None
     camera_id: Optional[int] = None
     lens_id: Optional[int] = None
-    camera_lens_is_default: Optional[bool] = None
-    recorder_microphone_is_default: Optional[bool] = None
     description: Optional[str] = None
+    serial_number: Optional[str] = Field(default=None, max_length=100)
+
+    _normalize_serial_number = field_validator("serial_number")(_normalize_optional_serial_number)
 
 
 class SensorPublic(SQLModel):
@@ -344,8 +358,8 @@ class SensorPublic(SQLModel):
     camera_name: Optional[str] = None
     lens_id: Optional[int] = None
     lens_name: Optional[str] = None
-    is_default: Optional[bool] = None
     description: Optional[str] = None
+    serial_number: Optional[str] = None
     creation_date: datetime
 
     @field_serializer("creation_date")

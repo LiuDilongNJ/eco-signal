@@ -1,9 +1,9 @@
-import type { CameraLensInfo } from "../../../api/endpoints/cameras"
 import type { SensorCreateBody } from "../../../api/endpoints/sensors"
 import { nullableTrimmedText } from "./settingsPayload"
 
 export type SensorFormValues = {
     name?: string
+    serial_number?: string
     sensor_type?: "audio" | "photo" | "sensor"
     recorder_id?: number
     microphone_id?: number
@@ -12,14 +12,10 @@ export type SensorFormValues = {
     description?: string
 }
 
-export function getUniqueDefaultLensId(lenses: CameraLensInfo[]): number | undefined {
-    const defaults = lenses.filter((lens) => lens.is_default)
-    return defaults.length === 1 ? defaults[0]?.lens_id : undefined
-}
-
 export function buildSensorWritePayload(values: SensorFormValues): SensorCreateBody {
     const name = values.name!.trim()
     const description = nullableTrimmedText(values.description)
+    const serial_number = nullableTrimmedText(values.serial_number)
     if (values.sensor_type === "audio") {
         const payload: SensorCreateBody = {
             name,
@@ -29,6 +25,7 @@ export function buildSensorWritePayload(values: SensorFormValues): SensorCreateB
             camera_id: null,
             lens_id: null,
             description,
+            serial_number,
         }
         return payload
     }
@@ -41,6 +38,7 @@ export function buildSensorWritePayload(values: SensorFormValues): SensorCreateB
             recorder_id: null,
             microphone_id: null,
             description,
+            serial_number,
         }
         return payload
     }
@@ -52,5 +50,6 @@ export function buildSensorWritePayload(values: SensorFormValues): SensorCreateB
         camera_id: null,
         lens_id: null,
         description,
+        serial_number,
     }
 }

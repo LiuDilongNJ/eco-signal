@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 
 from fastapi import HTTPException
+from sqlalchemy import or_
 from sqlmodel import Session, select
 
 from app.core.config import settings
@@ -421,6 +422,131 @@ def _is_public_read_allowed(
 
     return False
 
+
+def get_effective_permission_pairs(
+    session: Session,
+    user_id: int | None,
+    *,
+    project_id: int | None = None,
+    collection_id: int | None = None,
+) -> set[tuple[str, str]]:
+    """
+    Distinct (resource_type, action) pairs from the canonical effective view.
+
+    A collection scope also keeps project-scoped rows, whose collection_id is
+    NULL, so project-level grants stay visible alongside the collection path.
+    """
+    if user_id is None:
+        return set()
+
+    stmt = select(
+        UserEffectivePermission.resource_type,
+        UserEffectivePermission.action,
+    ).where(UserEffectivePermission.user_id == user_id)
+
+    if project_id is not None:
+        stmt = stmt.where(UserEffectivePermission.project_id == project_id)
+    if collection_id is not None:
+        stmt = stmt.where(
+            or_(
+                UserEffectivePermission.collection_id == collection_id,
+                UserEffectivePermission.collection_id.is_(None),
+            )
+        )
+
+    return {
+        (resource_type, action)
+        for resource_type, action in session.exec(stmt.distinct()).all()
+    }
+
+
+def _public_read_permission_names(
+    session: Session,
+    project_id: int | None,
+    collection_id: int | None,
+) -> set[str]:
+    """Public read grants for a scope, mirroring `_is_public_read_allowed`."""
+    if project_id is None:
+        return set()
+
+    project = session.get(Project, project_id)
+    if not project or not project.public:
+        return set()
+
+    names = {"project:read"}
+    if permission_repository.get_public_collection_scopes(
+        session,
+        project_id=project_id,
+        collection_id=collection_id,
+    ):
+        names.update({"collection:read", "audio:read", "site:read"})
+    if permission_repository.get_public_collection_scopes(
+        session,
+        project_id=project_id,
+        collection_id=collection_id,
+        require_public_tags=True,
+    ):
+        names.add("annotation:read")
+    return names
+
+
+def get_current_user_effective_permissions(
+    session: Session,
+    user: User | None,
+    *,
+    project_id: int | None = None,
+    collection_id: int | None = None,
+) -> list[str]:
+    """
+    Effective `resource:action` names for a scope, used to gate UI actions.
+
+    A project-only scope returns grants that apply across the whole project. It
+    deliberately excludes collection-local grants; list row capabilities expose
+    operations that vary between records.
+    """
+    if user is not None and is_admin(user):
+        return sorted(session.exec(select(Permission.name)).all())
+
+    names: set[str] = set()
+    if user is not None and project_id is not None and collection_id is None:
+        stored_names = set(
+            session.exec(
+                select(Permission.name)
+                .join(UserPermission, UserPermission.permission_id == Permission.permission_id)
+                .where(
+                    UserPermission.user_id == user.user_id,
+                    UserPermission.project_id == project_id,
+                    UserPermission.collection_id.is_(None),
+                )
+            ).all()
+        )
+        names.update(stored_names)
+        for name in tuple(stored_names):
+            resource_type, action = name.split(":", 1)
+            names.add("project:read")
+            if action == "write":
+                names.add(f"{resource_type}:read")
+        if "project:write" in stored_names:
+            names.update({"project:read", "collection:read", "collection:write"})
+            for resource_type in _SUB_RESOURCE_TYPES:
+                names.update({f"{resource_type}:read", f"{resource_type}:write"})
+    elif project_id is not None and collection_id is not None:
+        names.update({
+            f"{resource_type}:{action}"
+            for resource_type, action in get_effective_permission_pairs(
+                session,
+                user.user_id if user else None,
+                project_id=project_id,
+                collection_id=collection_id,
+            )
+        })
+
+    public_collection_id = collection_id if collection_id is not None else None
+    public_names = _public_read_permission_names(session, project_id, public_collection_id)
+    if collection_id is None:
+        public_names.intersection_update({"project:read"})
+    names.update(public_names)
+    return sorted(names)
 
 
 def can_access_project(

@@ -81,6 +81,7 @@ from app.schemas.media import (
     PhotoSettingPublic,
     PreviewPublic,
 )
+from app.services import row_capability_service
 from app.schemas.response import ApiResponse, PagedApiResponse, api_page
 from app.services import permission_service
 from app.spectrogram import (
@@ -1414,8 +1415,15 @@ def get_media_list(
         relation_profile="detail",
     )
     scope_set = set(scoped_collection_ids)
-    data = [
-        MediaListPublic.model_validate(
+    writable_ids = row_capability_service.project_collection_ids(
+        session, user, project_id, "audio", "write"
+    )
+    assignable_ids = row_capability_service.project_collection_ids(
+        session, user, project_id, "collection", "write"
+    )
+    data = []
+    for media in media_list:
+        item = MediaListPublic.model_validate(
             _build_media_public(
                 session,
                 media,
@@ -1425,8 +1433,26 @@ def get_media_list(
                 scoped_collection_ids=scope_set,
             )
         )
-        for media in media_list
-    ]
+        linked_ids = {
+            mc.collection_id
+            for mc in (media.media_collections or [])
+            if mc.collection_id in scope_set
+        }
+        analysis_allowed = bool(
+            user
+            and (
+                permission_service.is_admin(user)
+                or media.uploader_id == user.user_id
+                or linked_ids & assignable_ids
+            )
+        )
+        item.capabilities = row_capability_service.linked_capabilities(
+            linked_ids,
+            writable_collection_ids=writable_ids,
+            assignable_collection_ids=assignable_ids,
+            run_analysis=analysis_allowed,
+        )
+        data.append(item)
     return api_page(data=data, total=count, page=page, page_size=page_size)
 
 

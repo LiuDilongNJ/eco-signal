@@ -3,6 +3,8 @@ from datetime import datetime
 from pydantic import ConfigDict, field_serializer
 from sqlmodel import Field, SQLModel
 
+from app.schemas.capability import RowCapabilities
+
 
 class QueueDetail(SQLModel):
     """
@@ -33,6 +35,7 @@ class QueueListItem(QueueDetail):
     """
     user_id: int
     username: str
+    capabilities: RowCapabilities = Field(default_factory=RowCapabilities)
 
     model_config = ConfigDict(from_attributes=True)
 

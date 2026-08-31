@@ -41,9 +41,17 @@ def get_sensor_options(session: SessionDep) -> Any:
     返回包含 ID 和名称的所有传感器列表。 / Returns list of all sensors with id and name.
     无需身份验证。 / No authentication required.
     """
-    stmt = select(Sensor.sensor_id, Sensor.name, Sensor.sensor_type).order_by(Sensor.name)
+    stmt = select(Sensor.sensor_id, Sensor.name, Sensor.sensor_type, Sensor.serial_number).order_by(Sensor.name)
     results = session.exec(stmt).all()
-    data = [{"sensor_id": r[0], "name": r[1] or "", "sensor_type": r[2]} for r in results]
+    data = [
+        {
+            "sensor_id": r[0],
+            "name": r[1] or "",
+            "sensor_type": r[2],
+            "serial_number": r[3],
+        }
+        for r in results
+    ]
     return api_success(data=data)
 
 
@@ -60,6 +68,7 @@ def list_sensors(
     sensor_id: Optional[int] = Query(default=None, description="传感器 ID 精确筛选 / Filter by sensor ID (exact)"),
     uuid: Optional[str] = Query(default=None, description="UUID 精确筛选 / Filter by UUID (exact)"),
     name: Optional[str] = Query(default=None, description="名称模糊搜索 / Fuzzy search by name"),
+    serial_number: Optional[str] = Query(default=None, description="序列号模糊搜索 / Fuzzy search by serial number"),
     description: Optional[str] = Query(default=None, description="描述模糊搜索 / Fuzzy search by description"),
     sensor_type: Optional[str] = Query(default=None, description="传感器类型模糊搜索 / Fuzzy search by sensor type"),
     recorder_id: Optional[int] = Query(default=None, description="通过录音机 ID 筛选 / Filter by recorder ID"),
@@ -72,7 +81,7 @@ def list_sensors(
     lens_name: Optional[str] = Query(default=None, description="镜头名称模糊搜索 / Fuzzy search by lens name"),
     creation_date_from: Optional[date] = Query(default=None, description="创建日期起始（含）YYYY-MM-DD / Creation date from"),
     creation_date_to: Optional[date] = Query(default=None, description="创建日期截止（含）YYYY-MM-DD / Creation date to"),
-    order_by: str = Query(default="sensor_id", description="排序字段：sensor_id, uuid, name, sensor_type, recorder_name, microphone_name, camera_name, lens_name, creation_date / Sort field"),
+    order_by: str = Query(default="sensor_id", description="排序字段：sensor_id, uuid, name, serial_number, sensor_type, recorder_name, microphone_name, camera_name, lens_name, creation_date / Sort field"),
     order_dir: str = Query(default="asc", pattern="^(asc|desc)$", description="排序方向 / Sort direction"),
 ) -> Any:
     """
@@ -85,6 +94,7 @@ def list_sensors(
         "sensor_id": sensor_id,
         "uuid": parse_uuid(uuid),
         "name": name,
+        "serial_number": serial_number,
         "description": description,
         "sensor_type": sensor_type,
         "recorder_id": recorder_id,
@@ -112,6 +122,7 @@ def export_sensors(
     sensor_id: Optional[int] = Query(default=None, description="传感器 ID 精确筛选 / Filter by sensor ID (exact)"),
     uuid: Optional[str] = Query(default=None, description="UUID 精确筛选 / Filter by UUID (exact)"),
     name: Optional[str] = Query(default=None, description="名称模糊搜索 / Fuzzy search by name"),
+    serial_number: Optional[str] = Query(default=None, description="序列号模糊搜索 / Fuzzy search by serial number"),
     description: Optional[str] = Query(default=None, description="描述模糊搜索 / Fuzzy search by description"),
     sensor_type: Optional[str] = Query(default=None, description="传感器类型模糊搜索 / Fuzzy search by sensor type"),
     recorder_id: Optional[int] = Query(default=None, description="通过录音机 ID 筛选 / Filter by recorder ID"),
@@ -124,13 +135,14 @@ def export_sensors(
     lens_name: Optional[str] = Query(default=None, description="镜头名称模糊搜索 / Fuzzy search by lens name"),
     creation_date_from: Optional[date] = Query(default=None, description="创建日期起始（含）YYYY-MM-DD / Creation date from"),
     creation_date_to: Optional[date] = Query(default=None, description="创建日期截止（含）YYYY-MM-DD / Creation date to"),
-    order_by: str = Query(default="sensor_id", description="排序字段：sensor_id, uuid, name, sensor_type, recorder_name, microphone_name, camera_name, lens_name, creation_date / Sort field"),
+    order_by: str = Query(default="sensor_id", description="排序字段：sensor_id, uuid, name, serial_number, sensor_type, recorder_name, microphone_name, camera_name, lens_name, creation_date / Sort field"),
     order_dir: str = Query(default="asc", pattern="^(asc|desc)$", description="排序方向 / Sort direction"),
 ) -> Any:
     filters = {
         "sensor_id": sensor_id,
         "uuid": parse_uuid(uuid),
         "name": name,
+        "serial_number": serial_number,
         "description": description,
         "sensor_type": sensor_type,
         "recorder_id": recorder_id,
@@ -163,9 +175,7 @@ def create_sensor(session: SessionDep, body: SensorCreate) -> Any:
     device_service.create_sensor(
         session, body.name, body.sensor_type,
         body.recorder_id, body.microphone_id, body.camera_id, body.lens_id,
-        body.camera_lens_is_default,
-        body.description,
-        body.recorder_microphone_is_default,
+        body.description, body.serial_number,
     )
     return api_success()
 

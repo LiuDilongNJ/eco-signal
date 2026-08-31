@@ -49,6 +49,12 @@ export function filterSensorsForMediaType(
     )
 }
 
+export function formatSensorOptionLabel(sensor: SensorOption): string {
+    const name = sensor.name?.trim() || `Sensor #${sensor.sensor_id}`
+    const serial = sensor.serial_number?.trim()
+    return serial ? `${name} · ${serial}` : name
+}
+
 export function buildMediaUpdatePayload(
     values: MediaUpdateFormValues,
     kind: EditableMediaKind,

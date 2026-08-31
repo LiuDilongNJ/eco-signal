@@ -12,6 +12,7 @@ import { useProjectStore } from "../../../stores/useProjectStore"
 import { ListChecks } from "lucide-react"
 import { downloadFile } from "@/utils/download"
 import { useTableFetchScheduler } from "@/hooks/useTableFetchScheduler"
+import { rowCan } from "../rowCapabilities"
 
 const COLUMNS: ColumnDef[] = [
     { key: "task_id", label: "ID", type: "number", width: "220px", sortable: true, filterable: true },
@@ -231,7 +232,11 @@ export function TasksPage() {
         try {
             setLoading(true)
             for (const taskId of taskIds) {
-                const res = await tasksApi.deleteTask(taskId)
+                if (!currentProjectId) {
+                    message.error("Select a project before deleting tasks")
+                    return
+                }
+                const res = await tasksApi.deleteTask(Number(currentProjectId), taskId)
                 if (res.code !== 0 && res.code !== 200) {
                     message.error(res.message || `Failed to delete task ${taskId}`)
                     return
@@ -275,6 +280,7 @@ export function TasksPage() {
             viewRequiresSingle={false}
             onExportCustom={handleExport}
             onDeleteCustom={handleDelete}
+            canDeleteRecord={(record) => rowCan(record, "delete")}
             hideAdd={true}
             hideEdit={true}
             hideView={false}

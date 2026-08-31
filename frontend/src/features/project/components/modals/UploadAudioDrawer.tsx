@@ -13,7 +13,7 @@ import type { SiteOption } from "../../../../api/endpoints/sites"
 import type { LicenseOption } from "../../../../api/endpoints/licenses"
 import type { SensorOption } from "../../../../api/endpoints/sensors"
 import type { UserOption } from "../../../../api/endpoints/users"
-import { MEDIA_ADD_TITLES, filterSensorsForMediaType } from "./mediaForm"
+import { MEDIA_ADD_TITLES, filterSensorsForMediaType, formatSensorOptionLabel } from "./mediaForm"
 import "./styles/FormDrawer.css"
 import "./styles/UploadAudioDrawer.css"
 
@@ -357,7 +357,7 @@ export function UploadAudioDrawer({ open, initialFiles = [], siteOptions = [], l
                                         classNames={{ popup: { root: "form-drawer-select-popup" } }}
                                         notFoundContent={selectEmptyState}
 
-                                        options={audioSensors.map(s => ({ value: s.sensor_id, label: s.name }))}
+                                        options={audioSensors.map(s => ({ value: s.sensor_id, label: formatSensorOptionLabel(s) }))}
                                         onChange={v => {
                                             setFormData(p => ({ ...p, sensor_id: v }))
                                             clearValidationError("sensor_id")

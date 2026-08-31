@@ -8,7 +8,8 @@ from app.models.media import MediaCollection
 from app.models.user import User
 from app.repositories import index_log_repository, permission_repository
 from app.schemas.index_log import IndexLogDeleteItem, IndexLogRead
-from app.services import permission_service
+from app.schemas.capability import RowCapabilities
+from app.services import permission_service, row_capability_service
 
 _INDEX_LOG_EXPORT_COLUMNS = [
     CsvColumn("log_id"), CsvColumn("media_name"),
@@ -55,7 +56,25 @@ def list_index_logs(
         page_size=page_size,
         **kwargs
     )
-    return [IndexLogRead.model_validate(item).model_dump(mode="json") for item in items], total
+    project_id = kwargs.get("project_id")
+    media_ids = {int(item["media_id"]) for item in items if item.get("media_id") is not None}
+    media_collections = row_capability_service.media_collection_map(
+        session, media_ids, project_id
+    )
+    writable_ids = row_capability_service.project_collection_ids(
+        session, current_user, project_id, "collection", "write"
+    )
+    data = []
+    for item in items:
+        linked_ids = media_collections.get(item.get("media_id"), set())
+        payload = dict(item)
+        payload["capabilities"] = RowCapabilities(
+            delete=is_admin
+            or item.get("user_id") == current_user.user_id
+            or bool(linked_ids & writable_ids)
+        )
+        data.append(IndexLogRead.model_validate(payload).model_dump(mode="json"))
+    return data, total
 
 
 def export_index_logs(
@@ -87,6 +106,7 @@ def delete_index_logs(
     session: Session,
     current_user: User,
     delete_items: list[IndexLogDeleteItem],
+    project_id: int,
 ) -> int:
     """
     Batch delete index logs with permissions check.
@@ -115,6 +135,22 @@ def delete_index_logs(
         index_id = item.index_id
             
         if not is_admin:
+            owner_id = index_log_repository.get_group_user_id(
+                session,
+                log_id=item.log_id,
+                media_id=media_id,
+                index_id=index_id,
+            )
+            if owner_id == current_user.user_id:
+                removed_rows = index_log_repository.delete_group(
+                    session,
+                    log_id=item.log_id,
+                    media_id=media_id,
+                    index_id=index_id,
+                )
+                if removed_rows > 0:
+                    deleted_count += 1
+                continue
             # A log belongs to a media, which belongs to collections
             media_colls = session.exec(select(MediaCollection).where(MediaCollection.media_id == media_id)).all()
             media_coll_ids = [mc.collection_id for mc in media_colls]
@@ -125,6 +161,7 @@ def delete_index_logs(
                 media_coll_ids,
                 "collection",
                 "write",
+                project_id=project_id,
             ):
                  raise HTTPException(status_code=403, detail=f"Not enough permissions to delete log {item.log_id}")
 

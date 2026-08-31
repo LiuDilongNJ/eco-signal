@@ -195,7 +195,7 @@ class TestIndexLogsAPI:
 
     def test_get_index_logs_as_superuser(self, client: TestClient, superuser_token_headers: dict) -> None:
         response = client.get(
-            f"{settings.API_V1_STR}/index-logs",
+            f"{settings.API_V1_STR}/index-logs?project_id={self.project_id}",
             headers=superuser_token_headers
         )
         assert response.status_code == HTTPStatus.OK
@@ -217,7 +217,7 @@ class TestIndexLogsAPI:
 
     def test_get_index_logs_as_normal_user(self, client: TestClient, normal_user_token_headers: dict) -> None:
         response = client.get(
-            f"{settings.API_V1_STR}/index-logs",
+            f"{settings.API_V1_STR}/index-logs?project_id={self.project_id}",
             headers=normal_user_token_headers
         )
         assert response.status_code == HTTPStatus.OK
@@ -391,7 +391,7 @@ class TestIndexLogsAPI:
         
         response = client.request(
             "DELETE",
-            f"{settings.API_V1_STR}/index-logs",
+            f"{settings.API_V1_STR}/index-logs?project_id={self.project_id}",
             headers=superuser_token_headers,
             json=[self._delete_item(self.log1_id, self.log1_media_id, self.index_type_id)],
         )
@@ -427,7 +427,7 @@ class TestIndexLogsAPI:
 
         response = client.request(
             "DELETE",
-            f"{settings.API_V1_STR}/index-logs",
+            f"{settings.API_V1_STR}/index-logs?project_id={self.project_id}",
             headers=superuser_token_headers,
             json=[self._delete_item(group_log_id, self.log1_media_id, self.index_type_id)],
         )
@@ -440,33 +440,10 @@ class TestIndexLogsAPI:
         ).scalar_one()
         assert after_count == 0
 
-    def test_delete_index_logs_as_normal_user(self, client: TestClient, normal_user_token_headers: dict, db: Session) -> None:
-        # 1. Initially should fail without specific permission
+    def test_index_log_owner_can_delete_without_collection_write(self, client: TestClient, normal_user_token_headers: dict, db: Session) -> None:
         response = client.request(
             "DELETE",
-            f"{settings.API_V1_STR}/index-logs",
-            headers=normal_user_token_headers,
-            json=[self._delete_item(self.log2_id, self.log2_media_id, self.index_type_id)],
-        )
-        assert response.status_code == 403
-
-        # 2. Grant collection:write permission
-        from app.models.permission import Permission, UserPermission
-
-        perm = db.exec(select(Permission).where(Permission.resource_type == "collection", Permission.action == "write")).first()
-        user_perm = UserPermission(
-            user_id=self.normal_user_id,
-            permission_id=perm.permission_id,
-            project_id=self.project_id,
-            collection_id=self.collection2_id
-        )
-        db.add(user_perm)
-        db.commit()
-
-        # 3. Should succeed now
-        response = client.request(
-            "DELETE",
-            f"{settings.API_V1_STR}/index-logs",
+            f"{settings.API_V1_STR}/index-logs?project_id={self.project_id}",
             headers=normal_user_token_headers,
             json=[self._delete_item(self.log2_id, self.log2_media_id, self.index_type_id)],
         )
@@ -494,7 +471,7 @@ class TestIndexLogsAPI:
         payload = [self._delete_item(group_log_id, self.log1_media_id, self.index_type_id)] * 2
         response = client.request(
             "DELETE",
-            f"{settings.API_V1_STR}/index-logs",
+            f"{settings.API_V1_STR}/index-logs?project_id={self.project_id}",
             headers=superuser_token_headers,
             json=payload,
         )
@@ -504,7 +481,7 @@ class TestIndexLogsAPI:
     def test_delete_index_logs_skips_missing_group(self, client: TestClient, superuser_token_headers: dict) -> None:
         response = client.request(
             "DELETE",
-            f"{settings.API_V1_STR}/index-logs",
+            f"{settings.API_V1_STR}/index-logs?project_id={self.project_id}",
             headers=superuser_token_headers,
             json=[self._delete_item(999999, self.log1_media_id, self.index_type_id)],
         )
@@ -514,7 +491,7 @@ class TestIndexLogsAPI:
     def test_delete_index_logs_returns_404_for_mismatched_media_or_index(self, client: TestClient, superuser_token_headers: dict) -> None:
         response = client.request(
             "DELETE",
-            f"{settings.API_V1_STR}/index-logs",
+            f"{settings.API_V1_STR}/index-logs?project_id={self.project_id}",
             headers=superuser_token_headers,
             json=[self._delete_item(self.log1_id, self.log2_media_id, self.index_type_id)],
         )
@@ -523,7 +500,7 @@ class TestIndexLogsAPI:
     def test_delete_index_logs_rejects_log_id_array(self, client: TestClient, superuser_token_headers: dict) -> None:
         response = client.request(
             "DELETE",
-            f"{settings.API_V1_STR}/index-logs",
+            f"{settings.API_V1_STR}/index-logs?project_id={self.project_id}",
             headers=superuser_token_headers,
             json=[self.log1_id],
         )

@@ -1,7 +1,14 @@
 from sqlmodel import Session
 
-from app.repositories import geo_repository
-from app.schemas.geo import GeoOption, IucnOption
+from app.repositories.geo_repository import geo_repository
+from app.schemas.geo import (
+    CoordinateGadmMatch,
+    CoordinateGeoOption,
+    CoordinateIhoMatch,
+    CoordinateMatchesResponse,
+    GeoOption,
+    IucnOption,
+)
 
 
 def get_gadm_options(
@@ -92,3 +99,20 @@ def get_iucn_functional_types(
         page_size=page_size,
     )
     return [IucnOption(id=item.iucn_get_id, name=item.name) for item in items], total
+
+
+def get_coordinate_matches(longitude: float, latitude: float) -> CoordinateMatchesResponse:
+    match = geo_repository.coordinate_matches(longitude, latitude)
+
+    def option(value):
+        return CoordinateGeoOption(gid=value.gid, name=value.name) if value else None
+
+    return CoordinateMatchesResponse(
+        gadm=CoordinateGadmMatch(
+            status=match.gadm_status,
+            gadm0=option(match.gadm0),
+            gadm1=option(match.gadm1),
+            gadm2=option(match.gadm2),
+        ),
+        iho=CoordinateIhoMatch(status=match.iho_status, option=option(match.iho)),
+    )

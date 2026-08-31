@@ -7,6 +7,118 @@
     gap: 24px;
 }
 
+.settings-storage {
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background: var(--bg-surface-secondary);
+    padding: 14px;
+}
+
+.settings-storage__header,
+.settings-storage__title,
+.settings-storage__progress-row,
+.settings-storage__summary {
+    display: flex;
+    align-items: center;
+}
+
+.settings-storage__header {
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.settings-storage__title {
+    gap: 8px;
+    color: var(--text-main);
+}
+
+.settings-storage__title h3 {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.settings-storage__refresh {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    border: 0;
+    background: transparent;
+    color: var(--brand);
+    cursor: pointer;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.settings-storage__refresh:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+}
+
+.settings-storage__content {
+    margin-top: 12px;
+}
+
+.settings-storage__summary {
+    justify-content: space-between;
+    gap: 8px;
+    color: var(--text-secondary);
+    font-size: 13px;
+}
+
+.settings-storage__progress-row {
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.settings-storage__progress {
+    height: 8px;
+    flex: 1;
+    overflow: hidden;
+    border-radius: 999px;
+    background: var(--border-color);
+}
+
+.settings-storage__progress span {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: var(--brand);
+}
+
+.settings-storage__progress--warning span {
+    background: var(--warning);
+}
+
+.settings-storage__progress--critical span {
+    background: var(--danger);
+}
+
+.settings-storage__status {
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.settings-storage__status--healthy {
+    color: var(--brand);
+}
+
+.settings-storage__status--warning {
+    color: var(--warning);
+}
+
+.settings-storage__status--critical {
+    color: var(--danger);
+}
+
+.settings-storage__percent {
+    margin-top: 7px;
+    color: var(--text-main);
+    font-size: 13px;
+    font-weight: 600;
+}
+
 .settings-drawer-title {
     display: inline-flex;
     align-items: center;

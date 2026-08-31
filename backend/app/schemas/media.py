@@ -12,6 +12,7 @@ from pydantic import (
 from sqlmodel import SQLModel
 
 from app.enums import MediaType
+from app.schemas.capability import RowCapabilities
 
 
 class PreviewPublic(SQLModel):
@@ -215,6 +216,7 @@ class MediaListPublic(MediaBase):
     audio_setting: Optional[AudioSettingPublic] = None
     photo_setting: Optional[PhotoSettingPublic] = None
     labels: list[str] = Field(default_factory=list)
+    capabilities: RowCapabilities = Field(default_factory=RowCapabilities)
 
     model_config = ConfigDict(from_attributes=True)
 

@@ -5,6 +5,7 @@ from pydantic import field_serializer
 from sqlmodel import Field, SQLModel
 
 from app.models.index import IndexLogBase
+from app.schemas.capability import RowCapabilities
 
 
 class IndexLogRead(IndexLogBase):
@@ -13,6 +14,7 @@ class IndexLogRead(IndexLogBase):
     user_name: Optional[str] = None
     media_name: Optional[str] = None
     index_name: Optional[str] = None
+    capabilities: RowCapabilities = Field(default_factory=RowCapabilities)
 
     @field_serializer("creation_date")
     @classmethod

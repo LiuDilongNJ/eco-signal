@@ -23,6 +23,8 @@ import { useMediaTableData } from "./useMediaTableData"
 import { useMediaUploadQueue } from "./useMediaUploadQueue"
 import { isAbortError, pollAnalysisQueues } from "../../modals/utils/analysisQueuePolling"
 import { useCreatorOptions } from "./useCreatorOptions"
+import { usePermissions } from "@/hooks/usePermissions"
+import { rowCan, selectionCan } from "../rowCapabilities"
 import {
     openMediaDetailTab,
     renderLabelPills,
@@ -115,6 +117,8 @@ export function AudiosPage() {
     } = useMediaTableData("audio", currentProjectId, currentCollectionId)
     const uploadQueue = useMediaUploadQueue("audio", currentCollectionId)
     const { creatorOptions, currentUserId } = useCreatorOptions(currentProjectId, currentCollectionId)
+    const { can } = usePermissions(currentProjectId, currentCollectionId)
+    const canWriteAudio = can("audio:write")
 
     useEffect(() => () => {
         mediaProcessingAbortRef.current?.abort()
@@ -257,8 +261,10 @@ export function AudiosPage() {
                     importLabel: "Metadata",
                     instructionsLabel: "Metadata Instructions",
                     fields: { project_id: currentProjectId, collection_id: currentCollectionId, media_type: "audio" },
-                    disabled: !currentProjectId || !currentCollectionId || currentCollectionId === "all",
-                    disabledReason: "Select a project and collection before importing audio metadata",
+                    disabled: !canWriteAudio || !currentProjectId || !currentCollectionId || currentCollectionId === "all",
+                    disabledReason: canWriteAudio
+                        ? "Select a project and collection before importing audio metadata"
+                        : "You do not have permission to import audio metadata",
                 }}
                 columns={COLUMNS}
                 rows={rows}
@@ -302,12 +308,23 @@ export function AudiosPage() {
                     const audioActionBlockedByMediaType = selectedRowsContainNonAudio(selectedRows)
                     const selectedIds = selectedMediaIds(selectedRows)
                     const audioActionDisabled = selectedRows.size === 0 || audioActionBlockedByMediaType
+                    const canLinkSelection = selectionCan(selectedRows, rows, "media_id", "link")
+                    const canAssignSelection = selectionCan(selectedRows, rows, "media_id", "assign")
+                    const canAnalyzeSelection = selectionCan(selectedRows, rows, "media_id", "run_analysis")
                     return (
                     <>
-                        <ESButton appearance="unstyled" className="data-btn" title="Link the selected audio files to collections" disabled={selectedRows.size === 0} onClick={() => {
-                            setLinkMediaIds(selectedIds)
-                            setLinkDrawerOpen(true)
-                        }}>
+                        <ESButton
+                            appearance="unstyled"
+                            className="data-btn"
+                            title={canLinkSelection
+                                ? "Link the selected audio files to collections"
+                                : "You do not have permission to link media"}
+                            disabled={!canLinkSelection}
+                            onClick={() => {
+                                setLinkMediaIds(selectedIds)
+                                setLinkDrawerOpen(true)
+                            }}
+                        >
                             <LinkIcon size={14} /> Link
                         </ESButton>
                         <ESButton appearance="unstyled" className="data-btn" title="Apply labels to the selected audio files" disabled={selectedRows.size === 0} onClick={() => {
@@ -318,8 +335,10 @@ export function AudiosPage() {
                         </ESButton>
                         <ESButton appearance="unstyled"
                             className="data-btn"
-                            title={audioActionBlockedByMediaType ? "Only audio files can be assigned" : "Assign the selected audio files to a user"}
-                            disabled={selectedRows.size === 0 || audioActionBlockedByMediaType}
+                            title={!canAssignSelection
+                                ? "You do not have permission to assign tasks"
+                                : audioActionBlockedByMediaType ? "Only audio files can be assigned" : "Assign the selected audio files to a user"}
+                            disabled={!canAssignSelection || audioActionBlockedByMediaType}
                             onClick={() => {
                                 if (audioActionBlockedByMediaType) {
                                     message.warning("Only audio files can be assigned.")
@@ -334,7 +353,7 @@ export function AudiosPage() {
                         }}>
                             <ClipboardListIcon size={14} /> Assignment
                         </ESButton>
-                        <ESButton appearance="unstyled" className="data-btn" title={audioActionBlockedByMediaType ? "AI models are available for audio files only" : "Run an AI model on the selected audio files"} disabled={audioActionDisabled} onClick={() => {
+                        <ESButton appearance="unstyled" className="data-btn" title={!canAnalyzeSelection ? "You do not have permission to run AI models" : audioActionBlockedByMediaType ? "AI models are available for audio files only" : "Run an AI model on the selected audio files"} disabled={!canAnalyzeSelection || audioActionDisabled} onClick={() => {
                             if (audioActionBlockedByMediaType) {
                                 message.warning("AI models are available for audio files only.")
                                 return
@@ -344,7 +363,7 @@ export function AudiosPage() {
                         }}>
                             <BotIcon size={14} /> AI models
                         </ESButton>
-                        <ESButton appearance="unstyled" className="data-btn" title={audioActionBlockedByMediaType ? "Acoustic indices are available for audio files only" : "Calculate acoustic indices for the selected audio files"} disabled={audioActionDisabled} onClick={() => {
+                        <ESButton appearance="unstyled" className="data-btn" title={!canAnalyzeSelection ? "You do not have permission to calculate acoustic indices" : audioActionBlockedByMediaType ? "Acoustic indices are available for audio files only" : "Calculate acoustic indices for the selected audio files"} disabled={!canAnalyzeSelection || audioActionDisabled} onClick={() => {
                             if (audioActionBlockedByMediaType) {
                                 message.warning("Acoustic indices are available for audio files only.")
                                 return
@@ -366,6 +385,9 @@ export function AudiosPage() {
                 addDropdownItems={addDropdownItems}
                 addDisabled={!currentCollectionId || currentCollectionId === 'all'}
                 addDisabledTooltip="Before uploading media, please select a collection."
+                canAdd={canWriteAudio}
+                canEditRecord={(record) => rowCan(record, "edit")}
+                canDeleteRecord={(record) => rowCan(record, "delete")}
             />
 
             <UploadAudioDrawer

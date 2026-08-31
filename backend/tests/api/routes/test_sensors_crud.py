@@ -72,6 +72,9 @@ class TestSensorOptions:
         assert r.status_code == 200
         data = r.json()["data"]
         assert any(item["name"] == "OptionSensor" for item in data)
+        option = next(item for item in data if item["name"] == "OptionSensor")
+        assert "serial_number" in option
+        assert option["serial_number"] is None
 
 
 # GET /sensors  (admin)
@@ -107,7 +110,7 @@ class TestListSensors:
         assert found["recorder_name"] == "SensorRecorder"
         assert found["microphone_name"] == "SensorMic"
 
-    def test_list_includes_camera_lens_default(
+    def test_list_omits_camera_lens_default(
         self, client: TestClient, superuser_token_headers: dict, db: Session
     ) -> None:
         camera = _make_camera(db, "ListDefaultCamera")
@@ -120,7 +123,7 @@ class TestListSensors:
         )
         db.add_all([
             sensor,
-            CameraLens(camera_id=camera.camera_id, lens_id=lens.lens_id, is_default=True),
+            CameraLens(camera_id=camera.camera_id, lens_id=lens.lens_id),
         ])
         db.commit()
 
@@ -128,9 +131,9 @@ class TestListSensors:
 
         assert response.status_code == 200
         item = next(item for item in response.json()["data"] if item["name"] == "ListDefaultSensor")
-        assert item["is_default"] is True
+        assert "is_default" not in item
 
-    def test_list_includes_recorder_microphone_default(
+    def test_list_omits_recorder_microphone_default(
         self, client: TestClient, superuser_token_headers: dict, db: Session
     ) -> None:
         recorder = _make_recorder(db, "ListDefaultRecorder")
@@ -146,7 +149,6 @@ class TestListSensors:
             RecorderMicrophone(
                 recorder_id=recorder.recorder_id,
                 microphone_id=mic.microphone_id,
-                is_default=True,
             ),
         ])
         db.commit()
@@ -157,7 +159,7 @@ class TestListSensors:
         item = next(
             item for item in response.json()["data"] if item["name"] == "ListDefaultAudioSensor"
         )
-        assert item["is_default"] is True
+        assert "is_default" not in item
 
     def test_list_filter_by_sensor_id_and_uuid(
         self, client: TestClient, superuser_token_headers: dict, db: Session
@@ -186,6 +188,27 @@ class TestListSensors:
 
         response = client.get(
             f"{BASE}?description=canopy&page_size=100",
+            headers=superuser_token_headers,
+        )
+
+        assert response.status_code == 200, response.json()
+        sensor_ids = {item["sensor_id"] for item in response.json()["data"]}
+        assert matching.sensor_id in sensor_ids
+        assert non_matching.sensor_id not in sensor_ids
+
+    def test_list_filter_by_serial_number_uses_fuzzy_match(
+        self, client: TestClient, superuser_token_headers: dict, db: Session
+    ) -> None:
+        matching = _make_sensor_audio(db, "SerialMatch")
+        matching.serial_number = "AM-2048"
+        non_matching = _make_sensor_audio(db, "SerialMiss")
+        non_matching.serial_number = "SM4-001"
+        db.add(matching)
+        db.add(non_matching)
+        db.commit()
+
+        response = client.get(
+            f"{BASE}?serial_number=2048&page_size=100",
             headers=superuser_token_headers,
         )
 
@@ -324,7 +347,6 @@ class TestExportSensors:
             RecorderMicrophone(
                 recorder_id=recorder.recorder_id,
                 microphone_id=mic.microphone_id,
-                is_default=True,
             )
         )
         db.commit()
@@ -341,13 +363,12 @@ class TestExportSensors:
         )
         rows = read_csv_rows(r.text)
         assert rows[0] == [
-            "sensor_id", "uuid", "name", "sensor_type", "recorder_id", "recorder_name",
+            "sensor_id", "uuid", "name", "serial_number", "sensor_type", "recorder_id", "recorder_name",
             "microphone_id", "microphone_name", "camera_id", "camera_name", "lens_id",
-            "lens_name", "is_default", "description", "creation_date",
+            "lens_name", "description", "creation_date",
         ]
         assert len(rows) == 2
         assert rows[1][0] == str(sensor.sensor_id)
-        assert rows[1][12] == "True"
 
 
 # POST /sensors  (admin)
@@ -376,6 +397,43 @@ class TestCreateSensor:
         assert row is not None
         assert row.sensor_type == "audio"
         assert row.uuid is not None
+        assert row.serial_number is None
+
+    def test_create_with_serial_number(
+        self, client: TestClient, superuser_token_headers: dict, db: Session
+    ) -> None:
+        recorder = _make_recorder(db, "SerialRecorder")
+        mic = _make_microphone(db, "SerialMic")
+        r = client.post(BASE, headers=superuser_token_headers, json={
+            "name": "SerialSensor",
+            "sensor_type": "audio",
+            "recorder_id": recorder.recorder_id,
+            "microphone_id": mic.microphone_id,
+            "serial_number": "  AM-1001  ",
+        })
+        assert r.status_code == 200
+        row = db.exec(select(Sensor).where(Sensor.name == "SerialSensor").order_by(Sensor.sensor_id.desc())).first()
+        assert row is not None
+        assert row.serial_number == "AM-1001"
+
+    def test_create_blank_serial_number_stores_null(
+        self, client: TestClient, superuser_token_headers: dict, db: Session
+    ) -> None:
+        recorder = _make_recorder(db, "BlankSerialRecorder")
+        mic = _make_microphone(db, "BlankSerialMic")
+        r = client.post(BASE, headers=superuser_token_headers, json={
+            "name": "BlankSerialSensor",
+            "sensor_type": "audio",
+            "recorder_id": recorder.recorder_id,
+            "microphone_id": mic.microphone_id,
+            "serial_number": "   ",
+        })
+        assert r.status_code == 200
+        row = db.exec(
+            select(Sensor).where(Sensor.name == "BlankSerialSensor").order_by(Sensor.sensor_id.desc())
+        ).first()
+        assert row is not None
+        assert row.serial_number is None
 
     def test_create_rejects_normalized_duplicate_name(
         self, client: TestClient, superuser_token_headers: dict, db: Session
@@ -440,7 +498,6 @@ class TestCreateSensor:
         assert response.status_code == 200
         association = db.get(CameraLens, (camera.camera_id, lens.lens_id))
         assert association is not None
-        assert association.is_default is False
         assert association.notes is None
 
         list_response = client.get(
@@ -450,7 +507,7 @@ class TestCreateSensor:
         assert list_response.status_code == 200
         assert list_response.json()["data"][0]["camera_count"] == 1
 
-    def test_create_photo_sensor_sets_camera_lens_default(
+    def test_create_rejects_retired_camera_lens_default_field(
         self, client: TestClient, superuser_token_headers: dict, db: Session
     ) -> None:
         camera = _make_camera(db, "DefaultPhotoCamera")
@@ -468,12 +525,9 @@ class TestCreateSensor:
             },
         )
 
-        assert response.status_code == 200
-        association = db.get(CameraLens, (camera.camera_id, lens.lens_id))
-        assert association is not None
-        assert association.is_default is True
+        assert response.status_code == 422
 
-    def test_create_photo_sensor_replaces_existing_camera_default(
+    def test_create_rejects_retired_camera_lens_default_with_existing_link(
         self, client: TestClient, superuser_token_headers: dict, db: Session
     ) -> None:
         camera = _make_camera(db, "ReplaceDefaultCamera")
@@ -482,7 +536,6 @@ class TestCreateSensor:
         old_association = CameraLens(
             camera_id=camera.camera_id,
             lens_id=old_lens.lens_id,
-            is_default=True,
         )
         db.add(old_association)
         db.commit()
@@ -499,10 +552,7 @@ class TestCreateSensor:
             },
         )
 
-        assert response.status_code == 200
-        db.refresh(old_association)
-        assert old_association.is_default is False
-        assert db.get(CameraLens, (camera.camera_id, new_lens.lens_id)).is_default is True
+        assert response.status_code == 422
 
     def test_create_photo_sensor_preserves_existing_camera_lens(
         self, client: TestClient, superuser_token_headers: dict, db: Session
@@ -512,7 +562,6 @@ class TestCreateSensor:
         association = CameraLens(
             camera_id=camera.camera_id,
             lens_id=lens.lens_id,
-            is_default=True,
             notes="Keep this metadata",
         )
         db.add(association)
@@ -531,7 +580,6 @@ class TestCreateSensor:
 
         assert response.status_code == 200
         db.refresh(association)
-        assert association.is_default is True
         assert association.notes == "Keep this metadata"
         links = db.exec(
             select(CameraLens).where(
@@ -591,10 +639,9 @@ class TestCreateSensor:
         assert response.status_code == 200
         association = db.get(RecorderMicrophone, (recorder.recorder_id, mic.microphone_id))
         assert association is not None
-        assert association.is_default is False
         assert association.notes is None
 
-    def test_create_audio_sensor_sets_recorder_microphone_default(
+    def test_create_rejects_retired_recorder_microphone_default_field(
         self, client: TestClient, superuser_token_headers: dict, db: Session
     ) -> None:
         recorder = _make_recorder(db, "DefaultAudioRecorder")
@@ -612,12 +659,9 @@ class TestCreateSensor:
             },
         )
 
-        assert response.status_code == 200
-        association = db.get(RecorderMicrophone, (recorder.recorder_id, mic.microphone_id))
-        assert association is not None
-        assert association.is_default is True
+        assert response.status_code == 422
 
-    def test_create_audio_sensor_replaces_existing_recorder_default(
+    def test_create_rejects_retired_recorder_microphone_default_with_existing_link(
         self, client: TestClient, superuser_token_headers: dict, db: Session
     ) -> None:
         recorder = _make_recorder(db, "ReplaceDefaultRecorder")
@@ -626,7 +670,6 @@ class TestCreateSensor:
         old_association = RecorderMicrophone(
             recorder_id=recorder.recorder_id,
             microphone_id=old_mic.microphone_id,
-            is_default=True,
         )
         db.add(old_association)
         db.commit()
@@ -643,12 +686,7 @@ class TestCreateSensor:
             },
         )
 
-        assert response.status_code == 200
-        db.refresh(old_association)
-        assert old_association.is_default is False
-        assert db.get(
-            RecorderMicrophone, (recorder.recorder_id, new_mic.microphone_id)
-        ).is_default is True
+        assert response.status_code == 422
 
     def test_create_audio_sensor_preserves_existing_recorder_microphone(
         self, client: TestClient, superuser_token_headers: dict, db: Session
@@ -658,7 +696,6 @@ class TestCreateSensor:
         association = RecorderMicrophone(
             recorder_id=recorder.recorder_id,
             microphone_id=mic.microphone_id,
-            is_default=True,
             notes="Keep this metadata",
         )
         db.add(association)
@@ -677,7 +714,6 @@ class TestCreateSensor:
 
         assert response.status_code == 200
         db.refresh(association)
-        assert association.is_default is True
         assert association.notes == "Keep this metadata"
         links = db.exec(
             select(RecorderMicrophone).where(
@@ -748,7 +784,7 @@ class TestGetSensor:
         assert data["name"] == "GetSensor"
         assert datetime.strptime(data["creation_date"], "%Y-%m-%d %H:%M:%S")
 
-    def test_get_includes_camera_lens_default(
+    def test_get_omits_camera_lens_default(
         self, client: TestClient, superuser_token_headers: dict, db: Session
     ) -> None:
         camera = _make_camera(db, "GetDefaultCamera")
@@ -761,7 +797,7 @@ class TestGetSensor:
         )
         db.add_all([
             sensor,
-            CameraLens(camera_id=camera.camera_id, lens_id=lens.lens_id, is_default=True),
+            CameraLens(camera_id=camera.camera_id, lens_id=lens.lens_id),
         ])
         db.commit()
         db.refresh(sensor)
@@ -769,9 +805,9 @@ class TestGetSensor:
         response = client.get(f"{BASE}/{sensor.sensor_id}", headers=superuser_token_headers)
 
         assert response.status_code == 200
-        assert response.json()["data"]["is_default"] is True
+        assert "is_default" not in response.json()["data"]
 
-    def test_get_includes_recorder_microphone_default(
+    def test_get_omits_recorder_microphone_default(
         self, client: TestClient, superuser_token_headers: dict, db: Session
     ) -> None:
         recorder = _make_recorder(db, "GetDefaultRecorder")
@@ -787,7 +823,6 @@ class TestGetSensor:
             RecorderMicrophone(
                 recorder_id=recorder.recorder_id,
                 microphone_id=mic.microphone_id,
-                is_default=True,
             ),
         ])
         db.commit()
@@ -796,7 +831,7 @@ class TestGetSensor:
         response = client.get(f"{BASE}/{sensor.sensor_id}", headers=superuser_token_headers)
 
         assert response.status_code == 200
-        assert response.json()["data"]["is_default"] is True
+        assert "is_default" not in response.json()["data"]
 
 
 # PUT /sensors/{sensor_id}  (admin)
@@ -819,6 +854,28 @@ class TestUpdateSensor:
         db.refresh(obj)
         assert obj.name == "Updated Sensor"
         assert obj.description == "New desc"
+
+    def test_update_serial_number(
+        self, client: TestClient, superuser_token_headers: dict, db: Session
+    ) -> None:
+        obj = _make_sensor_audio(db)
+        r = client.put(
+            f"{BASE}/{obj.sensor_id}",
+            headers=superuser_token_headers,
+            json={"serial_number": " SM4-77 "},
+        )
+        assert r.status_code == 200
+        db.refresh(obj)
+        assert obj.serial_number == "SM4-77"
+
+        r = client.put(
+            f"{BASE}/{obj.sensor_id}",
+            headers=superuser_token_headers,
+            json={"serial_number": "  "},
+        )
+        assert r.status_code == 200
+        db.refresh(obj)
+        assert obj.serial_number is None
 
     def test_update_rejects_normalized_duplicate_name(
         self, client: TestClient, superuser_token_headers: dict, db: Session
@@ -911,10 +968,9 @@ class TestUpdateSensor:
         assert db.get(CameraLens, (old_camera.camera_id, old_lens.lens_id)) is not None
         new_link = db.get(CameraLens, (new_camera.camera_id, new_lens.lens_id))
         assert new_link is not None
-        assert new_link.is_default is False
         assert new_link.notes is None
 
-    def test_update_photo_sensor_updates_camera_lens_default(
+    def test_update_rejects_retired_camera_lens_default_field(
         self, client: TestClient, superuser_token_headers: dict, db: Session
     ) -> None:
         camera = _make_camera(db, "UpdateDefaultCamera")
@@ -928,7 +984,6 @@ class TestUpdateSensor:
         association = CameraLens(
             camera_id=camera.camera_id,
             lens_id=lens.lens_id,
-            is_default=True,
         )
         db.add_all([sensor, association])
         db.commit()
@@ -940,11 +995,9 @@ class TestUpdateSensor:
             json={"camera_lens_is_default": False},
         )
 
-        assert response.status_code == 200
-        db.refresh(association)
-        assert association.is_default is False
+        assert response.status_code == 422
 
-    def test_update_photo_sensor_preserves_camera_lens_default_when_omitted(
+    def test_update_photo_sensor_preserves_camera_lens_notes_when_default_is_omitted(
         self, client: TestClient, superuser_token_headers: dict, db: Session
     ) -> None:
         camera = _make_camera(db, "PreserveDefaultCamera")
@@ -958,7 +1011,7 @@ class TestUpdateSensor:
         association = CameraLens(
             camera_id=camera.camera_id,
             lens_id=lens.lens_id,
-            is_default=True,
+            notes="Keep this metadata",
         )
         db.add_all([sensor, association])
         db.commit()
@@ -972,7 +1025,7 @@ class TestUpdateSensor:
 
         assert response.status_code == 200
         db.refresh(association)
-        assert association.is_default is True
+        assert association.notes == "Keep this metadata"
 
     def test_update_audio_sensor_rejects_camera_lens_default(
         self, client: TestClient, superuser_token_headers: dict, db: Session
@@ -987,7 +1040,7 @@ class TestUpdateSensor:
 
         assert response.status_code == 422
 
-    def test_update_audio_sensor_updates_recorder_microphone_default(
+    def test_update_rejects_retired_recorder_microphone_default_field(
         self, client: TestClient, superuser_token_headers: dict, db: Session
     ) -> None:
         recorder = _make_recorder(db, "UpdateDefaultRecorder")
@@ -1001,7 +1054,6 @@ class TestUpdateSensor:
         association = RecorderMicrophone(
             recorder_id=recorder.recorder_id,
             microphone_id=mic.microphone_id,
-            is_default=True,
         )
         db.add_all([sensor, association])
         db.commit()
@@ -1013,11 +1065,9 @@ class TestUpdateSensor:
             json={"recorder_microphone_is_default": False},
         )
 
-        assert response.status_code == 200
-        db.refresh(association)
-        assert association.is_default is False
+        assert response.status_code == 422
 
-    def test_update_audio_sensor_preserves_recorder_microphone_default_when_omitted(
+    def test_update_audio_sensor_preserves_recorder_microphone_notes_when_default_is_omitted(
         self, client: TestClient, superuser_token_headers: dict, db: Session
     ) -> None:
         recorder = _make_recorder(db, "PreserveDefaultRecorder")
@@ -1031,7 +1081,7 @@ class TestUpdateSensor:
         association = RecorderMicrophone(
             recorder_id=recorder.recorder_id,
             microphone_id=mic.microphone_id,
-            is_default=True,
+            notes="Keep this metadata",
         )
         db.add_all([sensor, association])
         db.commit()
@@ -1045,7 +1095,7 @@ class TestUpdateSensor:
 
         assert response.status_code == 200
         db.refresh(association)
-        assert association.is_default is True
+        assert association.notes == "Keep this metadata"
 
     def test_update_photo_sensor_rejects_recorder_microphone_default(
         self, client: TestClient, superuser_token_headers: dict, db: Session
@@ -1060,7 +1110,7 @@ class TestUpdateSensor:
         )
         db.add_all([
             sensor,
-            CameraLens(camera_id=camera.camera_id, lens_id=lens.lens_id, is_default=False),
+            CameraLens(camera_id=camera.camera_id, lens_id=lens.lens_id),
         ])
         db.commit()
         db.refresh(sensor)

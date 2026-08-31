@@ -21,6 +21,8 @@ import { useMediaTableData } from "./useMediaTableData"
 import { useMediaUploadQueue } from "./useMediaUploadQueue"
 import { isAbortError, pollAnalysisQueues } from "../../modals/utils/analysisQueuePolling"
 import { useCreatorOptions } from "./useCreatorOptions"
+import { usePermissions } from "@/hooks/usePermissions"
+import { rowCan, selectionCan } from "../rowCapabilities"
 
 const COLUMNS: ColumnDef[] = [
     { key: "media_id", label: "ID", type: "number", width: "80px", sortable: true, filterable: true },
@@ -93,6 +95,8 @@ export function PhotosPage() {
     } = useMediaTableData("photo", currentProjectId, currentCollectionId)
     const uploadQueue = useMediaUploadQueue("photo", currentCollectionId)
     const { creatorOptions, currentUserId } = useCreatorOptions(currentProjectId, currentCollectionId)
+    const { can } = usePermissions(currentProjectId, currentCollectionId)
+    const canWriteAudio = can("audio:write")
 
     useEffect(() => () => {
         mediaProcessingAbortRef.current?.abort()
@@ -223,8 +227,10 @@ export function PhotosPage() {
                     importLabel: "Metadata",
                     instructionsLabel: "Metadata Instructions",
                     fields: { project_id: currentProjectId, collection_id: currentCollectionId, media_type: "photo" },
-                    disabled: !currentProjectId || !currentCollectionId || currentCollectionId === "all",
-                    disabledReason: "Select a project and collection before importing photo metadata",
+                    disabled: !canWriteAudio || !currentProjectId || !currentCollectionId || currentCollectionId === "all",
+                    disabledReason: canWriteAudio
+                        ? "Select a project and collection before importing photo metadata"
+                        : "You do not have permission to import photo metadata",
                 }}
                 columns={COLUMNS}
                 rows={rows}
@@ -269,12 +275,16 @@ export function PhotosPage() {
                 renderCustomActions={(selectedRows) => {
                     const ids = selectedMediaIds(selectedRows)
                     const photoActionBlockedByMediaType = selectedRowsContainNonPhoto(selectedRows)
+                    const canLinkSelection = selectionCan(selectedRows, rows, "media_id", "link")
+                    const canAssignSelection = selectionCan(selectedRows, rows, "media_id", "assign")
                     return (
                         <>
                             <ESButton appearance="unstyled"
                                 className="data-btn"
-                                title="Link the selected photos to collections"
-                                disabled={ids.length === 0}
+                                title={canLinkSelection
+                                    ? "Link the selected photos to collections"
+                                    : "You do not have permission to link media"}
+                                disabled={!canLinkSelection || ids.length === 0}
                                 onClick={() => setLinkMediaIds(ids)}
                             >
                                 <LinkIcon size={14} /> Link
@@ -289,8 +299,10 @@ export function PhotosPage() {
                             </ESButton>
                             <ESButton appearance="unstyled"
                                 className="data-btn"
-                                title={photoActionBlockedByMediaType ? "Only photo files can be assigned" : "Assign the selected photos to a user"}
-                                disabled={ids.length === 0 || photoActionBlockedByMediaType}
+                                title={!canAssignSelection
+                                    ? "You do not have permission to assign tasks"
+                                    : photoActionBlockedByMediaType ? "Only photo files can be assigned" : "Assign the selected photos to a user"}
+                                disabled={!canAssignSelection || ids.length === 0 || photoActionBlockedByMediaType}
                                 onClick={() => {
                                     if (photoActionBlockedByMediaType) {
                                         message.warning("Only photo files can be assigned.")
@@ -313,6 +325,9 @@ export function PhotosPage() {
                 addDropdownItems={addDropdownItems}
                 addDisabled={!currentCollectionId || currentCollectionId === "all"}
                 addDisabledTooltip="Before uploading media, please select a collection."
+                canAdd={canWriteAudio}
+                canEditRecord={(record) => rowCan(record, "edit")}
+                canDeleteRecord={(record) => rowCan(record, "delete")}
             />
 
             <PhotoMediaDrawer

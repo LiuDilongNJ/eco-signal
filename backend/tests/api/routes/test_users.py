@@ -3094,3 +3094,324 @@ def test_preference_reflected_in_me(
     pref = r.json()["data"]["preference"]
     assert pref is not None
     assert pref["fft"] == 256
+
+
+CURRENT_USER_PERMISSIONS_URL = f"{settings.API_V1_STR}/current-user/permissions"
+
+ALL_PERMISSION_NAMES = {
+    "project:read", "project:write",
+    "collection:read", "collection:write",
+    "audio:read", "audio:write",
+    "site:read", "site:write",
+    "annotation:read", "annotation:write",
+    "review:read", "review:write",
+}
+
+
+def _permissions_url(project_id: int | None = None, collection_id: int | None = None) -> str:
+    params = []
+    if project_id is not None:
+        params.append(f"project_id={project_id}")
+    if collection_id is not None:
+        params.append(f"collection_id={collection_id}")
+    return f"{CURRENT_USER_PERMISSIONS_URL}{'?' + '&'.join(params) if params else ''}"
+
+
+def _get_permissions(client: TestClient, url: str, headers: dict[str, str] | None = None) -> set[str]:
+    response = client.get(url, headers=headers or {})
+    assert response.status_code == 200
+    return set(response.json()["data"]["permissions"])
+
+
+def test_current_user_permissions_admin_gets_every_permission(
+    client: TestClient, superuser_token_headers: dict[str, str], db: Session
+) -> None:
+    owner = create_test_user(db)
+    project, collection = _create_project_with_collection(
+        db, owner, project_name="Perm Admin Project", collection_name="Perm Admin Collection"
+    )
+
+    response = client.get(
+        _permissions_url(project.project_id, collection.collection_id),
+        headers=superuser_token_headers,
+    )
+
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert data["is_admin"] is True
+    assert set(data["permissions"]) == ALL_PERMISSION_NAMES
+
+
+def test_current_user_permissions_project_write_expands_to_collection_scope(
+    client: TestClient, normal_user_token_headers: dict[str, str], db: Session
+) -> None:
+    manager = db.get(User, _normal_test_user_id(db))
+    owner = create_test_user(db)
+    project, collection = _create_project_with_collection(
+        db, owner, project_name="Perm Write Project", collection_name="Perm Write Collection"
+    )
+    _grant_permission(db, manager, "project", "write", project_id=project.project_id)
+
+    permissions = _get_permissions(
+        client,
+        _permissions_url(project.project_id, collection.collection_id),
+        normal_user_token_headers,
+    )
+
+    assert {"project:write", "collection:write", "review:write", "audio:write"} <= permissions
+
+
+def test_current_user_permissions_review_read_does_not_grant_write(
+    client: TestClient, normal_user_token_headers: dict[str, str], db: Session
+) -> None:
+    """Issue #71: a review:read user must not be told they can edit reviews."""
+    reader = db.get(User, _normal_test_user_id(db))
+    owner = create_test_user(db)
+    project, collection = _create_project_with_collection(
+        db, owner, project_name="Perm Read Project", collection_name="Perm Read Collection"
+    )
+    _grant_permission(
+        db,
+        reader,
+        "review",
+        "read",
+        project_id=project.project_id,
+        collection_id=collection.collection_id,
+    )
+
+    permissions = _get_permissions(
+        client,
+        _permissions_url(project.project_id, collection.collection_id),
+        normal_user_token_headers,
+    )
+
+    assert "review:read" in permissions
+    assert "review:write" not in permissions
+
+
+def test_current_user_permissions_are_scoped_to_the_requested_collection(
+    client: TestClient, normal_user_token_headers: dict[str, str], db: Session
+) -> None:
+    user = db.get(User, _normal_test_user_id(db))
+    owner = create_test_user(db)
+    project, writable_collection = _create_project_with_collection(
+        db, owner, project_name="Perm Scope Project", collection_name="Perm Scope Writable"
+    )
+    other_collection = Collection(name="Perm Scope Other", creator_id=owner.user_id)
+    db.add(other_collection)
+    db.commit()
+    db.refresh(other_collection)
+    db.add(ProjectCollection(
+        project_id=project.project_id,
+        collection_id=other_collection.collection_id,
+    ))
+    db.commit()
+    _grant_permission(
+        db,
+        user,
+        "review",
+        "write",
+        project_id=project.project_id,
+        collection_id=writable_collection.collection_id,
+    )
+
+    writable = _get_permissions(
+        client,
+        _permissions_url(project.project_id, writable_collection.collection_id),
+        normal_user_token_headers,
+    )
+    other = _get_permissions(
+        client,
+        _permissions_url(project.project_id, other_collection.collection_id),
+        normal_user_token_headers,
+    )
+    project_wide = _get_permissions(
+        client,
+        _permissions_url(project.project_id),
+        normal_user_token_headers,
+    )
+
+    assert "review:write" in writable
+    assert "review:write" not in other
+    # Project-only scope contains only grants that apply across the whole project.
+    assert "review:write" not in project_wide
+
+
+def test_current_user_permissions_ignores_collection_without_project(
+    client: TestClient, normal_user_token_headers: dict[str, str], db: Session
+) -> None:
+    user = db.get(User, _normal_test_user_id(db))
+    owner = create_test_user(db)
+    project, collection = _create_project_with_collection(
+        db, owner, project_name="Perm Loose Project", collection_name="Perm Loose Collection"
+    )
+    _grant_permission(
+        db,
+        user,
+        "review",
+        "write",
+        project_id=project.project_id,
+        collection_id=collection.collection_id,
+    )
+
+    response = client.get(
+        f"{CURRENT_USER_PERMISSIONS_URL}?collection_id={collection.collection_id}",
+        headers=normal_user_token_headers,
+    )
+
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert data["project_id"] is None
+    assert data["collection_id"] is None
+    assert set(data["permissions"]) == set()
+
+
+def test_current_user_permissions_without_grants_is_empty(
+    client: TestClient, normal_user_token_headers: dict[str, str], db: Session
+) -> None:
+    owner = create_test_user(db)
+    project, collection = _create_project_with_collection(
+        db, owner, project_name="Perm Empty Project", collection_name="Perm Empty Collection"
+    )
+    project.public = False
+    db.add(project)
+    db.commit()
+
+    permissions = _get_permissions(
+        client,
+        _permissions_url(project.project_id, collection.collection_id),
+        normal_user_token_headers,
+    )
+
+    assert permissions == set()
+
+
+def test_current_user_permissions_public_project_alone_grants_only_project_read(
+    client: TestClient, normal_user_token_headers: dict[str, str], db: Session
+) -> None:
+    """A public project exposes itself, never the collections beneath it."""
+    owner = create_test_user(db)
+    project, collection = _create_project_with_collection(
+        db, owner, project_name="Perm Shallow Project", collection_name="Perm Shallow Collection"
+    )
+    assert project.public is True
+    assert collection.public_access is False
+
+    permissions = _get_permissions(
+        client,
+        _permissions_url(project.project_id, collection.collection_id),
+        normal_user_token_headers,
+    )
+
+    assert permissions == {"project:read"}
+
+
+def test_current_user_permissions_anonymous_gets_public_reads_only(
+    client: TestClient, db: Session
+) -> None:
+    owner = create_test_user(db)
+    project, collection = _create_project_with_collection(
+        db, owner, project_name="Perm Public Project", collection_name="Perm Public Collection"
+    )
+    project.public = True
+    collection.public_access = True
+    collection.public_tags = True
+    db.add(project)
+    db.add(collection)
+    db.commit()
+
+    permissions = _get_permissions(
+        client,
+        _permissions_url(project.project_id, collection.collection_id),
+    )
+
+    assert permissions == {
+        "project:read",
+        "collection:read",
+        "audio:read",
+        "site:read",
+        "annotation:read",
+    }
+
+
+def test_current_user_permissions_anonymous_on_private_project_is_empty(
+    client: TestClient, db: Session
+) -> None:
+    owner = create_test_user(db)
+    project, collection = _create_project_with_collection(
+        db, owner, project_name="Perm Private Project", collection_name="Perm Private Collection"
+    )
+    project.public = False
+    db.add(project)
+    db.commit()
+
+    response = client.get(_permissions_url(project.project_id, collection.collection_id))
+
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert data["is_admin"] is False
+    assert data["permissions"] == []
+
+
+def test_current_user_permissions_public_tags_off_hides_annotation_read(
+    client: TestClient, db: Session
+) -> None:
+    owner = create_test_user(db)
+    project, collection = _create_project_with_collection(
+        db, owner, project_name="Perm Tagless Project", collection_name="Perm Tagless Collection"
+    )
+    project.public = True
+    collection.public_access = True
+    collection.public_tags = False
+    db.add(project)
+    db.add(collection)
+    db.commit()
+
+    permissions = _get_permissions(
+        client,
+        _permissions_url(project.project_id, collection.collection_id),
+    )
+
+    assert "annotation:read" not in permissions
+    assert {"collection:read", "audio:read", "site:read"} <= permissions
+
+
+def test_current_user_permissions_public_read_never_implies_write(
+    client: TestClient, db: Session
+) -> None:
+    owner = create_test_user(db)
+    project, collection = _create_project_with_collection(
+        db, owner, project_name="Perm NoWrite Project", collection_name="Perm NoWrite Collection"
+    )
+    project.public = True
+    collection.public_access = True
+    collection.public_tags = True
+    db.add(project)
+    db.add(collection)
+    db.commit()
+
+    permissions = _get_permissions(
+        client,
+        _permissions_url(project.project_id, collection.collection_id),
+    )
+
+    assert not any(name.endswith(":write") for name in permissions)
+
+
+def test_current_user_permissions_echoes_requested_scope(
+    client: TestClient, normal_user_token_headers: dict[str, str], db: Session
+) -> None:
+    owner = create_test_user(db)
+    project, collection = _create_project_with_collection(
+        db, owner, project_name="Perm Echo Project", collection_name="Perm Echo Collection"
+    )
+
+    response = client.get(
+        _permissions_url(project.project_id, collection.collection_id),
+        headers=normal_user_token_headers,
+    )
+
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert data["project_id"] == project.project_id
+    assert data["collection_id"] == collection.collection_id

@@ -3,6 +3,7 @@ from sqlalchemy import text
 from sqlmodel import Session
 
 from app.models.site import IhoSeaArea
+from app.repositories.geo_repository import CoordinateMatches, GeoOptionMatch, geo_repository
 
 
 def setup_test_data(db: Session) -> None:
@@ -154,6 +155,34 @@ def test_get_gadm_options_paginates_with_stable_order(client: TestClient, db: Se
     assert first.json()["page_info"]["total_pages"] == 2
     assert first.json()["data"] == [{"gid": "CHN", "name": "China"}]
     assert second.json()["data"] == [{"gid": "JPN", "name": "Japan"}]
+
+
+def test_get_coordinate_matches_returns_unique_options(client: TestClient, monkeypatch) -> None:
+    monkeypatch.setattr(
+        geo_repository,
+        "coordinate_matches",
+        lambda _longitude, _latitude: CoordinateMatches(
+            gadm_status="matched",
+            gadm0=GeoOptionMatch("AUS", "Australia"),
+            gadm1=GeoOptionMatch("AUS.5_1", "New South Wales"),
+            gadm2=GeoOptionMatch("AUS.5.122_1", "Sydney"),
+            iho_status="unmatched",
+            iho=None,
+        ),
+    )
+
+    response = client.get("/api/v1/geo/coordinate-matches?longitude=151.2093&latitude=-33.8688")
+
+    assert response.status_code == 200
+    assert response.json()["data"] == {
+        "gadm": {
+            "status": "matched",
+            "gadm0": {"gid": "AUS", "name": "Australia"},
+            "gadm1": {"gid": "AUS.5_1", "name": "New South Wales"},
+            "gadm2": {"gid": "AUS.5.122_1", "name": "Sydney"},
+        },
+        "iho": {"status": "unmatched", "option": None},
+    }
 
 
 def test_get_iucn_realms(client: TestClient, db: Session) -> None:

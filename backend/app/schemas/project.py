@@ -6,6 +6,7 @@ from pydantic import Field, computed_field, field_serializer, field_validator
 from sqlmodel import SQLModel
 
 from app.media_paths import build_media_public_url, logical_project_media_path
+from app.schemas.capability import RowCapabilities
 from app.utils import validate_optional_http_url
 
 
@@ -56,6 +57,7 @@ class ProjectPublic(SQLModel):
     creator_id: int
     creator_name: Optional[str] = Field(default=None, description="Display name of the project creator")
     creation_date: datetime
+    capabilities: RowCapabilities = Field(default_factory=RowCapabilities)
 
     # Convert None to empty string for nullable string fields
     @field_serializer('picture_id', 'description', 'description_short', 'doi')

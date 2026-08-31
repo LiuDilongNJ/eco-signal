@@ -66,7 +66,6 @@ class RecorderMicrophone(SQLModel, table=True):
         primary_key=True,
         ondelete="CASCADE"
     )
-    is_default: Optional[bool] = Field(default=False)
     notes: Optional[str] = Field(default=None)
     
     # Relationships
@@ -127,7 +126,6 @@ class CameraLens(SQLModel, table=True):
         primary_key=True,
         ondelete="CASCADE"
     )
-    is_default: Optional[bool] = Field(default=False)
     notes: Optional[str] = Field(default=None)
     
     # Relationships
@@ -172,6 +170,7 @@ class Sensor(SQLModel, table=True):
         index=True
     )
     description: Optional[str] = Field(default=None)
+    serial_number: Optional[str] = Field(default=None, max_length=100)
     creation_date: datetime = Field(default_factory=datetime.utcnow)
     
     # Relationships

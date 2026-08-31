@@ -21,7 +21,8 @@ from app.schemas.annotation import (
     AnnotationWithReviews,
 )
 from app.schemas.review import ReviewRead
-from app.services import permission_service
+from app.schemas.capability import RowCapabilities
+from app.services import permission_service, row_capability_service
 
 
 _PHOTO_AUDIO_FIELDS = (
@@ -218,6 +219,20 @@ def list_annotations(
         if current_user is not None
         else {}
     )
+    project_id = filters.get("project_id")
+    media_ids = {int(r["media_id"]) for r in results if r.get("media_id") is not None}
+    media_collections = row_capability_service.media_collection_map(
+        session, media_ids, project_id
+    )
+    writable_ids = row_capability_service.project_collection_ids(
+        session, current_user, project_id, "annotation", "write"
+    )
+    readable_ids = row_capability_service.project_collection_ids(
+        session, current_user, project_id, "annotation", "read"
+    )
+    assignable_ids = row_capability_service.project_collection_ids(
+        session, current_user, project_id, "collection", "write"
+    )
     for r in results:
         r["reviews"] = [rv.model_dump() for rv in reviews_map.get(r["annotation_id"], [])]
         task = task_map.get(r["annotation_id"])
@@ -227,6 +242,18 @@ def list_annotations(
             "status": task.status,
             "comment": task.comment,
         } if task else None
+        linked_ids = media_collections.get(int(r["media_id"]), set())
+        creator_allowed = bool(
+            current_user
+            and r.get("creator_id") == current_user.user_id
+            and linked_ids & readable_ids
+        )
+        writable = bool(linked_ids & writable_ids)
+        r["capabilities"] = RowCapabilities(
+            edit=writable or creator_allowed,
+            delete=writable or creator_allowed,
+            assign=bool(linked_ids & assignable_ids),
+        )
 
     return AnnotationsPublic(data=results, count=total_count)
 

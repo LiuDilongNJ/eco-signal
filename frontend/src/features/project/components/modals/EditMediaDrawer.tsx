@@ -18,6 +18,7 @@ import type { UserOption } from "../../../../api/endpoints/users"
 import {
     buildMediaUpdatePayload,
     filterSensorsForMediaType,
+    formatSensorOptionLabel,
     MEDIA_EDIT_TITLES,
     resolveEditableMediaKind,
 } from "./mediaForm"
@@ -253,7 +254,7 @@ export function EditMediaDrawer({
                                         className="form-drawer-select"
                                         classNames={{ popup: { root: selectPopupClassName } }}
                                         getPopupContainer={(trigger) => trigger.parentElement ?? document.body}
-                                        options={mediaSensors.map(s => ({ label: s.name, value: s.sensor_id }))}
+                                        options={mediaSensors.map(s => ({ label: formatSensorOptionLabel(s), value: s.sensor_id }))}
                                         allowClear
                                         notFoundContent={selectEmptyState}
                                     />

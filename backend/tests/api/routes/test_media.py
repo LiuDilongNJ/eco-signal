@@ -661,6 +661,54 @@ class TestMediaList:
         assert r_private.status_code == 200
         assert r_private.json()["data"] == []
 
+    def test_list_media_capabilities_follow_each_collection_scope(
+        self,
+        client: TestClient,
+        normal_user_token_headers: dict,
+        db: Session,
+    ) -> None:
+        project_id, writable_media_id, readonly_media_id = TestMediaBrowse._setup_browse_data(db)
+        writable_collection_id = db.exec(
+            select(MediaCollection.collection_id).where(
+                MediaCollection.media_id == writable_media_id
+            )
+        ).one()
+        readonly_collection_id = db.exec(
+            select(MediaCollection.collection_id).where(
+                MediaCollection.media_id == readonly_media_id
+            )
+        ).one()
+        readonly_collection = db.get(Collection, readonly_collection_id)
+        readonly_collection.public_access = True
+
+        token = normal_user_token_headers["Authorization"].split(" ")[1]
+        user_id = int(pyjwt.decode(token, options={"verify_signature": False})["sub"])
+        permission = db.exec(
+            select(Permission).where(
+                Permission.resource_type == "audio",
+                Permission.action == "write",
+            )
+        ).one()
+        db.add(UserPermission(
+            user_id=user_id,
+            permission_id=permission.permission_id,
+            project_id=project_id,
+            collection_id=writable_collection_id,
+        ))
+        db.commit()
+
+        response = client.get(
+            f"{settings.API_V1_STR}/media?project_id={project_id}",
+            headers=normal_user_token_headers,
+        )
+
+        assert response.status_code == 200
+        rows = {row["media_id"]: row for row in response.json()["data"]}
+        assert rows[writable_media_id]["capabilities"]["edit"] is True
+        assert rows[writable_media_id]["capabilities"]["link"] is True
+        assert rows[readonly_media_id]["capabilities"]["edit"] is False
+        assert rows[readonly_media_id]["capabilities"]["link"] is False
+
     def test_list_media_missing_project_id(self, client: TestClient, superuser_token_headers: dict) -> None:
         """Return 422 if project_id is missing."""
         r = client.get(

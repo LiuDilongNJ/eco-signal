@@ -33,6 +33,7 @@ def get_assignable_users(
     session: SessionDep,
     media_id: int,
     current_user: CurrentUser,
+    project_id: int = Query(..., description="项目 ID / Project ID"),
 ) -> Any:
     """
     获取有权访问包含指定媒体集合的用户列表。 / Get a list of users who have access to the collection containing the specified media.
@@ -41,7 +42,7 @@ def get_assignable_users(
 
     - 仅限管理员或对该媒体所属集合拥有 'write' 权限的用户访问。 / Accessible only by Admins or users with 'write' permission on the media's collection.
     """
-    users = task_service.get_assignable_users(session, media_id, current_user)
+    users = task_service.get_assignable_users(session, media_id, current_user, project_id)
     result = [AssignableUserPublic(**u) for u in users]
     return api_success(data=result)
 
@@ -55,6 +56,7 @@ def get_media_tasks(
     session: SessionDep,
     media_id: int,
     current_user: CurrentUser,
+    project_id: int = Query(..., description="项目 ID / Project ID"),
 ) -> Any:
     """
     获取指定媒体的所有已创建任务。 / Get all created tasks for the specified media.
@@ -63,7 +65,7 @@ def get_media_tasks(
 
     - 仅限管理员或对该媒体拥有 'write' 权限的用户访问。 / Accessible only by Admins or users with 'write' permission on the media.
     """
-    tasks = task_service.get_media_tasks(session, media_id, current_user)
+    tasks = task_service.get_media_tasks(session, media_id, current_user, project_id)
     result = [TaskPublic(**t) for t in tasks]
     return api_success(data=result)
 
@@ -78,6 +80,7 @@ def assign_tasks(
     media_id: int,
     current_user: CurrentUser,
     body: TaskAssignmentRequest,
+    project_id: int = Query(..., description="项目 ID / Project ID"),
 ) -> Any:
     """
     使用 upsert 逻辑为特定媒体批量分配任务给用户。 / Batch assign tasks to users for a specific media_id using upsert logic.
@@ -110,6 +113,7 @@ def assign_tasks(
         task_type=body.type,
         assignments=assignments_data,
         annotation_ids=body.annotation_ids,
+        project_id=project_id,
     )
     return api_success(data=result)
 
@@ -263,7 +267,8 @@ def get_task(
 def delete_task(
     task_id: int,
     session: SessionDep,
-    current_user: CurrentUser
+    current_user: CurrentUser,
+    project_id: int = Query(..., description="项目 ID / Project ID"),
 ) -> Any:
     """
     删除任务。仅限超级管理员、相关集合管理员或该任务的分配者执行。 / Delete a task. Only superusers, collection admins or the task assigner can perform this.
@@ -271,6 +276,7 @@ def delete_task(
     task_service.delete_task(
         session=session,
         current_user=current_user,
-        task_id=task_id
+        task_id=task_id,
+        project_id=project_id,
     )
     return api_success(data={"message": "Task deleted successfully"})

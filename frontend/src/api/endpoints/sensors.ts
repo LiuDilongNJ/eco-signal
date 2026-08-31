@@ -16,6 +16,7 @@ export interface SensorOption {
     sensor_id: number
     name: string
     sensor_type?: string
+    serial_number?: string | null
     [key: string]: unknown
 }
 
@@ -23,7 +24,6 @@ export interface SensorPublic {
     sensor_id: number
     uuid: string
     name: string
-    is_default?: boolean | null
     sensor_type: string
     recorder_id?: number | null
     recorder_name?: string | null
@@ -33,9 +33,8 @@ export interface SensorPublic {
     camera_name?: string | null
     lens_id?: number | null
     lens_name?: string | null
-    camera_lens_is_default?: boolean | null
-    recorder_microphone_is_default?: boolean | null
     description?: string | null
+    serial_number?: string | null
     creation_date: string
 }
 
@@ -70,9 +69,8 @@ export interface SensorCreateBody {
     microphone_id?: number | null
     camera_id?: number | null
     lens_id?: number | null
-    camera_lens_is_default?: boolean | null
-    recorder_microphone_is_default?: boolean | null
     description?: string | null
+    serial_number?: string | null
 }
 
 export interface SensorUpdateBody {
@@ -82,9 +80,8 @@ export interface SensorUpdateBody {
     microphone_id?: number | null
     camera_id?: number | null
     lens_id?: number | null
-    camera_lens_is_default?: boolean | null
-    recorder_microphone_is_default?: boolean | null
     description?: string | null
+    serial_number?: string | null
 }
 
 export interface ListSensorsParams {
@@ -103,6 +100,7 @@ export interface ListSensorsParams {
     camera_name?: string
     lens_name?: string
     description?: string
+    serial_number?: string
     creation_date_from?: string
     creation_date_to?: string
     order_by?: string

@@ -115,6 +115,7 @@ function updateMessageError(key: string, content: string) {
     message.open({ type: "error", content, key, duration: 2 })
 }
 import { useProjectStore } from "../../stores/useProjectStore"
+import { usePermissions } from "@/hooks/usePermissions"
 import { StudioCrumbDropdown } from "../nav/StudioCrumbDropdown"
 import {
     Button,
@@ -740,6 +741,10 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
     const [reviewEditLoading, setReviewEditLoading] = useState(false)
     const [meUserId, setMeUserId] = useState<number | null>(null)
     const [meIsProjectAdmin, setMeIsProjectAdmin] = useState(false)
+    // Scoped to the project: the detail page may be reached with no single
+    // collection selected, and per-collection denial still comes back as 403.
+    const { can: canInProject } = usePermissions(currentProjectId)
+    const canWriteReview = canInProject("review:write")
     const [userAnnotationColor, setUserAnnotationColor] = useState("#3B82F6")
     const [meUserReady, setMeUserReady] = useState(false)
     const pendingReviewInitRef = useRef(false)
@@ -2193,7 +2198,8 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
         setRightPanel("assign-task")
         setAssignableLoading(true)
         try {
-            const users = await tasksApi.listAssignableUsers(mediaId, true)
+            if (currentProjectId == null) throw new Error("Project context is required")
+            const users = await tasksApi.listAssignableUsers(currentProjectId, mediaId, true)
             setAssignableUsers(users)
             setAssignSelectedUserIds(users.filter((u) => u.task_count > 0).map((u) => u.user_id))
         } catch (e: unknown) {
@@ -2223,7 +2229,8 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
         }
         setAssignSubmitPending(true)
         try {
-            await tasksApi.assign(mediaId, {
+            if (currentProjectId == null) throw new Error("Project context is required")
+            await tasksApi.assignTasks(currentProjectId, mediaId, {
                 type: "annotation",
                 annotation_ids,
                 assignments: assignSelectedUserIds.map((user_id) => ({
@@ -2239,7 +2246,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
         } finally {
             setAssignSubmitPending(false)
         }
-    }, [assignSelectedUserIds, closeAssignTaskPanel, mediaId])
+    }, [assignSelectedUserIds, closeAssignTaskPanel, currentProjectId, mediaId])
 
     const handleDeleteSelectedAnnotations = useCallback(async () => {
         if (selectedAnnotationKeys.length === 0) {
@@ -4995,6 +5002,10 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
     ])
 
     const handleReviewSubmit = useCallback(async () => {
+        if (!canWriteReview) {
+            message.error("You do not have permission to review annotations.")
+            return
+        }
         const annId =
             reviewContextAnnotationId ??
             (editingAnnotationId != null &&
@@ -5103,6 +5114,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
         reviewTaxonId,
         reviewTaxonSearch,
         currentProjectId,
+        canWriteReview,
     ])
 
     useEffect(() => {
@@ -7323,7 +7335,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                                         <div className="studio-annot-review-module">
                                             <div className="studio-annot-review-head">
                                                 <span className="studio-annot-review-title">REVIEW</span>
-                                                {sortedEditingAnnotationReviews.length > 0 && !reviewPanelExpanded ? (
+                                                {sortedEditingAnnotationReviews.length > 0 && !reviewPanelExpanded && canWriteReview ? (
                                                     <Button
                                                         type="primary"
                                                         className="studio-annot-review-edit-btn"
@@ -7578,6 +7590,8 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                                                                     <Button
                                                                         type="primary"
                                                                         loading={reviewSubmitPending}
+                                                                        disabled={!canWriteReview}
+                                                                        title={canWriteReview ? undefined : "You do not have permission to review annotations"}
                                                                         onClick={() => void handleReviewSubmit()}
                                                                     >
                                                                         {myAnnotationReviewRow ? "Update" : "Submit"}

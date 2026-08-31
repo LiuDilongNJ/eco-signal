@@ -848,7 +848,8 @@ class TestSiteMap:
         assert marker["media_count"] == 1
         # default map endpoint is lightweight: geometry contains point only
         assert isinstance(marker["geometry"], dict)
-        assert set(marker["geometry"].keys()) == {"point"}
+        assert set(marker["geometry"].keys()) == {"point", "point_source"}
+        assert marker["geometry"]["point_source"] == "coordinates"
         # center is computed from resolved coordinates
         assert data["center"] is not None
 
@@ -959,7 +960,7 @@ class TestSiteMap:
         assert marker["site_id"] == site.site_id
         assert marker["name"] == "Light Mode Site"
         assert marker["media_count"] == 1
-        assert set(marker["geometry"].keys()) == {"point"}
+        assert set(marker["geometry"].keys()) == {"point", "point_source"}
         assert marker["geometry"]["point"] is not None
 
     def test_map_site_geometries_on_demand_returns_requested_sites(
@@ -1346,7 +1347,7 @@ class TestSiteMap:
         # default lightweight response only returns point
         geo = markers[0]["geometry"]
         assert geo is not None
-        assert set(geo.keys()) == {"point"}
+        assert set(geo.keys()) == {"point", "point_source"}
         assert geo["point"] == {"latitude": 15.0, "longitude": 55.0}
 
     def test_map_geometry_structure_with_explicit_coords(
@@ -1375,7 +1376,7 @@ class TestSiteMap:
         data = r.json()["data"]
         marker = data["markers"][0]
         geo = marker["geometry"]
-        assert set(geo.keys()) == {"point"}
+        assert set(geo.keys()) == {"point", "point_source"}
         assert geo["point"] == {"latitude": 30.2, "longitude": 120.5}
 
     def test_map_geometry_structure_with_gadm_polygon(
@@ -1425,7 +1426,7 @@ class TestSiteMap:
         markers = data["markers"]
         assert len(markers) == 1
         geo = markers[0]["geometry"]
-        assert set(geo.keys()) == {"point"}
+        assert set(geo.keys()) == {"point", "point_source"}
         assert geo["point"] == {"latitude": 30.0, "longitude": 120.0}
 
     def test_map_geometry_structure_with_coords_and_iho(
@@ -1473,7 +1474,7 @@ class TestSiteMap:
         markers = data["markers"]
         assert len(markers) == 1
         geo = markers[0]["geometry"]
-        assert set(geo.keys()) == {"point"}
+        assert set(geo.keys()) == {"point", "point_source"}
         assert geo["point"] == {"latitude": 10.0, "longitude": 60.0}
 
     def test_map_sites_collection_not_in_project_returns_400(

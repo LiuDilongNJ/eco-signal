@@ -10,8 +10,6 @@ import { AddProjectDrawer } from "../../modals/AddProjectDrawer"
 import { LinkCollectionsDrawer } from "../../modals/LinkCollectionsDrawer"
 import { projectsApi } from "../../../../../api/endpoints/projects"
 import { filesApi } from "../../../../../api/endpoints/files"
-import { usersApi } from "../../../../../api/endpoints/users"
-
 import type { ColumnDef, FormFieldDef, RowData, TableState } from "../DataPageLayout"
 import { FolderKanban, Link2 } from "lucide-react"
 import { message } from "@/components/ui"
@@ -20,6 +18,8 @@ import { useTabStore } from "../../../stores/useTabStore"
 import { downloadFile } from "@/utils/download"
 import { useNavigate } from "react-router-dom"
 import { useTableFetchScheduler } from "@/hooks/useTableFetchScheduler"
+import { usePermissions } from "@/hooks/usePermissions"
+import { rowCan, selectionCan } from "../rowCapabilities"
 
 const COLUMNS: ColumnDef[] = [
     { key: "project_id", label: "ID", type: "number", width: "120px", sortable: true, filterable: true },
@@ -62,28 +62,12 @@ export function ProjectsPage() {
     const [linkDrawerOpen, setLinkDrawerOpen] = useState(false)
     const [editProjectId, setEditProjectId] = useState<number | null>(null)
     const [linkProjectId, setLinkProjectId] = useState<number | null>(null)
-    const [meIsAdmin, setMeIsAdmin] = useState(false)
 
     const [tableState, setTableState] = useState<TableState | null>(null)
     const navFilter = useProjectStore((s) => s.dataPageNavFilters.project ?? "current")
     const setDataPageNavFilter = useProjectStore((s) => s.setDataPageNavFilter)
 
-    useEffect(() => {
-        let cancelled = false
-            ; (async () => {
-                try {
-                    const res = await usersApi.getMe({ ignoreUnauthorized: true })
-                    if (!cancelled && (res.code === 0 || res.code === 200) && res.data) {
-                        setMeIsAdmin(!!res.data.is_admin)
-                    }
-                } catch (error) {
-                    console.error("Failed to fetch current user:", error)
-                }
-            })()
-        return () => {
-            cancelled = true
-        }
-    }, [])
+    const { isAdmin: meIsAdmin } = usePermissions()
 
     const fetchTableData = useCallback(async (state: TableState) => {
         setLoading(true)
@@ -335,14 +319,23 @@ export function ProjectsPage() {
                 onViewCustom={handleViewProject}
                 hideAdd={!meIsAdmin}
                 hideDelete={!meIsAdmin}
+                canEditRecord={(record) => rowCan(record, "edit")}
                 renderCustomActions={(selectedRows) => (
                     <>
                         {(
-                            <ESButton appearance="unstyled" className="data-btn" title="Link the selected project to collections" disabled={selectedRows.size !== 1} onClick={() => {
-                                const projectId = Array.from(selectedRows)[0] as number
-                                setLinkProjectId(projectId)
-                                setLinkDrawerOpen(true)
-                            }}>
+                            <ESButton
+                                appearance="unstyled"
+                                className="data-btn"
+                                title={selectionCan(selectedRows, rows, "project_id", "link")
+                                    ? "Link the selected project to collections"
+                                    : "You do not have permission to link collections"}
+                                disabled={!selectionCan(selectedRows, rows, "project_id", "link") || selectedRows.size !== 1}
+                                onClick={() => {
+                                    const projectId = Array.from(selectedRows)[0] as number
+                                    setLinkProjectId(projectId)
+                                    setLinkDrawerOpen(true)
+                                }}
+                            >
                                 <Link2 size={14} /> Link
                             </ESButton>
                         )}

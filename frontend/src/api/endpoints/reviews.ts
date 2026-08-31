@@ -1,5 +1,6 @@
 import { apiClient } from "../client"
 import type { FilterOptionReviewStatus, FilterOptionTaxon, FilterOptionUser } from "../utils"
+import type { RowCapabilities } from "../capabilities"
 
 /** 与 GET 标注详情内嵌 reviews、POST/PUT 响应一致 */
 export interface AnnotationReviewRead {
@@ -14,6 +15,7 @@ export interface AnnotationReviewRead {
     reviewer_name: string
     status_name: string
     taxon_name?: string | null
+    capabilities?: RowCapabilities
 }
 
 export interface ReviewCreatePayload {

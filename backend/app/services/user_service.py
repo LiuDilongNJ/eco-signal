@@ -21,6 +21,7 @@ from app.schemas import (
     UserUpdateMe,
 )
 from app.schemas.response import ApiResponse, PagedApiResponse, api_page, api_success
+from app.schemas.capability import RowCapabilities
 from app.schemas.user import (
     COLLECTION_CONTRIBUTOR_ROLES,
     CreatorOption,
@@ -314,13 +315,30 @@ def list_users(
             user_dict["is_admin"] = permission_service.is_admin(user)
             if contrib:
                 user_dict["contrib"] = contrib.contribution_role
+            manageable = permission_service.is_admin(current_user) or not user_dict["is_admin"]
+            user_dict["capabilities"] = RowCapabilities(
+                edit=manageable,
+                delete=manageable and user.user_id != current_user.user_id,
+                reset_password=manageable,
+                manage_permissions=manageable,
+                set_contributor=manageable,
+            )
             data.append(UserListPublic.model_validate(user_dict))
         else:
-            data.append(
-                UserListPublic.model_validate(
-                    {**item.model_dump(), "is_admin": permission_service.is_admin(item)}
-                )
-            )
+            target_is_admin = permission_service.is_admin(item)
+            manageable = permission_service.is_admin(current_user) or not target_is_admin
+            payload = {
+                **item.model_dump(),
+                "is_admin": target_is_admin,
+                "capabilities": RowCapabilities(
+                    edit=manageable,
+                    delete=manageable and item.user_id != current_user.user_id,
+                    reset_password=manageable,
+                    manage_permissions=manageable,
+                    set_contributor=manageable,
+                ),
+            }
+            data.append(UserListPublic.model_validate(payload))
 
     return api_page(
         data=data,
