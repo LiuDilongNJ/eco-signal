@@ -71,36 +71,15 @@ The complete command form is:
 sudo ./migrate-data.sh <source-project-dir> [options]
 ```
 
-Examples:
-
-```bash
-# Reset a newly deployed target after creating its backup
-./migrate-data.sh --reset-target
-
-# Specify the source project directory
-./migrate-data.sh /path/to/ecoSound-web --reset-target
-
-# Transfer only files or only database data
-./migrate-data.sh --skip-db
-./migrate-data.sh --skip-files
-
-# Copy files into the managed media volume
-./migrate-data.sh --copy-files
-
-# Set the source public address explicitly
-./migrate-data.sh --reset-target --legacy-app-url https://ecosound-web.example.com/ecosound_web
-```
-
-`--reset-target` backs up target database and media, clears business data, then begins migration. `--skip-db`, `--skip-files`, and `--copy-files` limit or select the transfer strategy. The default mounts source media during transfer; copy mode stores media in the target-managed volume. Do not substitute manual destructive database commands for the reset workflow.
-
-Common options are:
+Options are:
 
 - `--dry-run`: preview migration without writing data
-- `--skip-db`: skip database migration
-- `--skip-files`: skip static file migration
-- `--copy-files`: copy source static files into the `app-media-data` volume
-- `--reset-target`: back up target database and media, clear business data, then migrate
-- `--legacy-app-url <url>`: provide the source public URL used for federation node identity
+- `--reset-target`: back up target database and media, clear business data, then migrate. Do not substitute manual destructive database commands for the reset workflow.
+- `--legacy-app-url <url>`: provide the source public URL used for federation node identity - sets the source public address explicitly
+The following limit or select the transfer strategy:
+- `--skip-db`: skip database migration (transfers only files if used alone)
+- `--skip-files`: skip static file migration (transfers only database if used alone)
+- `--copy-files`: copy source static files into the target-managed `app-media-data` volume
 
 The script checks source MySQL connectivity from the host before starting the in-container transfer. When the target is a fresh deployment, its seeded Demo Project, collection, and site require `--reset-target` before the first migration. Changing `LEGACY_PROJECT_DIR` requires container recreation; a plain `docker compose restart` does not refresh the bind mount. The default direct-mount strategy verifies `/app/sounds/sounds`, `/app/sounds/images`, and `/app/sounds/projects` before database work. Copy mode places files in `app-media-data`, so later access does not depend on the source directory remaining mounted.
 
@@ -128,7 +107,7 @@ The production script uses only production Compose files, builds the frontend pr
 
 The staging workflow is `.github/workflows/deploy-staging.yml` and runs on pushes to `main`. The production workflow is `.github/workflows/deploy-production.yml` and runs when a Release is published. Required secrets are `SECRET_KEY`, `FIRST_SUPERUSER`, `FIRST_SUPERUSER_PASSWORD`, `POSTGRES_PASSWORD`, `REDIS_PASSWORD`, `RABBITMQ_ERLANG_COOKIE`, and optional `SENTRY_DSN`.
 
-Optional GitHub variables include `DOMAIN`, `FRONTEND_PORT`, `STACK_NAME`, `BACKEND_CORS_ORIGINS`, `AUTH_SESSION_IDLE_EXPIRE_MINUTES`, `PROJECT_NAME`, `POSTGRES_USER`, `POSTGRES_DB`, `DOCKER_IMAGE_BACKEND`, `DOCKER_IMAGE_FRONTEND`, `LEGACY_PROJECT_DIR`, `LEGACY_APP_URL`, `LEGACY_HOST_URL`, `GEO_DB_READY_URL`, and `GEO_DB_XR_SEED_URL`. Define domain, stack, and CORS values separately in staging and production. The workflows set `ENVIRONMENT` directly and copy `.env.example` before appending environment-specific values.
+Optional GitHub variables include:
 
 | Variable | Default or meaning |
 | --- | --- |
@@ -144,7 +123,7 @@ Optional GitHub variables include `DOMAIN`, `FRONTEND_PORT`, `STACK_NAME`, `BACK
 | `LEGACY_APP_URL` / `LEGACY_HOST_URL` | Source public URL / federation hub |
 | `GEO_DB_READY_URL` / `GEO_DB_XR_SEED_URL` | Bundled geographical-data defaults |
 
-The main defaults are `FRONTEND_PORT=80`, `PROJECT_NAME=ecoSignal`, `POSTGRES_USER=postgres`, `POSTGRES_DB=ecosignal`, `AUTH_SESSION_IDLE_EXPIRE_MINUTES=30` in staging and production, and the bundled defaults for geographical-data URLs. `REDIS_PASSWORD` must be replaced for staging and production even though local development has a default.
+Define domain, stack, and CORS values separately in staging and production. The workflows set `ENVIRONMENT` directly and copy `.env.example` before appending environment-specific values. The main defaults are `FRONTEND_PORT=80`, `PROJECT_NAME=ecoSignal`, `POSTGRES_USER=postgres`, `POSTGRES_DB=ecosignal`, `AUTH_SESSION_IDLE_EXPIRE_MINUTES=30` in staging and production, and the bundled defaults for geographical-data URLs. `REDIS_PASSWORD` must be replaced for staging and production even though local development has a default.
 
 Production defaults use three web workers and separate interactive and analysis consumers. The interactive consumer also performs startup synchronisation and scheduled maintenance. Adjust `WEB_CONCURRENCY` and `DB_*` pool values only after observing resource use, queue depth, and PostgreSQL connections.
 
