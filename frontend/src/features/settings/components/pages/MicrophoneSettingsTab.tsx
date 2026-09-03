@@ -40,6 +40,7 @@ const COLUMNS: ColumnDef[] = [
     {
         key: "recorder_count",
         label: "Recorders",
+        tooltip: "Number of recorders associated with this microphone",
         type: "number",
         width: "240px",
         sortable: true,

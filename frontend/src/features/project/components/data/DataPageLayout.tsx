@@ -231,6 +231,8 @@ function expandColumnsToFill(baseWidths: number[], targetTotal: number): number[
 export interface ColumnDef {
     key: string
     label: string
+    /** Optional explanation shown when hovering the column label. */
+    tooltip?: string
     /** 列的类型 */
     type: "text" | "number" | "date" | "select" | "badge" | "boolean" | "actions"
     /** 自定义单元格渲染 */
@@ -946,7 +948,11 @@ export function DataPageLayout({
                                 color: sortKey === col.key ? 'var(--brand)' : 'inherit',
                                 fontWeight: sortKey === col.key ? 'bold' : 'normal'
                             }}>
-                                {col.label}
+                                {col.tooltip ? (
+                                    <Tooltip title={col.tooltip}>
+                                        <span className="dpl-th-label-tooltip">{col.label}</span>
+                                    </Tooltip>
+                                ) : col.label}
                             </div>
                             {col.sortable && (
                                 <div className={`dpl-th-sort-icon ${sortKey === col.key ? 'active' : ''}`}>

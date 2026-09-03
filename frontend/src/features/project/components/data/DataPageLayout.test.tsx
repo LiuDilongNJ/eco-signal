@@ -24,6 +24,25 @@ describe("DataPageLayout collection context", () => {
         })
     })
 
+    it("shows a tooltip for columns with additional context", async () => {
+        render(
+            <DataPageLayout
+                title="Recorders"
+                columns={[{
+                    key: "microphone_count",
+                    label: "Microphones",
+                    tooltip: "Number of microphones associated with this recorder",
+                    type: "number",
+                }]}
+                rows={[]}
+                formFields={[]}
+            />,
+        )
+
+        await userEvent.hover(screen.getAllByText("Microphones")[0]!)
+        expect(await screen.findByText("Number of microphones associated with this recorder")).toBeInTheDocument()
+    })
+
     it("requests table data again when the selected collection changes", () => {
         useProjectStore.setState({
             currentProjectId: 1,

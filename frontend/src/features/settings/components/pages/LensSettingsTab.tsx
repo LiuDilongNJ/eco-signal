@@ -40,6 +40,7 @@ const COLUMNS: ColumnDef[] = [
     {
         key: "camera_count",
         label: "Cameras",
+        tooltip: "Number of cameras associated with this lens",
         type: "number",
         width: "220px",
         sortable: true,
