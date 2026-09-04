@@ -24,6 +24,7 @@ import {
     MEDIA_EDIT_TITLES,
 } from "./mediaForm"
 import dayjs from "dayjs"
+import { canParseFilenameDateTime } from "./filenameDatetime"
 import "./styles/FormDrawer.css"
 import "./styles/PhotoMediaDrawer.css"
 
@@ -389,6 +390,7 @@ export function PhotoMediaDrawer(props: PhotoMediaDrawerProps) {
                                             <div className="photo-media-drawer-queue-list">
                                                 {files.map((file) => {
                                                     const errorText = file.status === "error" ? resolveUploadErrorText(file) : null
+                                                    const filenameDatetimeWarning = dateFromFilename && !canParseFilenameDateTime(file.name || file.file.name)
                                                     const statusText =
                                                         file.status === "done"
                                                             ? "Completed"
@@ -427,6 +429,11 @@ export function PhotoMediaDrawer(props: PhotoMediaDrawerProps) {
                                                             {errorText ? (
                                                                 <Typography.Text className="photo-media-drawer-queue-error">
                                                                     {errorText}
+                                                                </Typography.Text>
+                                                            ) : null}
+                                                            {filenameDatetimeWarning ? (
+                                                                <Typography.Text role="alert" className="photo-media-drawer-queue-warning">
+                                                                    No valid date/time in filename; the default 1970-01-01 00:00:00 will be used.
                                                                 </Typography.Text>
                                                             ) : null}
                                                             {file.status === "error" && props.onRetry ? (

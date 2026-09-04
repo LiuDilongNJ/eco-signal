@@ -474,6 +474,45 @@ class TestMediaService:
             "plain_recording.wav. Default date/time 1970-01-01 00:00:00 was used."
         )
 
+    async def test_create_media_invalid_filename_datetime_falls_back_and_warns(
+        self, db: Session, setup_data
+    ):
+        """Partial numeric matches must not silently produce a NULL recording datetime."""
+        user = setup_data["user"]
+        col = setup_data["collection"]
+        filename = "KrA3_102229322T991000.flac"
+        fu = FileUpload(
+            filename=filename,
+            name=filename,
+            directory=1,
+            path=f"/tmp/{filename}",
+            size=1024,
+            status=1,
+            uploader_id=user.user_id,
+        )
+        db.add(fu)
+        db.flush()
+
+        mock_redis = AsyncMock()
+        request = MediaCreate(
+            collection_id=col.collection_id,
+            file_upload_ids=[fu.file_upload_id],
+            date_from_filename=True,
+            media_type="audio",
+        )
+
+        await media_service.create_media(db, request, user, mock_redis)
+
+        kwargs = mock_redis.enqueue_task.call_args.kwargs
+        assert kwargs["items"][0]["file_date"] == "1970-01-01"
+        assert kwargs["items"][0]["file_time"] == "00:00:00"
+        queue = db.exec(select(Queue).where(Queue.type == "upload").order_by(Queue.queue_id.desc())).first()
+        assert queue is not None
+        assert queue.warning == (
+            "Date/time could not be extracted from the filename for: "
+            f"{filename}. Default date/time 1970-01-01 00:00:00 was used."
+        )
+
     async def test_create_media_does_not_warn_when_explicit_datetime_is_fallback(
         self, db: Session, setup_data
     ):

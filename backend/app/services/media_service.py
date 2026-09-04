@@ -184,6 +184,24 @@ _METADATA_RECORDING_START_FORMAT_HELP = (
     "YYYY-MM-DDTHH:MM[:SS], YYYY/MM/DDTHH:MM[:SS]"
 )
 _LEGACY_FILENAME_DATETIME_FALLBACK = "1970-01-01 00:00:00"
+_FILENAME_DATETIME_PATTERN = re.compile(
+    r"(?<!\d)(\d{4})[-_]?(\d{2})[-_]?(\d{2})[-_T](\d{2})[-_:]?(\d{2})[-_:]?(\d{2})(?!\d)"
+)
+
+
+def _parse_filename_datetime(filename: str) -> tuple[str, str] | None:
+    """Return a valid recording date/time embedded in a filename, if present."""
+    match = _FILENAME_DATETIME_PATTERN.search(filename)
+    if match is None:
+        return None
+
+    file_date = f"{match.group(1)}-{match.group(2)}-{match.group(3)}"
+    file_time = f"{match.group(4)}:{match.group(5)}:{match.group(6)}"
+    try:
+        datetime.strptime(f"{file_date} {file_time}", "%Y-%m-%d %H:%M:%S")
+    except ValueError:
+        return None
+    return file_date, file_time
 
 
 def _filename_datetime_warning(filenames: list[str]) -> str | None:
@@ -655,13 +673,9 @@ async def create_media(
         file_time = None
         if request.date_from_filename:
             file_date, file_time = shared_date_time_parts
-            pattern = (
-                r"(\d{4})[-_]?(\d{2})[-_]?(\d{2})[-_T](\d{2})[-_:]?(\d{2})[-_:]?(\d{2})"
-            )
-            match = re.search(pattern, file_upload.filename)
-            if match:
-                file_date = f"{match.group(1)}-{match.group(2)}-{match.group(3)}"
-                file_time = f"{match.group(4)}:{match.group(5)}:{match.group(6)}"
+            filename_date_time = _parse_filename_datetime(file_upload.filename)
+            if filename_date_time is not None:
+                file_date, file_time = filename_date_time
             elif request.date_time is None:
                 filename_datetime_warnings.append(file_upload.name or file_upload.filename)
         else:

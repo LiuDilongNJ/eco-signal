@@ -9,6 +9,7 @@ import { useAntdBrandConfig } from "../../hooks/useAntdBrandConfig"
 import { CustomScrollArea } from "@/components/ui"
 import { EmptyState } from "@/components/ui"
 import type { SiteOption } from "../../../../api/endpoints/sites"
+import { canParseFilenameDateTime } from "./filenameDatetime"
 
 import type { LicenseOption } from "../../../../api/endpoints/licenses"
 import type { SensorOption } from "../../../../api/endpoints/sensors"
@@ -208,7 +209,9 @@ export function UploadAudioDrawer({ open, initialFiles = [], siteOptions = [], l
                                 contentFingerprint={queueFingerprint}
                             >
                                 <div className="upload-audio-drawer-queue-list">
-                                    {queueFiles.map(f => (
+                                    {queueFiles.map(f => {
+                                        const filenameDatetimeWarning = formData.dateFromFilename && !canParseFilenameDateTime(f.name || f.file.name)
+                                        return (
                                         <div key={f.id} style={{
                                             border: '1px solid var(--border-color)',
                                             borderRadius: 8,
@@ -259,6 +262,14 @@ export function UploadAudioDrawer({ open, initialFiles = [], siteOptions = [], l
                                                                 {errText}
                                                             </Typography.Text>
                                                         ) : null}
+                                                        {filenameDatetimeWarning ? (
+                                                            <Typography.Text
+                                                                role="alert"
+                                                                style={{ display: "block", marginTop: 4, fontSize: 11, color: "var(--warning)" }}
+                                                            >
+                                                                No valid date/time in filename; the default 1970-01-01 00:00:00 will be used.
+                                                            </Typography.Text>
+                                                        ) : null}
                                                     </>
                                                 )
                                             })()}
@@ -275,7 +286,8 @@ export function UploadAudioDrawer({ open, initialFiles = [], siteOptions = [], l
                                                 </ESButton>
                                             )}
                                         </div>
-                                    ))}
+                                        )
+                                    })}
                                 </div>
                             </CustomScrollArea>
                             <div className="upload-audio-drawer-upload-action">
