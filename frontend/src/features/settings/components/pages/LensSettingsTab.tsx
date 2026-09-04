@@ -23,8 +23,6 @@ import "../../../project/components/modals/styles/FormDrawer.css"
 import "../style/settings-forms.css"
 import "../style/camera-settings.css"
 import { downloadFile } from "@/utils/download"
-import { renderSettingsRelationPills } from "../settingsRelationPills"
-import { SettingsRelationDetailList } from "../SettingsRelationDetailList"
 import { buildLensWritePayload } from "../../utils/settingsPayload"
 import { useSettingsCsvImport } from "../../utils/useSettingsCsvImport"
 import { renderRequiredLabel } from "../../utils/formValidation"
@@ -37,16 +35,6 @@ const COLUMNS: ColumnDef[] = [
     { key: "focal_length", label: "Focal length", type: "text", width: "120px", sortable: true, filterable: true },
     { key: "max_aperture", label: "Max aperture", type: "text", width: "120px", sortable: true, filterable: true },
     { key: "brand", label: "Brand", type: "text", width: "120px", sortable: true, filterable: true },
-    {
-        key: "camera_count",
-        label: "Cameras",
-        tooltip: "Number of cameras associated with this lens",
-        type: "number",
-        width: "220px",
-        sortable: true,
-        filterable: true,
-        renderCell: renderSettingsRelationPills,
-    },
 ]
 
 const FORM_FIELDS: FormFieldDef[] = [
@@ -63,8 +51,7 @@ function orderByForApi(sortKey: string | null): string {
         sortKey === "name" ||
         sortKey === "focal_length" ||
         sortKey === "max_aperture" ||
-        sortKey === "brand" ||
-        sortKey === "camera_count"
+        sortKey === "brand"
     ) return sortKey
     return "lens_id"
 }
@@ -103,7 +90,6 @@ export function LensSettingsTab() {
                 brand: state.filters.brand?.trim() || undefined,
                 lens_id: state.filters.lens_id || undefined,
                 uuid: state.filters.uuid?.trim() || undefined,
-                camera_count: state.filters.camera_count?.trim() || undefined,
                 order_by,
                 order_dir,
             })
@@ -123,7 +109,6 @@ export function LensSettingsTab() {
                     focal_length: r.focal_length ?? "",
                     max_aperture: r.max_aperture ?? "",
                     brand: r.brand ?? "",
-                    camera_count: r.camera_count || 0,
                 })) as RowData[],
             )
             setTotalRows(res.page_info?.total ?? list.length)
@@ -416,17 +401,6 @@ export function LensSettingsTab() {
                             <Descriptions.Item label="Max aperture">{detailLens.max_aperture || "-"}</Descriptions.Item>
                             <Descriptions.Item label="Brand">{detailLens.brand || "-"}</Descriptions.Item>
                         </Descriptions>
-                        <SettingsRelationDetailList
-                            title="Linked Cameras"
-                            fallbackLabel="Camera"
-                            emptyMessage="No cameras associated with this lens."
-                            isDark={isDark}
-                            items={detailLens.cameras.map((camera) => ({
-                                        id: camera.camera_id,
-                                        name: camera.name,
-                                        notes: camera.notes,
-                            }))}
-                        />
                     </Space>
                 ) : null}
             </div>

@@ -562,7 +562,11 @@ export function CameraSettingsTab() {
                 <CustomScrollArea variant="fill">
                     <div style={{ padding: SETTINGS_DRAWER_BODY_PADDING }}>
                         <Form form={relationForm} layout="vertical" requiredMark={false} className="shared-drawer-form">
-                            <Form.Item name="lens_id" label={renderRequiredLabel("Lens")} rules={[{ required: true, message: "Select a lens" }]}>
+                            <Form.Item
+                                name="lens_id"
+                                label={renderRequiredLabel("Lens")}
+                                rules={[{ required: true, message: "Select a lens" }]}
+                            >
                                 <Select
                                     className="form-drawer-select"
                                     classNames={{ popup: { root: "form-drawer-select-popup" } }}

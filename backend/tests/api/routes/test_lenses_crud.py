@@ -85,67 +85,16 @@ class TestListLenses:
         assert r.status_code == 200
         assert r.json()["page_info"]["total"] >= 1
 
-    def test_list_includes_camera_count_and_zero_default(
+    def test_list_omits_camera_relationship_fields(
         self, client: TestClient, superuser_token_headers: dict, db: Session
     ) -> None:
-        unused = _make_lens(db, name="UnusedCountLens")
-        linked = _make_lens(db, name="LinkedCountLens")
-        first = Camera(name="CountCameraA")
-        second = Camera(name="CountCameraB")
-        db.add(first)
-        db.add(second)
-        db.commit()
-        db.refresh(first)
-        db.refresh(second)
-        db.add(CameraLens(camera_id=first.camera_id, lens_id=linked.lens_id))
-        db.add(CameraLens(camera_id=second.camera_id, lens_id=linked.lens_id))
-        db.commit()
-
-        r = client.get(f"{BASE}?page_size=100", headers=superuser_token_headers)
+        lens = _make_lens(db, name="NoRelationshipFieldsLens")
+        r = client.get(f"{BASE}?lens_id={lens.lens_id}", headers=superuser_token_headers)
 
         assert r.status_code == 200
-        items = {item["lens_id"]: item for item in r.json()["data"]}
-        assert items[unused.lens_id]["camera_count"] == 0
-        assert items[linked.lens_id]["camera_count"] == 2
-
-    def test_list_filters_and_sorts_by_camera_count(
-        self, client: TestClient, superuser_token_headers: dict, db: Session
-    ) -> None:
-        low = _make_lens(db, name="CameraCountLow")
-        high = _make_lens(db, name="CameraCountHigh")
-        cameras = [Camera(name=f"LensCountCamera{i}") for i in range(3)]
-        db.add_all(cameras)
-        db.commit()
-        for camera in cameras:
-            db.refresh(camera)
-        db.add(CameraLens(camera_id=cameras[0].camera_id, lens_id=low.lens_id))
-        db.add(CameraLens(camera_id=cameras[1].camera_id, lens_id=high.lens_id))
-        db.add(CameraLens(camera_id=cameras[2].camera_id, lens_id=high.lens_id))
-        db.commit()
-
-        filtered = client.get(
-            f"{BASE}?lens_id={high.lens_id}&camera_count=2",
-            headers=superuser_token_headers,
-        )
-        sorted_response = client.get(
-            f"{BASE}?order_by=camera_count&order_dir=desc&page_size=100",
-            headers=superuser_token_headers,
-        )
-
-        assert filtered.status_code == 200
-        assert [item["lens_id"] for item in filtered.json()["data"]] == [high.lens_id]
-        relevant = [
-            item for item in sorted_response.json()["data"]
-            if item["lens_id"] in {low.lens_id, high.lens_id}
-        ]
-        assert [item["lens_id"] for item in relevant] == [high.lens_id, low.lens_id]
-
-    def test_list_rejects_negative_camera_count(
-        self, client: TestClient, superuser_token_headers: dict
-    ) -> None:
-        r = client.get(f"{BASE}?camera_count=-1", headers=superuser_token_headers)
-
-        assert r.status_code == 422
+        item = r.json()["data"][0]
+        assert "camera_count" not in item
+        assert "cameras" not in item
 
     def test_list_pagination(self, client: TestClient, superuser_token_headers: dict, db: Session) -> None:
         for i in range(3):
@@ -220,32 +169,6 @@ class TestExportLenses:
         assert rows[1][0] == str(lens.lens_id)
         assert rows[1][-1] == lens.brand
 
-    def test_export_sorts_by_camera_count(
-        self, client: TestClient, superuser_token_headers: dict, db: Session
-    ) -> None:
-        low = _make_lens(db, name="ExportCameraCountLow")
-        high = _make_lens(db, name="ExportCameraCountHigh")
-        cameras = [Camera(name=f"ExportCountCamera{i}") for i in range(3)]
-        db.add_all(cameras)
-        db.commit()
-        for camera in cameras:
-            db.refresh(camera)
-        db.add(CameraLens(camera_id=cameras[0].camera_id, lens_id=low.lens_id))
-        db.add(CameraLens(camera_id=cameras[1].camera_id, lens_id=high.lens_id))
-        db.add(CameraLens(camera_id=cameras[2].camera_id, lens_id=high.lens_id))
-        db.commit()
-
-        r = client.get(
-            f"{BASE}/exports?order_by=camera_count&order_dir=desc",
-            headers=superuser_token_headers,
-        )
-
-        assert r.status_code == 200
-        rows = read_csv_rows(r.text)
-        relevant = [row for row in rows[1:] if int(row[0]) in {low.lens_id, high.lens_id}]
-        assert [int(row[0]) for row in relevant] == [high.lens_id, low.lens_id]
-
-
 # POST /lenses  (admin)
 
 class TestCreateLens:
@@ -303,42 +226,7 @@ class TestGetLens:
         assert data["name"] == obj.name
         assert data["focal_length"] == obj.focal_length
         assert data["max_aperture"] == obj.max_aperture
-        assert data["cameras"] == []
-
-    def test_get_returns_linked_cameras_in_id_order(
-        self, client: TestClient, superuser_token_headers: dict, db: Session
-    ) -> None:
-        lens = _make_lens(db, name="LinkedLens")
-        camera_a = Camera(name="Camera A")
-        camera_b = Camera(name="Camera B")
-        db.add_all([camera_a, camera_b])
-        db.commit()
-        db.refresh(camera_a)
-        db.refresh(camera_b)
-        db.add_all([
-            CameraLens(
-                camera_id=camera_b.camera_id,
-                lens_id=lens.lens_id,
-                notes="Secondary camera",
-            ),
-            CameraLens(
-                camera_id=camera_a.camera_id,
-                lens_id=lens.lens_id,
-                notes="Primary camera",
-            ),
-        ])
-        db.commit()
-
-        r = client.get(f"{BASE}/{lens.lens_id}", headers=superuser_token_headers)
-
-        assert r.status_code == 200
-        cameras = r.json()["data"]["cameras"]
-        assert [item["camera_id"] for item in cameras] == [camera_a.camera_id, camera_b.camera_id]
-        assert cameras[0] == {
-            "camera_id": camera_a.camera_id,
-            "name": "Camera A",
-            "notes": "Primary camera",
-        }
+        assert "cameras" not in data
 
 
 # PUT /lenses/{lens_id}  (admin)

@@ -1,6 +1,6 @@
 import { CustomScrollArea } from "@/components/ui"
 import { useCallback, useRef, useState } from "react"
-import { ConfigProvider, Form, Input, Select, message } from "@/components/ui"
+import { ConfigProvider, Form, Input, Select, Space, message } from "@/components/ui"
 import { FormDrawer } from "@/components/ui"
 import { EmptyState } from "@/components/ui"
 import { LoadingState } from "@/components/ui"
@@ -36,6 +36,7 @@ import {
 import { useTableFetchScheduler } from "@/hooks/useTableFetchScheduler"
 import { SENSOR_COLUMNS } from "./sensorSettingsColumns"
 import { SensorIcon } from "../SensorIcon"
+import { AssociationRequestHelp } from "../AssociationRequestHelp"
 
 const FORM_FIELDS: FormFieldDef[] = [{ key: "name", label: "Name", type: "text" }]
 
@@ -554,7 +555,7 @@ export function SensorSettingsTab() {
                                             </Form.Item>
                                             <Form.Item
                                                 name="microphone_id"
-                                                label={renderRequiredLabel("Microphone")}
+                                                label={<Space size={6}>{renderRequiredLabel("Microphone")}<AssociationRequestHelp subject="recorders, microphones" /></Space>}
                                                 rules={[{ required: true, message: "Select a microphone" }]}
                                             >
                                                 <Select
@@ -628,7 +629,7 @@ export function SensorSettingsTab() {
                                             </Form.Item>
                                             <Form.Item
                                                 name="lens_id"
-                                                label={renderRequiredLabel("Lens")}
+                                                label={<Space size={6}>{renderRequiredLabel("Lens")}<AssociationRequestHelp subject="cameras, lenses" /></Space>}
                                                 rules={[{ required: true, message: "Select a lens" }]}
                                             >
                                                 <Select

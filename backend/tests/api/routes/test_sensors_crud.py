@@ -14,7 +14,7 @@ from tests.utils.csv import read_csv_rows
 
 BASE = f"{settings.API_V1_STR}/sensors"
 OPTIONS = f"{settings.API_V1_STR}/sensor-options"
-LENSES = f"{settings.API_V1_STR}/lenses"
+CAMERAS = f"{settings.API_V1_STR}/cameras"
 
 
 # Helpers
@@ -478,7 +478,7 @@ class TestCreateSensor:
         assert recorder.name == "CreateRecorder"
         assert mic.name == "CreateMic"
 
-    def test_create_photo_sensor_adds_camera_lens_and_updates_count(
+    def test_create_photo_sensor_adds_camera_lens_association(
         self, client: TestClient, superuser_token_headers: dict, db: Session
     ) -> None:
         camera = _make_camera(db, "CreatePhotoCamera")
@@ -500,12 +500,12 @@ class TestCreateSensor:
         assert association is not None
         assert association.notes is None
 
-        list_response = client.get(
-            f"{LENSES}?lens_id={lens.lens_id}",
+        detail_response = client.get(
+            f"{CAMERAS}/{camera.camera_id}",
             headers=superuser_token_headers,
         )
-        assert list_response.status_code == 200
-        assert list_response.json()["data"][0]["camera_count"] == 1
+        assert detail_response.status_code == 200
+        assert [item["lens_id"] for item in detail_response.json()["data"]["lenses"]] == [lens.lens_id]
 
     def test_create_rejects_retired_camera_lens_default_field(
         self, client: TestClient, superuser_token_headers: dict, db: Session

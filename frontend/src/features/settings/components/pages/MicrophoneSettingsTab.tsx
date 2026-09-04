@@ -24,8 +24,6 @@ import { renderRequiredLabel } from "../../utils/formValidation"
 import "../style/settings-forms.css"
 import "../style/camera-settings.css"
 import { downloadFile } from "@/utils/download"
-import { renderSettingsRelationPills } from "../settingsRelationPills"
-import { SettingsRelationDetailList } from "../SettingsRelationDetailList"
 import { buildMicrophoneWritePayload } from "../../utils/settingsPayload"
 import { useSettingsCsvImport } from "../../utils/useSettingsCsvImport"
 import { useTableFetchScheduler } from "@/hooks/useTableFetchScheduler"
@@ -37,16 +35,6 @@ const COLUMNS: ColumnDef[] = [
     { key: "microphone_element", label: "Element", type: "text", width: "140px", sortable: true, filterable: true },
     { key: "sensitivity", label: "Sensitivity", type: "number", width: "120px", sortable: true, filterable: true, filterType: 'numberRange' },
     { key: "signal_to_noise_ratio", label: "Signal to Noise Ratio", type: "number", width: "120px", sortable: true, filterable: true, filterType: 'numberRange' },
-    {
-        key: "recorder_count",
-        label: "Recorders",
-        tooltip: "Number of recorders associated with this microphone",
-        type: "number",
-        width: "240px",
-        sortable: true,
-        filterable: true,
-        renderCell: renderSettingsRelationPills,
-    },
 ]
 
 const FORM_FIELDS: FormFieldDef[] = [
@@ -63,8 +51,7 @@ function orderByForApi(sortKey: string | null): string {
         sortKey === "name" ||
         sortKey === "microphone_element" ||
         sortKey === "sensitivity" ||
-        sortKey === "signal_to_noise_ratio" ||
-        sortKey === "recorder_count"
+        sortKey === "signal_to_noise_ratio"
     ) return sortKey
     return "microphone_id"
 }
@@ -111,7 +98,6 @@ export function MicrophoneSettingsTab() {
                 microphone_element: state.filters.microphone_element?.trim() || undefined,
                 sensitivity: state.filters.sensitivity || undefined,
                 signal_to_noise_ratio: state.filters.signal_to_noise_ratio || undefined,
-                recorder_count: state.filters.recorder_count?.trim() || undefined,
                 order_by,
                 order_dir,
             })
@@ -131,7 +117,6 @@ export function MicrophoneSettingsTab() {
                     microphone_element: r.microphone_element ?? "",
                     sensitivity: r.sensitivity ?? null,
                     signal_to_noise_ratio: r.signal_to_noise_ratio ?? null,
-                    recorder_count: r.recorder_count || 0,
                 } as RowData)),
             )
             setTotalRows(res.page_info?.total ?? list.length)
@@ -432,17 +417,6 @@ export function MicrophoneSettingsTab() {
                                             : "-"}
                                     </Descriptions.Item>
                                 </Descriptions>
-                                <SettingsRelationDetailList
-                                    title="Linked Recorders"
-                                    fallbackLabel="Recorder"
-                                    emptyMessage="No recorders associated with this microphone."
-                                    isDark={isDark}
-                                    items={detailMicrophone.recorders.map((recorder) => ({
-                                        id: recorder.recorder_id,
-                                        name: recorder.name,
-                                        notes: recorder.notes,
-                                    }))}
-                                />
                             </Space>
                         ) : null}
                     </div>

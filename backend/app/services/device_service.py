@@ -33,7 +33,6 @@ from app.schemas.device import (
     CameraListItem,
     CameraPublic,
     CameraUpdate,
-    LensCameraInfo,
     LensCreate,
     LensListItem,
     LensPublic,
@@ -42,7 +41,6 @@ from app.schemas.device import (
     MicrophoneCreate,
     MicrophoneListItem,
     MicrophonePublic,
-    MicrophoneRecorderInfo,
     MicrophoneUpdate,
     RecorderCreate,
     RecorderListItem,
@@ -452,9 +450,8 @@ def list_microphones(
             microphone_element=microphone.microphone_element,
             sensitivity=microphone.sensitivity,
             signal_to_noise_ratio=microphone.signal_to_noise_ratio,
-            recorder_count=count,
         )
-        for microphone, count in rows
+        for microphone in rows
     ]
     return items, total
 
@@ -478,34 +475,18 @@ def export_microphones_csv(
 
 
 
-def _build_microphone_public(
-    microphone: Microphone, recorder_microphones: list[RecorderMicrophone]
-) -> MicrophonePublic:
-    recorders = [
-        MicrophoneRecorderInfo(
-            recorder_id=rm.recorder_id,
-            name=rm.recorder.name if rm.recorder else None,
-            notes=rm.notes,
-        )
-        for rm in recorder_microphones
-    ]
-    return MicrophonePublic(
-        microphone_id=microphone.microphone_id,
-        uuid=microphone.uuid,
-        name=microphone.name,
-        microphone_element=microphone.microphone_element,
-        sensitivity=microphone.sensitivity,
-        signal_to_noise_ratio=microphone.signal_to_noise_ratio,
-        recorders=recorders,
-    )
-
-
 def get_microphone(session: Session, microphone_id: int) -> MicrophonePublic:
     obj = device_repository.get_microphone_by_id(session, microphone_id)
     if not obj:
         raise HTTPException(status_code=404, detail="Microphone not found")
-    relationships = device_repository.get_microphone_recorders(session, microphone_id)
-    return _build_microphone_public(obj, relationships)
+    return MicrophonePublic(
+        microphone_id=obj.microphone_id,
+        uuid=obj.uuid,
+        name=obj.name,
+        microphone_element=obj.microphone_element,
+        sensitivity=obj.sensitivity,
+        signal_to_noise_ratio=obj.signal_to_noise_ratio,
+    )
 
 
 def create_microphone(
@@ -681,9 +662,8 @@ def list_lenses(
             focal_length=lens.focal_length,
             max_aperture=lens.max_aperture,
             brand=lens.brand,
-            camera_count=count,
         )
-        for lens, count in rows
+        for lens in rows
     ]
     return items, total
 
@@ -707,32 +687,18 @@ def export_lenses_csv(
 
 
 
-def _build_lens_public(lens: Lens, camera_lenses: list[CameraLens]) -> LensPublic:
-    cameras = [
-        LensCameraInfo(
-            camera_id=cl.camera_id,
-            name=cl.camera.name if cl.camera else None,
-            notes=cl.notes,
-        )
-        for cl in camera_lenses
-    ]
-    return LensPublic(
-        lens_id=lens.lens_id,
-        uuid=lens.uuid,
-        name=lens.name,
-        focal_length=lens.focal_length,
-        max_aperture=lens.max_aperture,
-        brand=lens.brand,
-        cameras=cameras,
-    )
-
-
 def get_lens(session: Session, lens_id: int) -> LensPublic:
     obj = device_repository.get_lens_by_id(session, lens_id)
     if not obj:
         raise HTTPException(status_code=404, detail="Lens not found")
-    relationships = device_repository.get_lens_cameras(session, lens_id)
-    return _build_lens_public(obj, relationships)
+    return LensPublic(
+        lens_id=obj.lens_id,
+        uuid=obj.uuid,
+        name=obj.name,
+        focal_length=obj.focal_length,
+        max_aperture=obj.max_aperture,
+        brand=obj.brand,
+    )
 
 
 def create_lens(

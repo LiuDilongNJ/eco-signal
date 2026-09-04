@@ -71,14 +71,12 @@ def list_microphones(
     microphone_element: Optional[str] = Query(default=None, description="振膜类型模糊搜索 / Fuzzy search by microphone element"),
     sensitivity: Optional[str] = Query(default=None, description="灵敏度区间，格式：min,max / Sensitivity range: min,max"),
     signal_to_noise_ratio: Optional[str] = Query(default=None, description="信噪比区间，格式：min,max / SNR range: min,max"),
-    recorder_id: Optional[int] = Query(default=None, description="通过录音机 ID 筛选 / Filter by recorder ID"),
-    recorder_count: Optional[int] = Query(default=None, ge=0, description="录音机数量精确筛选 / Filter by recorder count (exact)"),
-    order_by: str = Query(default="microphone_id", description="排序字段：microphone_id, uuid, name, microphone_element, sensitivity, signal_to_noise_ratio, recorder_count / Sort field"),
+    order_by: str = Query(default="microphone_id", description="排序字段：microphone_id, uuid, name, microphone_element, sensitivity, signal_to_noise_ratio / Sort field"),
     order_dir: str = Query(default="asc", pattern="^(asc|desc)$", description="排序方向 / Sort direction"),
 ) -> Any:
     """
-    获取所有麦克风列表（分页，支持筛选和排序），含关联录音机数量。
-    Get paginated list of microphones with filter and sort support, including associated recorder count.
+    获取所有麦克风列表（分页，支持筛选和排序）。
+    Get paginated list of microphones with filter and sort support.
 
     仅管理员可访问。 / Admin only.
     """
@@ -93,8 +91,6 @@ def list_microphones(
         "sensitivity_max": sens_max,
         "signal_to_noise_ratio_min": snr_min,
         "signal_to_noise_ratio_max": snr_max,
-        "recorder_id": recorder_id,
-        "recorder_count": recorder_count,
     }
     items, total = device_service.list_microphones(session, page, page_size, filters, order_by, order_dir)
     return api_page(data=items, total=total, page=page, page_size=page_size)
@@ -113,8 +109,7 @@ def export_microphones(
     microphone_element: Optional[str] = Query(default=None, description="拾音器类型模糊搜索 / Fuzzy search by microphone element"),
     sensitivity: Optional[str] = Query(default=None, description="灵敏度区间，格式：min,max / Sensitivity range: min,max"),
     signal_to_noise_ratio: Optional[str] = Query(default=None, description="信噪比区间，格式：min,max / SNR range: min,max"),
-    recorder_id: Optional[int] = Query(default=None, description="按关联的录音机筛选 / Filter by associated recorder ID"),
-    order_by: str = Query(default="microphone_id", description="排序字段：microphone_id, uuid, name, microphone_element, sensitivity, signal_to_noise_ratio, recorder_count / Sort field"),
+    order_by: str = Query(default="microphone_id", description="排序字段：microphone_id, uuid, name, microphone_element, sensitivity, signal_to_noise_ratio / Sort field"),
     order_dir: str = Query(default="asc", pattern="^(asc|desc)$", description="排序方向 / Sort direction"),
 ) -> Any:
     sens_min, sens_max = parse_range(sensitivity)
@@ -129,7 +124,6 @@ def export_microphones(
         "sensitivity_max": sens_max,
         "signal_to_noise_ratio_min": snr_min,
         "signal_to_noise_ratio_max": snr_max,
-        "recorder_id": recorder_id,
     }
     csv_content = device_service.export_microphones_csv(session, filters, order_by, order_dir)
     return csv_response(csv_content, "microphones.csv")
@@ -169,8 +163,8 @@ def create_microphone(session: SessionDep, body: MicrophoneCreate) -> Any:
 )
 def get_microphone(session: SessionDep, microphone_id: int) -> Any:
     """
-    根据 ID 获取麦克风详情，含关联的录音机列表。
-    Get microphone detail by ID, including associated recorders.
+    根据 ID 获取麦克风详情。
+    Get microphone detail by ID.
 
     仅管理员可访问。 / Admin only.
     """

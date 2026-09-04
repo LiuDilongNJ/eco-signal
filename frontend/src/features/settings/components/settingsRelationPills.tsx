@@ -1,6 +1,4 @@
-import type { RowData } from "../../project/components/data/DataPageLayout"
-
-export function renderSettingsRelationPills(value: unknown, _record: RowData) {
+export function renderSettingsRelationPills(value: unknown) {
     const count = Number(value ?? 0)
     const label = Number.isFinite(count) ? String(count) : ""
     if (!label) return null

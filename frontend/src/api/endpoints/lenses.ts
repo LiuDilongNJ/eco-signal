@@ -1,12 +1,6 @@
 import { apiClient } from "../client"
 import type { ImportResult as TabularImportResult } from "../tabularImport"
 
-export interface LensCameraInfo {
-    camera_id: number
-    name?: string | null
-    notes?: string | null
-}
-
 export interface LensPublic {
     lens_id: number
     uuid: string
@@ -14,12 +8,9 @@ export interface LensPublic {
     focal_length?: string | null
     max_aperture?: string | null
     brand?: string | null
-    cameras: LensCameraInfo[]
 }
 
-export type LensListItem = Omit<LensPublic, "cameras"> & {
-    camera_count: number
-}
+export type LensListItem = LensPublic
 
 export interface PagedLensesResponse {
     code: number
@@ -42,7 +33,6 @@ export interface ListLensesParams {
     focal_length?: string
     max_aperture?: string
     brand?: string
-    camera_count?: number | string
     order_by?: string
     order_dir?: "asc" | "desc"
 }

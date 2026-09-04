@@ -168,13 +168,6 @@ class MicrophoneUpdate(SQLModel):
     signal_to_noise_ratio: Optional[int] = None
 
 
-class MicrophoneRecorderInfo(SQLModel):
-    """Recorder info embedded in microphone detail."""
-    recorder_id: int
-    name: Optional[str] = None
-    notes: Optional[str] = None
-
-
 class MicrophonePublic(SQLModel):
     """Public microphone response schema."""
     microphone_id: int
@@ -183,18 +176,16 @@ class MicrophonePublic(SQLModel):
     microphone_element: Optional[str] = None
     sensitivity: Optional[int] = None
     signal_to_noise_ratio: Optional[int] = None
-    recorders: list[MicrophoneRecorderInfo] = []
 
 
 class MicrophoneListItem(SQLModel):
-    """Microphone list item schema with associated recorder count."""
+    """Microphone list item schema."""
     microphone_id: int
     uuid: uuid_lib.UUID
     name: Optional[str] = None
     microphone_element: Optional[str] = None
     sensitivity: Optional[int] = None
     signal_to_noise_ratio: Optional[int] = None
-    recorder_count: int = 0
 
 
 
@@ -282,13 +273,6 @@ class LensUpdate(SQLModel):
         return data
 
 
-class LensCameraInfo(SQLModel):
-    """Camera info embedded in lens detail."""
-    camera_id: int
-    name: Optional[str] = None
-    notes: Optional[str] = None
-
-
 class LensPublic(SQLModel):
     """Public lens response schema."""
     lens_id: int
@@ -297,18 +281,16 @@ class LensPublic(SQLModel):
     focal_length: Optional[str] = None
     max_aperture: Optional[str] = None
     brand: Optional[str] = None
-    cameras: list[LensCameraInfo] = []
 
 
 class LensListItem(SQLModel):
-    """Lens list item schema with associated camera count."""
+    """Lens list item schema."""
     lens_id: int
     uuid: uuid_lib.UUID
     name: Optional[str] = None
     focal_length: Optional[str] = None
     max_aperture: Optional[str] = None
     brand: Optional[str] = None
-    camera_count: int = 0
 
 
 

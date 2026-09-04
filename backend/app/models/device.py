@@ -48,7 +48,6 @@ class Microphone(SQLModel, table=True):
     signal_to_noise_ratio: Optional[int] = Field(default=None)
     
     # Relationships
-    recorder_microphones: list["RecorderMicrophone"] = Relationship(back_populates="microphone")
     sensors: list["Sensor"] = Relationship(back_populates="microphone")
 
 
@@ -70,7 +69,7 @@ class RecorderMicrophone(SQLModel, table=True):
     
     # Relationships
     recorder: Optional[Recorder] = Relationship(back_populates="recorder_microphones")
-    microphone: Optional[Microphone] = Relationship(back_populates="recorder_microphones")
+    microphone: Optional[Microphone] = Relationship()
 
 
 class Camera(SQLModel, table=True):
@@ -108,7 +107,6 @@ class Lens(SQLModel, table=True):
     brand: Optional[str] = Field(default=None, max_length=100)
     
     # Relationships
-    camera_lenses: list["CameraLens"] = Relationship(back_populates="lens")
     sensors: list["Sensor"] = Relationship(back_populates="lens")
 
 
@@ -130,7 +128,7 @@ class CameraLens(SQLModel, table=True):
     
     # Relationships
     camera: Optional[Camera] = Relationship(back_populates="camera_lenses")
-    lens: Optional[Lens] = Relationship(back_populates="camera_lenses")
+    lens: Optional[Lens] = Relationship()
 
 
 class Sensor(SQLModel, table=True):

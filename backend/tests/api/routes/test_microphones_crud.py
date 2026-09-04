@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 from sqlmodel import Session, select
 
 from app.core.config import settings
-from app.models.device import Microphone, Recorder, RecorderMicrophone, Sensor
+from app.models.device import Microphone, Sensor
 from tests.utils.csv import read_csv_rows
 
 BASE = f"{settings.API_V1_STR}/microphones"
@@ -68,67 +68,17 @@ class TestListMicrophones:
         assert r.status_code == 200
         assert r.json()["page_info"]["total"] >= 1
 
-    def test_list_includes_recorder_count_and_zero_default(
+    def test_list_omits_recorder_relationship_fields(
         self, client: TestClient, superuser_token_headers: dict, db: Session
     ) -> None:
-        unused = _make_microphone(db, "UnusedCountMic")
-        linked = _make_microphone(db, "LinkedCountMic")
-        first = Recorder(name="CountRecorderA")
-        second = Recorder(name="CountRecorderB")
-        db.add(first)
-        db.add(second)
-        db.commit()
-        db.refresh(first)
-        db.refresh(second)
-        db.add(RecorderMicrophone(recorder_id=first.recorder_id, microphone_id=linked.microphone_id))
-        db.add(RecorderMicrophone(recorder_id=second.recorder_id, microphone_id=linked.microphone_id))
-        db.commit()
+        microphone = _make_microphone(db, "NoRelationshipFieldsMic")
 
-        r = client.get(f"{BASE}?page_size=100", headers=superuser_token_headers)
+        r = client.get(f"{BASE}?microphone_id={microphone.microphone_id}", headers=superuser_token_headers)
 
         assert r.status_code == 200
-        items = {item["microphone_id"]: item for item in r.json()["data"]}
-        assert items[unused.microphone_id]["recorder_count"] == 0
-        assert items[linked.microphone_id]["recorder_count"] == 2
-
-    def test_list_filters_and_sorts_by_recorder_count(
-        self, client: TestClient, superuser_token_headers: dict, db: Session
-    ) -> None:
-        low = _make_microphone(db, "RecorderCountLow")
-        high = _make_microphone(db, "RecorderCountHigh")
-        recorders = [Recorder(name=f"MicCountRecorder{i}") for i in range(3)]
-        db.add_all(recorders)
-        db.commit()
-        for recorder in recorders:
-            db.refresh(recorder)
-        db.add(RecorderMicrophone(recorder_id=recorders[0].recorder_id, microphone_id=low.microphone_id))
-        db.add(RecorderMicrophone(recorder_id=recorders[1].recorder_id, microphone_id=high.microphone_id))
-        db.add(RecorderMicrophone(recorder_id=recorders[2].recorder_id, microphone_id=high.microphone_id))
-        db.commit()
-
-        filtered = client.get(
-            f"{BASE}?microphone_id={high.microphone_id}&recorder_id={recorders[1].recorder_id}&recorder_count=2",
-            headers=superuser_token_headers,
-        )
-        sorted_response = client.get(
-            f"{BASE}?order_by=recorder_count&order_dir=desc&page_size=100",
-            headers=superuser_token_headers,
-        )
-
-        assert filtered.status_code == 200
-        assert [item["microphone_id"] for item in filtered.json()["data"]] == [high.microphone_id]
-        relevant = [
-            item for item in sorted_response.json()["data"]
-            if item["microphone_id"] in {low.microphone_id, high.microphone_id}
-        ]
-        assert [item["microphone_id"] for item in relevant] == [high.microphone_id, low.microphone_id]
-
-    def test_list_rejects_negative_recorder_count(
-        self, client: TestClient, superuser_token_headers: dict
-    ) -> None:
-        r = client.get(f"{BASE}?recorder_count=-1", headers=superuser_token_headers)
-
-        assert r.status_code == 422
+        item = r.json()["data"][0]
+        assert "recorder_count" not in item
+        assert "recorders" not in item
 
     def test_list_filter_by_microphone_id_and_uuid(
         self, client: TestClient, superuser_token_headers: dict, db: Session
@@ -144,14 +94,9 @@ class TestListMicrophones:
         assert len(data) == 1
         assert data[0]["microphone_id"] == target.microphone_id
 
-    def test_list_filter_microphone_id_with_recorder_and_range(
+    def test_list_filter_microphone_id_with_range(
         self, client: TestClient, superuser_token_headers: dict, db: Session
     ) -> None:
-        recorder = Recorder(name="RangeRecorder")
-        db.add(recorder)
-        db.commit()
-        db.refresh(recorder)
-
         target = _make_microphone(db, "RangeTarget", "Electret")
         target.sensitivity = -35
         target.signal_to_noise_ratio = 80
@@ -164,12 +109,8 @@ class TestListMicrophones:
         db.refresh(target)
         db.refresh(other)
 
-        db.add(RecorderMicrophone(recorder_id=recorder.recorder_id, microphone_id=target.microphone_id))
-        db.add(RecorderMicrophone(recorder_id=recorder.recorder_id, microphone_id=other.microphone_id))
-        db.commit()
-
         r = client.get(
-            f"{BASE}?microphone_id={target.microphone_id}&recorder_id={recorder.recorder_id}&sensitivity=-36,-34",
+            f"{BASE}?microphone_id={target.microphone_id}&sensitivity=-36,-34",
             headers=superuser_token_headers,
         )
         assert r.status_code == 200
@@ -206,17 +147,10 @@ class TestExportMicrophones:
     def test_export_microphones_with_filters(
         self, client: TestClient, superuser_token_headers: dict, db: Session
     ) -> None:
-        recorder = Recorder(name="ExportMicRecorder")
-        db.add(recorder)
-        db.commit()
-        db.refresh(recorder)
-
         mic = _make_microphone(db, "ExportMic", "MEMS")
-        db.add(RecorderMicrophone(recorder_id=recorder.recorder_id, microphone_id=mic.microphone_id))
-        db.commit()
 
         r = client.get(
-            f"{BASE}/exports?microphone_id={mic.microphone_id}&uuid={mic.uuid}&recorder_id={recorder.recorder_id}&sensitivity=-36,-34&signal_to_noise_ratio=79,81",
+            f"{BASE}/exports?microphone_id={mic.microphone_id}&uuid={mic.uuid}&sensitivity=-36,-34&signal_to_noise_ratio=79,81",
             headers=superuser_token_headers,
         )
         assert r.status_code == 200
@@ -229,35 +163,6 @@ class TestExportMicrophones:
         assert len(rows) == 2
         assert rows[1][0] == str(mic.microphone_id)
         assert rows[1][-1] == "80"
-
-    def test_export_sorts_by_recorder_count(
-        self, client: TestClient, superuser_token_headers: dict, db: Session
-    ) -> None:
-        low = _make_microphone(db, "ExportRecorderCountLow")
-        high = _make_microphone(db, "ExportRecorderCountHigh")
-        recorders = [Recorder(name=f"ExportCountRecorder{i}") for i in range(3)]
-        db.add_all(recorders)
-        db.commit()
-        for recorder in recorders:
-            db.refresh(recorder)
-        db.add(RecorderMicrophone(recorder_id=recorders[0].recorder_id, microphone_id=low.microphone_id))
-        db.add(RecorderMicrophone(recorder_id=recorders[1].recorder_id, microphone_id=high.microphone_id))
-        db.add(RecorderMicrophone(recorder_id=recorders[2].recorder_id, microphone_id=high.microphone_id))
-        db.commit()
-
-        r = client.get(
-            f"{BASE}/exports?order_by=recorder_count&order_dir=desc",
-            headers=superuser_token_headers,
-        )
-
-        assert r.status_code == 200
-        rows = read_csv_rows(r.text)
-        relevant = [
-            row for row in rows[1:]
-            if int(row[0]) in {low.microphone_id, high.microphone_id}
-        ]
-        assert [int(row[0]) for row in relevant] == [high.microphone_id, low.microphone_id]
-
 
 # POST /microphones/imports  (admin)
 
@@ -469,42 +374,7 @@ class TestGetMicrophone:
         assert data["microphone_id"] == obj.microphone_id
         assert data["name"] == obj.name
         assert data["microphone_element"] == obj.microphone_element
-        assert data["recorders"] == []
-
-    def test_get_returns_linked_recorders_in_id_order(
-        self, client: TestClient, superuser_token_headers: dict, db: Session
-    ) -> None:
-        microphone = _make_microphone(db, "LinkedMic")
-        recorder_a = Recorder(name="Recorder A")
-        recorder_b = Recorder(name="Recorder B")
-        db.add_all([recorder_a, recorder_b])
-        db.commit()
-        db.refresh(recorder_a)
-        db.refresh(recorder_b)
-        db.add_all([
-            RecorderMicrophone(
-                recorder_id=recorder_b.recorder_id,
-                microphone_id=microphone.microphone_id,
-                notes="Secondary recorder",
-            ),
-            RecorderMicrophone(
-                recorder_id=recorder_a.recorder_id,
-                microphone_id=microphone.microphone_id,
-                notes="Primary recorder",
-            ),
-        ])
-        db.commit()
-
-        r = client.get(f"{BASE}/{microphone.microphone_id}", headers=superuser_token_headers)
-
-        assert r.status_code == 200
-        recorders = r.json()["data"]["recorders"]
-        assert [item["recorder_id"] for item in recorders] == [recorder_a.recorder_id, recorder_b.recorder_id]
-        assert recorders[0] == {
-            "recorder_id": recorder_a.recorder_id,
-            "name": "Recorder A",
-            "notes": "Primary recorder",
-        }
+        assert "recorders" not in data
 
 
 # PUT /microphones/{microphone_id}  (admin)

@@ -6,12 +6,6 @@ export interface MicrophoneOption {
     name: string
 }
 
-export interface MicrophoneRecorderInfo {
-    recorder_id: number
-    name?: string | null
-    notes?: string | null
-}
-
 export interface MicrophonePublic {
     microphone_id: number
     uuid: string
@@ -19,12 +13,9 @@ export interface MicrophonePublic {
     microphone_element?: string
     sensitivity?: number
     signal_to_noise_ratio?: number
-    recorders: MicrophoneRecorderInfo[]
 }
 
-export type MicrophoneListItem = Omit<MicrophonePublic, "recorders"> & {
-    recorder_count: number
-}
+export type MicrophoneListItem = MicrophonePublic
 
 export interface MicrophoneCreateBody {
     name?: string | null
@@ -50,8 +41,6 @@ export interface ListMicrophonesParams {
     microphone_element?: string
     sensitivity?: string
     signal_to_noise_ratio?: string
-    recorder_id?: number | string
-    recorder_count?: number | string
     order_by?: string
     order_dir?: "asc" | "desc"
 }

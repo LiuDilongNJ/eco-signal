@@ -62,13 +62,12 @@ def list_lenses(
     focal_length: Optional[str] = Query(default=None, description="焦距模糊搜索 / Fuzzy search by focal length"),
     max_aperture: Optional[str] = Query(default=None, description="最大光圈模糊搜索 / Fuzzy search by max aperture"),
     brand: Optional[str] = Query(default=None, description="品牌模糊搜索 / Fuzzy search by brand"),
-    camera_count: Optional[int] = Query(default=None, ge=0, description="相机数量精确筛选 / Filter by camera count (exact)"),
-    order_by: str = Query(default="lens_id", description="排序字段：lens_id, uuid, name, focal_length, max_aperture, brand, camera_count / Sort field"),
+    order_by: str = Query(default="lens_id", description="排序字段：lens_id, uuid, name, focal_length, max_aperture, brand / Sort field"),
     order_dir: str = Query(default="asc", pattern="^(asc|desc)$", description="排序方向 / Sort direction"),
 ) -> Any:
     """
-    获取所有镜头列表（分页，支持筛选和排序），含关联相机数量。
-    Get paginated list of lenses with filter and sort support, including associated camera count.
+    获取所有镜头列表（分页，支持筛选和排序）。
+    Get paginated list of lenses with filter and sort support.
 
     仅管理员可访问。 / Admin only.
     """
@@ -79,7 +78,6 @@ def list_lenses(
         "focal_length": focal_length,
         "max_aperture": max_aperture,
         "brand": brand,
-        "camera_count": camera_count,
     }
     items, total = device_service.list_lenses(session, page, page_size, filters, order_by, order_dir)
     return api_page(data=items, total=total, page=page, page_size=page_size)
@@ -98,7 +96,7 @@ def export_lenses(
     focal_length: Optional[str] = Query(default=None, description="焦距模糊搜索 / Fuzzy search by focal length"),
     max_aperture: Optional[str] = Query(default=None, description="最大光圈模糊搜索 / Fuzzy search by max aperture"),
     brand: Optional[str] = Query(default=None, description="品牌模糊搜索 / Fuzzy search by brand"),
-    order_by: str = Query(default="lens_id", description="排序字段：lens_id, uuid, name, focal_length, max_aperture, brand, camera_count / Sort field"),
+    order_by: str = Query(default="lens_id", description="排序字段：lens_id, uuid, name, focal_length, max_aperture, brand / Sort field"),
     order_dir: str = Query(default="asc", pattern="^(asc|desc)$", description="排序方向 / Sort direction"),
 ) -> Any:
     from app.api.responses import csv_response
@@ -149,8 +147,8 @@ def create_lens(session: SessionDep, body: LensCreate) -> Any:
 )
 def get_lens(session: SessionDep, lens_id: int) -> Any:
     """
-    根据 ID 获取镜头详情，含关联的相机列表。
-    Get lens detail by ID, including associated cameras.
+    根据 ID 获取镜头详情。
+    Get lens detail by ID.
 
     仅管理员可访问。 / Admin only.
     """

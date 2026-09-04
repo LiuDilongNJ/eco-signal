@@ -641,7 +641,11 @@ export function RecorderSettingsTab() {
                 <CustomScrollArea variant="fill">
                     <div style={{ padding: SETTINGS_DRAWER_BODY_PADDING }}>
                         <Form form={relationForm} layout="vertical" requiredMark={false} className="shared-drawer-form">
-                            <Form.Item name="microphone_id" label={renderRequiredLabel("Microphone")} rules={[{ required: true, message: "Select a microphone" }]}>
+                            <Form.Item
+                                name="microphone_id"
+                                label={renderRequiredLabel("Microphone")}
+                                rules={[{ required: true, message: "Select a microphone" }]}
+                            >
                                 <Select
                                     className="form-drawer-select"
                                     classNames={{ popup: { root: "form-drawer-select-popup" } }}

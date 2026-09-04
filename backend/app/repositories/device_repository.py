@@ -304,16 +304,6 @@ def get_recorder_microphones(session: Session, recorder_id: int) -> list[Recorde
     return list(session.exec(stmt).all())
 
 
-def get_microphone_recorders(session: Session, microphone_id: int) -> list[RecorderMicrophone]:
-    stmt = (
-        select(RecorderMicrophone)
-        .options(selectinload(RecorderMicrophone.recorder))
-        .where(RecorderMicrophone.microphone_id == microphone_id)
-        .order_by(RecorderMicrophone.recorder_id)
-    )
-    return list(session.exec(stmt).all())
-
-
 def get_recorder_microphone(session: Session, recorder_id: int, microphone_id: int) -> RecorderMicrophone | None:
     return session.get(RecorderMicrophone, (recorder_id, microphone_id))
 
@@ -361,41 +351,16 @@ def get_microphones(
     filters: dict | None = None,
     order_by: str = "name",
     order_dir: str = "asc",
-) -> tuple[list[tuple[Microphone, int]], int]:
+) -> tuple[list[Microphone], int]:
     filters = filters or {}
-    subq = (
-        select(RecorderMicrophone.microphone_id, func.count().label("cnt"))
-        .group_by(RecorderMicrophone.microphone_id)
-        .subquery()
-    )
-    recorder_count_col = func.coalesce(subq.c.cnt, 0)
-    base_stmt = (
-        select(Microphone, recorder_count_col.label("recorder_count"))
-        .outerjoin(subq, Microphone.microphone_id == subq.c.microphone_id)
-    )
-
-    if filters.get("recorder_id") is not None:
-        linked_microphone_ids = select(RecorderMicrophone.microphone_id).where(
-            RecorderMicrophone.recorder_id == filters["recorder_id"]
-        ).distinct()
-        base_stmt = base_stmt.where(Microphone.microphone_id.in_(linked_microphone_ids))
-
-    base_stmt = apply_filters(base_stmt, filters, _MICROPHONE_FILTER_SPECS)
-    if filters.get("recorder_count") is not None:
-        base_stmt = base_stmt.where(recorder_count_col == filters["recorder_count"])
-
+    base_stmt = apply_filters(select(Microphone), filters, _MICROPHONE_FILTER_SPECS)
     count_stmt = select(func.count()).select_from(base_stmt.subquery())
     total = session.exec(count_stmt).one()
-
-    microphone_sort_fields = {
-        **_MICROPHONE_SORT_FIELDS,
-        "recorder_count": recorder_count_col,
-    }
     stmt = apply_ordering(
         base_stmt,
         order_by,
         order_dir,
-        microphone_sort_fields,
+        _MICROPHONE_SORT_FIELDS,
         Microphone.name,
         Microphone.microphone_id,
     )
@@ -534,16 +499,6 @@ def get_camera_lenses(session: Session, camera_id: int) -> list[CameraLens]:
     return list(session.exec(stmt).all())
 
 
-def get_lens_cameras(session: Session, lens_id: int) -> list[CameraLens]:
-    stmt = (
-        select(CameraLens)
-        .options(selectinload(CameraLens.camera))
-        .where(CameraLens.lens_id == lens_id)
-        .order_by(CameraLens.camera_id)
-    )
-    return list(session.exec(stmt).all())
-
-
 def get_camera_lens(session: Session, camera_id: int, lens_id: int) -> CameraLens | None:
     return session.get(CameraLens, (camera_id, lens_id))
 
@@ -591,33 +546,16 @@ def get_lenses(
     filters: dict | None = None,
     order_by: str = "name",
     order_dir: str = "asc",
-) -> tuple[list[tuple[Lens, int]], int]:
+) -> tuple[list[Lens], int]:
     filters = filters or {}
-    subq = (
-        select(CameraLens.lens_id, func.count().label("cnt"))
-        .group_by(CameraLens.lens_id)
-        .subquery()
-    )
-    camera_count_col = func.coalesce(subq.c.cnt, 0)
-    base_stmt = (
-        select(Lens, camera_count_col.label("camera_count"))
-        .outerjoin(subq, Lens.lens_id == subq.c.lens_id)
-    )
-    base_stmt = apply_filters(base_stmt, filters, _LENS_FILTER_SPECS)
-    if filters.get("camera_count") is not None:
-        base_stmt = base_stmt.where(camera_count_col == filters["camera_count"])
-
+    base_stmt = apply_filters(select(Lens), filters, _LENS_FILTER_SPECS)
     count_stmt = select(func.count()).select_from(base_stmt.subquery())
     total = session.exec(count_stmt).one()
-    lens_sort_fields = {
-        **_LENS_SORT_FIELDS,
-        "camera_count": camera_count_col,
-    }
     stmt = apply_ordering(
         base_stmt,
         order_by,
         order_dir,
-        lens_sort_fields,
+        _LENS_SORT_FIELDS,
         Lens.name,
         Lens.lens_id,
     )

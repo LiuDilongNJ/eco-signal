@@ -7,34 +7,34 @@ describe("SettingsRelationDetailList", () => {
     it("renders names, fallback labels, and notes", () => {
         render(
             <SettingsRelationDetailList
-                title="Linked Recorders"
-                fallbackLabel="Recorder"
-                emptyMessage="No recorders associated."
+                title="Linked Microphones"
+                fallbackLabel="Microphone"
+                emptyMessage="No microphones associated."
                 isDark={false}
                 items={[
-                    { id: 1, name: "Recorder A", notes: "Primary recorder" },
+                    { id: 1, name: "Microphone A", notes: "Primary microphone" },
                     { id: 2, name: null },
                 ]}
             />,
         )
 
-        expect(screen.getByText("Linked Recorders")).toBeInTheDocument()
-        expect(screen.getByText("Recorder A")).toBeInTheDocument()
-        expect(screen.getByText("Recorder #2")).toBeInTheDocument()
-        expect(screen.getByText("Primary recorder")).toBeInTheDocument()
+        expect(screen.getByText("Linked Microphones")).toBeInTheDocument()
+        expect(screen.getByText("Microphone A")).toBeInTheDocument()
+        expect(screen.getByText("Microphone #2")).toBeInTheDocument()
+        expect(screen.getByText("Primary microphone")).toBeInTheDocument()
     })
 
     it("renders the empty state", () => {
         render(
             <SettingsRelationDetailList
-                title="Linked Cameras"
-                fallbackLabel="Camera"
-                emptyMessage="No cameras associated with this lens."
+                title="Linked Lenses"
+                fallbackLabel="Lens"
+                emptyMessage="No lenses associated with this camera."
                 isDark={true}
                 items={[]}
             />,
         )
 
-        expect(screen.getByText("No cameras associated with this lens.")).toBeInTheDocument()
+        expect(screen.getByText("No lenses associated with this camera.")).toBeInTheDocument()
     })
 })
