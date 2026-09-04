@@ -309,8 +309,8 @@ export function LensSettingsTab() {
                 addDropdownItems={[
                     { key: "new", label: "New Lens", icon: <Plus size={14} />, onClick: openCreate },
                     { type: "divider" as const },
-                    { key: "import", label: "Import Data", icon: <FileUp size={14} />, onClick: csvImport.triggerImport },
-                    { key: "instructions", label: "Import Instructions", icon: <Info size={14} />, onClick: csvImport.showInstructions },
+                    { key: "import", label: "Import Data", icon: <FileUp size={14} />, onClick: () => csvImport.triggerImport() },
+                    { key: "instructions", label: "Import Instructions", icon: <Info size={14} />, onClick: () => csvImport.showInstructions() },
                 ]}
                 addDisabled={csvImport.importing}
                 onEditCustom={handleEdit}

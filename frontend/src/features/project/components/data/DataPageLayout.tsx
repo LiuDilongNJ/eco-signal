@@ -1381,13 +1381,13 @@ export function DataPageLayout({
                 icon: <FileUp size={14} />,
                 disabled: importConfig.disabled || tabularImport.importing,
                 title: importConfig.disabled ? importConfig.disabledReason : undefined,
-                onClick: tabularImport.triggerImport,
+                onClick: () => tabularImport.triggerImport(),
             })
             mergedAddDropdownItems.push({
                 key: "__import_instructions",
                 label: importConfig.instructionsLabel ?? "Import Instructions",
                 icon: <Info size={14} />,
-                onClick: tabularImport.showInstructions,
+                onClick: () => tabularImport.showInstructions(),
             })
         }
     }

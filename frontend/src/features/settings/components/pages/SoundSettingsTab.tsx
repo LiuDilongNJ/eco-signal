@@ -221,13 +221,13 @@ export function SoundSettingsTab() {
             key: "import",
             label: "Import Data",
             icon: <FileUp size={14} />,
-            onClick: csvImport.triggerImport,
+            onClick: () => csvImport.triggerImport(),
         },
         {
             key: "instructions",
             label: "Import Instructions",
             icon: <Info size={14} />,
-            onClick: csvImport.showInstructions,
+            onClick: () => csvImport.showInstructions(),
         },
     ]
 
