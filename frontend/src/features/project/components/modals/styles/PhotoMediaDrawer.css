@@ -140,6 +140,13 @@
     font-size: 11px;
 }
 
+.photo-media-drawer-queue-warning {
+    display: block;
+    margin-top: 4px;
+    color: var(--warning);
+    font-size: 11px;
+}
+
 .photo-media-drawer-queue-retry {
     display: flex;
     align-items: center;

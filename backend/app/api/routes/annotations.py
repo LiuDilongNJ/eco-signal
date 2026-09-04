@@ -1,6 +1,6 @@
 """标注 API 路由。 / Annotations API routes."""
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 
 from fastapi import APIRouter, File, Form, Query, UploadFile
 
@@ -29,6 +29,7 @@ async def import_annotations(
     collection_id: int = Form(...),
     file: UploadFile = File(...),
     dry_run: bool = Form(True),
+    media_type: Literal["audio", "photo"] | None = Form(None),
 ) -> Any:
     """校验或原子导入标注。 / Validate or atomically import annotations."""
     permission_service.require_collection_resource_permission(
@@ -48,6 +49,7 @@ async def import_annotations(
         project_id,
         collection_id,
         dry_run=dry_run,
+        expected_media_type=media_type,
     )
     return api_success(message="Import validation completed" if dry_run else "Import completed", data=attach_import_metadata(report, parsed, dry_run=dry_run))
 

@@ -188,6 +188,84 @@ def test_create_annotation_for_photo_media(
     assert ann.individual_num == 2
 
 
+def test_import_photo_annotations_requires_selected_photo_media_type(
+    client: TestClient, superuser_token_headers: dict[str, str], db: Session
+) -> None:
+    media, col, project = create_test_media(db, media_type="photo")
+    csv_text = (
+        "media_id,min_x,max_x,min_y,max_y,object_type,taxon_id,uncertain,individual_num,reference,comments,creator_type\n"
+        f"{media.media_id},12,120,24,180,organism,,false,2,false,Photo import,user\n"
+    )
+    form = {
+        "project_id": str(project.project_id),
+        "collection_id": str(col.collection_id),
+        "media_type": "photo",
+        "dry_run": "true",
+    }
+    files = {"file": ("photo_annotations.csv", csv_text, "text/csv")}
+
+    preview = client.post(
+        f"{settings.API_V1_STR}/annotations/imports",
+        headers=superuser_token_headers,
+        data=form,
+        files=files,
+    )
+    assert preview.status_code == 200
+    assert preview.json()["data"]["failed"] == 0
+    assert preview.json()["data"]["succeeded"] == 1
+
+    committed = client.post(
+        f"{settings.API_V1_STR}/annotations/imports",
+        headers=superuser_token_headers,
+        data={**form, "dry_run": "false"},
+        files=files,
+    )
+    assert committed.status_code == 200
+    assert committed.json()["data"]["committed"] is True
+    imported = db.exec(
+        select(Annotation).where(Annotation.media_id == media.media_id, Annotation.comments == "Photo import")
+    ).one()
+    assert imported.object_type == "organism"
+    assert imported.individual_num == 2
+    assert imported.sound_id is None
+
+    mismatch = client.post(
+        f"{settings.API_V1_STR}/annotations/imports",
+        headers=superuser_token_headers,
+        data={**form, "media_type": "audio"},
+        files=files,
+    )
+    assert mismatch.status_code == 200
+    report = mismatch.json()["data"]
+    assert report["failed"] == 1
+    assert "requires audio media" in report["rows"][0]["reason"]
+
+
+def test_import_annotation_reports_unknown_taxon_during_dry_run(
+    client: TestClient, superuser_token_headers: dict[str, str], db: Session
+) -> None:
+    media, col, project = create_test_media(db, media_type="photo")
+    csv_text = (
+        "media_id,min_x,max_x,min_y,max_y,object_type,taxon_id,uncertain,individual_num,reference,comments,creator_type\n"
+        f"{media.media_id},12,120,24,180,organism,999999,false,1,false,Unknown taxon,user\n"
+    )
+    response = client.post(
+        f"{settings.API_V1_STR}/annotations/imports",
+        headers=superuser_token_headers,
+        data={
+            "project_id": str(project.project_id),
+            "collection_id": str(col.collection_id),
+            "media_type": "photo",
+            "dry_run": "true",
+        },
+        files={"file": ("photo_annotations.csv", csv_text, "text/csv")},
+    )
+    assert response.status_code == 200
+    report = response.json()["data"]
+    assert report["failed"] == 1
+    assert report["rows"][0]["reason"] == "Taxon not found"
+
+
 def test_list_annotations(
     client: TestClient, superuser_token_headers: dict[str, str], db: Session
 ) -> None:

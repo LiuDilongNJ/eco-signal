@@ -8,6 +8,7 @@ from app.models.annotation import Annotation
 from app.models.media import Media
 from app.models.media import MediaCollection
 from app.models.project import ProjectCollection
+from app.models.taxon import SoundClassification, Taxon
 from app.models.user import User
 from app.repositories import annotation_repository
 from app.repositories.media_repository import media_repository
@@ -506,6 +507,10 @@ def validate_annotation_create(
     if media is None:
         raise HTTPException(status_code=404, detail="Media not found")
     payload = _normalize_annotation_fields(media.media_type, data.model_dump())
+    if payload.get("sound_id") is not None and session.get(SoundClassification, payload["sound_id"]) is None:
+        raise HTTPException(status_code=422, detail="Sound classification not found")
+    if payload.get("taxon_id") is not None and session.get(Taxon, payload["taxon_id"]) is None:
+        raise HTTPException(status_code=422, detail="Taxon not found")
     _validate_annotation_bounds(session, data.media_id, data.min_x, data.max_x, data.min_y, data.max_y)
 
     return payload

@@ -5,29 +5,34 @@ import { CsvImportResultModal } from "@/features/settings/components/CsvImportRe
 import { useRef, useState, type ChangeEvent } from "react"
 
 import { ImportInstructionsDrawer } from "./ImportInstructionsDrawer"
-import type { ImportResourceConfig } from "./importConfigs"
+import { IMPORT_RESOURCE_CONFIGS, type ImportResourceConfig, type ImportResourceKey } from "./importConfigs"
 
 type ImportSubmitResponse = Omit<ImportResponse, "data"> & { data?: ImportResult | null }
 
 interface UseTabularImportOptions {
     label: string
     config: ImportResourceConfig
-    submit: (file: File, dryRun: boolean) => Promise<ImportSubmitResponse>
+    submit: (file: File, dryRun: boolean, variantKey?: string) => Promise<ImportSubmitResponse>
     onCommitted: () => void
+    variants?: Array<{ key: string; label: string; resourceKey: ImportResourceKey }>
 }
 
-export function useTabularImport({ label, config, submit, onCommitted }: UseTabularImportOptions) {
+export function useTabularImport({ label, config, submit, onCommitted, variants }: UseTabularImportOptions) {
     const inputRef = useRef<HTMLInputElement | null>(null)
     const [importing, setImporting] = useState(false)
     const [instructionsOpen, setInstructionsOpen] = useState(false)
     const [resultOpen, setResultOpen] = useState(false)
     const [result, setResult] = useState<ImportResult | null>(null)
     const [selectedFile, setSelectedFile] = useState<File | null>(null)
+    const [activeVariantKey, setActiveVariantKey] = useState<string | null>(null)
+    const activeVariant = variants?.find((variant) => variant.key === activeVariantKey)
+    const activeConfig = activeVariant ? IMPORT_RESOURCE_CONFIGS[activeVariant.resourceKey] : config
 
     const clearTransientState = () => {
         setSelectedFile(null)
         setResult(null)
         setResultOpen(false)
+        setActiveVariantKey(null)
         if (inputRef.current) inputRef.current.value = ""
     }
 
@@ -51,7 +56,7 @@ export function useTabularImport({ label, config, submit, onCommitted }: UseTabu
         setResult(null)
         const hide = message.loading(`Validating ${label}...`, 0)
         try {
-            const response = await submit(file, true)
+            const response = await submit(file, true, activeVariantKey ?? undefined)
             if (response.code !== 0 && response.code !== 200) {
                 const reason = response.message || "Import validation failed"
                 message.error(reason)
@@ -80,7 +85,7 @@ export function useTabularImport({ label, config, submit, onCommitted }: UseTabu
         setImporting(true)
         const hide = message.loading(`Importing ${label}...`, 0)
         try {
-            const response = await submit(selectedFile, false)
+            const response = await submit(selectedFile, false, activeVariantKey ?? undefined)
             const data = response.data ?? emptyImportResult(response.message || "Import failed")
             if (!data.committed || data.failed > 0 || data.global_errors.length > 0) {
                 setResult(data)
@@ -100,8 +105,14 @@ export function useTabularImport({ label, config, submit, onCommitted }: UseTabu
 
     return {
         importing,
-        triggerImport: () => inputRef.current?.click(),
-        showInstructions: () => setInstructionsOpen(true),
+        triggerImport: (variantKey?: string) => {
+            setActiveVariantKey(variantKey ?? null)
+            inputRef.current?.click()
+        },
+        showInstructions: (variantKey?: string) => {
+            setActiveVariantKey(variantKey ?? null)
+            setInstructionsOpen(true)
+        },
         controls: (
             <>
                 <ESInput
@@ -121,9 +132,12 @@ export function useTabularImport({ label, config, submit, onCommitted }: UseTabu
                     confirming={importing}
                 />
                 <ImportInstructionsDrawer
-                    config={config}
+                    config={activeConfig}
                     open={instructionsOpen}
-                    onClose={() => setInstructionsOpen(false)}
+                    onClose={() => {
+                        setInstructionsOpen(false)
+                        setActiveVariantKey(null)
+                    }}
                 />
             </>
         ),

@@ -361,6 +361,10 @@ export function AnnotationsPage() {
                 importConfig={{
                     endpoint: "/v1/annotations/imports",
                     resourceKey: "annotations",
+                    variants: [
+                        { key: "audio", label: "Audio Annotations", resourceKey: "audioAnnotations", fields: { media_type: "audio" } },
+                        { key: "photo", label: "Photo Annotations", resourceKey: "photoAnnotations", fields: { media_type: "photo" } },
+                    ],
                     importOnly: true,
                     fields: { project_id: currentProjectId, collection_id: currentCollectionId },
                     disabled: !canWriteAnnotation || !currentProjectId || !currentCollectionId || currentCollectionId === "all",

@@ -18,7 +18,7 @@ from app.csv_import import (
     read_cell,
     resolve_header_positions,
 )
-from app.models import Annotation, MediaCollection, Project, ProjectCollection, User
+from app.models import Annotation, Media, MediaCollection, Project, ProjectCollection, User
 from app.schemas.annotation import AnnotationCreate
 from app.schemas.collection import CollectionCreate
 from app.schemas.index_log import IndexLogCreateRequest
@@ -78,6 +78,25 @@ def _annotation_media_id(session: Session, annotation_id: int) -> int:
     if media_id is None:
         raise HTTPException(status_code=422, detail="Annotation not found")
     return media_id
+
+
+def _require_annotation_media_type(
+    session: Session,
+    media_id: int,
+    expected_media_type: Literal["audio", "photo"] | None,
+) -> None:
+    if expected_media_type is None:
+        return
+    media = session.get(Media, media_id)
+    if media is None or media.media_type != expected_media_type:
+        actual = media.media_type if media is not None else "unknown"
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"Media {media_id} is {actual}, but this import requires "
+                f"{expected_media_type} media"
+            ),
+        )
 
 
 def _parse_json_cell(value: str | None, field: str) -> dict[str, Any]:
@@ -347,6 +366,7 @@ def import_annotations(
     collection_id: int,
     *,
     dry_run: bool,
+    expected_media_type: Literal["audio", "photo"] | None = None,
 ) -> ImportResult:
     report, rows = _parse_models(text, AnnotationCreate, injected={"project_id": project_id})
     return _execute(
@@ -357,6 +377,7 @@ def import_annotations(
             _require_media_scope(
                 session, item.media_id, project_id, collection_id
             ),
+            _require_annotation_media_type(session, item.media_id, expected_media_type),
             annotation_service.create_annotation(session, user, item, commit=False),
         ),
         dry_run=dry_run,
@@ -371,6 +392,7 @@ def import_annotations(
         ),
         preflight=lambda item: (
             _require_media_scope(session, item.media_id, project_id, collection_id),
+            _require_annotation_media_type(session, item.media_id, expected_media_type),
             annotation_service.validate_annotation_create(session, user, item),
         ),
     )

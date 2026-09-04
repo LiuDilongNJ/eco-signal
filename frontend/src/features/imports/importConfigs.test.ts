@@ -49,6 +49,21 @@ describe("import resource templates", () => {
         expect(IMPORT_RESOURCE_CONFIGS.photoMetadata.template).toContain("exposure_ms")
     })
 
+    it("provides separate, media-specific annotation templates", () => {
+        const audio = IMPORT_RESOURCE_CONFIGS.audioAnnotations
+        const photo = IMPORT_RESOURCE_CONFIGS.photoAnnotations
+
+        expect(audio.templateFileName).toBe("audio_annotations_template.csv")
+        expect(audio.fields.map((field) => field.name)).toContain("sound_id")
+        expect(audio.fields.map((field) => field.name)).not.toContain("object_type")
+        expect(audio.fields.find((field) => field.name === "min_x")?.description).toContain("seconds")
+
+        expect(photo.templateFileName).toBe("photo_annotations_template.csv")
+        expect(photo.fields.map((field) => field.name)).toContain("object_type")
+        expect(photo.fields.map((field) => field.name)).not.toContain("sound_id")
+        expect(photo.fields.find((field) => field.name === "min_x")?.description).toContain("pixels")
+    })
+
     it("excludes scoped and generated fields while retaining the user password input", () => {
         const forbidden = ["project_id", "collection_id", "media_type", "uuid", "creation_date", "creator_id", "reviewer_id", "assigner_id"]
         Object.values(IMPORT_RESOURCE_CONFIGS).forEach((config) => {

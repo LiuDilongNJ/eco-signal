@@ -280,6 +280,14 @@ export interface TabularImportConfig {
     importLabel?: string
     instructionsLabel?: string
     addLabel?: string
+    variants?: TabularImportVariant[]
+}
+
+export interface TabularImportVariant {
+    key: string
+    label: string
+    resourceKey: ImportResourceKey
+    fields?: Record<string, string | number | boolean | null | undefined>
 }
 
 export interface TableState {
@@ -707,9 +715,11 @@ export function DataPageLayout({
     const tabularImport = useTabularImport({
         label: importConfig ? IMPORT_RESOURCE_CONFIGS[importConfig.resourceKey].subject : "data",
         config: importConfig ? IMPORT_RESOURCE_CONFIGS[importConfig.resourceKey] : IMPORT_RESOURCE_CONFIGS.projects,
-        submit: (file, dryRun) => {
+        variants: importConfig?.variants,
+        submit: (file, dryRun, variant) => {
             if (!importConfig) return Promise.reject(new Error("Import is not configured"))
-            return submitTabularImport(importConfig.endpoint, file, dryRun, importConfig.fields)
+            const variantFields = importConfig.variants?.find((item) => item.key === variant)?.fields
+            return submitTabularImport(importConfig.endpoint, file, dryRun, { ...importConfig.fields, ...variantFields })
         },
         onCommitted: () => setImportRefreshToken((value) => value + 1),
     })
@@ -1340,20 +1350,46 @@ export function DataPageLayout({
         })
     }
     if (importConfig) {
-        mergedAddDropdownItems.push({
-            key: "__import_data",
-            label: importConfig.importLabel ?? "Import Data",
-            icon: <FileUp size={14} />,
-            disabled: importConfig.disabled || tabularImport.importing,
-            title: importConfig.disabled ? importConfig.disabledReason : undefined,
-            onClick: tabularImport.triggerImport,
-        })
-        mergedAddDropdownItems.push({
-            key: "__import_instructions",
-            label: importConfig.instructionsLabel ?? "Import Instructions",
-            icon: <Info size={14} />,
-            onClick: tabularImport.showInstructions,
-        })
+        if (importConfig.variants?.length) {
+            importConfig.variants.forEach((variant) => {
+                mergedAddDropdownItems.push({
+                    key: `__import_group_${variant.key}`,
+                    type: "group",
+                    label: variant.label,
+                    children: [
+                        {
+                            key: `__import_${variant.key}`,
+                            label: "Import Data",
+                            icon: <FileUp size={14} />,
+                            disabled: importConfig.disabled || tabularImport.importing,
+                            title: importConfig.disabled ? importConfig.disabledReason : undefined,
+                            onClick: () => tabularImport.triggerImport(variant.key),
+                        },
+                        {
+                            key: `__import_instructions_${variant.key}`,
+                            label: "Import Instructions",
+                            icon: <Info size={14} />,
+                            onClick: () => tabularImport.showInstructions(variant.key),
+                        },
+                    ],
+                })
+            })
+        } else {
+            mergedAddDropdownItems.push({
+                key: "__import_data",
+                label: importConfig.importLabel ?? "Import Data",
+                icon: <FileUp size={14} />,
+                disabled: importConfig.disabled || tabularImport.importing,
+                title: importConfig.disabled ? importConfig.disabledReason : undefined,
+                onClick: tabularImport.triggerImport,
+            })
+            mergedAddDropdownItems.push({
+                key: "__import_instructions",
+                label: importConfig.instructionsLabel ?? "Import Instructions",
+                icon: <Info size={14} />,
+                onClick: tabularImport.showInstructions,
+            })
+        }
     }
     const useAddDropdown = Boolean(importConfig || addDropdownItems)
     const importOnly = importConfig?.importOnly === true
