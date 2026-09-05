@@ -4,7 +4,7 @@ import { Button, Switch, message, ConfigProvider, Tooltip, Space } from "@/compo
 import { LoadingState } from "@/components/ui"
 import { FormDrawer } from "@/components/ui"
 
-import { X, Mic, MapPin, Scan, ClipboardCheck, Check, ChevronDown, ChevronRight } from "lucide-react"
+import { X, Mic, MapPin, ScanLine, ClipboardCheck, Check, ChevronDown, ChevronRight } from "lucide-react"
 import { useAppStore } from "@/store/useAppStore"
 import { useAntdBrandConfig } from "../../hooks/useAntdBrandConfig"
 import { permissionsApi } from "../../../../api/endpoints/permissions"
@@ -23,7 +23,7 @@ interface UserPermissionDrawerProps {
 const MODULE_ICONS = [
     { key: "audio", icon: Mic, label: "Audio" },
     { key: "site", icon: MapPin, label: "Site" },
-    { key: "annotation", icon: Scan, label: "Annotation" },
+    { key: "annotation", icon: ScanLine, label: "Annotation" },
     { key: "review", icon: ClipboardCheck, label: "Review" },
 ]
 
