@@ -442,6 +442,14 @@
   box-shadow: var(--card-shadow);
 }
 
+/* Keep the map overview action aligned with the timeline control. */
+.map-show-all-btn {
+  position: absolute;
+  top: 20px;
+  right: 24px;
+  z-index: 1000;
+}
+
 .map-loading-state {
   background: var(--bg-surface);
 }

@@ -22,6 +22,7 @@ import {
     ChevronsLeft,
     ChevronDown,
     RotateCcw,
+    Maximize,
     Maximize2,
     Minimize2,
     Droplets,
@@ -81,6 +82,8 @@ const MAP_FIT_ALL_MAX_ZOOM = 15
 const MAP_FIT_SINGLE_SITE_ZOOM = 10
 /** 无有效围栏时 flyTo 中心至少达到的 zoom */
 const MAP_SITE_NO_FENCE_MIN_ZOOM = 10
+/** 选中站点时，为右侧详情面板预留的最大水平安全偏移（像素）。 */
+const MAP_SELECTION_PANEL_GAP_PX = 20
 /** 到这个缩放级别后不再聚合，直接拆开站点（过低会导致近距离点“叠在一起”） */
 const MAP_DISABLE_CLUSTERING_ZOOM = 16
 /** 放大到该级别后显示站点区域 */
@@ -330,9 +333,19 @@ type MarkerWithSite = L.Marker & { __site?: Site }
 /** 点击单个站点标点（无更下层聚合）时，将视图移到该站点围栏，并返回目标缩放级别 */
 function fitMapToSiteFence(map: L.Map, site: Site): number {
     const targetZoom = Math.max(map.getZoom(), MAP_SITE_NO_FENCE_MIN_ZOOM)
-    map.flyTo(site.center, targetZoom, {
-        duration: 0.75,
+    // 详情侧栏覆盖在地图上方，飞到中心后再向左平移，避免选中点落在侧栏下面。
+    map.once("moveend", () => {
+        const panel = document.querySelector<HTMLElement>(".site-sidebar-panel.visible")
+        if (!panel) return
+        const mapWidth = map.getSize().x
+        const panelWidth = panel.getBoundingClientRect().width
+        const offset = Math.min(
+            mapWidth * 0.25,
+            panelWidth / 2 + MAP_SELECTION_PANEL_GAP_PX,
+        )
+        if (offset > 0) map.panBy([-offset, 0], { duration: 0.25 })
     })
+    map.flyTo(site.center, targetZoom, { duration: 0.75 })
     return targetZoom
 }
 
@@ -594,6 +607,24 @@ function boundsSpanTooWide(bounds: L.LatLngBounds): boolean {
     return latSpan > MAP_FIT_MAX_LAT_SPAN || lngSpan > MAP_FIT_MAX_LNG_SPAN
 }
 
+/** 将地图视野恢复到当前筛选结果中的全部站点。 */
+function fitMapToAllSites(map: L.Map, sites: Site[]): void {
+    if (sites.length === 0) return
+
+    const bounds = L.latLngBounds(sites.map((site) => site.center))
+    if (sites.length === 1) {
+        map.flyTo(bounds.getCenter(), MAP_FIT_SINGLE_SITE_ZOOM, { duration: 0.8 })
+        return
+    }
+
+    map.fitBounds(bounds, {
+        padding: [50, 50],
+        maxZoom: MAP_FIT_ALL_MAX_ZOOM,
+        animate: true,
+        duration: 0.8,
+    })
+}
+
 // ----- 自动 FitBounds 组件（会覆盖 MapContainer 的初始 zoom，故多站点逻辑需在此体现） -----
 function FitBoundsHelper({
     sites,
@@ -627,24 +658,39 @@ function FitBoundsHelper({
         if (identity === prevIdentityRef.current) return
         prevIdentityRef.current = identity
 
-        const bounds = L.latLngBounds(sites.map((s) => s.center))
-
-        if (sites.length === 1) {
-            map.flyTo(bounds.getCenter(), MAP_FIT_SINGLE_SITE_ZOOM, { duration: 0.8 })
-            return
-        }
-
-        // Always fitBounds to show all sites
-        map.fitBounds(bounds, {
-            padding: [50, 50],
-            maxZoom: MAP_FIT_ALL_MAX_ZOOM,
-            animate: true,
-            duration: 0.8,
-        })
+        fitMapToAllSites(map, sites)
     }, [sites, map, apiCenter, projectKey])
 
     return null
 }
+
+function MapShowAllButton({
+    sites,
+    onResetSelection,
+}: {
+    sites: Site[]
+    onResetSelection: () => void
+}) {
+    const map = useMap()
+
+    return (
+        <ESButton
+            appearance="unstyled"
+            type="button"
+            className="timeline-show-all-btn map-show-all-btn"
+            title="Fit the map to all visible sites"
+            aria-label="Show all sites"
+            onClick={() => {
+                onResetSelection()
+                fitMapToAllSites(map, sites)
+            }}
+        >
+            <Maximize size={14} />
+            Show All
+        </ESButton>
+    )
+}
+
 
 // ----- MapTab 主组件 -----
 const EMPTY_FILTERS: FilterState = {
@@ -1222,6 +1268,14 @@ export function MapTab() {
                             url={cartoTileUrl("light_all")}
                             attribution={CARTO_ATTRIBUTION}
                         />
+                        {!selectedSite && <MapShowAllButton
+                            sites={filteredSites}
+                            onResetSelection={() => {
+                                setSelectedSite(null)
+                                setSelectionZoom(null)
+                                lastMapSelectionTimeRef.current = Date.now()
+                            }}
+                        />}
                         <FitBoundsHelper
                             sites={filteredSites}
                             apiCenter={mapCenterFromApi}
@@ -1251,7 +1305,6 @@ export function MapTab() {
                     <LoadingState label="Loading map..." variant="page" size="lg" className="map-loading-state" />
                 )}
             </div>
-
             {/* 站点侧边栏 */}
             {(selectedSite || lastSelectedSite) && (
                 <SiteSidebar
