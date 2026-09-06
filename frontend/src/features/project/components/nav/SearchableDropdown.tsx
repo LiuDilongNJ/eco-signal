@@ -24,7 +24,7 @@ interface SearchableDropdownProps {
     onSearch: (query: string) => void
     searchQuery: string
     label: string
-    /** 搜索框上方的角色说明（如 Administrator / Project manage），与逐条 MANAGE 标签互斥展示 */
+    /** 搜索框上方的角色说明（如 Administrator / Project manager），与逐条 MANAGER 标签互斥展示 */
     roleBanner?: string | null
     disabled?: boolean
     /** 仅禁用交互，不展示 disabled 外观（不加 .disabled wrapper class） */

@@ -524,7 +524,7 @@ export function UserPermissionDrawer({ open, userId, userIds, onClose, onSuccess
                                         const isFullAdmin = project.stored_permissions.includes("project:write");
                                         const projectChecked = projectHasStoredAccess(project);
                                         const isProjectExpanded = expandedProjects.includes(project.project_id);
-                                        const role = isFullAdmin ? 'Manage' : (projectChecked ? 'User' : null);
+                                        const role = isFullAdmin ? 'Manager' : (projectChecked ? 'User' : null);
                                         const canEditProject = project.can_manage_project && !config.is_admin;
                                         const canExpandProject = projectChecked && !isFullAdmin;
                                         return (
@@ -565,7 +565,7 @@ export function UserPermissionDrawer({ open, userId, userIds, onClose, onSuccess
                                                     <div className="upd-role-container">
                                                         {role && (
                                                             <span
-                                                                className={`upd-badge ${role === "Manage" ? "upd-badge--manager" : "upd-badge--user"}`}
+                                                                className={`upd-badge ${role === "Manager" ? "upd-badge--manager" : "upd-badge--user"}`}
                                                                 role="button"
                                                                 tabIndex={canEditProject ? 0 : -1}
                                                                 onClick={(e) => {
@@ -595,7 +595,7 @@ export function UserPermissionDrawer({ open, userId, userIds, onClose, onSuccess
                                                         MODULE_KEYS.filter(resource => isInheritedIcon(project, col, resource))
                                                     );
                                                     const isUnlocked = collectionHasStoredAccess(col);
-                                                    const colRole = isColFullAdmin ? 'Manage' : (isUnlocked ? 'User' : null);
+                                                    const colRole = isColFullAdmin ? 'Manager' : (isUnlocked ? 'User' : null);
                                                     const canEditCollection = project.can_manage_project && !config.is_admin;
                                                     return (
                                                         <div key={col.collection_id} className="upd-row  upd-collection-row">
@@ -616,7 +616,7 @@ export function UserPermissionDrawer({ open, userId, userIds, onClose, onSuccess
                                                             <div className="upd-role-container">
                                                                 {colRole && (
                                                                     <span
-                                                                        className={`upd-badge ${colRole === "Manage" ? "upd-badge--manager" : "upd-badge--user"}`}
+                                                                        className={`upd-badge ${colRole === "Manager" ? "upd-badge--manager" : "upd-badge--user"}`}
                                                                         role="button"
                                                                         tabIndex={canEditCollection ? 0 : -1}
                                                                         onClick={(e) => {

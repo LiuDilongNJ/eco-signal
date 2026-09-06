@@ -130,20 +130,20 @@ export function ProjectNavBar() {
     const collectionRoleBanner = meIsAdmin
         ? "Administrator"
         : isProjectManagerContext
-          ? "Project manage"
+          ? "Project manager"
           : null
 
     const projectItems = filteredProjects().map((p: any) => ({
         id: p.id,
         label: p.name,
-        tag: !suppressProjectRowTags && p.can_manage ? "MANAGE" : undefined,
+        tag: !suppressProjectRowTags && p.can_manage ? "MANAGER" : undefined,
     }))
     const collectionItems = filteredCollections()
         .filter((c: any) => !(isMediaDetailRoute && c.id === ""))
         .map((c: any) => ({
             id: c.id,
             label: c.name,
-            tag: !suppressCollectionRowTags && c.can_manage ? "MANAGE" : undefined,
+            tag: !suppressCollectionRowTags && c.can_manage ? "MANAGER" : undefined,
         }))
     
     const hasCollections = collectionOptions.length > 1
