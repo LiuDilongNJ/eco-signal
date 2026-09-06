@@ -2,7 +2,7 @@
  * TasksPage - Tasks 数据页面
  */
 
-import { useState, useCallback } from "react"
+import { useState, useCallback, useEffect } from "react"
 import { DataPageLayout } from "../DataPageLayout"
 import type { ColumnDef, FormFieldDef, RowData, TableState } from "../DataPageLayout"
 import { message } from "@/components/ui"
@@ -13,6 +13,7 @@ import { ListChecks } from "lucide-react"
 import { downloadFile } from "@/utils/download"
 import { useTableFetchScheduler } from "@/hooks/useTableFetchScheduler"
 import { rowCan } from "../rowCapabilities"
+import { subscribeTasksChanged } from "../../../data/taskEvents"
 
 const COLUMNS: ColumnDef[] = [
     { key: "task_id", label: "ID", type: "number", width: "220px", sortable: true, filterable: true },
@@ -43,6 +44,15 @@ const COLUMNS: ColumnDef[] = [
 ]
 
 const FORM_FIELDS: FormFieldDef[] = []
+
+const DEFAULT_TASK_TABLE_STATE: TableState = {
+    page: 1,
+    pageSize: 10,
+    searchQuery: "",
+    filters: {},
+    sortKey: "task_id",
+    sortDir: "asc",
+}
 
 function isAnnotationTaskRow(row: RowData): boolean {
     const raw = String(row.type_raw ?? row.type ?? "").trim().toLowerCase()
@@ -84,7 +94,7 @@ export function TasksPage() {
     const [rows, setRows] = useState<RowData[]>([])
     const [totalRows, setTotalRows] = useState(0)
     const [loading, setLoading] = useState(true)
-    const [tableState, setTableState] = useState<TableState | null>(null)
+    const [tableState, setTableState] = useState<TableState>(DEFAULT_TASK_TABLE_STATE)
 
     const currentProjectId = useProjectStore(s => s.currentProjectId)
     const currentCollectionId = useProjectStore(s => s.currentCollectionId)
@@ -144,6 +154,15 @@ export function TasksPage() {
         setTableState(state)
         scheduleTableFetch(state)
     }, [scheduleTableFetch])
+
+    useEffect(() => {
+        const handleTasksChanged = ({ projectId: changedProjectId }: { projectId?: number }) => {
+            if (changedProjectId != null && Number(currentProjectId) !== changedProjectId) return
+            scheduleTableFetch(tableState)
+        }
+
+        return subscribeTasksChanged(handleTasksChanged)
+    }, [currentProjectId, scheduleTableFetch, tableState])
 
     const handleExport = useCallback(async () => {
         if (!currentProjectId) {

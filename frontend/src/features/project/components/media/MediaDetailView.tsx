@@ -82,6 +82,7 @@ import {
     type UpdateAnnotationPayload,
 } from "../../../../api/endpoints/annotations"
 import { tasksApi, type AssignableUserPublic } from "../../../../api/endpoints/tasks"
+import { dispatchTasksChanged } from "../../data/taskEvents"
 import {
     reviewsApi,
     type AnnotationReviewRead,
@@ -2239,6 +2240,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                 })),
             })
             message.success("Tasks assigned.")
+            dispatchTasksChanged(currentProjectId)
             closeAssignTaskPanel()
             setAnnotationListTick((n) => n + 1)
         } catch (e: unknown) {

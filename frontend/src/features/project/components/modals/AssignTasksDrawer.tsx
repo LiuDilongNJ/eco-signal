@@ -9,6 +9,7 @@ import { useAppStore } from "@/store/useAppStore"
 import { useAntdBrandConfig } from "../../hooks/useAntdBrandConfig"
 import { tasksApi } from "../../../../api/endpoints/tasks"
 import { isSuccessfulDrawerResponse } from "./utils/isSuccessfulDrawerResponse"
+import { dispatchTasksChanged } from "../../data/taskEvents"
 import "./styles/AssignTasksDrawer.css"
 
 const { Title } = Typography
@@ -177,10 +178,12 @@ export function AssignTasksDrawer({ open, mediaId, mediaIds, projectId, annotati
                         ? `Tasks assigned for ${succeededMediaIds.length} items, skipped ${skippedMediaIds.length}`
                         : `Tasks assigned for ${succeededMediaIds.length} items`
                 message.success(successMessage)
+                dispatchTasksChanged(projectId)
                 onSuccess?.()
                 onClose()
             } else {
                 if (succeededMediaIds.length > 0) {
+                    dispatchTasksChanged(projectId)
                     onSuccess?.()
                 }
                 message.warning(
