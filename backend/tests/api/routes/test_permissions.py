@@ -375,6 +375,37 @@ class TestSyncUserPermissionsGlobal:
         db.refresh(user)
         assert user.role_id == 2  # Normal user role
 
+    def test_sync_admin_revoke_admin_role_when_role_code_is_none(
+        self, client: TestClient, superuser_token_headers: dict[str, str], db: Session
+    ) -> None:
+        """Admin can revoke admin role even if user role code is temporarily None."""
+        user = _create_user(db)
+        user.role_id = 1
+        db.add(user)
+        # Clear code on normal user role to simulate unmigrated/partially populated role
+        normal_role = db.get(Role, 2)
+        assert normal_role is not None
+        original_code = normal_role.code
+        normal_role.code = None
+        db.add(normal_role)
+        db.commit()
+
+        try:
+            r = client.put(
+                f"{settings.API_V1_STR}/users/{user.user_id}/permissions",
+                headers=superuser_token_headers,
+                json={"is_admin": False, "projects": []},
+            )
+            assert r.status_code == 200
+            db.refresh(user)
+            assert user.role_id == 2
+            db.refresh(normal_role)
+            assert normal_role.code == "user"
+        finally:
+            normal_role.code = original_code
+            db.add(normal_role)
+            db.commit()
+
     def test_sync_admin_cannot_revoke_own_admin_role(
         self, client: TestClient, superuser_token_headers: dict[str, str], db: Session
     ) -> None:

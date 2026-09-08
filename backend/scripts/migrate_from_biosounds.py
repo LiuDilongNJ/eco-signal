@@ -3328,6 +3328,18 @@ def ensure_access_roles(pg_conn) -> None:
     )
     pg_exec(
         pg_conn,
+        """
+        UPDATE role
+        SET code = CASE
+            WHEN name = 'Administrator' THEN 'administrator'
+            WHEN name = 'User' THEN 'user'
+            ELSE 'system-' || role_id::text
+        END
+        WHERE code IS NULL
+        """,
+    )
+    pg_exec(
+        pg_conn,
         "SELECT setval('role_role_id_seq', (SELECT MAX(role_id) FROM role))",
     )
     pg_exec(

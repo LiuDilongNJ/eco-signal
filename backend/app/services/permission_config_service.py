@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from fastapi import HTTPException
 from sqlmodel import Session, select
 
+from app.core.config import settings
 from app.models.collection import Collection
 from app.models.effective_permission import UserEffectivePermission
 from app.models.permission import (
@@ -402,6 +403,12 @@ def _apply_admin_toggle(
 
     role_code = "administrator" if request.is_admin else "user"
     role = role_repository.get_by_code(session, role_code)
+    if role is None:
+        role_name = settings.ADMIN_ROLE_NAME if request.is_admin else "User"
+        role = role_repository.get_by_name(session, role_name)
+        if role is not None and not role.code:
+            role.code = role_code
+            session.add(role)
     if role is None:
         raise RuntimeError(f"Required system role is not configured: {role_code}")
     target_user.role_id = role.role_id
