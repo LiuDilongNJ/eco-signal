@@ -446,7 +446,7 @@ class SiteRepository(BaseRepository[Site, SiteCreate, SiteUpdate]):
             iho_name = db_obj.iho
 
         # Update scalar fields; skip iho_id (virtual) and lon/lat (always managed by _sync_cached_coordinates)
-        _geo_computed = {"iho_id", "longitude", "latitude"}
+        _geo_computed = {"iho_id", "longitude", "latitude", "location_method"}
         for key, value in update_data.items():
             if key in _geo_computed:
                 continue

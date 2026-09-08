@@ -79,6 +79,7 @@ function hasPartialCoordinatePair(values: Record<string, unknown>): boolean {
 }
 
 const SITE_LOCATION_DEPENDENCIES = [
+    "location_method",
     "latitude",
     "longitude",
     "gadm0_gid",
@@ -88,6 +89,8 @@ const SITE_LOCATION_DEPENDENCIES = [
 ] as const
 
 const LOCATION_REQUIRED_FIELD_KEYS = new Set(["latitude", "longitude", "gadm0_gid", "iho_id"])
+const LOCATION_METHOD_COORDINATES = "coordinates"
+const LOCATION_METHOD_ADMINISTRATIVE = "administrative"
 
 const TOPOGRAPHY_MIN_METERS = -10900
 const TOPOGRAPHY_MAX_METERS = 8849
@@ -171,6 +174,7 @@ export function SiteFormDrawer({
     const gadm1FieldVal = Form.useWatch("gadm1_gid", form)
     const latitudeWatch = Form.useWatch("latitude", form)
     const longitudeWatch = Form.useWatch("longitude", form)
+    const locationMethodWatch = Form.useWatch("location_method", form)
     const realmIdWatch = Form.useWatch("realm_id", form)
     const biomeIdWatch = Form.useWatch("biome_id", form)
     const gadm0ParentGid = gadmWatchToGid(gadm0FieldVal)
@@ -202,6 +206,8 @@ export function SiteFormDrawer({
     )
     const { options: biomeOptions, loading: biomeLoading } = biomeState
     const { options: functionalTypeOptions, loading: functionalTypeLoading } = functionalTypeState
+
+    const coordinateMode = locationMethodWatch !== LOCATION_METHOD_ADMINISTRATIVE
 
     const hasRealm = realmIdWatch != null && realmIdWatch !== "" && !Number.isNaN(Number(realmIdWatch))
     const hasBiome = biomeIdWatch != null && biomeIdWatch !== "" && !Number.isNaN(Number(biomeIdWatch))
@@ -299,6 +305,36 @@ export function SiteFormDrawer({
         }
     }, [open, mode, initialData])
 
+    // Existing records predate the explicit mode. Infer it from their stored data;
+    // new records default to precise coordinates as the least ambiguous option.
+    useEffect(() => {
+        if (!open) return
+        const initialMethod = mode === "add"
+            ? LOCATION_METHOD_COORDINATES
+            : initialData && hasCoordinatePair(initialData)
+                ? LOCATION_METHOD_COORDINATES
+                : LOCATION_METHOD_ADMINISTRATIVE
+        if (mode === "add" || initialData) {
+            form.setFieldsValue({ location_method: initialData?.location_method ?? initialMethod })
+        }
+    }, [form, initialData, mode, open])
+
+    useEffect(() => {
+        if (!open || !locationMethodWatch) return
+        if (locationMethodWatch === LOCATION_METHOD_ADMINISTRATIVE) {
+            form.setFieldsValue({ latitude: undefined, longitude: undefined })
+            coordinateLookupVersionRef.current += 1
+            locationFieldSourceRef.current = {
+                gadm0_gid: "manual", gadm1_gid: "manual", gadm2_gid: "manual", iho_id: "manual",
+            }
+        } else {
+            form.setFieldsValue({
+                latitude: form.getFieldValue("latitude"),
+                longitude: form.getFieldValue("longitude"),
+            })
+        }
+    }, [form, locationMethodWatch, open])
+
     useEffect(() => {
         const longitude = Number(longitudeWatch)
         const latitude = Number(latitudeWatch)
@@ -324,7 +360,7 @@ export function SiteFormDrawer({
                     key: "gadm0_gid" | "gadm1_gid" | "gadm2_gid",
                     option: { gid: string; name: string } | null,
                 ) => {
-                    if (!option || locationFieldSourceRef.current[key] === "manual") return
+                    if (!option || locationMethodWatch !== LOCATION_METHOD_COORDINATES) return
                     updates[key] = { value: option.gid, label: option.name }
                     locationFieldSourceRef.current[key] = "auto"
                 }
@@ -370,6 +406,7 @@ export function SiteFormDrawer({
         gadm1State.setCurrentOption,
         gadm2State.setCurrentOption,
         ihoState.setCurrentOption,
+        locationMethodWatch,
     ])
 
     // Edit: full hydrate only when parent gives a new `initialData` object; when only geo lists load, patch GADM labels only.
@@ -513,11 +550,15 @@ export function SiteFormDrawer({
         return {
             validator: async () => {
                 const values = form.getFieldsValue(["latitude", "longitude", "gadm0_gid", "iho_id"])
+                const method = form.getFieldValue("location_method")
                 const hasCoords = hasCoordinatePair(values)
                 const hasGadm0 = gadmWatchToGid(values.gadm0_gid) != null
                 const hasIho = hasRequiredFieldValue(values.iho_id)
-                if (hasCoords || hasGadm0 || hasIho) return
-                throw new Error("Please enter Latitude and Longitude, or select GADM0, or select IHO")
+                if (method === LOCATION_METHOD_COORDINATES && hasCoords) return
+                if (method === LOCATION_METHOD_ADMINISTRATIVE && (hasGadm0 || hasIho)) return
+                throw new Error(method === LOCATION_METHOD_ADMINISTRATIVE
+                    ? "Please select GADM0 or IHO"
+                    : "Please enter Latitude and Longitude")
             },
         }
     }, [form])
@@ -599,7 +640,9 @@ export function SiteFormDrawer({
             ? [{ required: true, message: `Please enter ${field.label}` }]
             : []
 
-        if (field.key === "latitude") {
+        if (field.key === "location_method") {
+            rules.push({ required: true, message: "Please select a geographic data entry mode" })
+        } else if (field.key === "latitude") {
             rules.push(latitudePairRule)
             rules.push(latitudeRangeRule)
             rules.push(locationChoiceRule)
@@ -635,7 +678,22 @@ export function SiteFormDrawer({
 
         if (field.type === "number") {
             // Range rules show an explicit validation error instead of silently correcting the value.
-            innerElement = <InputNumber {...numberFieldProps} />
+            innerElement = <InputNumber {...numberFieldProps} disabled={(field.key === "latitude" || field.key === "longitude") && !coordinateMode} />
+        } else if (field.key === "location_method") {
+            innerElement = (
+                <Select
+                    className="form-drawer-select"
+                    options={[
+                        { value: LOCATION_METHOD_COORDINATES, label: "Precise XY geolocation" },
+                        { value: LOCATION_METHOD_ADMINISTRATIVE, label: "Broad administrative location" },
+                    ]}
+                    onChange={(value) => {
+                        form.setFieldsValue(value === LOCATION_METHOD_ADMINISTRATIVE
+                            ? { latitude: undefined, longitude: undefined }
+                            : {})
+                    }}
+                />
+            )
         } else if (field.key === "gadm0_gid") {
             innerElement = (
                 <Select
@@ -645,6 +703,7 @@ export function SiteFormDrawer({
                     options={gadm0SelectOpts}
                     loading={gadm0Loading}
                     allowClear
+                    disabled={coordinateMode}
                     showSearch
                     filterOption={false}
                     onSearch={gadm0State.search}
@@ -674,7 +733,7 @@ export function SiteFormDrawer({
                     labelInValue
                     options={gadm1SelectOpts}
                     loading={gadm1Loading}
-                    disabled={!gadm0ParentGid}
+                    disabled={coordinateMode || !gadm0ParentGid}
                     allowClear
                     showSearch
                     filterOption={false}
@@ -704,7 +763,7 @@ export function SiteFormDrawer({
                     labelInValue
                     options={gadm2SelectOpts}
                     loading={gadm2Loading}
-                    disabled={!gadm1ParentGid}
+                    disabled={coordinateMode || !gadm1ParentGid}
                     allowClear
                     showSearch
                     filterOption={false}
@@ -883,9 +942,10 @@ export function SiteFormDrawer({
 
     const coordKeys = new Set(["latitude", "longitude"])
     const nameFields = fields.filter(f => f.key === "name")
+    const locationMethodFields = fields.filter(f => f.key === "location_method")
     const coordFieldsOrdered = fields.filter(f => coordKeys.has(f.key))
-    const remainingFields = fields.filter(f => f.key !== "name" && !coordKeys.has(f.key))
-    const orderedFields = [...nameFields, ...coordFieldsOrdered, ...remainingFields]
+    const remainingFields = fields.filter(f => f.key !== "name" && f.key !== "location_method" && !coordKeys.has(f.key))
+    const orderedFields = [...nameFields, ...locationMethodFields, ...coordFieldsOrdered, ...remainingFields]
 
     return (
         <ConfigProvider theme={drawerTheme}>

@@ -1470,6 +1470,7 @@ export function DataPageLayout({
                                                 items={mergedAddDropdownItems}
                                                 trigger={['click']}
                                                 placement="bottomLeft"
+                                                transitionName=""
                                                 disabled={addBlocked}
                                                 overlayClassName="data-add-dropdown"
                                             >

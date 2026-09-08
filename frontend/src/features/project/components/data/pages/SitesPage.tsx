@@ -38,6 +38,15 @@ const COLUMNS: ColumnDef[] = [
 
 const FORM_FIELDS: FormFieldDef[] = [
     { key: "name", label: "Name", type: "text", required: true },
+    {
+        key: "location_method",
+        label: "Geographic data entry mode",
+        type: "select",
+        options: [
+            { value: "coordinates", label: "Precise XY geolocation" },
+            { value: "administrative", label: "Broad administrative location" },
+        ],
+    },
     { key: "latitude", label: "Latitude", type: "number" },
     { key: "longitude", label: "Longitude", type: "number" },
     { key: "topography_m", label: "Topography (m)", type: "number" },
@@ -250,10 +259,14 @@ export function SitesPage() {
                 return pickStr(v)
             }
 
+            const locationMethod = data.location_method === "administrative" ? "administrative" : "coordinates"
+            const coordinateMode = locationMethod === "coordinates"
+
             const core: SiteUpdatePayload = {
                 name: String(data.name ?? "").trim(),
-                longitude: pickNum(data.longitude),
-                latitude: pickNum(data.latitude),
+                location_method: locationMethod,
+                longitude: coordinateMode ? pickNum(data.longitude) : undefined,
+                latitude: coordinateMode ? pickNum(data.latitude) : undefined,
                 topography_m: pickNum(data.topography_m),
                 freshwater_depth_m: pickNum(data.freshwater_depth_m),
                 realm_id: pickNum(data.realm_id),

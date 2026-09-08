@@ -5,6 +5,7 @@ import type { GetMediaParams } from "./media"
 /** POST /v1/sites — matches backend SiteCreate */
 export interface SiteCreatePayload {
     name: string
+    location_method?: "coordinates" | "administrative"
     longitude?: number | null
     latitude?: number | null
     topography_m?: number | null
