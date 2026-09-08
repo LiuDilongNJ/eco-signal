@@ -442,6 +442,11 @@
   box-shadow: var(--card-shadow);
 }
 
+/* Keep Leaflet's loading surface aligned with the app while tiles are fetched. */
+.map-container-wrapper .leaflet-container {
+  background: var(--bg-surface);
+}
+
 /* Keep the map overview action aligned with the timeline control. */
 .map-show-all-btn {
   position: absolute;

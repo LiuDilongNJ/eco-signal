@@ -1259,14 +1259,20 @@ export function MapTab() {
                         center={mapCenter}
                         zoom={MAP_INITIAL_ZOOM}
                         zoomControl={false}
-                        zoomAnimation={false}
-                        markerZoomAnimation={false}
-                        fadeAnimation={false}
+                        // Keep the current tile level visible while the next level loads.
+                        // Updating tiles only after zoom settles prevents the white gaps
+                        // caused by replacing the basemap during every zoom frame.
+                        zoomAnimation={true}
+                        markerZoomAnimation={true}
+                        fadeAnimation={true}
                         style={{ width: "100%", height: "100%" }}
                     >
                         <TileLayer
                             url={cartoTileUrl("light_all")}
                             attribution={CARTO_ATTRIBUTION}
+                            updateWhenZooming={false}
+                            updateWhenIdle={true}
+                            keepBuffer={4}
                         />
                         {!selectedSite && <MapShowAllButton
                             sites={filteredSites}
