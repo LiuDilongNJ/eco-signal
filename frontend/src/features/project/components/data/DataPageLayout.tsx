@@ -1445,7 +1445,7 @@ export function DataPageLayout({
                     <div className="data-toolbar-right">
                         <div className="data-action-group">
                             <DataToolbarTooltips>
-                            <ESButton appearance="unstyled" type="button" className="data-btn" title="Reset table" aria-label="Reset" onClick={() => { setColumnFilters({}); setSearchQuery(""); setSortKey(defaultSortKey); setSortDir(defaultSortDir); setSelectedRows(new Set()); setCurrentPage(1) }}>
+                            <ESButton appearance="unstyled" type="button" className="data-btn" title="Reset table" aria-label="Reset" onClick={() => { setColumnFilters({}); setSearchQuery(""); setSortKey(defaultSortKey); setSortDir(defaultSortDir); setSelectedRows(new Set()); setCurrentPage(1); setImportRefreshToken((v) => v + 1) }}>
                                 <RotateCcw size={14} /> Reset
                             </ESButton>
                             {!hideView && (

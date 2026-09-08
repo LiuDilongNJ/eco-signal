@@ -99,8 +99,7 @@ export function DataTab() {
     // 重型页面的挂载走延迟渲染，保证点击后左侧高亮能立即绘制而不被挂载阻塞
     const deferredActiveKey = useDeferredValue(activeKey)
     const [menuReady, setMenuReady] = useState(false)
-    // keep-alive：本次会话内访问过的 nav 页面保持挂载，切回时零请求零闪烁
-    const [visitedKeys, setVisitedKeys] = useState<Set<string>>(new Set())
+    const [refreshCounter, setRefreshCounter] = useState(0)
     const resizeRafRef = useRef<number | null>(null)
     const resizeRafNestedRef = useRef<number | null>(null)
     const didInitRef = useRef(false)
@@ -239,16 +238,16 @@ export function DataTab() {
         setSearchParams(next, { replace: true })
     }, [activeKey, setSearchParams])
 
-    // 登记已访问页跟随延迟 key：避免在高亮绘制前的紧急渲染里提前挂载新页
-    useEffect(() => {
-        if (!deferredActiveKey) return
-        setVisitedKeys((prev) => (prev.has(deferredActiveKey) ? prev : new Set(prev).add(deferredActiveKey)))
-    }, [deferredActiveKey])
-
-    // 项目/集合切换后卸载非激活页，避免隐藏页批量后台重拉数据或跨项目串数据
-    useEffect(() => {
-        setVisitedKeys(new Set())
-    }, [currentProjectId, currentCollectionId])
+    const handleNavClick = (key: string) => {
+        if (activeKey === key) {
+            setRefreshCounter((c) => c + 1)
+        } else {
+            setActiveKey(key)
+            const next = new URLSearchParams(searchParams)
+            next.set("dataNav", key)
+            setSearchParams(next, { replace: true })
+        }
+    }
 
     useLayoutEffect(() => {
         if (!didInitRef.current) {
@@ -299,12 +298,7 @@ export function DataTab() {
                                 key={item.key}
                                 className={`data-nav-item ${effectiveKey === item.key ? "active" : ""}`}
                                 title={`Open the ${item.label.toLowerCase()} data table`}
-                                onClick={() => {
-                                    setActiveKey(item.key)
-                                    const next = new URLSearchParams(searchParams)
-                                    next.set("dataNav", item.key)
-                                    setSearchParams(next, { replace: true })
-                                }}
+                                onClick={() => handleNavClick(item.key)}
                             >
                                 <Icon size={16} />
                                 <span>{item.label}</span>
@@ -315,15 +309,15 @@ export function DataTab() {
                 </div>
             </div>
 
-            {/* 右侧内容 - keep-alive：已访问页面隐藏而不卸载，切换无重拉闪烁 */}
+            {/* 右侧内容 - 切换或点击列表时挂载并请求最新数据 */}
             {navItems
-                .filter((item) => item.key === pageKey || visitedKeys.has(item.key))
+                .filter((item) => item.key === pageKey)
                 .map((item) => {
                     const PageComponent = item.component
                     return (
                         <div
-                            key={item.key}
-                            className={`data-page-keepalive${item.key === pageKey ? " data-page-keepalive--active" : ""}`}
+                            key={`${item.key}-${refreshCounter}`}
+                            className="data-page-keepalive data-page-keepalive--active"
                         >
                             <PageComponent />
                         </div>
