@@ -19,6 +19,7 @@ from app.api.middleware import operation_log_middleware
 from app.core.config import settings
 from app.core.db import engine
 from app.core.exceptions import AppValidationError
+from app.repositories.geo_repository import GeoDataUnavailableError
 from app.core.observability import (
     REQUEST_ID_HEADER,
     bind_request_id,
@@ -237,6 +238,18 @@ async def app_validation_exception_handler(_request: Request, exc: AppValidation
         meta=build_meta_dict(),
     )
     return JSONResponse(status_code=400, content=error_response.model_dump())
+
+
+@app.exception_handler(GeoDataUnavailableError)
+async def geo_data_unavailable_exception_handler(_request: Request, exc: GeoDataUnavailableError) -> JSONResponse:
+    """Handle geo database unavailability."""
+    error_response = ApiErrorResponse(
+        code=503,
+        message=str(exc) or "Geo data is temporarily unavailable",
+        detail=None,
+        meta=build_meta_dict(),
+    )
+    return JSONResponse(status_code=503, content=error_response.model_dump())
 
 
 @app.exception_handler(Exception)

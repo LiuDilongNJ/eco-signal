@@ -159,23 +159,7 @@ class SiteRepository(BaseRepository[Site, SiteCreate, SiteUpdate]):
                 {"geometry": geometry, "id": site_id},
             )
             return
-        session.execute(
-            text(
-                """
-                UPDATE site
-                SET location_iho = (
-                    SELECT ST_SimplifyPreserveTopology(d.geom, 0.01)
-                    FROM iho_sea_area,
-                         LATERAL ST_Dump(geometry) AS d(path, geom)
-                    WHERE id = :iho_id
-                    ORDER BY ST_Area(d.geom::geography) DESC
-                    LIMIT 1
-                )
-                WHERE site_id = :id
-                """
-            ),
-            {"iho_id": iho_id, "id": site_id},
-        )
+        self._clear_location_iho(session, site_id)
 
     @staticmethod
     def _has_map_geometry_clause():
@@ -221,51 +205,7 @@ class SiteRepository(BaseRepository[Site, SiteCreate, SiteUpdate]):
                     {"geometry": geometry, "id": site_id},
                 )
                 return
-        if adm_meta.get("gadm2_gid"):
-            sql = """
-                UPDATE site
-                SET location = (
-                    SELECT ST_SimplifyPreserveTopology(d.geom, 0.01)
-                    FROM adm_2,
-                         LATERAL ST_Dump(geometry) AS d(path, geom)
-                    WHERE "GID_2" = :gid
-                    ORDER BY ST_Area(d.geom::geography) DESC
-                    LIMIT 1
-                )
-                WHERE site_id = :id
-            """
-            gid = adm_meta["gadm2_gid"]
-        elif adm_meta.get("gadm1_gid"):
-            sql = """
-                UPDATE site
-                SET location = (
-                    SELECT ST_SimplifyPreserveTopology(d.geom, 0.01)
-                    FROM adm_1,
-                         LATERAL ST_Dump(geometry) AS d(path, geom)
-                    WHERE "GID_1" = :gid
-                    ORDER BY ST_Area(d.geom::geography) DESC
-                    LIMIT 1
-                )
-                WHERE site_id = :id
-            """
-            gid = adm_meta["gadm1_gid"]
-        elif adm_meta.get("gadm0_gid"):
-            sql = """
-                UPDATE site
-                SET location = (
-                    SELECT ST_SimplifyPreserveTopology(d.geom, 0.01)
-                    FROM adm_0,
-                         LATERAL ST_Dump(geometry) AS d(path, geom)
-                    WHERE "GID_0" = :gid
-                    ORDER BY ST_Area(d.geom::geography) DESC
-                    LIMIT 1
-                )
-                WHERE site_id = :id
-            """
-            gid = adm_meta["gadm0_gid"]
-        else:
-            return
-        session.execute(text(sql), {"gid": gid, "id": site_id})
+        self._clear_location(session, site_id)
 
     def resolve_analysis_coordinates(self, session: Session, site_id: int) -> tuple[Optional[float], Optional[float]]:
         """

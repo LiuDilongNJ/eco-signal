@@ -261,3 +261,29 @@ class TestSiteRepository:
                 ),
                 creator_id=user.user_id,
             )
+
+    def test_update_site_when_geometry_ewkb_returns_none(self, db: Session, test_setup, monkeypatch):
+        from app.repositories.geo_repository import geo_repository
+
+        user = test_setup["user"]
+        col = test_setup["collection"]
+        site = site_repository.create_site(
+            db,
+            data=SiteCreate(
+                name="Fallback Geo Site",
+                gadm0_gid="TST",
+                collection_id=col.collection_id,
+            ),
+            creator_id=user.user_id,
+        )
+        assert site.location is not None
+
+        # Simulate geometry_ewkb returning None
+        monkeypatch.setattr(geo_repository, "geometry_ewkb", lambda *args, **kwargs: None)
+
+        updated = site_repository.update_site(
+            db,
+            db_obj=site,
+            data=SiteUpdate(gadm0_gid="TST"),
+        )
+        assert updated.location is None

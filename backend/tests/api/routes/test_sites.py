@@ -3691,3 +3691,47 @@ class TestSiteGeoEdgeCases:
         assert site.longitude == 55.0
         assert site.latitude == 10.0
         assert site.iho == "ManualIHOSea"
+
+    def test_update_site_geometry_none_clears_location_without_500(
+        self, client: TestClient, superuser_token_headers: dict, db: Session, monkeypatch
+    ) -> None:
+        """Issue #48: when geometry lookup returns None, update succeeds and clears location without 500."""
+        from app.repositories.geo_repository import geo_repository
+
+        collection = create_test_collection(db)
+        site = create_test_site(db, collection.collection_id, longitude=10.0, latitude=20.0)
+
+        # Force geometry_ewkb to return None even though hierarchy resolution succeeds
+        monkeypatch.setattr(geo_repository, "geometry_ewkb", lambda *args, **kwargs: None)
+
+        r = client.patch(
+            f"{settings.API_V1_STR}/sites/{site.site_id}",
+            headers=superuser_token_headers,
+            json={"gadm0_gid": "DFT"},
+        )
+        assert r.status_code == 200
+        assert "updated" in r.json()["message"].lower()
+        db.refresh(site)
+        assert site.location is None
+
+    def test_update_site_geo_unavailable_returns_503(
+        self, client: TestClient, superuser_token_headers: dict, db: Session, monkeypatch
+    ) -> None:
+        """When geo repository raises GeoDataUnavailableError, API returns 503 instead of 500."""
+        from app.repositories.geo_repository import GeoDataUnavailableError, geo_repository
+
+        collection = create_test_collection(db)
+        site = create_test_site(db, collection.collection_id, longitude=10.0, latitude=20.0)
+
+        def mock_resolve(*args, **kwargs):
+            raise GeoDataUnavailableError("Geo data is temporarily unavailable")
+
+        monkeypatch.setattr(geo_repository, "resolve_gadm_hierarchy", mock_resolve)
+
+        r = client.patch(
+            f"{settings.API_V1_STR}/sites/{site.site_id}",
+            headers=superuser_token_headers,
+            json={"gadm0_gid": "DFT"},
+        )
+        assert r.status_code == 503
+        assert "unavailable" in r.json()["message"].lower()

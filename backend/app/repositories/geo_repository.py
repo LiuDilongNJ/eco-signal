@@ -179,8 +179,6 @@ class GeoRepository:
         return result
 
     def geometry_ewkb(self, session: Session, source: Literal["gadm0", "gadm1", "gadm2", "iho"], identifier: str | int) -> bytes | None:
-        if self._uses_test_tables():
-            return None
         if source == "iho":
             sql, params = """
                 SELECT ST_AsEWKB(ST_SimplifyPreserveTopology(d.geom, 0.01)) AS geometry
@@ -198,6 +196,9 @@ class GeoRepository:
                 ORDER BY ST_Area(d.geom::geography) DESC
                 LIMIT 1
             """, {"id": identifier}
+        if self._uses_test_tables():
+            row = session.execute(text(sql), params).first()
+            return bytes(row[0]) if row and row[0] is not None else None
         rows = self._remote_rows(sql, params)
         return bytes(rows[0]["geometry"]) if rows and rows[0]["geometry"] is not None else None
 
