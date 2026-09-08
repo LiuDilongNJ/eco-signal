@@ -33,19 +33,15 @@ from app.schemas.response import (
     api_page,
     api_success,
 )
-from app.schemas.role import (
-    AccessRolePublic,
-    UserRoleResponse,
-    UserRoleUpdate,
-)
+from app.schemas.role import AccessRolePublic
 from app.schemas.user import (
     COLLECTION_CONTRIBUTOR_ROLES,
     PROJECT_CONTRIBUTOR_ROLES,
     AdminUpdatePassword,
+    CurrentUserPublic,
     SetContributorRequest,
     UpdatePassword,
     UserCreate,
-    CurrentUserPublic,
     UserPublic,
     UserRegister,
     UserUpdate,
@@ -54,8 +50,6 @@ from app.schemas.user import (
 
 __all__ = [
     # Role schemas
-    "UserRoleUpdate",
-    "UserRoleResponse",
     "AccessRolePublic",
     # User schemas
     "UserCreate",

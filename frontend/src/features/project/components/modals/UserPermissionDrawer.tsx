@@ -16,6 +16,7 @@ interface UserPermissionDrawerProps {
     open: boolean
     userId: number | null
     userIds?: number[]
+    currentUserId?: number | null
     onClose: () => void
     onSuccess?: () => void
 }
@@ -31,7 +32,7 @@ type PermissionAction = "none" | "read" | "write"
 
 const MODULE_KEYS = MODULE_ICONS.map(m => m.key)
 
-export function UserPermissionDrawer({ open, userId, userIds, onClose, onSuccess }: UserPermissionDrawerProps) {
+export function UserPermissionDrawer({ open, userId, userIds, currentUserId, onClose, onSuccess }: UserPermissionDrawerProps) {
     const isDark = useAppStore(s => s.effectiveTheme === "dark")
     const drawerTheme = useAntdBrandConfig(isDark)
     const [loading, setLoading] = useState(false)
@@ -47,6 +48,7 @@ export function UserPermissionDrawer({ open, userId, userIds, onClose, onSuccess
     )
     const primaryUserId = targetUserIds[0] ?? null
     const isBatch = targetUserIds.length > 1
+    const isCurrentAdministratorTarget = !isBatch && primaryUserId === currentUserId && config?.is_admin === true
     const projectRoleOptions = useMemo(() =>
         accessRoles.map((accessRole) => ({
             value: accessRole.code,
@@ -562,12 +564,16 @@ export function UserPermissionDrawer({ open, userId, userIds, onClose, onSuccess
                         {!isBatch ? (
                             <div className="upd-drawer-admin-container">
                                 <span className="upd-drawer-admin-text">Administrator</span>
-                                <Switch
-                                    checked={!!config?.is_admin}
-                                    disabled={!config?.can_manage_admin_role || saving || loading}
-                                    onChange={v => setConfig(p => p ? { ...p, is_admin: v } : null)}
-                                    style={{ backgroundColor: config?.is_admin ? "var(--brand)" : undefined }}
-                                />
+                                <Tooltip title={isCurrentAdministratorTarget ? "Administrators cannot revoke their own administrator role" : undefined}>
+                                    <span>
+                                        <Switch
+                                            checked={!!config?.is_admin}
+                                            disabled={!config?.can_manage_admin_role || isCurrentAdministratorTarget || saving || loading}
+                                            onChange={v => setConfig(p => p ? { ...p, is_admin: v } : null)}
+                                            style={{ backgroundColor: config?.is_admin ? "var(--brand)" : undefined }}
+                                        />
+                                    </span>
+                                </Tooltip>
                             </div>
                         ) : null}
                     </div>

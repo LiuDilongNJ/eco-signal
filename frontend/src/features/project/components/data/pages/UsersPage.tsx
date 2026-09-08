@@ -467,6 +467,7 @@ export function UsersPage() {
                 open={permissionDrawerOpen}
                 userId={permissionUserIds[0] ?? null}
                 userIds={permissionUserIds}
+                currentUserId={currentUserId}
                 onClose={() => {
                     setPermissionDrawerOpen(false)
                     setPermissionUserIds([])

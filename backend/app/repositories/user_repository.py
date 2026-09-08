@@ -52,8 +52,8 @@ class UserRepository(BaseRepository[User, UserCreate, UserUpdate]):
         """
         Create a new user with hashed password.
 
-        New users are always assigned the normal "User" role; admin
-        promotion is handled separately via the role-assignment API.
+        New users are always assigned the normal "User" role; administrator
+        promotion is handled by permission synchronization.
         
         Args:
             session: Database session

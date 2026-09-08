@@ -5,15 +5,20 @@ from sqlmodel import Session, select
 
 from app.models.collection import Collection
 from app.models.effective_permission import UserEffectivePermission
-from app.models.permission import Permission, RolePermission, UserPermission, UserScopeRole
+from app.models.permission import (
+    Permission,
+    RolePermission,
+    UserPermission,
+    UserScopeRole,
+)
 from app.models.project import Project, ProjectCollection
 from app.models.user import Role, User
 from app.repositories import permission_repository, role_repository, user_repository
 from app.services.authorization_service import is_admin
 from app.services.permission_rules import (
     ACCESS_ROLE_CODES,
-    OWNABLE_RESOURCE_TYPES,
     OWN_ACTIONS,
+    OWNABLE_RESOURCE_TYPES,
     minimize_effective_permissions,
     normalize_permissions,
     remove_cross_scope_redundancies,
@@ -370,6 +375,7 @@ def _apply_admin_toggle(
     target_user: User,
     request,
     context: _PermissionManagementContext,
+    current_user: User,
 ) -> None:
     if request.is_admin is None:
         return
@@ -382,6 +388,16 @@ def _apply_admin_toggle(
         raise HTTPException(
             status_code=403,
             detail="Only administrators can set or revoke admin role",
+        )
+
+    if (
+        not request.is_admin
+        and current_is_admin
+        and target_user.user_id == current_user.user_id
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail="Administrators cannot revoke their own administrator role",
         )
 
     role_code = "administrator" if request.is_admin else "user"
@@ -856,7 +872,7 @@ def sync_user_permissions_global(
     request_projects = request.projects or []
     perm_map = _load_permission_id_map(session)
 
-    _apply_admin_toggle(session, target_user, request, context)
+    _apply_admin_toggle(session, target_user, request, context, current_user)
     _validate_permission_payload(request_projects, perm_map, context)
     _validate_requested_resources(session, request_projects)
     _cleanup_scope_assignments(session, user_id, request_projects, context)

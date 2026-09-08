@@ -375,6 +375,27 @@ class TestSyncUserPermissionsGlobal:
         db.refresh(user)
         assert user.role_id == 2  # Normal user role
 
+    def test_sync_admin_cannot_revoke_own_admin_role(
+        self, client: TestClient, superuser_token_headers: dict[str, str], db: Session
+    ) -> None:
+        """An administrator cannot revoke their own administrator role."""
+        token = superuser_token_headers["Authorization"].split(" ")[1]
+        current_user_id = int(pyjwt.decode(token, options={"verify_signature": False})["sub"])
+        current_user = db.get(User, current_user_id)
+        assert current_user is not None
+        original_role_id = current_user.role_id
+
+        r = client.put(
+            f"{settings.API_V1_STR}/users/{current_user_id}/permissions",
+            headers=superuser_token_headers,
+            json={"is_admin": False, "projects": []},
+        )
+
+        assert r.status_code == 403
+        assert r.json()["message"] == "Administrators cannot revoke their own administrator role"
+        db.refresh(current_user)
+        assert current_user.role_id == original_role_id
+
     def test_sync_manager_cannot_set_admin(
         self, client: TestClient, normal_user_token_headers: dict[str, str], db: Session
     ) -> None:

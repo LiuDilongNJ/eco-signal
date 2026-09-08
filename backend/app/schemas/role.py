@@ -1,6 +1,6 @@
 from typing import Literal
 
-from sqlmodel import SQLModel, Field
+from sqlmodel import Field, SQLModel
 
 
 class RoleBase(SQLModel):
@@ -16,16 +16,6 @@ class RoleCreate(RoleBase):
 class RoleUpdate(RoleBase):
     """Schema for updating a role."""
     pass
-
-
-class UserRoleUpdate(SQLModel):
-    """Schema for updating a user's role (admin toggle)."""
-    is_admin: bool = Field(description="Whether the user should be granted admin role")
-
-
-class UserRoleResponse(SQLModel):
-    """Schema for returning user's role status."""
-    is_admin: bool = Field(description="Whether the user has the admin role")
 
 
 class AccessRolePublic(SQLModel):

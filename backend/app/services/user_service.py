@@ -3,7 +3,6 @@ from sqlalchemy import delete, or_, update
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
-from app.core.config import settings
 from app.core.security import get_password_hash, verify_password
 from app.csv_export import CsvColumn, export_columns_csv
 from app.models import User
@@ -14,7 +13,7 @@ from app.models.project import Project, ProjectContributor
 from app.models.system import FileUpload
 from app.models.task import Task
 from app.models.user import UserPreference
-from app.repositories import permission_repository, role_repository, user_repository
+from app.repositories import permission_repository, user_repository
 from app.schemas import (
     UserCreate,
     UserUpdate,
@@ -730,28 +729,6 @@ def admin_update_password(
     session.add(user)
     session.commit()
     return ApiResponse(message="Password updated successfully")
-
-
-def update_user_role(
-    session: Session, user_id: int, is_admin: bool
-) -> ApiResponse:
-    """Update a user's role (admin operation)."""
-    user = user_repository.get(session, user_id)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    role_name = settings.ADMIN_ROLE_NAME if is_admin else "User"
-    role = role_repository.get_by_name(session, role_name)
-    if role is None:
-        raise RuntimeError(f"Required role is not configured: {role_name}")
-
-    user.role_id = role.role_id
-    
-    session.add(user)
-    session.commit()
-    
-    action = "granted admin role" if is_admin else "revoked admin role"
-    return ApiResponse(message=f"User {action} successfully")
 
 
 def set_contributor(
