@@ -35,6 +35,8 @@ Do not close your browser to wait for completion: closing the drawer does not ca
 
 Open a media record to inspect its preview and metadata. Where permitted, create or edit annotations and use reviews to record verification work. Image viewers can show or hide annotation overlays.
 
+An Annotator can create and maintain only their own annotations. A Reviewer can read annotations and reviews, and create and maintain only their own review. Viewer access is read-only; a Manager can work with all objects on the assigned path. These rights are evaluated using the current project and collection together, so access through another project does not apply here.
+
 Analysis actions create background work. Follow their progress in Queue and open the completed media or result records to inspect the output. If an action is unavailable, request the matching collection-scoped permission from a manager.
 
 ## Import tabular data

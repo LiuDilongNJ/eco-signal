@@ -8,8 +8,8 @@ from app.models.media import MediaCollection
 from app.models.user import User
 from app.repositories import index_log_repository, permission_repository
 from app.schemas.index_log import IndexLogDeleteItem, IndexLogRead
-from app.schemas.capability import RowCapabilities
-from app.services import permission_service, row_capability_service
+from app.services import authorization_service, permission_service
+from app.services.authorization_policy import AuthorizationAction
 
 _INDEX_LOG_EXPORT_COLUMNS = [
     CsvColumn("log_id"), CsvColumn("media_name"),
@@ -58,20 +58,16 @@ def list_index_logs(
     )
     project_id = kwargs.get("project_id")
     media_ids = {int(item["media_id"]) for item in items if item.get("media_id") is not None}
-    media_collections = row_capability_service.media_collection_map(
+    media_collections = authorization_service.media_collection_map(
         session, media_ids, project_id
     )
-    writable_ids = row_capability_service.project_collection_ids(
-        session, current_user, project_id, "collection", "write"
-    )
+    authz = authorization_service.evaluator(session, current_user, project_id)
     data = []
     for item in items:
         linked_ids = media_collections.get(item.get("media_id"), set())
         payload = dict(item)
-        payload["capabilities"] = RowCapabilities(
-            delete=is_admin
-            or item.get("user_id") == current_user.user_id
-            or bool(linked_ids & writable_ids)
+        payload["capabilities"] = authz.index_log_capabilities(
+            linked_ids, user_id=item.get("user_id")
         )
         data.append(IndexLogRead.model_validate(payload).model_dump(mode="json"))
     return data, total
@@ -155,15 +151,13 @@ def delete_index_logs(
             media_colls = session.exec(select(MediaCollection).where(MediaCollection.media_id == media_id)).all()
             media_coll_ids = [mc.collection_id for mc in media_colls]
             
-            if not permission_service.has_resource_permission_on_any_collection_path(
-                session,
-                current_user,
-                media_coll_ids,
-                "collection",
-                "write",
-                project_id=project_id,
-            ):
-                 raise HTTPException(status_code=403, detail=f"Not enough permissions to delete log {item.log_id}")
+            authorization_service.evaluator(session, current_user, project_id).require(
+                AuthorizationAction.INDEX_LOG_DELETE,
+                authorization_service.AuthorizationSubject(
+                    frozenset(media_coll_ids), owner_id=owner_id
+                ),
+                detail=f"Not enough permissions to delete log {item.log_id}",
+            )
 
         removed_rows = index_log_repository.delete_group(
             session,

@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Optional
 from sqlmodel import Field, Relationship, SQLModel
 
 if TYPE_CHECKING:
-    from app.models.permission import UserPermission
+    from app.models.permission import RolePermission, UserPermission, UserScopeRole
     from app.models.project import Project, ProjectContributor
     from app.models.collection import Collection, CollectionContributor
     from app.models.site import Site
@@ -26,9 +26,14 @@ class Role(SQLModel, table=True):
     
     role_id: int = Field(default=None, primary_key=True)
     name: str = Field(max_length=128, unique=True)
+    code: Optional[str] = Field(default=None, max_length=64, unique=True, index=True)
+    kind: str = Field(default="system", max_length=20, index=True)
+    display_order: int = Field(default=0)
     
     # Relationships
     users: list["User"] = Relationship(back_populates="role")
+    permissions: list["RolePermission"] = Relationship(back_populates="role")
+    scope_assignments: list["UserScopeRole"] = Relationship(back_populates="role")
 
 
 class UserBase(SQLModel):
@@ -108,6 +113,10 @@ class User(UserBase, table=True):
     )
     
     permissions: list["UserPermission"] = Relationship(
+        back_populates="user",
+        sa_relationship_kwargs={"passive_deletes": True},
+    )
+    scope_roles: list["UserScopeRole"] = Relationship(
         back_populates="user",
         sa_relationship_kwargs={"passive_deletes": True},
     )

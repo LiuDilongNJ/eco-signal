@@ -12,7 +12,7 @@ import { useCallback, useEffect, useState } from "react"
 import { usersApi } from "@/api/endpoints/users"
 import { authUtils } from "@/utils/auth"
 
-export type PermissionAction = "read" | "write"
+export type PermissionAction = "read" | "write" | "read_own" | "write_own"
 export type PermissionResource =
     | "project"
     | "collection"

@@ -10,8 +10,8 @@ from app.models.user import User
 from app.repositories import permission_repository, review_repository
 from app.repositories.task_repository import task_repository
 from app.schemas.review import ReviewCreate, ReviewRead
-from app.schemas.capability import RowCapabilities
-from app.services import permission_service, row_capability_service
+from app.services import authorization_service, permission_service
+from app.services.authorization_policy import AuthorizationAction
 
 _REVIEW_EXPORT_COLUMNS = [
     CsvColumn("annotation_id"), CsvColumn("media_name"), CsvColumn("media_type"),
@@ -19,12 +19,11 @@ _REVIEW_EXPORT_COLUMNS = [
     CsvColumn("status_name"), CsvColumn("taxon_name"),
     CsvColumn("note"), CsvColumn("creation_date"),
 ]
-from app.services.permission_service import (
-    has_resource_permission_on_any_collection_path,
-)
 
 
-def _get_review_read_collection_scopes(session: Session, user: User) -> list[tuple[int, int]] | None:
+def _get_review_read_collection_scopes(
+    session: Session, user: User, project_id: int | None
+) -> list[tuple[int, int]] | None:
     """Get project-local collection scopes where the user has review:read access.
 
     Returns None for admin (no filtering needed).
@@ -36,7 +35,17 @@ def _get_review_read_collection_scopes(session: Session, user: User) -> list[tup
         session,
         user_id=user.user_id,
         resource_type="review",
-        action="read"
+        action="read", project_id=project_id,
+    )
+
+
+def _get_review_own_collection_scopes(
+    session: Session, user: User, project_id: int | None
+) -> list[tuple[int, int]] | None:
+    if permission_service.is_admin(user):
+        return None
+    return permission_repository.get_accessible_collection_scopes(
+        session, user_id=user.user_id, resource_type="review", action="read_own", project_id=project_id
     )
 
 
@@ -55,11 +64,14 @@ def list_reviews(
     otherwise → only own reviews (reviewer_id = user_id).
     """
     admin = permission_service.is_admin(user)
-    review_scopes = _get_review_read_collection_scopes(session, user)
+    project_id = filters.get("project_id")
+    review_scopes = _get_review_read_collection_scopes(session, user, project_id)
+    own_review_scopes = _get_review_own_collection_scopes(session, user, project_id)
 
     items, total = review_repository.list_reviews(
         session=session,
         accessible_collection_scopes=review_scopes,
+        own_collection_scopes=own_review_scopes,
         current_user_id=user.user_id,
         is_admin=admin,
         page=page,
@@ -68,7 +80,6 @@ def list_reviews(
         order_dir=order_dir,
         **filters,
     )
-    project_id = filters.get("project_id")
     annotation_ids = {int(item["annotation_id"]) for item in items}
     annotation_media = dict(
         session.exec(
@@ -77,20 +88,16 @@ def list_reviews(
             )
         ).all()
     ) if annotation_ids else {}
-    media_collections = row_capability_service.media_collection_map(
+    media_collections = authorization_service.media_collection_map(
         session, set(annotation_media.values()), project_id
     )
-    writable_ids = row_capability_service.project_collection_ids(
-        session, user, project_id, "review", "write"
-    )
+    authz = authorization_service.evaluator(session, user, project_id)
     data = []
     for item in items:
         linked_ids = media_collections.get(annotation_media.get(item["annotation_id"]), set())
-        writable = admin or bool(linked_ids & writable_ids)
         payload = dict(item)
-        payload["capabilities"] = RowCapabilities(
-            edit=writable,
-            delete=writable or item["reviewer_id"] == user.user_id,
+        payload["capabilities"] = authz.review_capabilities(
+            linked_ids, reviewer_id=item["reviewer_id"]
         )
         data.append(ReviewRead.model_validate(payload).model_dump(mode="json"))
     return data, total
@@ -108,11 +115,14 @@ def get_review_export_data(
     Permission: same as list_reviews.
     """
     admin = permission_service.is_admin(user)
-    review_scopes = _get_review_read_collection_scopes(session, user)
+    project_id = filters.get("project_id")
+    review_scopes = _get_review_read_collection_scopes(session, user, project_id)
+    own_review_scopes = _get_review_own_collection_scopes(session, user, project_id)
 
     return review_repository.get_review_export_data(
         session=session,
         accessible_collection_scopes=review_scopes,
+        own_collection_scopes=own_review_scopes,
         current_user_id=user.user_id,
         is_admin=admin,
         order_by=order_by,
@@ -183,18 +193,11 @@ def validate_review_create(session: Session, user: User, data: ReviewCreate) -> 
                 detail="Collection not found for this annotation in the given project",
             )
 
-        if not has_resource_permission_on_any_collection_path(
-            session,
-            user,
-            collection_ids,
-            "review",
-            "write",
-            project_id=data.project_id,
-        ):
-            raise HTTPException(
-                status_code=403,
-                detail="Not enough permissions to create a review",
-            )
+        authorization_service.evaluator(session, user, data.project_id).require(
+            AuthorizationAction.ANNOTATION_CREATE_REVIEW,
+            authorization_service.AuthorizationSubject(frozenset(collection_ids)),
+            detail="Not enough permissions to create a review",
+        )
 
     existing = review_repository.get_review(session, data.annotation_id, user.user_id)
     if existing:
@@ -225,18 +228,13 @@ def update_review(
                 detail="Collection not found for this annotation in the given project",
             )
 
-        if not has_resource_permission_on_any_collection_path(
-            session,
-            user,
-            collection_ids,
-            "review",
-            "write",
-            project_id=project_id,
-        ):
-            raise HTTPException(
-                status_code=403,
-                detail="Not enough permissions to edit this review",
-            )
+        authorization_service.evaluator(session, user, project_id).require(
+            AuthorizationAction.REVIEW_EDIT,
+            authorization_service.AuthorizationSubject(
+                frozenset(collection_ids), owner_id=review.reviewer_id
+            ),
+            detail="Not enough permissions to edit this review",
+        )
 
     review_repository.update(session, db_obj=review, obj_in=update_data)
 
@@ -271,22 +269,13 @@ def delete_review(
                 detail="Collection not found for this annotation in the given project",
             )
 
-        can_delete = (
-            reviewer_id == user.user_id
-            or has_resource_permission_on_any_collection_path(
-                session,
-                user,
-                collection_ids,
-                "review",
-                "write",
-                project_id=project_id,
-            )
+        authorization_service.evaluator(session, user, project_id).require(
+            AuthorizationAction.REVIEW_DELETE,
+            authorization_service.AuthorizationSubject(
+                frozenset(collection_ids), owner_id=review.reviewer_id
+            ),
+            detail="Not enough permissions to delete this review",
         )
-        if not can_delete:
-            raise HTTPException(
-                status_code=403,
-                detail="Not enough permissions to delete this review",
-            )
 
     session.delete(review)
     session.flush()

@@ -5,8 +5,14 @@ from sqlmodel import Session, select
 
 from app.models.collection import Collection
 from app.models.effective_permission import UserEffectivePermission
-from app.models.permission import Permission, UserPermission
+from app.models.permission import (
+    Permission,
+    RolePermission,
+    UserPermission,
+    UserScopeRole,
+)
 from app.models.project import Project, ProjectCollection
+from app.models.user import Role
 from app.repositories.base import BaseRepository
 
 
@@ -59,6 +65,41 @@ class PermissionRepository(BaseRepository[UserPermission, Any, Any]):
             stmt = stmt.where(UserEffectivePermission.collection_id == collection_id)
 
         return session.exec(stmt).first() is not None
+
+    def get_project_direct_permission_names(
+        self,
+        session: Session,
+        user_id: int,
+        project_id: int,
+    ) -> list[str]:
+        """Return direct project grants from either a named role or Custom permissions."""
+        assignment = session.exec(
+            select(UserScopeRole, Role)
+            .join(Role, Role.role_id == UserScopeRole.role_id)
+            .where(
+                UserScopeRole.user_id == user_id,
+                UserScopeRole.project_id == project_id,
+                UserScopeRole.collection_id.is_(None),
+            )
+        ).first()
+        if assignment is not None and assignment[1].code != "custom":
+            return list(session.exec(
+                select(Permission.name)
+                .join(RolePermission, RolePermission.permission_id == Permission.permission_id)
+                .where(
+                    RolePermission.role_id == assignment[0].role_id,
+                    RolePermission.scope_type == "project",
+                )
+            ).all())
+        return list(session.exec(
+            select(Permission.name)
+            .join(UserPermission, UserPermission.permission_id == Permission.permission_id)
+            .where(
+                UserPermission.user_id == user_id,
+                UserPermission.project_id == project_id,
+                UserPermission.collection_id.is_(None),
+            )
+        ).all())
 
     def get_effective_project_ids(
         self,
@@ -421,34 +462,6 @@ class PermissionRepository(BaseRepository[UserPermission, Any, Any]):
             action,
             project_id=project_id,
         )
-
-    def has_resource_permission_on_any_collection_path(
-        self,
-        session: Session,
-        user_id: int,
-        collection_ids: list[int],
-        resource_type: str,
-        action: str,
-        project_id: int | None = None,
-    ) -> bool:
-        """True when the user has effective permission on any project-local collection path."""
-        if not collection_ids:
-            return False
-
-        stmt = (
-            select(UserEffectivePermission.collection_id)
-            .where(
-                UserEffectivePermission.user_id == user_id,
-                UserEffectivePermission.scope_type == "project_collection",
-                UserEffectivePermission.collection_id.in_(collection_ids),
-                UserEffectivePermission.resource_type == resource_type,
-                UserEffectivePermission.action == action,
-            )
-            .limit(1)
-        )
-        if project_id is not None:
-            stmt = stmt.where(UserEffectivePermission.project_id == project_id)
-        return session.exec(stmt).first() is not None
 
     def get_project_ids_with_write_permission(
         self,

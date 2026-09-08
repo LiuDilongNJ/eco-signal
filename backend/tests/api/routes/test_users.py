@@ -857,7 +857,7 @@ def test_retrieve_users(
         assert "email" in item
 
 
-def test_list_users_project_manager_sees_only_ordinary_users_in_managed_project(
+def test_list_users_project_manager_includes_members_in_managed_project(
     client: TestClient, db: Session
 ) -> None:
     owner = create_test_user(db)
@@ -895,12 +895,27 @@ def test_list_users_project_manager_sees_only_ordinary_users_in_managed_project(
     )
 
     assert r.status_code == 200
-    ids = {user["user_id"] for user in r.json()["data"]}
+    users_by_id = {user["user_id"]: user for user in r.json()["data"]}
+    ids = set(users_by_id.keys())
     assert ordinary_a.user_id in ids
     assert ordinary_b.user_id not in ids
-    assert peer_manager_a.user_id not in ids
-    assert manager.user_id not in ids
+    assert peer_manager_a.user_id in ids
+    assert manager.user_id in ids
     assert _superuser_id(db) not in ids
+
+    # Ordinary user in scope can be managed
+    assert users_by_id[ordinary_a.user_id]["capabilities"]["edit"] is True
+    assert users_by_id[ordinary_a.user_id]["capabilities"]["delete"] is True
+    assert users_by_id[ordinary_a.user_id]["capabilities"]["manage_permissions"] is True
+    # Peer manager cannot be modified/deleted, but contributor role can be set
+    assert users_by_id[peer_manager_a.user_id]["capabilities"]["edit"] is False
+    assert users_by_id[peer_manager_a.user_id]["capabilities"]["delete"] is False
+    assert users_by_id[peer_manager_a.user_id]["capabilities"]["manage_permissions"] is False
+    assert users_by_id[peer_manager_a.user_id]["capabilities"]["set_contributor"] is True
+    # Manager self cannot be deleted/edited/permission-managed from users table
+    assert users_by_id[manager.user_id]["capabilities"]["delete"] is False
+    assert users_by_id[manager.user_id]["capabilities"]["edit"] is False
+    assert users_by_id[manager.user_id]["capabilities"]["set_contributor"] is True
 
 
 def test_list_users_current_project_cannot_bypass_manager_scope(
@@ -1017,10 +1032,10 @@ def test_list_users_collection_manager_uses_project_local_collection_scope(
     assert r.status_code == 200
     ids = {user["user_id"] for user in r.json()["data"]}
     assert ordinary_x.user_id in ids
-    assert peer_collection_manager.user_id not in ids
-    assert parent_project_manager.user_id not in ids
+    assert peer_collection_manager.user_id in ids
+    assert parent_project_manager.user_id in ids
+    assert manager.user_id in ids
     assert other_project_same_collection.user_id not in ids
-    assert manager.user_id not in ids
 
 
 def test_list_users_scope_all_merges_project_and_collection_write_scopes(
@@ -1121,9 +1136,9 @@ def test_export_users_manager_scope_matches_user_list(
     header = read_csv_header(csv_body)
     assert header == ["user_id", "username", "name", "email", "orcid", "color", "contrib", "active"]
     assert ordinary.email in csv_body
-    assert peer_manager.email not in csv_body
+    assert peer_manager.email in csv_body
+    assert manager.email in csv_body
     assert outside.email not in csv_body
-    assert manager.email not in csv_body
     rows = list(csv.DictReader(csv_body.splitlines()))
     assert settings.FIRST_SUPERUSER not in {row["username"] for row in rows}
 
@@ -1282,7 +1297,7 @@ def test_export_users_current_collection_scope_respects_manager_access(
     rows_by_id = {int(row["user_id"]): row for row in read_csv_dict_rows(response.text)}
     assert managed_user.user_id in rows_by_id
     assert out_of_scope_user.user_id not in rows_by_id
-    assert manager.user_id not in rows_by_id
+    assert manager.user_id in rows_by_id
 
 
 def test_read_user_by_id_manager_cannot_view_peer_manager(
@@ -3139,7 +3154,9 @@ def test_current_user_permissions_admin_gets_every_permission(
     assert response.status_code == 200
     data = response.json()["data"]
     assert data["is_admin"] is True
-    assert set(data["permissions"]) == ALL_PERMISSION_NAMES
+    assert set(data["permissions"]) == ALL_PERMISSION_NAMES | {
+        "annotation:read_own", "annotation:write_own", "review:read_own", "review:write_own",
+    }
 
 
 def test_current_user_permissions_project_write_expands_to_collection_scope(

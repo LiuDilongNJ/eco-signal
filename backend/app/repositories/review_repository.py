@@ -58,6 +58,7 @@ class ReviewRepository(BaseRepository[AnnotationReview, Any, Any]):
         self,
         accessible_collection_ids: list[int] | None = None,
         accessible_collection_scopes: list[tuple[int, int]] | None = None,
+        own_collection_scopes: list[tuple[int, int]] | None = None,
         current_user_id: int | None = None,
         is_admin: bool = False,
         filters: dict | None = None,
@@ -105,8 +106,18 @@ class ReviewRepository(BaseRepository[AnnotationReview, Any, Any]):
                 conditions.append(sa.or_(*scope_conditions))
             elif accessible_collection_ids:
                 conditions.append(MediaCollection.collection_id.in_(accessible_collection_ids))
-            if current_user_id is not None:
-                conditions.append(AnnotationReview.reviewer_id == current_user_id)
+            if current_user_id is not None and own_collection_scopes:
+                own_scope_conditions = [
+                    sa.and_(
+                        ProjectCollection.project_id == project_id,
+                        MediaCollection.collection_id == collection_id,
+                    )
+                    for project_id, collection_id in own_collection_scopes
+                ]
+                conditions.append(sa.and_(
+                    AnnotationReview.reviewer_id == current_user_id,
+                    sa.or_(*own_scope_conditions),
+                ))
             if conditions:
                 stmt = stmt.where(sa.or_(*conditions))
             else:
@@ -134,6 +145,7 @@ class ReviewRepository(BaseRepository[AnnotationReview, Any, Any]):
         session: Session,
         accessible_collection_ids: list[int] | None = None,
         accessible_collection_scopes: list[tuple[int, int]] | None = None,
+        own_collection_scopes: list[tuple[int, int]] | None = None,
         current_user_id: int | None = None,
         is_admin: bool = False,
         page: int = 1,
@@ -143,12 +155,13 @@ class ReviewRepository(BaseRepository[AnnotationReview, Any, Any]):
         **filters,
     ) -> tuple[Sequence[Any], int]:
         """Get paginated list of reviews."""
-        if not is_admin and not accessible_collection_ids and current_user_id is None:
+        if not is_admin and not accessible_collection_ids and not accessible_collection_scopes and not (current_user_id and own_collection_scopes):
             return [], 0
 
         stmt = self._build_list_query(
             accessible_collection_ids=accessible_collection_ids,
             accessible_collection_scopes=accessible_collection_scopes,
+            own_collection_scopes=own_collection_scopes,
             current_user_id=current_user_id,
             is_admin=is_admin,
             filters=filters,
@@ -193,6 +206,7 @@ class ReviewRepository(BaseRepository[AnnotationReview, Any, Any]):
         session: Session,
         accessible_collection_ids: list[int] | None = None,
         accessible_collection_scopes: list[tuple[int, int]] | None = None,
+        own_collection_scopes: list[tuple[int, int]] | None = None,
         current_user_id: int | None = None,
         is_admin: bool = False,
         order_by: str = "creation_date",
@@ -200,12 +214,13 @@ class ReviewRepository(BaseRepository[AnnotationReview, Any, Any]):
         **filters,
     ) -> list[dict]:
         """Get all matching reviews for export (no pagination)."""
-        if not is_admin and not accessible_collection_ids and current_user_id is None:
+        if not is_admin and not accessible_collection_ids and not accessible_collection_scopes and not (current_user_id and own_collection_scopes):
             return []
 
         stmt = self._build_list_query(
             accessible_collection_ids=accessible_collection_ids,
             accessible_collection_scopes=accessible_collection_scopes,
+            own_collection_scopes=own_collection_scopes,
             current_user_id=current_user_id,
             is_admin=is_admin,
             filters=filters,

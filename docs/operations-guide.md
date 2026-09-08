@@ -75,6 +75,7 @@ Options are:
 
 - `--dry-run`: preview migration without writing data
 - `--reset-target`: back up target database and media, clear business data, then migrate. Do not substitute manual destructive database commands for the reset workflow.
+- `--repair-permissions`: repair and re-map legacy permissions into the `user_scope_role` access role architecture on an already migrated target
 - `--legacy-app-url <url>`: provide the source public URL used for federation node identity - sets the source public address explicitly
 The following limit or select the transfer strategy:
 - `--skip-db`: skip database migration (transfers only files if used alone)

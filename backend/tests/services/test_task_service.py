@@ -22,7 +22,7 @@ def test_export_tasks_forwards_scope_and_sorting(monkeypatch) -> None:
         return 0, []
 
     monkeypatch.setattr(
-        task_service.permission_service,
+        task_service.access_scope_service,
         "resolve_collection_project_id",
         fake_resolve_collection_project_id,
     )

@@ -12,7 +12,7 @@ from app.schemas.permission import (
     UserPermissionSyncRequest,
 )
 from app.schemas.response import ApiResponse, api_success
-from app.services import permission_service
+from app.services import permission_config_service
 
 user_permissions_router = APIRouter(tags=["权限 / permissions"])
 
@@ -37,7 +37,7 @@ def get_user_permission_config(
 
     需要管理者权限。 / Requires manager permission.
     """
-    data = permission_service.get_user_permission_config(session, user_id, current_user)
+    data = permission_config_service.get_user_permission_config(session, user_id, current_user)
     return api_success(data=UserPermissionConfig(**data))
 
 
@@ -61,7 +61,7 @@ def sync_user_permissions_global(
 
     管理者仅能修改其拥有写权限的项目/集合范围。 / Managers can only modify scopes where they have write permission.
     """
-    permission_service.sync_user_permissions_global(
+    permission_config_service.sync_user_permissions_global(
         session, user_id, request, current_user
     )
     return api_success(message="Permissions synced successfully")

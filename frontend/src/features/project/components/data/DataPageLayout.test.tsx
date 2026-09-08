@@ -409,6 +409,28 @@ describe("DataPageLayout permission gating", () => {
         expect(await screen.findByText(NO_PERMISSION)).toBeInTheDocument()
     })
 
+    it("disables the Import entry point when import permission is unavailable", () => {
+        render(
+            <MemoryRouter>
+                <DataPageLayout
+                    title="Annotations"
+                    columns={COLUMNS}
+                    rows={[]}
+                    formFields={[]}
+                    importConfig={{
+                        endpoint: "/v1/annotations/imports",
+                        resourceKey: "annotations",
+                        importOnly: true,
+                        disabled: true,
+                        disabledReason: "You do not have permission to import annotations",
+                    }}
+                />
+            </MemoryRouter>,
+        )
+
+        expect(screen.getByRole("button", { name: "Import" })).toBeDisabled()
+    })
+
     it("does not open the edit form on row double-click without permission", async () => {
         const overlay = addOverlayRoot()
         render(

@@ -310,7 +310,8 @@ export function AudiosPage() {
                     const audioActionDisabled = selectedRows.size === 0 || audioActionBlockedByMediaType
                     const canLinkSelection = selectionCan(selectedRows, rows, "media_id", "link")
                     const canAssignSelection = selectionCan(selectedRows, rows, "media_id", "assign")
-                    const canAnalyzeSelection = selectionCan(selectedRows, rows, "media_id", "run_analysis")
+                    const canRunAiModelsSelection = selectionCan(selectedRows, rows, "media_id", "run_ai_models")
+                    const canRunAcousticAnalysisSelection = selectionCan(selectedRows, rows, "media_id", "run_analysis")
                     return (
                     <>
                         <ESButton
@@ -353,7 +354,7 @@ export function AudiosPage() {
                         }}>
                             <ClipboardListIcon size={14} /> Assignment
                         </ESButton>
-                        <ESButton appearance="unstyled" className="data-btn" title={!canAnalyzeSelection ? "You do not have permission to run AI models" : audioActionBlockedByMediaType ? "AI models are available for audio files only" : "Run an AI model on the selected audio files"} disabled={!canAnalyzeSelection || audioActionDisabled} onClick={() => {
+                        <ESButton appearance="unstyled" className="data-btn" title={!canRunAiModelsSelection ? "You do not have permission to run AI models" : audioActionBlockedByMediaType ? "AI models are available for audio files only" : "Run an AI model on the selected audio files"} disabled={!canRunAiModelsSelection || audioActionDisabled} onClick={() => {
                             if (audioActionBlockedByMediaType) {
                                 message.warning("AI models are available for audio files only.")
                                 return
@@ -363,7 +364,7 @@ export function AudiosPage() {
                         }}>
                             <BotIcon size={14} /> AI models
                         </ESButton>
-                        <ESButton appearance="unstyled" className="data-btn" title={!canAnalyzeSelection ? "You do not have permission to calculate acoustic indices" : audioActionBlockedByMediaType ? "Acoustic indices are available for audio files only" : "Calculate acoustic indices for the selected audio files"} disabled={!canAnalyzeSelection || audioActionDisabled} onClick={() => {
+                        <ESButton appearance="unstyled" className="data-btn" title={!canRunAcousticAnalysisSelection ? "You do not have permission to calculate acoustic indices" : audioActionBlockedByMediaType ? "Acoustic indices are available for audio files only" : "Calculate acoustic indices for the selected audio files"} disabled={!canRunAcousticAnalysisSelection || audioActionDisabled} onClick={() => {
                             if (audioActionBlockedByMediaType) {
                                 message.warning("Acoustic indices are available for audio files only.")
                                 return

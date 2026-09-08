@@ -173,13 +173,21 @@ class UserRepository(BaseRepository[User, UserCreate, UserUpdate]):
 
         return apply_ordering(query, order_by, order_dir, _SORT_FIELDS, User.user_id)
 
-    def _project_scope_user_condition(self, project_ids: list[int]):
+    def _project_scope_user_condition(
+        self,
+        project_ids: list[int],
+        *,
+        manageable_only: bool = False,
+    ):
         if not project_ids:
             return None
 
         users_in_projects = select(UserEffectivePermission.user_id).where(
             UserEffectivePermission.project_id.in_(project_ids)
         )
+        if not manageable_only:
+            return User.user_id.in_(users_in_projects)
+
         project_managers = (
             select(UserEffectivePermission.user_id)
             .where(
@@ -191,7 +199,12 @@ class UserRepository(BaseRepository[User, UserCreate, UserUpdate]):
         )
         return User.user_id.in_(users_in_projects) & ~User.user_id.in_(project_managers)
 
-    def _collection_scope_user_condition(self, collection_scopes: list[tuple[int, int]]):
+    def _collection_scope_user_condition(
+        self,
+        collection_scopes: list[tuple[int, int]],
+        *,
+        manageable_only: bool = False,
+    ):
         if not collection_scopes:
             return None
 
@@ -203,12 +216,15 @@ class UserRepository(BaseRepository[User, UserCreate, UserUpdate]):
             for project_id, collection_id in collection_scopes
         ]
         collection_scope_filter = or_(*pair_filters)
-        project_ids = list({project_id for project_id, _ in collection_scopes})
 
         users_in_collections = select(UserEffectivePermission.user_id).where(
             UserEffectivePermission.scope_type == "project_collection",
             collection_scope_filter,
         )
+        if not manageable_only:
+            return User.user_id.in_(users_in_collections)
+
+        project_ids = list({project_id for project_id, _ in collection_scopes})
         collection_managers = (
             select(UserEffectivePermission.user_id)
             .where(
@@ -237,12 +253,14 @@ class UserRepository(BaseRepository[User, UserCreate, UserUpdate]):
         self,
         project_ids: list[int],
         collection_scopes: list[tuple[int, int]],
+        *,
+        manageable_only: bool = False,
     ):
         conditions = [
             condition
             for condition in (
-                self._project_scope_user_condition(project_ids),
-                self._collection_scope_user_condition(collection_scopes),
+                self._project_scope_user_condition(project_ids, manageable_only=manageable_only),
+                self._collection_scope_user_condition(collection_scopes, manageable_only=manageable_only),
             )
             if condition is not None
         ]

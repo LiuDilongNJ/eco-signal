@@ -34,6 +34,7 @@ from app.schemas.response import (
     api_success,
 )
 from app.schemas.role import (
+    AccessRolePublic,
     UserRoleResponse,
     UserRoleUpdate,
 )
@@ -55,6 +56,7 @@ __all__ = [
     # Role schemas
     "UserRoleUpdate",
     "UserRoleResponse",
+    "AccessRolePublic",
     # User schemas
     "UserCreate",
     "UserRegister",

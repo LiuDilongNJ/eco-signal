@@ -59,6 +59,16 @@ describe("usePermissions", () => {
         expect(result.current.can("review:read")).toBe(true)
     })
 
+    it("grants own-write permissions returned by the API", async () => {
+        respondWith(["review:read", "review:write_own"])
+
+        const { result } = renderHook(() => usePermissions(1, 10), { wrapper })
+
+        await waitFor(() => expect(result.current.isLoading).toBe(false))
+        expect(result.current.can("review:write_own")).toBe(true)
+        expect(result.current.can("review:write")).toBe(false)
+    })
+
     it("denies a permission the API did not return", async () => {
         respondWith(["review:read"])
 

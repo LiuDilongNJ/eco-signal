@@ -35,6 +35,8 @@
 
 打开媒体记录可查看预览和元数据。权限允许时，可创建或编辑标注，并使用审核记录验证工作。图片查看器可显示或隐藏标注覆盖层。
 
+Annotator 只能创建和维护本人 Annotation；Reviewer 可以读取 Annotation、Review，并只能创建和维护本人 Review；Viewer 仅可读取，Manager 可操作其被分配路径内的全部对象。权限会同时按当前 Project 和 Collection 判断，不能借用同一 Collection 在其他 Project 下的权限。
+
 分析操作会创建后台任务。请在 Queue 中跟踪进度，并在完成后打开媒体或结果记录查看输出。若没有可用操作，请向管理者申请对应的集合权限。
 
 ## 导入表格数据

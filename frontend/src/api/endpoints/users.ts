@@ -1,6 +1,6 @@
 import { apiClient } from "../client"
 import { getApiData } from "../utils"
-import type { RowCapabilities } from "../capabilities"
+import type { UserCapabilities } from "../capabilities"
 
 export interface UserPublic {
     user_id: number
@@ -13,7 +13,7 @@ export interface UserPublic {
     active: boolean
     is_project_admin?: boolean
     preference?: UserPreference | null
-    capabilities?: RowCapabilities
+    capabilities?: UserCapabilities
     [key: string]: any
 }
 

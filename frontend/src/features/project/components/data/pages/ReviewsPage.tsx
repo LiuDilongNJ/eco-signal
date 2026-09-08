@@ -85,12 +85,20 @@ export function ReviewsPage() {
     const currentCollectionId = useProjectStore((s) => s.currentCollectionId)
     const { can } = usePermissions(currentProjectId, currentCollectionId)
     const canWriteReview = can("review:write")
+    const canImportReviews = canWriteReview || can("review:write_own")
 
     const fetchTableData = useCallback(
         async (state: TableState) => {
+            if (!currentProjectId) {
+                setRows([])
+                setTotalRows(0)
+                setLoading(false)
+                return
+            }
             setLoading(true)
             try {
                 const params: ReviewsListParams = {
+                    project_id: Number(currentProjectId),
                     page: state.page,
                     page_size: state.pageSize,
                 }
@@ -102,9 +110,6 @@ export function ReviewsPage() {
 
                 applyReviewFilters(params, state.filters)
 
-                if (currentProjectId) {
-                    params.project_id = Number(currentProjectId)
-                }
                 if (currentCollectionId && currentCollectionId !== "all") {
                     params.collection_id = Number(currentCollectionId)
                 }
@@ -237,8 +242,12 @@ export function ReviewsPage() {
 
     const handleExport = useCallback(async () => {
         try {
+            if (!currentProjectId) {
+                message.warning("Please select a project first")
+                return
+            }
             setLoading(true)
-            const params: ReviewsExportParams = {}
+            const params: ReviewsExportParams = { project_id: Number(currentProjectId) }
             if (tableState?.sortKey) {
                 params.order_by = tableState.sortKey
                 params.order_dir = tableState.sortDir || "asc"
@@ -248,9 +257,6 @@ export function ReviewsPage() {
                 applyReviewFilters(params, tableState.filters)
             }
 
-            if (currentProjectId) {
-                params.project_id = Number(currentProjectId)
-            }
             if (currentCollectionId && currentCollectionId !== "all") {
                 params.collection_id = Number(currentCollectionId)
             }
@@ -274,8 +280,8 @@ export function ReviewsPage() {
                     resourceKey: "reviews",
                     importOnly: true,
                     fields: { project_id: currentProjectId, collection_id: currentCollectionId },
-                    disabled: !canWriteReview || !currentProjectId || !currentCollectionId || currentCollectionId === "all",
-                    disabledReason: canWriteReview
+                    disabled: !canImportReviews || !currentProjectId || !currentCollectionId || currentCollectionId === "all",
+                    disabledReason: canImportReviews
                         ? "Select a project and collection before importing reviews"
                         : "You do not have permission to import reviews",
                 }}

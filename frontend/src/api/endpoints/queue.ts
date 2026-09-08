@@ -1,6 +1,6 @@
 import { apiClient } from "../client"
 import type { ApiResponse, PagedApiResponse } from "../../types"
-import type { RowCapabilities } from "../capabilities"
+import type { QueueCapabilities } from "../capabilities"
 
 export interface QueueQueryParams {
     page?: number
@@ -40,7 +40,7 @@ export interface QueueDetail {
 export interface QueueListItem extends QueueDetail {
     user_id: number
     username: string
-    capabilities?: RowCapabilities
+    capabilities?: QueueCapabilities
 }
 
 export interface QueueExportParams {

@@ -6,7 +6,7 @@ from pydantic import ConfigDict, field_serializer, model_validator
 from sqlmodel import SQLModel, Field
 
 from app.schemas.coordinates import Latitude, Longitude
-from app.schemas.capability import RowCapabilities
+from app.schemas.capability import SiteCapabilities
 
 
 class SiteCreate(SQLModel):
@@ -108,7 +108,7 @@ class SitePublic(SQLModel):
     creator_name: Optional[str] = None
     creation_date: datetime
     collection_ids: list[int] = []
-    capabilities: RowCapabilities = Field(default_factory=RowCapabilities)
+    capabilities: SiteCapabilities = Field(default_factory=SiteCapabilities)
 
     model_config = ConfigDict(from_attributes=True)
 

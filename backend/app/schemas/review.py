@@ -4,7 +4,7 @@ from typing import Optional
 from pydantic import field_serializer
 from sqlmodel import Field, SQLModel
 
-from app.schemas.capability import RowCapabilities
+from app.schemas.capability import ReviewCapabilities
 
 
 class ReviewCreate(SQLModel):
@@ -39,7 +39,7 @@ class ReviewRead(SQLModel):
     reviewer_name: str
     status_name: str
     taxon_name: Optional[str] = None
-    capabilities: RowCapabilities = Field(default_factory=RowCapabilities)
+    capabilities: ReviewCapabilities = Field(default_factory=ReviewCapabilities)
 
     @field_serializer("creation_date")
     @classmethod

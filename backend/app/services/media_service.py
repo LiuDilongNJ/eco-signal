@@ -58,7 +58,12 @@ from app.models import (
 )
 from app.models.media import Preview
 from app.models.project import Project
-from app.repositories import media_repository, permission_repository, project_repository, user_repository
+from app.repositories import (
+    media_repository,
+    permission_repository,
+    project_repository,
+    user_repository,
+)
 from app.repositories.collection_scope import resolve_project_collection_scope
 from app.schemas.media import (
     MediaBatchFailedItem,
@@ -81,9 +86,9 @@ from app.schemas.media import (
     PhotoSettingPublic,
     PreviewPublic,
 )
-from app.services import row_capability_service
 from app.schemas.response import ApiResponse, PagedApiResponse, api_page
-from app.services import permission_service
+from app.services import access_scope_service, authorization_service, permission_service
+from app.services.authorization_policy import AuthorizationAction
 from app.spectrogram import (
     DETAIL_DEFAULT_FFT_SIZE,
     DETAIL_DEFAULT_MIN_FREQ,
@@ -467,19 +472,13 @@ def require_media_resource_write(
             select(MediaCollection).where(MediaCollection.media_id == media_id)
         ).all()
     )
-    if permission_service.is_admin(user):
-        return media_collections
-
-    has_access = permission_service.has_resource_permission_on_any_collection_path(
-        session,
-        user,
-        [media_collection.collection_id for media_collection in media_collections],
-        "audio",
-        "write",
-        project_id=project_id,
+    authorization_service.evaluator(session, user, project_id).require(
+        AuthorizationAction.MEDIA_EDIT,
+        authorization_service.AuthorizationSubject(frozenset(
+            media_collection.collection_id for media_collection in media_collections
+        )),
+        detail=denied_detail,
     )
-    if not has_access:
-        raise HTTPException(status_code=403, detail=denied_detail)
     return media_collections
 
 
@@ -543,7 +542,7 @@ def _resolve_creator_id(
         if scope[0] not in project_write_set
     ]
     for collection_id in collection_ids:
-        resolved_project_id = permission_service.resolve_collection_project_id(
+        resolved_project_id = access_scope_service.resolve_collection_project_id(
             session, collection_id, project_id
         )
         allowed_user_condition = user_repository.build_manager_scope_user_condition(
@@ -1429,12 +1428,7 @@ def get_media_list(
         relation_profile="detail",
     )
     scope_set = set(scoped_collection_ids)
-    writable_ids = row_capability_service.project_collection_ids(
-        session, user, project_id, "audio", "write"
-    )
-    assignable_ids = row_capability_service.project_collection_ids(
-        session, user, project_id, "collection", "write"
-    )
+    authz = authorization_service.evaluator(session, user, project_id)
     data = []
     for media in media_list:
         item = MediaListPublic.model_validate(
@@ -1452,19 +1446,8 @@ def get_media_list(
             for mc in (media.media_collections or [])
             if mc.collection_id in scope_set
         }
-        analysis_allowed = bool(
-            user
-            and (
-                permission_service.is_admin(user)
-                or media.uploader_id == user.user_id
-                or linked_ids & assignable_ids
-            )
-        )
-        item.capabilities = row_capability_service.linked_capabilities(
-            linked_ids,
-            writable_collection_ids=writable_ids,
-            assignable_collection_ids=assignable_ids,
-            run_analysis=analysis_allowed,
+        item.capabilities = authz.media_capabilities(
+            linked_ids, uploader_id=media.uploader_id
         )
         data.append(item)
     return api_page(data=data, total=count, page=page, page_size=page_size)
@@ -1886,7 +1869,14 @@ def get_media(
         if not allowed:
             raise HTTPException(status_code=403, detail="Access denied")
 
-    return _build_media_public(session, media, user, project_id=project_id)
+    result = _build_media_public(session, media, user, project_id=project_id)
+    linked_collection_ids = {mc.collection_id for mc in media_collections}
+    result.capabilities = authorization_service.evaluator(
+        session, user, project_id
+    ).media_capabilities(
+        linked_collection_ids, uploader_id=media.uploader_id
+    )
+    return result
 
 
 def _detail_asset_root() -> Path:
@@ -3219,7 +3209,7 @@ def update_media(
     if not media:
         raise HTTPException(status_code=404, detail="Media not found")
 
-    # Permission check handled by PermissionChecker dependency in route
+    # Project authorization is enforced by the route dependency.
 
     raw_payload = media_in.model_dump(exclude_unset=True)
 

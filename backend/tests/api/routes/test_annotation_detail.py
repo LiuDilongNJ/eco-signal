@@ -330,7 +330,7 @@ class TestAnnotationNavigation:
             f"{settings.API_V1_STR}/annotations/99999999/navigation-items?media_id=1",
             headers=superuser_token_headers,
         )
-        assert r.status_code == 404
+        assert r.status_code == 422
 
     def test_navigation_middle_annotation(
         self, client: TestClient, db: Session, superuser_token_headers: dict
@@ -341,7 +341,7 @@ class TestAnnotationNavigation:
 
         r = client.get(
             f"{settings.API_V1_STR}/annotations/{middle.annotation_id}/navigation-items"
-            f"?media_id={media.media_id}",
+            f"?media_id={media.media_id}&project_id={project.project_id}",
             headers=superuser_token_headers,
         )
         assert r.status_code == 200
@@ -358,7 +358,7 @@ class TestAnnotationNavigation:
 
         r = client.get(
             f"{settings.API_V1_STR}/annotations/{first.annotation_id}/navigation-items"
-            f"?media_id={media.media_id}",
+            f"?media_id={media.media_id}&project_id={project.project_id}",
             headers=superuser_token_headers,
         )
         assert r.status_code == 200
@@ -375,7 +375,7 @@ class TestAnnotationNavigation:
 
         r = client.get(
             f"{settings.API_V1_STR}/annotations/{last.annotation_id}/navigation-items"
-            f"?media_id={media.media_id}",
+            f"?media_id={media.media_id}&project_id={project.project_id}",
             headers=superuser_token_headers,
         )
         assert r.status_code == 200
@@ -391,7 +391,7 @@ class TestAnnotationNavigation:
 
         r = client.get(
             f"{settings.API_V1_STR}/annotations/{anns[0].annotation_id}/navigation-items"
-            f"?media_id={media.media_id}",
+            f"?media_id={media.media_id}&project_id={project.project_id}",
             headers=superuser_token_headers,
         )
         assert r.status_code == 200
@@ -408,7 +408,7 @@ class TestAnnotationNavigation:
 
         r = client.get(
             f"{settings.API_V1_STR}/annotations/{anns[0].annotation_id}/navigation-items"
-            f"?media_id={media.media_id}",
+            f"?media_id={media.media_id}&project_id={project.project_id}",
             headers=superuser_token_headers,
         )
         assert r.status_code == 200

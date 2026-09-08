@@ -38,7 +38,7 @@ import { useTabularImport } from "@/features/imports/useTabularImport"
 import { useProjectStore } from "../../stores/useProjectStore"
 import { Checkbox, Combobox, ConfigProvider, DataTable, DatePicker, DropdownMenu, getTooltipText, Input, RowActions, TableToolbar, Tooltip, theme as antdTheme } from "@/components/ui"
 import type { ThemeConfig } from "@/components/ui"
-import type { RowCapabilities } from "@/api/capabilities"
+import type { CapabilityValues } from "@/api/capabilities"
 import type { MenuProps } from "@/components/ui"
 import { INTERNAL_COL_DEFINE } from "@/components/ui"
 import "./styles/DataPageLayout.css"
@@ -265,7 +265,7 @@ export interface FormFieldDef {
     readonly?: boolean
 }
 
-export type RowData = Record<string, any> & { capabilities?: Partial<RowCapabilities> }
+export type RowData = Record<string, any> & { capabilities?: CapabilityValues }
 
 type SortDir = "asc" | "desc" | null
 export type DataNavFilter = "current" | "all"
@@ -1331,8 +1331,12 @@ export function DataPageLayout({
         }
     }, [currentPage, pageSize, columnFilters, searchQuery, sortKey, sortDir, navFilter, currentProjectId, currentCollectionId, onTableStateChange, title, showNavFilter, columns, importRefreshToken]);
 
+    const importOnly = importConfig?.importOnly === true
     const addBlocked = addDisabled || !canAdd
+    const importBlocked = Boolean(importConfig?.disabled || tabularImport.importing)
+    const actionBlocked = importOnly ? importBlocked : addBlocked
     const addBlockedTooltip = !canAdd ? noPermissionTooltip : addDisabledTooltip
+    const importBlockedTooltip = importConfig?.disabled ? importConfig.disabledReason : undefined
 
     const mergedAddDropdownItems: MenuProps["items"] = []
     if (addDropdownItems) {
@@ -1361,7 +1365,7 @@ export function DataPageLayout({
                             key: `__import_${variant.key}`,
                             label: "Import Data",
                             icon: <FileUp size={14} />,
-                            disabled: importConfig.disabled || tabularImport.importing,
+                            disabled: importBlocked,
                             title: importConfig.disabled ? importConfig.disabledReason : undefined,
                             onClick: () => tabularImport.triggerImport(variant.key),
                         },
@@ -1379,7 +1383,7 @@ export function DataPageLayout({
                 key: "__import_data",
                 label: importConfig.importLabel ?? "Import Data",
                 icon: <FileUp size={14} />,
-                disabled: importConfig.disabled || tabularImport.importing,
+                disabled: importBlocked,
                 title: importConfig.disabled ? importConfig.disabledReason : undefined,
                 onClick: () => tabularImport.triggerImport(),
             })
@@ -1392,7 +1396,6 @@ export function DataPageLayout({
         }
     }
     const useAddDropdown = Boolean(importConfig || addDropdownItems)
-    const importOnly = importConfig?.importOnly === true
     const showAddAction = !importOnly && (Boolean(importConfig) || !hideAdd)
 
     return (
@@ -1464,17 +1467,17 @@ export function DataPageLayout({
 
                             {useAddDropdown ? (
                                 ((showAddAction || importOnly) && (
-                                    <Tooltip title={addBlocked ? addBlockedTooltip : importOnly ? "Import data" : importConfig ? "Add or import data" : "Add a new record to this table"}>
+                                    <Tooltip title={actionBlocked ? (importOnly ? importBlockedTooltip : addBlockedTooltip) : importOnly ? "Import data" : importConfig ? "Add or import data" : "Add a new record to this table"}>
                                         <span style={{ display: "inline-flex" }}>
                                             <DropdownMenu
                                                 items={mergedAddDropdownItems}
                                                 trigger={['click']}
                                                 placement="bottomLeft"
                                                 transitionName=""
-                                                disabled={addBlocked}
+                                                disabled={actionBlocked}
                                                 overlayClassName="data-add-dropdown"
                                             >
-                                                <ESButton appearance="unstyled" type="button" className="data-btn" title={addBlocked ? addBlockedTooltip : importOnly ? "Import data" : importConfig ? "Add or import data" : "Add a new record to this table"} disabled={addBlocked}>
+                                                <ESButton appearance="unstyled" type="button" className="data-btn" title={actionBlocked ? (importOnly ? importBlockedTooltip : addBlockedTooltip) : importOnly ? "Import data" : importConfig ? "Add or import data" : "Add a new record to this table"} disabled={actionBlocked}>
                                                     {importOnly ? <FileUp size={14} /> : <Plus size={14} />} {importOnly ? "Import" : "Add"}
                                                     <ChevronDown size={14} className="data-btn__dropdown-icon" aria-hidden />
                                                 </ESButton>

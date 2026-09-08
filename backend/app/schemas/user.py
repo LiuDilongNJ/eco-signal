@@ -5,7 +5,7 @@ from pydantic import EmailStr, field_serializer, field_validator
 from sqlmodel import Field, SQLModel
 
 from app.models import UserPreference
-from app.schemas.capability import RowCapabilities
+from app.schemas.capability import UserCapabilities
 
 
 def _normalize_hex_color(v: Optional[str]) -> Optional[str]:
@@ -170,7 +170,7 @@ class UserListPublic(SQLModel):
     role_id: int
     contrib: Optional[str] = None
     is_admin: bool
-    capabilities: RowCapabilities = Field(default_factory=RowCapabilities)
+    capabilities: UserCapabilities = Field(default_factory=UserCapabilities)
 
     @field_serializer('orcid')
     @classmethod

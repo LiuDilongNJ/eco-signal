@@ -3,12 +3,28 @@ from typing import Any
 
 from fastapi import APIRouter, Depends
 
-from app.api.deps import SessionDep, get_current_active_superuser
-from app.schemas.response import ApiResponse
-from app.schemas.role import UserRoleUpdate
-from app.services import user_service
+from app.api.deps import ActiveManager, SessionDep, get_current_active_superuser
+from app.schemas.response import ApiResponse, api_success
+from app.schemas.role import AccessRolePublic, UserRoleUpdate
+from app.services import permission_config_service, user_service
 
 router = APIRouter(tags=["角色 / roles"])
+
+
+@router.get(
+    "/roles",
+    response_model=ApiResponse[list[AccessRolePublic]],
+    summary="获取访问角色 / List access roles",
+)
+def list_access_roles(
+    session: SessionDep,
+    current_user: ActiveManager,
+    kind: str = "access",
+) -> Any:
+    """获取可分配的项目和集合路径角色。 / List assignable project and collection roles."""
+    if kind != "access":
+        return api_success(data=[])
+    return api_success(data=permission_config_service.list_access_roles(session))
 
 
 @router.put(

@@ -12,7 +12,7 @@ from app.schemas.collection_bundle_export import (
     CollectionBundleExportPublic,
 )
 from app.schemas.response import ApiResponse, api_success
-from app.services import collection_bundle_export_service, permission_service
+from app.services import access_scope_service, collection_bundle_export_service, permission_service
 
 router = APIRouter(
     prefix="/collection-bundle-exports",
@@ -60,7 +60,7 @@ async def create_collection_bundle_export(
     _require_project_write(session, current_user, payload.project_id)
     if session.get(Collection, payload.collection_id) is None:
         raise HTTPException(status_code=404, detail="Collection not found")
-    permission_service.resolve_collection_project_id(
+    access_scope_service.resolve_collection_project_id(
         session,
         payload.collection_id,
         payload.project_id,

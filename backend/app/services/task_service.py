@@ -9,8 +9,8 @@ from app.models import User
 from app.models.annotation import Annotation
 from app.models.media import Media, MediaCollection
 from app.repositories import permission_repository, task_repository
-from app.schemas.capability import RowCapabilities
-from app.services import permission_service, row_capability_service
+from app.services import access_scope_service, authorization_service, permission_service
+from app.services.authorization_policy import AuthorizationAction
 
 _TASK_EXPORT_COLUMNS = [
     CsvColumn("task_id"), CsvColumn("type"), CsvColumn("media_name"), CsvColumn("media_type"),
@@ -43,30 +43,14 @@ def require_media_write_access(
     if not media:
         raise HTTPException(status_code=404, detail="Media not found")
 
-    if not permission_service.is_admin(current_user):
-        mc_list = session.exec(
-            select(MediaCollection).where(MediaCollection.media_id == media_id)
-        ).all()
-
-        if not mc_list:
-            raise HTTPException(
-                status_code=403,
-                detail="No write permission on this media's collection",
-            )
-
-        has_access = permission_service.has_resource_permission_on_any_collection_path(
-            session,
-            current_user,
-            [mc.collection_id for mc in mc_list],
-            "collection",
-            "write",
-            project_id=project_id,
-        )
-        if not has_access:
-            raise HTTPException(
-                status_code=403,
-                detail="No write permission on this media's collection",
-            )
+    mc_list = session.exec(
+        select(MediaCollection).where(MediaCollection.media_id == media_id)
+    ).all()
+    authorization_service.evaluator(session, current_user, project_id).require(
+        AuthorizationAction.MEDIA_ASSIGN,
+        authorization_service.AuthorizationSubject(frozenset(mc.collection_id for mc in mc_list)),
+        detail="No write permission on this media's collection",
+    )
     return media
 
 
@@ -212,18 +196,14 @@ def list_tasks(
         }.items() if v is not None}
     )
     media_ids = {int(item["media_id"]) for item in items if item.get("media_id") is not None}
-    media_collections = row_capability_service.media_collection_map(
+    media_collections = authorization_service.media_collection_map(
         session, media_ids, project_id
     )
-    writable_ids = row_capability_service.project_collection_ids(
-        session, current_user, project_id, "collection", "write"
-    )
+    authz = authorization_service.evaluator(session, current_user, project_id)
     for item in items:
         linked_ids = media_collections.get(item.get("media_id"), set())
-        item["capabilities"] = RowCapabilities(
-            delete=is_admin
-            or item.get("assigner_id") == current_user.user_id
-            or bool(linked_ids & writable_ids)
+        item["capabilities"] = authz.task_capabilities(
+            linked_ids, assigner_id=item.get("assigner_id")
         )
     return total, items
 
@@ -237,7 +217,7 @@ def export_tasks(
     order_dir: str = "asc",
 ) -> str:
     if collection_id is not None:
-        permission_service.resolve_collection_project_id(
+        access_scope_service.resolve_collection_project_id(
             session,
             collection_id,
             project_id,
@@ -265,23 +245,16 @@ def get_task(
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
         
-    is_admin = permission_service.is_admin(current_user)
-    
-    if not is_admin:
-        # Check if user is assigner or assignee
-        if task.assigner_id != current_user.user_id and task.assignee_id != current_user.user_id:
-            if task.media_id:
-                media_cols = session.exec(select(MediaCollection.collection_id).where(MediaCollection.media_id == task.media_id)).all()
-                if not permission_service.has_resource_permission_on_any_collection_path(
-                    session,
-                    current_user,
-                    list(media_cols),
-                    "collection",
-                    "write",
-                ):
-                    raise HTTPException(status_code=403, detail="You do not have permission to view this task.")
-            else:
-                 raise HTTPException(status_code=403, detail="You do not have permission to view this task.")
+    if task.assigner_id != current_user.user_id and task.assignee_id != current_user.user_id:
+        media_cols = (
+            session.exec(select(MediaCollection.collection_id).where(MediaCollection.media_id == task.media_id)).all()
+            if task.media_id else []
+        )
+        authorization_service.evaluator(session, current_user, None).require(
+            AuthorizationAction.TASK_VIEW,
+            authorization_service.AuthorizationSubject(frozenset(media_cols)),
+            detail="You do not have permission to view this task.",
+        )
                  
     # Resolve display names required by TaskListItem.
     assigner = session.get(User, task.assigner_id)
@@ -310,23 +283,17 @@ def delete_task(session: Session, current_user: User, task_id: int, project_id: 
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
         
-    is_admin = permission_service.is_admin(current_user)
-    
-    # Only admin, collection:write, OR assigner can delete
-    if not is_admin and task.assigner_id != current_user.user_id:
-        if task.media_id:
-            media_cols = session.exec(select(MediaCollection.collection_id).where(MediaCollection.media_id == task.media_id)).all()
-            if not permission_service.has_resource_permission_on_any_collection_path(
-                session,
-                current_user,
-                list(media_cols),
-                "collection",
-                "write",
-                project_id=project_id,
-            ):
-                raise HTTPException(status_code=403, detail="You do not have permission to delete this task.")
-        else:
-            raise HTTPException(status_code=403, detail="You do not have permission to delete this task.")
+    media_cols = (
+        session.exec(select(MediaCollection.collection_id).where(MediaCollection.media_id == task.media_id)).all()
+        if task.media_id else []
+    )
+    authorization_service.evaluator(session, current_user, project_id).require(
+        AuthorizationAction.TASK_DELETE,
+        authorization_service.AuthorizationSubject(
+            frozenset(media_cols), owner_id=task.assigner_id
+        ),
+        detail="You do not have permission to delete this task.",
+    )
             
     deleted = task_repository.delete(session, id=task_id)
     if not deleted:

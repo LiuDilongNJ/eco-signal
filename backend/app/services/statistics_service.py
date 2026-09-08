@@ -14,6 +14,7 @@ from app.models.collection import CollectionContributor
 from app.models.effective_permission import UserEffectivePermission
 from app.models.project import ProjectCollection, ProjectContributor
 from app.repositories import permission_repository
+from app.services import permission_service
 from app.schemas.project_overview import (
     OverviewContributor,
     OverviewStats,
@@ -24,75 +25,163 @@ _ANNOTATION_MEDIA_ID_CHUNK_SIZE = 10_000
 _OVERVIEW_MEDIA_TYPES = ("audio", "photo")
 
 
+def _resolve_overview_collection_ids(
+    session: Session,
+    current_user: User | None,
+    project_id: int,
+) -> list[int] | None:
+    """
+    Resolve accessible collection IDs for project overview stats.
+    Returns None if unrestricted (Admin or project:write manager).
+    Returns list of collection IDs if restricted to accessible collections.
+    """
+    if permission_service.is_admin(current_user):
+        return None
+
+    if current_user and permission_service.has_resource_permission(
+        session, current_user, "project", "write", project_id=project_id
+    ):
+        return None
+
+    accessible_ids: set[int] = set()
+    if current_user and current_user.user_id:
+        accessible_ids.update(
+            permission_repository.get_accessible_project_collection_ids(
+                session,
+                current_user.user_id,
+                project_id,
+                resource_type="collection",
+                action="read",
+            )
+        )
+
+    project = session.get(Project, project_id)
+    if project and project.public:
+        public_stmt = (
+            select(Collection.collection_id)
+            .join(ProjectCollection, ProjectCollection.collection_id == Collection.collection_id)
+            .where(
+                ProjectCollection.project_id == project_id,
+                Collection.public_access.is_(True),
+            )
+        )
+        accessible_ids.update(session.scalars(public_stmt).all())
+
+    return sorted({int(cid) for cid in accessible_ids})
+
+
 def get_project_summary(
     session: Session,
     project_id: int,
     collection_id: int | None = None,
+    current_user: User | None = None,
 ) -> ProjectOverviewResponse:
     if collection_id is not None:
         return _collection_summary(session, collection_id)
-    return _project_summary(session, project_id)
+    return _project_summary(session, project_id, current_user=current_user)
 
 
-def _project_summary(session: Session, project_id: int) -> ProjectOverviewResponse:
+def _project_summary(
+    session: Session,
+    project_id: int,
+    current_user: User | None = None,
+) -> ProjectOverviewResponse:
     project = session.get(Project, project_id)
-
-    users_count = session.scalar(
-        select(func.count(func.distinct(UserEffectivePermission.user_id))).where(
-            UserEffectivePermission.project_id == project_id
-        )
-    ) or 0
-
-    project_collections = (
-        select(ProjectCollection.collection_id)
-        .where(ProjectCollection.project_id == project_id)
-        .cte("project_collections")
+    accessible_collection_ids = _resolve_overview_collection_ids(
+        session, current_user, project_id
     )
 
-    collections_count = session.scalar(
-        select(func.count()).select_from(project_collections)
-    ) or 0
-
-    project_media_rows = session.exec(
-        select(Media.media_id, Media.media_type)
-        .select_from(MediaCollection)
-        .join(Media, Media.media_id == MediaCollection.media_id)
-        .where(
-            MediaCollection.collection_id.in_(select(project_collections.c.collection_id)),
-            Media.media_type.in_(_OVERVIEW_MEDIA_TYPES),
-            Media.is_metadata.is_(False),
+    if accessible_collection_ids is not None and len(accessible_collection_ids) == 0:
+        stats = OverviewStats(
+            users=0,
+            collections_or_projects=0,
+            audios=0,
+            photos=0,
+            annotations=0,
+            sites=0,
         )
-        .distinct()
-    ).all()
-    audio_media_count = sum(1 for row in project_media_rows if row.media_type == "audio")
-    photos_count = sum(1 for row in project_media_rows if row.media_type == "photo")
-
-    media_ids = [row.media_id for row in project_media_rows]
-    annotations_count = 0
-    for start in range(0, len(media_ids), _ANNOTATION_MEDIA_ID_CHUNK_SIZE):
-        chunk = media_ids[start:start + _ANNOTATION_MEDIA_ID_CHUNK_SIZE]
-        annotations_count += session.scalar(
-            select(func.count(Annotation.annotation_id)).where(
-                Annotation.media_id.in_(chunk)
+    else:
+        if accessible_collection_ids is None:
+            project_collections = (
+                select(ProjectCollection.collection_id)
+                .where(ProjectCollection.project_id == project_id)
+                .cte("project_collections")
             )
-        ) or 0
+            col_filter = MediaCollection.collection_id.in_(
+                select(project_collections.c.collection_id)
+            )
+            site_filter = SiteCollection.collection_id.in_(
+                select(project_collections.c.collection_id)
+            )
+            users_count = (
+                session.scalar(
+                    select(func.count(func.distinct(UserEffectivePermission.user_id))).where(
+                        UserEffectivePermission.project_id == project_id
+                    )
+                )
+                or 0
+            )
+            collections_count = (
+                session.scalar(select(func.count()).select_from(project_collections)) or 0
+            )
+        else:
+            col_filter = MediaCollection.collection_id.in_(accessible_collection_ids)
+            site_filter = SiteCollection.collection_id.in_(accessible_collection_ids)
+            users_count = (
+                session.scalar(
+                    select(func.count(func.distinct(UserEffectivePermission.user_id))).where(
+                        UserEffectivePermission.project_id == project_id,
+                        UserEffectivePermission.collection_id.in_(accessible_collection_ids),
+                    )
+                )
+                or 0
+            )
+            collections_count = len(accessible_collection_ids)
 
-    sites_count = session.scalar(
-        select(func.count(func.distinct(SiteCollection.site_id)))
-        .select_from(SiteCollection)
-        .where(
-            SiteCollection.collection_id.in_(select(project_collections.c.collection_id))
+        project_media_rows = session.exec(
+            select(Media.media_id, Media.media_type)
+            .select_from(MediaCollection)
+            .join(Media, Media.media_id == MediaCollection.media_id)
+            .where(
+                col_filter,
+                Media.media_type.in_(_OVERVIEW_MEDIA_TYPES),
+                Media.is_metadata.is_(False),
+            )
+            .distinct()
+        ).all()
+        audio_media_count = sum(1 for row in project_media_rows if row.media_type == "audio")
+        photos_count = sum(1 for row in project_media_rows if row.media_type == "photo")
+
+        media_ids = [row.media_id for row in project_media_rows]
+        annotations_count = 0
+        for start in range(0, len(media_ids), _ANNOTATION_MEDIA_ID_CHUNK_SIZE):
+            chunk = media_ids[start : start + _ANNOTATION_MEDIA_ID_CHUNK_SIZE]
+            annotations_count += (
+                session.scalar(
+                    select(func.count(Annotation.annotation_id)).where(
+                        Annotation.media_id.in_(chunk)
+                    )
+                )
+                or 0
+            )
+
+        sites_count = (
+            session.scalar(
+                select(func.count(func.distinct(SiteCollection.site_id)))
+                .select_from(SiteCollection)
+                .where(site_filter)
+            )
+            or 0
         )
-    ) or 0
 
-    stats = OverviewStats(
-        users=users_count,
-        collections_or_projects=int(collections_count),
-        audios=audio_media_count,
-        photos=photos_count,
-        annotations=annotations_count,
-        sites=int(sites_count),
-    )
+        stats = OverviewStats(
+            users=users_count,
+            collections_or_projects=int(collections_count),
+            audios=audio_media_count,
+            photos=photos_count,
+            annotations=annotations_count,
+            sites=int(sites_count),
+        )
 
     # contributors: creator first, then project contributors
     creator_id = project.creator_id if project else None

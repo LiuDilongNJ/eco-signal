@@ -9,7 +9,8 @@ from app.csv_import import attach_import_metadata, parse_import_upload
 from app.enums import MediaType
 from app.schemas.response import ApiResponse, PagedApiResponse, api_page, api_success
 from app.schemas.review import ReviewCreate, ReviewRead, ReviewUpdate
-from app.services import permission_service, review_service, tabular_import_service
+from app.services import authorization_service, review_service, tabular_import_service
+from app.services.authorization_policy import AuthorizationAction
 
 router = APIRouter(prefix="/reviews", tags=["评审 / reviews"])
 router_views = APIRouter(tags=["评审 / reviews"])
@@ -25,14 +26,10 @@ async def import_reviews(
     dry_run: bool = Form(True),
 ) -> Any:
     """校验或原子导入评审。 / Validate or atomically import reviews."""
-    permission_service.require_collection_resource_permission(
-        session,
-        collection_id=collection_id,
-        project_id=project_id,
-        user=current_user,
-        resource_type="review",
-        action="write",
-        denied_detail="No review:write permission on collection",
+    authorization_service.evaluator(session, current_user, project_id).require(
+        AuthorizationAction.ANNOTATION_CREATE_REVIEW,
+        authorization_service.AuthorizationSubject(frozenset({collection_id})),
+        detail="No review write permission on collection",
     )
     parsed = parse_import_upload(file.filename or "", await file.read())
     report = tabular_import_service.import_reviews(
@@ -50,7 +47,7 @@ async def import_reviews(
 def read_reviews(
     session: SessionDep,
     current_user: CurrentUser,
-    project_id: int | None = Query(None, description="项目 ID 筛选 | Filter by project ID"),
+    project_id: int = Query(..., description="项目 ID | Project ID"),
     collection_id: int | None = Query(None, description="集合 ID 筛选 | Filter by collection ID"),
     page: int = Query(1, ge=1, description="页码 | Page number"),
     page_size: int = Query(20, ge=1, le=100, description="每页数量 | Items per page"),
@@ -110,7 +107,7 @@ def read_reviews(
 def export_reviews(
     session: SessionDep,
     current_user: CurrentUser,
-    project_id: int | None = Query(None, description="项目 ID 筛选 | Filter by project ID"),
+    project_id: int = Query(..., description="项目 ID | Project ID"),
     collection_id: int | None = Query(None, description="集合 ID 筛选 | Filter by collection ID"),
     annotation_id: int | None = Query(None, description="注释 ID 筛选 | Filter by annotation ID"),
     media_name: str | None = Query(None, description="媒体名称筛选 | Filter by media name"),

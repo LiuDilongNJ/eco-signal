@@ -62,10 +62,12 @@ class FakeCursor:
             self.result = self.connection.legacy_rows
         elif "SELECT permission_id, name FROM permission" in normalized:
             self.result = self.connection.permission_rows
+        elif "SELECT code, role_id FROM role WHERE kind = 'access'" in normalized:
+            self.result = self.connection.access_roles
         elif "WITH project_collection_counts AS" in normalized:
-            candidates = self.connection.full_project_write_candidates()
-            if "SELECT COUNT(*) FROM user_write_counts" in normalized:
-                self.result = [(len(candidates),)]
+            candidates = self.connection.full_project_manager_candidates()
+            if "SELECT COUNT(*)" in normalized:
+                self.result = [(self.connection.missing_project_manager_count if self.connection.missing_project_manager_count is not None else len(candidates),)]
             else:
                 self.result = candidates
         elif normalized == "SELECT site_id FROM site":
@@ -112,6 +114,11 @@ class FakeCursor:
             self.rowcount = 1
         elif "SELECT 1 FROM project_collection" in normalized:
             self.result = [(1,)] if params in self.connection.project_collection_links else []
+        elif normalized.startswith("INSERT INTO user_scope_role"):
+            if params not in self.connection.inserted_user_scope_roles:
+                self.connection.inserted_user_scope_roles.append(params)
+            self.result = []
+            self.rowcount = 1
         elif normalized.startswith("INSERT INTO user_permission"):
             if (
                 params not in self.connection.existing_user_permissions
@@ -152,9 +159,13 @@ class FakeCursor:
             self.result = [(self.connection.admin_user_id,)] if self.connection.admin_user_id is not None else []
         elif "COUNT(*) FROM user_permission WHERE project_id IS NULL" in normalized:
             self.result = [(self.connection.null_project_count,)]
+        elif "COUNT(*) FROM user_scope_role WHERE project_id IS NULL" in normalized:
+            self.result = [(self.connection.null_project_count,)]
         elif "pc.collection_id IS NULL" in normalized:
             self.result = [(self.connection.broken_scope_count,)]
         elif "WHERE up.user_id = %s AND up.project_id = %s AND up.collection_id = %s" in normalized:
+            self.result = [(self.connection.collection_scope_count,)]
+        elif "FROM user_scope_role usr JOIN role r ON r.role_id = usr.role_id" in normalized:
             self.result = [(self.connection.collection_scope_count,)]
         elif "collection_perm.name = 'collection:read'" in normalized:
             self.result = [(self.connection.missing_collection_read_count,)]
@@ -192,10 +203,18 @@ class FakeCursor:
 
 
 class FakeConnection:
-    def __init__(self, *, legacy_rows=None, project_collection_links=None, existing_user_permissions=None):
+    def __init__(
+        self,
+        *,
+        legacy_rows=None,
+        project_collection_links=None,
+        existing_user_permissions=None,
+        existing_user_scope_roles=None,
+    ):
         self.legacy_rows = legacy_rows or []
         self.project_collection_links = project_collection_links or set()
         self.existing_user_permissions = existing_user_permissions or []
+        self.existing_user_scope_roles = existing_user_scope_roles or []
         self.permission_rows = [
             (1, "project:read"),
             (2, "project:write"),
@@ -204,7 +223,15 @@ class FakeConnection:
             (10, "annotation:write"),
             (12, "review:write"),
         ]
+        self.access_roles = [
+            ("viewer", 10),
+            ("reviewer", 20),
+            ("annotator", 30),
+            ("manager", 40),
+            ("custom", 50),
+        ]
         self.inserted_user_permissions = []
+        self.inserted_user_scope_roles = []
         self.inserted_network_nodes = []
         self.inserted_site_projects = []
         self.inserted_recorder_microphones = []
@@ -236,6 +263,7 @@ class FakeConnection:
         self.collection_scope_count = 1
         self.missing_collection_read_count = 0
         self.missing_project_read_count = 0
+        self.missing_project_manager_count = None
         self.view_count = 1
         self.metadata_without_audio_setting_count = 0
         self.metadata_with_photo_setting_count = 0
@@ -252,33 +280,40 @@ class FakeConnection:
     def close(self):
         return None
 
-    def full_project_write_candidates(self):
+    def full_project_manager_candidates(self, manager_role_id=40):
         project_collection_counts = {}
         for project_id, collection_id in self.project_collection_links:
             project_collection_counts.setdefault(project_id, set()).add(collection_id)
 
-        permission_name_by_id = dict(self.permission_rows)
-        user_write_collections = {}
-        existing_project_writes = set()
-        for params in [*self.existing_user_permissions, *self.inserted_user_permissions]:
-            if len(params) == 3:
-                user_id, permission_id, project_id = params
-                collection_id = None
-            else:
-                user_id, permission_id, project_id, collection_id = params
-            permission_name = permission_name_by_id.get(permission_id)
-            if permission_name == "collection:write" and collection_id is not None:
-                user_write_collections.setdefault((user_id, project_id), set()).add(collection_id)
-            if permission_name == "project:write" and collection_id is None:
-                existing_project_writes.add((user_id, project_id))
+        user_manager_collections = {}
+        existing_project_managers = set()
+        for params in [*self.existing_user_scope_roles, *self.inserted_user_scope_roles]:
+            if len(params) == 4 and params[3] is None:
+                user_id, role_id, project_id, _ = params
+                if role_id == manager_role_id:
+                    existing_project_managers.add((user_id, project_id))
+            elif len(params) == 3:
+                user_id, role_id, project_id = params
+                if role_id == manager_role_id:
+                    existing_project_managers.add((user_id, project_id))
+            elif len(params) == 4:
+                user_id, role_id, project_id, collection_id = params
+                if role_id == manager_role_id and collection_id is not None:
+                    user_manager_collections.setdefault((user_id, project_id), set()).add(collection_id)
 
         candidates = []
-        for (user_id, project_id), collection_ids in user_write_collections.items():
+        for (user_id, project_id), collection_ids in user_manager_collections.items():
             if not project_collection_counts.get(project_id):
                 continue
-            if collection_ids == project_collection_counts[project_id] and (user_id, project_id) not in existing_project_writes:
+            if (
+                collection_ids == project_collection_counts[project_id]
+                and (user_id, project_id) not in existing_project_managers
+            ):
                 candidates.append((user_id, project_id))
         return sorted(candidates)
+
+    def full_project_write_candidates(self):
+        return self.full_project_manager_candidates()
 
 
 def test_migrate_user_permissions_maps_view_review_access_and_manage():
@@ -297,18 +332,14 @@ def test_migrate_user_permissions_maps_view_review_access_and_manage():
     migrated = module.migrate_user_permissions(mysql_conn, pg_conn, dry_run=False)
 
     assert migrated == 4
-    assert set(pg_conn.inserted_user_permissions) == {
-        (7, 1, 101, None),
-        (7, 3, 101, 201),
-        (8, 1, 101, None),
-        (8, 3, 101, 202),
-        (8, 12, 101, 202),
-        (9, 1, 102, None),
-        (9, 3, 102, 203),
-        (9, 10, 102, 203),
-        (10, 1, 103, None),
-        (10, 4, 103, 204),
-        (10, 2, 103),
+    # Legacy 1=View -> viewer (10), 2=Review -> reviewer (20), 3=Access -> annotator (30), 4=Manage -> manager (40)
+    # User 10 is manager on the only collection of project 103, so also gets project-level manager
+    assert set(pg_conn.inserted_user_scope_roles) == {
+        (7, 10, 101, 201),
+        (8, 20, 101, 202),
+        (9, 30, 102, 203),
+        (10, 40, 103, 204),
+        (10, 40, 103, None),
     }
 
 
@@ -324,7 +355,7 @@ def test_migrate_user_permissions_grants_project_write_for_full_project_managers
     migrated = module.migrate_user_permissions(mysql_conn, pg_conn, dry_run=False)
 
     assert migrated == 2
-    assert (10, 2, 103) in pg_conn.inserted_user_permissions
+    assert (10, 40, 103, None) in pg_conn.inserted_user_scope_roles
 
 
 def test_migrate_user_permissions_does_not_grant_project_write_for_partial_project_managers():
@@ -338,24 +369,23 @@ def test_migrate_user_permissions_does_not_grant_project_write_for_partial_proje
     migrated = module.migrate_user_permissions(mysql_conn, pg_conn, dry_run=False)
 
     assert migrated == 1
-    assert (10, 2, 103) not in pg_conn.inserted_user_permissions
+    assert (10, 40, 103, None) not in pg_conn.inserted_user_scope_roles
 
 
 def test_grant_project_write_for_full_project_managers_is_idempotent():
     module = _load_script_module()
     pg_conn = FakeConnection(
         project_collection_links={(103, 204), (103, 205)},
-        existing_user_permissions=[
-            (10, 4, 103, 204),
-            (10, 4, 103, 205),
-            (10, 2, 103),
-        ],
     )
+    pg_conn.inserted_user_scope_roles = [
+        (10, 40, 103, 204),
+        (10, 40, 103, 205),
+        (10, 40, 103, None),
+    ]
 
-    migrated = module.grant_project_write_for_full_project_managers(pg_conn, dry_run=False)
+    migrated = module.grant_project_manager_for_full_project_managers(pg_conn, manager_role_id=40, dry_run=False)
 
     assert migrated == 0
-    assert pg_conn.inserted_user_permissions == []
 
 
 def test_migrate_user_permissions_skips_unlinked_or_unmapped_rows():
@@ -371,7 +401,7 @@ def test_migrate_user_permissions_skips_unlinked_or_unmapped_rows():
     migrated = module.migrate_user_permissions(mysql_conn, pg_conn, dry_run=False)
 
     assert migrated == 0
-    assert pg_conn.inserted_user_permissions == []
+    assert pg_conn.inserted_user_scope_roles == []
 
 
 def test_verify_user_permission_transfer_accepts_valid_permission_state():
@@ -387,36 +417,31 @@ def test_verify_user_permission_transfer_accepts_valid_permission_state():
     assert errors == []
 
 
-def test_verify_user_permission_transfer_reports_missing_inherited_reads():
+def test_verify_user_permission_transfer_reports_missing_source_permission():
     module = _load_script_module()
     legacy_rows = [
         {"user_id": 8, "project_id": 101, "collection_id": 202, "permission_id": 2},
     ]
     mysql_conn = FakeConnection(legacy_rows=legacy_rows)
     pg_conn = FakeConnection()
-    pg_conn.missing_collection_read_count = 1
-    pg_conn.missing_project_read_count = 1
+    pg_conn.collection_scope_count = 0
 
     errors = module.verify_user_permission_migration(mysql_conn, pg_conn)
 
-    assert any("same-scope collection:read" in error for error in errors)
-    assert any("parent project:read" in error for error in errors)
+    assert any("source permission is missing from target user_scope_role" in error for error in errors)
 
 
-def test_verify_user_permission_transfer_reports_missing_project_write_for_full_project_managers():
+def test_verify_user_permission_transfer_reports_missing_project_manager_for_full_project_managers():
     module = _load_script_module()
     mysql_conn = FakeConnection()
     pg_conn = FakeConnection(
         project_collection_links={(103, 204), (103, 205)},
-        existing_user_permissions=[
-            (10, 4, 103, 204),
-            (10, 4, 103, 205),
-        ],
     )
+    pg_conn.missing_project_manager_count = 1
 
     errors = module.verify_user_permission_migration(mysql_conn, pg_conn)
 
-    assert any("missing project:write" in error for error in errors)
+    assert any("missing project-level manager" in error for error in errors)
 
 
 def test_migrate_labels_copies_type_and_normalizes_system_creator():

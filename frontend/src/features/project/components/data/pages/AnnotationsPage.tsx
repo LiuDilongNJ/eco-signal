@@ -94,6 +94,7 @@ export function AnnotationsPage() {
     const currentCollectionId = useProjectStore(s => s.currentCollectionId)
     const { can } = usePermissions(currentProjectId, currentCollectionId)
     const canWriteAnnotation = can("annotation:write")
+    const canImportAnnotations = canWriteAnnotation || can("annotation:write_own")
 
     // Assignment drawer state（tag 任务需 annotation_ids；单选行时为当前标注 ID）
     const [assignTasksOpen, setAssignTasksOpen] = useState(false)
@@ -367,8 +368,8 @@ export function AnnotationsPage() {
                     ],
                     importOnly: true,
                     fields: { project_id: currentProjectId, collection_id: currentCollectionId },
-                    disabled: !canWriteAnnotation || !currentProjectId || !currentCollectionId || currentCollectionId === "all",
-                    disabledReason: canWriteAnnotation
+                    disabled: !canImportAnnotations || !currentProjectId || !currentCollectionId || currentCollectionId === "all",
+                    disabledReason: canImportAnnotations
                         ? "Select a project and collection before importing annotations"
                         : "You do not have permission to import annotations",
                 }}

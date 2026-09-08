@@ -25,9 +25,9 @@ from app.schemas.collection import (
     CollectionUpdate,
     CollectionViewResponse,
 )
-from app.schemas.capability import RowCapabilities
 from app.schemas.response import ApiResponse, PagedApiResponse, api_page
-from app.services import permission_service
+from app.services import authorization_service, permission_service
+from app.services.authorization_policy import AuthorizationAction
 
 _COLLECTION_EXPORT_COLUMNS = [
     CsvColumn("collection_id"), CsvColumn("uuid"),
@@ -149,11 +149,10 @@ def get_collections(
         item.creator_name = c.creator.name if c.creator else None
         writable = admin or c.collection_id in writable_ids
         project_writable = admin or bool(set(item.project_ids) & writable_project_ids)
-        item.capabilities = RowCapabilities(
-            edit=writable,
-            delete=project_writable,
-            set_taxons=writable,
-            export_bundle=project_writable,
+        item.capabilities = authorization_service.collection_capabilities(
+            admin=admin,
+            writable=writable,
+            project_writable=project_writable,
         )
         data.append(item)
     return api_page(data=data, total=count, page=page, page_size=page_size)
@@ -173,20 +172,12 @@ def get_collection(
     if not collection:
         raise HTTPException(status_code=404, detail="Collection not found")
 
-    # Admins have full access
-    if permission_service.is_admin(user):
-        return collection
-
-    if permission_service.has_resource_permission_on_any_collection_path(
-        session,
-        user,
-        [collection_id],
-        "collection",
-        "write",
-    ):
-        return collection
-
-    raise HTTPException(status_code=403, detail="Access denied")
+    authorization_service.evaluator(session, user, None).require(
+        AuthorizationAction.COLLECTION_EDIT,
+        authorization_service.AuthorizationSubject(frozenset({collection_id})),
+        detail="Access denied",
+    )
+    return collection
 
 
 def get_collection_with_relations(session: Session, collection_id: int) -> Collection:
@@ -282,15 +273,11 @@ def update_collection(
     if not collection:
         raise HTTPException(status_code=404, detail="Collection not found")
 
-    if not permission_service.is_admin(user):
-        if not permission_service.has_resource_permission_on_any_collection_path(
-            session,
-            user,
-            [collection_id],
-            "collection",
-            "write",
-        ):
-            raise HTTPException(status_code=403, detail="Access denied")
+    authorization_service.evaluator(session, user, None).require(
+        AuthorizationAction.COLLECTION_EDIT,
+        authorization_service.AuthorizationSubject(frozenset({collection_id})),
+        detail="Access denied",
+    )
 
     # Update fields
     update_data = collection_in.model_dump(exclude_unset=True)

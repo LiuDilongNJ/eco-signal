@@ -18,8 +18,13 @@ from app.schemas.site import (
     SitePublic,
     SiteUpdate,
 )
-from app.services import permission_service, site_service
-from app.services import tabular_import_service
+from app.services import (
+    access_scope_service,
+    authorization_service,
+    site_service,
+    tabular_import_service,
+)
+from app.services.authorization_policy import AuthorizationAction
 from app.utils import parse_range, parse_uuid
 
 router = APIRouter(prefix="/sites", tags=["站点 / sites"])
@@ -36,13 +41,12 @@ async def import_sites(
     dry_run: bool = Form(True),
 ) -> Any:
     """校验或原子导入站点。 / Validate or atomically import sites."""
-    permission_service.require_collection_resource_permission(
+    authorization_service.require_collection_action(
         session,
+        current_user,
+        AuthorizationAction.SITE_EDIT,
         collection_id=collection_id,
         project_id=project_id,
-        user=current_user,
-        resource_type="site",
-        action="write",
         denied_detail="No site:write permission on collection",
     )
     parsed = parse_import_upload(file.filename or "", await file.read())
@@ -113,7 +117,7 @@ def get_iucn_options(
       Anonymous users are filtered by public scope only; authenticated users use accessible + public scope.
     """
     if collection_id is not None:
-        project_id = permission_service.resolve_collection_project_id(session, collection_id, project_id)
+        project_id = access_scope_service.resolve_collection_project_id(session, collection_id, project_id)
 
     result = site_service.get_iucn_options(
         session,
@@ -152,7 +156,7 @@ def get_project_map_sites(
       Permission: anonymous users get public collections only; authenticated users get accessible + public.
     """
     if collection_id is not None:
-        permission_service.resolve_collection_project_id(session, collection_id, project_id)
+        access_scope_service.resolve_collection_project_id(session, collection_id, project_id)
 
     result = site_service.get_map_markers(
         session,
@@ -186,7 +190,7 @@ def get_project_map_site_geometries(
     Uses the same visibility scope as map markers endpoint.
     """
     if collection_id is not None:
-        permission_service.resolve_collection_project_id(session, collection_id, project_id)
+        access_scope_service.resolve_collection_project_id(session, collection_id, project_id)
 
     parsed_site_ids = site_service.parse_map_site_ids(site_ids)
     result = site_service.get_map_geometries(

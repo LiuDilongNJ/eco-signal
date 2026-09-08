@@ -1195,6 +1195,7 @@ RESET_TRUNCATE_TABLES = [
     "collection_contributor",
     "collection_taxon",
     "operation_log",
+    "user_scope_role",
     "user_permission",
     "user_preference",
     '"user"',
@@ -1206,7 +1207,6 @@ RESET_TRUNCATE_TABLES = [
     "microphone",
     "recorder",
     "license",
-    "role",
     "iucn_get",
     "sound_classification",
     "taxon_sound_type",
@@ -1217,7 +1217,16 @@ RESET_TRUNCATE_TABLES = [
 
 
 def target_has_business_data(pg_conn) -> bool:
-    tables = ("project", "collection", "site", "media", "annotation", "preview", "user_permission")
+    tables = (
+        "project",
+        "collection",
+        "site",
+        "media",
+        "annotation",
+        "preview",
+        "user_scope_role",
+        "user_permission",
+    )
     with pg_conn.cursor() as cur:
         for table in tables:
             cur.execute(f"SELECT COUNT(*) FROM {table}")  # noqa: S608
@@ -1249,6 +1258,8 @@ def migrate_roles(mysql_conn, pg_conn, dry_run: bool) -> int:
                 (r["role_id"], r["name"]),
             )
         count += 1
+    if not dry_run:
+        ensure_access_roles(pg_conn)
     return count
 
 
@@ -3284,39 +3295,115 @@ def verify_network_federation_state(
     return errors
 
 
-OLD_PERMISSION_GRANTS: dict[int, tuple[tuple[str, ...], tuple[str, ...]]] = {
-    # Old permission_id: 1=View, 2=Review, 3=Access, 4=Manage.
-    1: (("project:read",), ("collection:read",)),
-    2: (("project:read",), ("collection:read", "review:write")),
-    3: (("project:read",), ("collection:read", "annotation:write")),
-    4: (("project:read",), ("collection:write",)),
+LEGACY_PERMISSION_TO_ROLE_CODE: dict[int, str] = {
+    # Legacy permission_id: 1=View, 2=Review, 3=Access, 4=Manage.
+    1: "viewer",
+    2: "reviewer",
+    3: "annotator",
+    4: "manager",
 }
 
 
-def _permission_grant_rows(row: dict) -> list[tuple[int, int, int | None, str]]:
-    project_id = row.get("project_id")
-    collection_id = row.get("collection_id")
-    grant_names = OLD_PERMISSION_GRANTS.get(row.get("permission_id"))
-    if project_id is None or collection_id is None or not grant_names:
-        return []
+def ensure_access_roles(pg_conn) -> None:
+    """Ensure standard access roles and their permission templates exist."""
+    pg_exec(
+        pg_conn,
+        "SELECT setval('role_role_id_seq', GREATEST(COALESCE((SELECT MAX(role_id) FROM role), 0), 12))",
+    )
+    pg_exec(
+        pg_conn,
+        """
+        INSERT INTO role (name, code, kind, display_order)
+        VALUES
+            ('Viewer', 'viewer', 'access', 10),
+            ('Annotator', 'annotator', 'access', 20),
+            ('Reviewer', 'reviewer', 'access', 30),
+            ('Manager', 'manager', 'access', 40),
+            ('Custom', 'custom', 'access', 50)
+        ON CONFLICT (code) DO UPDATE
+        SET name = EXCLUDED.name,
+            kind = EXCLUDED.kind,
+            display_order = EXCLUDED.display_order
+        """,
+    )
+    pg_exec(
+        pg_conn,
+        "SELECT setval('role_role_id_seq', (SELECT MAX(role_id) FROM role))",
+    )
+    pg_exec(
+        pg_conn,
+        """
+        INSERT INTO permission (resource_type, action, name)
+        VALUES
+            ('annotation', 'read_own', 'annotation:read_own'),
+            ('annotation', 'write_own', 'annotation:write_own'),
+            ('review', 'read_own', 'review:read_own'),
+            ('review', 'write_own', 'review:write_own')
+        ON CONFLICT (name) DO NOTHING
+        """,
+    )
+    pg_exec(
+        pg_conn,
+        """
+        WITH templates(role_code, scope_type, permission_name) AS (
+            VALUES
+                ('viewer', 'project', 'project:read'),
+                ('viewer', 'project', 'audio:read'),
+                ('viewer', 'project', 'site:read'),
+                ('viewer', 'project', 'annotation:read'),
+                ('viewer', 'project', 'review:read'),
+                ('viewer', 'collection', 'collection:read'),
+                ('viewer', 'collection', 'audio:read'),
+                ('viewer', 'collection', 'site:read'),
+                ('viewer', 'collection', 'annotation:read'),
+                ('viewer', 'collection', 'review:read'),
+                ('annotator', 'project', 'project:read'),
+                ('annotator', 'project', 'audio:read'),
+                ('annotator', 'project', 'site:read'),
+                ('annotator', 'project', 'annotation:write_own'),
+                ('annotator', 'collection', 'collection:read'),
+                ('annotator', 'collection', 'audio:read'),
+                ('annotator', 'collection', 'site:read'),
+                ('annotator', 'collection', 'annotation:write_own'),
+                ('reviewer', 'project', 'project:read'),
+                ('reviewer', 'project', 'audio:read'),
+                ('reviewer', 'project', 'site:read'),
+                ('reviewer', 'project', 'annotation:read'),
+                ('reviewer', 'project', 'review:read'),
+                ('reviewer', 'project', 'review:write_own'),
+                ('reviewer', 'collection', 'collection:read'),
+                ('reviewer', 'collection', 'audio:read'),
+                ('reviewer', 'collection', 'site:read'),
+                ('reviewer', 'collection', 'annotation:read'),
+                ('reviewer', 'collection', 'review:read'),
+                ('reviewer', 'collection', 'review:write_own'),
+                ('manager', 'project', 'project:write'),
+                ('manager', 'collection', 'collection:write')
+        )
+        INSERT INTO role_permission (role_id, scope_type, permission_id)
+        SELECT r.role_id, t.scope_type, p.permission_id
+        FROM templates t
+        JOIN role r ON r.code = t.role_code
+        JOIN permission p ON p.name = t.permission_name
+        ON CONFLICT DO NOTHING
+        """,
+    )
 
-    project_permissions, collection_permissions = grant_names
-    grants: list[tuple[int, int, int | None, str]] = []
-    for permission_name in project_permissions:
-        grants.append((row["user_id"], project_id, None, permission_name))
-    for permission_name in collection_permissions:
-        grants.append((row["user_id"], project_id, collection_id, permission_name))
-    return grants
 
-
-def _fetch_permission_id_map(pg_conn, required_names: set[str]) -> dict[str, int]:
+def _fetch_access_role_id_map(pg_conn) -> dict[str, int]:
     with pg_conn.cursor() as cur:
-        cur.execute("SELECT permission_id, name FROM permission")
-        permission_map = {row[1]: row[0] for row in cur.fetchall()}
-    missing = sorted(required_names - set(permission_map))
+        cur.execute("SELECT code, role_id FROM role WHERE kind = 'access'")
+        role_map = {row[0]: row[1] for row in cur.fetchall()}
+    missing = sorted(set(LEGACY_PERMISSION_TO_ROLE_CODE.values()) - set(role_map))
     if missing:
-        raise RuntimeError(f"Missing required permissions in target DB: {', '.join(missing)}")
-    return permission_map
+        ensure_access_roles(pg_conn)
+        with pg_conn.cursor() as cur:
+            cur.execute("SELECT code, role_id FROM role WHERE kind = 'access'")
+            role_map = {row[0]: row[1] for row in cur.fetchall()}
+        missing = sorted(set(LEGACY_PERMISSION_TO_ROLE_CODE.values()) - set(role_map))
+        if missing:
+            raise RuntimeError(f"Missing required access roles in target DB: {', '.join(missing)}")
+    return role_map
 
 
 def _project_collection_link_exists(pg_conn, project_id: int, collection_id: int) -> bool:
@@ -3328,12 +3415,9 @@ def _project_collection_link_exists(pg_conn, project_id: int, collection_id: int
         return cur.fetchone() is not None
 
 
-def _full_project_collection_write_scopes(pg_conn) -> list[tuple[int, int]]:
+def _full_project_manager_scopes(pg_conn, manager_role_id: int) -> list[tuple[int, int]]:
     """
-    Return user/project pairs that match the source project-manager semantics.
-
-    A user is considered a project manager when they have
-    Manage permission on every collection in a project.
+    Return user/project pairs that have Manager role on every collection in a project.
     """
     with pg_conn.cursor() as cur:
         cur.execute(
@@ -3342,72 +3426,60 @@ def _full_project_collection_write_scopes(pg_conn) -> list[tuple[int, int]]:
                    FROM project_collection
                    GROUP BY project_id
                ),
-               user_write_counts AS (
-                   SELECT up.user_id, up.project_id, COUNT(DISTINCT up.collection_id) AS write_collections
-                   FROM user_permission up
-                   JOIN permission p ON p.permission_id = up.permission_id
-                   WHERE p.name = 'collection:write'
-                     AND up.collection_id IS NOT NULL
-                   GROUP BY up.user_id, up.project_id
+               user_manager_counts AS (
+                   SELECT usr.user_id, usr.project_id, COUNT(DISTINCT usr.collection_id) AS manager_collections
+                   FROM user_scope_role usr
+                   WHERE usr.role_id = %s
+                     AND usr.collection_id IS NOT NULL
+                   GROUP BY usr.user_id, usr.project_id
                )
-               SELECT uw.user_id, uw.project_id
-               FROM user_write_counts uw
+               SELECT umc.user_id, umc.project_id
+               FROM user_manager_counts umc
                JOIN project_collection_counts pc
-                 ON pc.project_id = uw.project_id
-                AND pc.total_collections = uw.write_collections
+                 ON pc.project_id = umc.project_id
+                AND pc.total_collections = umc.manager_collections
                WHERE NOT EXISTS (
                    SELECT 1
-                   FROM user_permission project_write
-                   JOIN permission project_permission
-                     ON project_permission.permission_id = project_write.permission_id
-                   WHERE project_write.user_id = uw.user_id
-                     AND project_write.project_id = uw.project_id
-                     AND project_write.collection_id IS NULL
-                     AND project_permission.name = 'project:write'
-               )"""
+                   FROM user_scope_role project_manager
+                   WHERE project_manager.user_id = umc.user_id
+                     AND project_manager.project_id = umc.project_id
+                     AND project_manager.collection_id IS NULL
+                     AND project_manager.role_id = %s
+               )""",
+            (manager_role_id, manager_role_id),
         )
         return [(row[0], row[1]) for row in cur.fetchall()]
 
 
-def grant_project_write_for_full_project_managers(pg_conn, dry_run: bool) -> int:
+def grant_project_manager_for_full_project_managers(pg_conn, manager_role_id: int, dry_run: bool) -> int:
     """
-    Promote full-project Manage coverage to project:write.
-
-    The per-collection Manage rows are still kept as collection:write so the
-    The target permission graph preserves both fine-grained and project-level use.
+    Promote full-project collection Manager coverage to project-level Manager.
     """
-    candidates = _full_project_collection_write_scopes(pg_conn)
+    candidates = _full_project_manager_scopes(pg_conn, manager_role_id)
     if dry_run:
         return len(candidates)
     if not candidates:
         return 0
 
-    permission_map = _fetch_permission_id_map(pg_conn, {"project:write"})
-    project_write_id = permission_map["project:write"]
     for user_id, project_id in candidates:
         pg_exec(
             pg_conn,
-            """INSERT INTO user_permission (user_id, permission_id, project_id, collection_id)
-               VALUES (%s, %s, %s, NULL)
-               ON CONFLICT DO NOTHING""",
-            (user_id, project_write_id, project_id),
+            """INSERT INTO user_scope_role (user_id, role_id, project_id, collection_id)
+               VALUES (%s, %s, %s, %s)
+               ON CONFLICT (user_id, project_id) WHERE collection_id IS NULL
+               DO UPDATE SET role_id = EXCLUDED.role_id""",
+            (user_id, manager_role_id, project_id, None),
         )
     return len(candidates)
 
 
 def migrate_user_permissions(mysql_conn, pg_conn, dry_run: bool) -> int:
     """
-    Map old collection-level permissions to current explicit permission storage.
+    Map legacy collection-level permissions to project-local access roles in user_scope_role.
 
-    Old: (user_id, collection_id, permission_id)
-    New: project-scoped base permission plus project+collection scoped grants.
+    Legacy: (user_id, collection_id, permission_id) where 1=View, 2=Review, 3=Access, 4=Manage.
+    Target: user_scope_role records mapped to viewer, reviewer, annotator, or manager.
     """
-    required_permission_names = {
-        permission_name
-        for project_names, collection_names in OLD_PERMISSION_GRANTS.values()
-        for permission_name in (*project_names, *collection_names)
-    }
-
     rows = fetch_all(
         mysql_conn,
         """SELECT up.user_id, up.collection_id, up.permission_id, c.project_id
@@ -3417,63 +3489,78 @@ def migrate_user_permissions(mysql_conn, pg_conn, dry_run: bool) -> int:
     if not rows:
         return 0
 
-    pg_perm_map: dict[str, int] = {}
+    role_map: dict[str, int] = {}
     if not dry_run:
-        pg_perm_map = _fetch_permission_id_map(pg_conn, required_permission_names)
+        role_map = _fetch_access_role_id_map(pg_conn)
 
     count = 0
     for r in rows:
-        grant_rows = _permission_grant_rows(r)
-        if not grant_rows:
+        role_code = LEGACY_PERMISSION_TO_ROLE_CODE.get(r.get("permission_id"))
+        project_id = r.get("project_id")
+        collection_id = r.get("collection_id")
+        user_id = r.get("user_id")
+
+        if not role_code or project_id is None or collection_id is None:
             log.warning(
                 "Skipping source permission with missing project/collection or unmapped permission: %s",
                 r,
             )
             audit_issue(
-                source_table="user_permission", source_id=f"{r['user_id']}:{r['collection_id']}:{r['permission_id']}",
-                target_table="user_permission", issue_type="invalid_reference", severity="error",
-                field_name="collection_id,permission_id", source_value=r,
+                source_table="user_permission",
+                source_id=f"{user_id}:{collection_id}:{r.get('permission_id')}",
+                target_table="user_scope_role",
+                issue_type="invalid_reference",
+                severity="error",
+                field_name="collection_id,permission_id",
+                source_value=r,
                 reason="The permission has no valid project/collection scope or permission mapping.",
                 recommended_action="Restore the collection path and use a supported permission before rerunning migration.",
             )
             continue
 
-        project_id = r["project_id"]
-        collection_id = r["collection_id"]
         if not dry_run and not _project_collection_link_exists(pg_conn, project_id, collection_id):
             log.warning(
                 "Skipping source permission for an unlinked project and collection path: user_id=%s project_id=%s collection_id=%s",
-                r["user_id"],
+                user_id,
                 project_id,
                 collection_id,
             )
             audit_issue(
-                source_table="user_permission", source_id=f"{r['user_id']}:{collection_id}:{r['permission_id']}",
-                target_table="user_permission", issue_type="invalid_reference", severity="error",
-                field_name="project_id,collection_id", source_value=f"{project_id}:{collection_id}",
+                source_table="user_permission",
+                source_id=f"{user_id}:{collection_id}:{r.get('permission_id')}",
+                target_table="user_scope_role",
+                issue_type="invalid_reference",
+                severity="error",
+                field_name="project_id,collection_id",
+                source_value=f"{project_id}:{collection_id}",
                 reason="The permission scope has no corresponding project-collection relation.",
                 recommended_action="Restore the project-collection relation before rerunning migration.",
             )
             continue
 
         if not dry_run:
-            for user_id, grant_project_id, grant_collection_id, permission_name in grant_rows:
-                new_perm_id = pg_perm_map[permission_name]
-                pg_exec(
-                    pg_conn,
-                    """INSERT INTO user_permission (user_id, permission_id, project_id, collection_id)
-                       VALUES (%s, %s, %s, %s)
-                       ON CONFLICT DO NOTHING""",
-                    (user_id, new_perm_id, grant_project_id, grant_collection_id),
-                )
-        count += 1
-    if not dry_run:
-        project_write_count = grant_project_write_for_full_project_managers(pg_conn, dry_run=False)
-        if project_write_count:
-            log.info(
-                "Granted project:write to %d full-project managers",
-                project_write_count,
+            role_id = role_map[role_code]
+            pg_exec(
+                pg_conn,
+                """INSERT INTO user_scope_role (user_id, role_id, project_id, collection_id)
+                   VALUES (%s, %s, %s, %s)
+                   ON CONFLICT (user_id, project_id, collection_id) WHERE collection_id IS NOT NULL
+                   DO UPDATE SET role_id = EXCLUDED.role_id""",
+                (user_id, role_id, project_id, collection_id),
             )
+        count += 1
+
+    if not dry_run:
+        manager_role_id = role_map.get("manager")
+        if manager_role_id:
+            project_manager_count = grant_project_manager_for_full_project_managers(
+                pg_conn, manager_role_id, dry_run=False
+            )
+            if project_manager_count:
+                log.info(
+                    "Granted project manager role to %d full-project managers",
+                    project_manager_count,
+                )
     return count
 
 
@@ -3481,24 +3568,24 @@ def verify_user_permission_migration(mysql_conn, pg_conn) -> list[str]:
     errors: list[str] = []
 
     with pg_conn.cursor() as cur:
-        cur.execute("SELECT COUNT(*) FROM user_permission WHERE project_id IS NULL")
+        cur.execute("SELECT COUNT(*) FROM user_scope_role WHERE project_id IS NULL")
         null_project_count = cur.fetchone()[0]
     if null_project_count:
-        errors.append(f"user_permission rows with NULL project_id: {null_project_count}")
+        errors.append(f"user_scope_role rows with NULL project_id: {null_project_count}")
 
     with pg_conn.cursor() as cur:
         cur.execute(
             """SELECT COUNT(*)
-               FROM user_permission up
+               FROM user_scope_role usr
                LEFT JOIN project_collection pc
-                 ON pc.project_id = up.project_id
-                AND pc.collection_id = up.collection_id
-               WHERE up.collection_id IS NOT NULL
+                 ON pc.project_id = usr.project_id
+                AND pc.collection_id = usr.collection_id
+               WHERE usr.collection_id IS NOT NULL
                  AND pc.collection_id IS NULL"""
         )
         broken_scope_count = cur.fetchone()[0]
     if broken_scope_count:
-        errors.append(f"user_permission rows without project_collection scope: {broken_scope_count}")
+        errors.append(f"user_scope_role rows without project_collection scope: {broken_scope_count}")
 
     legacy_rows = fetch_all(
         mysql_conn,
@@ -3508,86 +3595,40 @@ def verify_user_permission_migration(mysql_conn, pg_conn) -> list[str]:
     )
     has_valid_legacy_permission = False
     for row in legacy_rows:
-        grant_rows = _permission_grant_rows(row)
-        if not grant_rows:
+        expected_role_code = LEGACY_PERMISSION_TO_ROLE_CODE.get(row.get("permission_id"))
+        if not expected_role_code or row.get("project_id") is None or row.get("collection_id") is None:
             continue
         has_valid_legacy_permission = True
         with pg_conn.cursor() as cur:
             cur.execute(
                 """SELECT COUNT(*)
-                   FROM user_permission up
-                   JOIN permission p ON p.permission_id = up.permission_id
-                   WHERE up.user_id = %s
-                     AND up.project_id = %s
-                     AND up.collection_id = %s""",
-                (row["user_id"], row["project_id"], row["collection_id"]),
+                   FROM user_scope_role usr
+                   JOIN role r ON r.role_id = usr.role_id
+                   WHERE usr.user_id = %s
+                     AND usr.project_id = %s
+                     AND usr.collection_id = %s
+                     AND r.code = %s""",
+                (row["user_id"], row["project_id"], row["collection_id"], expected_role_code),
             )
             collection_grant_count = cur.fetchone()[0]
         if collection_grant_count == 0:
             errors.append(
-                "source permission is missing from its target collection scope: "
-                f"user_id={row['user_id']} project_id={row['project_id']} collection_id={row['collection_id']}"
+                "source permission is missing from target user_scope_role: "
+                f"user_id={row['user_id']} project_id={row['project_id']} collection_id={row['collection_id']} "
+                f"expected_role={expected_role_code}"
             )
-
-    with pg_conn.cursor() as cur:
-        cur.execute(
-            """SELECT COUNT(*)
-               FROM user_permission up
-               JOIN permission p ON p.permission_id = up.permission_id
-               WHERE p.name IN ('review:write', 'annotation:write')
-                 AND NOT EXISTS (
-                    SELECT 1
-                    FROM user_permission cp
-                    JOIN permission collection_perm
-                      ON collection_perm.permission_id = cp.permission_id
-                    WHERE cp.user_id = up.user_id
-                      AND cp.project_id = up.project_id
-                      AND cp.collection_id = up.collection_id
-                      AND collection_perm.name = 'collection:read'
-                 )"""
-        )
-        missing_collection_read = cur.fetchone()[0]
-    if missing_collection_read:
-        errors.append(
-            "review/annotation write rows missing same-scope collection:read: "
-            f"{missing_collection_read}"
-        )
-
-    with pg_conn.cursor() as cur:
-        cur.execute(
-            """SELECT COUNT(*)
-               FROM user_permission up
-               JOIN permission p ON p.permission_id = up.permission_id
-               WHERE p.name IN ('review:write', 'annotation:write')
-                 AND NOT EXISTS (
-                    SELECT 1
-                    FROM user_permission pp
-                    JOIN permission project_perm
-                      ON project_perm.permission_id = pp.permission_id
-                    WHERE pp.user_id = up.user_id
-                      AND pp.project_id = up.project_id
-                      AND pp.collection_id IS NULL
-                      AND project_perm.name = 'project:read'
-                 )"""
-        )
-        missing_project_read = cur.fetchone()[0]
-    if missing_project_read:
-        errors.append(
-            "review/annotation write rows missing parent project:read: "
-            f"{missing_project_read}"
-        )
 
     with pg_conn.cursor() as cur:
         cur.execute(
             """SELECT COUNT(*)
                FROM user_effective_permissions uep
-               JOIN user_permission up
-                 ON up.user_id = uep.user_id
-                AND up.project_id = uep.project_id
-                AND up.collection_id = uep.collection_id
-               JOIN permission p ON p.permission_id = up.permission_id
+               JOIN user_scope_role usr
+                 ON usr.user_id = uep.user_id
+                AND usr.project_id = uep.project_id
+                AND usr.collection_id = uep.collection_id
                WHERE uep.scope_type = 'project_collection'
-                 AND p.name IN ('collection:read', 'collection:write', 'review:write', 'annotation:write')"""
+                 AND uep.resource_type IN ('collection', 'audio')
+                 AND uep.action = 'read'"""
         )
         view_count = cur.fetchone()[0]
     if has_valid_legacy_permission and view_count == 0:
@@ -3600,35 +3641,34 @@ def verify_user_permission_migration(mysql_conn, pg_conn) -> list[str]:
                    FROM project_collection
                    GROUP BY project_id
                ),
-               user_write_counts AS (
-                   SELECT up.user_id, up.project_id, COUNT(DISTINCT up.collection_id) AS write_collections
-                   FROM user_permission up
-                   JOIN permission p ON p.permission_id = up.permission_id
-                   WHERE p.name = 'collection:write'
-                     AND up.collection_id IS NOT NULL
-                   GROUP BY up.user_id, up.project_id
+               user_manager_counts AS (
+                   SELECT usr.user_id, usr.project_id, COUNT(DISTINCT usr.collection_id) AS manager_collections
+                   FROM user_scope_role usr
+                   JOIN role r ON r.role_id = usr.role_id
+                   WHERE r.code = 'manager'
+                     AND usr.collection_id IS NOT NULL
+                   GROUP BY usr.user_id, usr.project_id
                )
                SELECT COUNT(*)
-               FROM user_write_counts uw
+               FROM user_manager_counts umc
                JOIN project_collection_counts pc
-                 ON pc.project_id = uw.project_id
-                AND pc.total_collections = uw.write_collections
+                 ON pc.project_id = umc.project_id
+                AND pc.total_collections = umc.manager_collections
                WHERE NOT EXISTS (
                    SELECT 1
-                   FROM user_permission project_write
-                   JOIN permission project_permission
-                     ON project_permission.permission_id = project_write.permission_id
-                   WHERE project_write.user_id = uw.user_id
-                     AND project_write.project_id = uw.project_id
-                     AND project_write.collection_id IS NULL
-                     AND project_permission.name = 'project:write'
+                   FROM user_scope_role project_manager
+                   JOIN role r ON r.role_id = project_manager.role_id
+                   WHERE project_manager.user_id = umc.user_id
+                     AND project_manager.project_id = umc.project_id
+                     AND project_manager.collection_id IS NULL
+                     AND r.code = 'manager'
                )"""
         )
-        missing_project_write_count = cur.fetchone()[0]
-    if missing_project_write_count:
+        missing_project_manager_count = cur.fetchone()[0]
+    if missing_project_manager_count:
         errors.append(
-            "full-project collection:write managers missing project:write: "
-            f"{missing_project_write_count}"
+            "full-project collection managers missing project-level manager: "
+            f"{missing_project_manager_count}"
         )
 
     return errors
@@ -3905,6 +3945,7 @@ SEQUENCE_TARGETS = [
     ("news", "news_id"),
     ("queue", "queue_id"),
     ("task", "task_id"),
+    ("user_scope_role", "id"),
     ("user_permission", "id"),
 ]
 
@@ -4617,6 +4658,70 @@ def run_network_federation_repair(dry_run: bool) -> None:
         pg_conn.close()
 
 
+def run_permissions_repair(dry_run: bool) -> None:
+    log.info("Connecting to MySQL and PostgreSQL for user permission migration/repair...")
+    mysql_conn = get_mysql_conn()
+    pg_conn = get_pg_conn()
+    try:
+        count = migrate_user_permissions(mysql_conn, pg_conn, dry_run=dry_run)
+        log.info("Processed %d user permission records (dry_run=%s).", count, dry_run)
+        if dry_run:
+            pg_conn.rollback()
+            log.info("Permission migration dry-run completed; no data was changed.")
+            return
+
+        with pg_conn.cursor() as cur:
+            # Delete redundant granular user_permission rows for scopes governed by standard roles
+            cur.execute(
+                """
+                DELETE FROM user_permission up
+                USING user_scope_role usr, role r
+                WHERE r.role_id = usr.role_id
+                  AND r.code IN ('viewer', 'annotator', 'reviewer', 'manager')
+                  AND usr.user_id = up.user_id
+                  AND usr.project_id = up.project_id
+                  AND usr.collection_id IS NOT DISTINCT FROM up.collection_id
+                """
+            )
+            deleted_perm = cur.rowcount
+            if deleted_perm:
+                log.info("Cleaned up %d redundant granular user_permission rows.", deleted_perm)
+
+            # Clean up collection-level user_permission rows under project managers
+            cur.execute(
+                """
+                DELETE FROM user_permission up
+                USING user_scope_role usr, role r
+                WHERE r.role_id = usr.role_id
+                  AND r.code = 'manager'
+                  AND usr.collection_id IS NULL
+                  AND usr.user_id = up.user_id
+                  AND usr.project_id = up.project_id
+                """
+            )
+            deleted_pm_perm = cur.rowcount
+            if deleted_pm_perm:
+                log.info("Cleaned up %d redundant collection permissions under project managers.", deleted_pm_perm)
+
+        pg_conn.commit()
+
+        log.info("Verifying permission migration...")
+        errors = verify_user_permission_migration(mysql_conn, pg_conn)
+        if errors:
+            for err in errors[:20]:
+                log.error("Permission verification issue: %s", err)
+            if len(errors) > 20:
+                log.error("... and %d more verification issues", len(errors) - 20)
+            raise RuntimeError(f"Permission verification failed with {len(errors)} issues")
+        log.info("User permission migration verified successfully.")
+    except Exception:
+        pg_conn.rollback()
+        raise
+    finally:
+        mysql_conn.close()
+        pg_conn.close()
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Transfer data from the configured MySQL source to PostgreSQL"
@@ -4635,6 +4740,11 @@ def main() -> None:
         "--reset-target",
         action="store_true",
         help="Required after a fresh deploy (Demo Project/collection/site seed data). Clear target business data before transfer",
+    )
+    parser.add_argument(
+        "--repair-permissions",
+        action="store_true",
+        help="Re-migrate legacy permissions into user_scope_role and clean up redundant user_permission records",
     )
     parser.add_argument(
         "--repair-preview-filenames",
@@ -4693,6 +4803,8 @@ def main() -> None:
             pg_conn.close()
     elif args.verify:
         run_verify_only(audit_report=args.audit_report, deep_audit=args.deep_audit)
+    elif args.repair_permissions:
+        run_permissions_repair(dry_run=args.dry_run)
     elif args.repair_network_federation:
         run_network_federation_repair(dry_run=args.dry_run)
     elif args.repair_preview_filenames:

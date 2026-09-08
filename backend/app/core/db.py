@@ -1,7 +1,7 @@
 """
 Database connection and initialization module.
 """
-from sqlmodel import Session, create_engine, select
+from sqlmodel import Session, create_engine, select, text
 
 from app.core.config import settings
 from app.core.security import get_password_hash
@@ -17,6 +17,46 @@ engine = create_engine(
     pool_recycle=settings.DB_POOL_RECYCLE,
     pool_pre_ping=True,
 )
+
+
+def sync_db_sequences(session: Session) -> None:
+    """Synchronize all PostgreSQL sequence values with the current maximum column values."""
+    bind = session.get_bind()
+    if bind is None or getattr(getattr(bind, "dialect", None), "name", None) != "postgresql":
+        return
+
+    sync_sql = text(
+        """
+        DO $$
+        DECLARE
+            r RECORD;
+            v_max BIGINT;
+        BEGIN
+            FOR r IN (
+                SELECT 
+                    t.relname AS tbl,
+                    a.attname AS col,
+                    s.relname AS seq
+                FROM pg_class s
+                JOIN pg_depend d ON d.objid = s.oid
+                JOIN pg_class t ON d.refobjid = t.oid
+                JOIN pg_attribute a ON (d.refobjid = a.attrelid AND d.refobjsubid = a.attnum)
+                JOIN pg_namespace n ON n.oid = t.relnamespace
+                WHERE s.relkind = 'S'
+                  AND n.nspname = 'public'
+                  AND t.relkind = 'r'
+                ORDER BY t.relname
+            ) LOOP
+                EXECUTE format('SELECT COALESCE(MAX(%I), 0) FROM %I', r.col, r.tbl) INTO v_max;
+                IF v_max > 0 THEN
+                    EXECUTE format('SELECT setval(%L, %s, true)', r.seq, v_max);
+                END IF;
+            END LOOP;
+        END $$;
+        """
+    )
+    session.exec(sync_sql)
+    session.commit()
 
 
 def init_db(session: Session) -> None:
@@ -40,3 +80,5 @@ def init_db(session: Session) -> None:
         user.role_id = admin_role.role_id
         session.add(user)
         session.commit()
+
+    sync_db_sequences(session)

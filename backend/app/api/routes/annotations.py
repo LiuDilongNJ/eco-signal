@@ -15,7 +15,12 @@ from app.schemas.annotation import (
     AnnotationWithReviews,
 )
 from app.schemas.response import ApiResponse, PagedApiResponse, api_page, api_success
-from app.services import annotation_service, permission_service, tabular_import_service
+from app.services import (
+    annotation_service,
+    authorization_service,
+    tabular_import_service,
+)
+from app.services.authorization_policy import AuthorizationAction
 from app.utils import parse_range, parse_uuid
 
 router = APIRouter(prefix="/annotations", tags=["标注 / annotations"])
@@ -32,14 +37,10 @@ async def import_annotations(
     media_type: Literal["audio", "photo"] | None = Form(None),
 ) -> Any:
     """校验或原子导入标注。 / Validate or atomically import annotations."""
-    permission_service.require_collection_resource_permission(
-        session,
-        collection_id=collection_id,
-        project_id=project_id,
-        user=current_user,
-        resource_type="annotation",
-        action="write",
-        denied_detail="No annotation:write permission on collection",
+    authorization_service.evaluator(session, current_user, project_id).require(
+        AuthorizationAction.MEDIA_CREATE_ANNOTATION,
+        authorization_service.AuthorizationSubject(frozenset({collection_id})),
+        detail="No annotation write permission on collection",
     )
     parsed = parse_import_upload(file.filename or "", await file.read())
     report = tabular_import_service.import_annotations(
@@ -62,7 +63,7 @@ async def import_annotations(
 def export_annotations(
     session: SessionDep,
     current_user: CurrentUser,
-    project_id: Optional[int] = Query(None, description="项目 ID / Project ID"),
+    project_id: int = Query(..., description="项目 ID（必传） / Project ID (required)"),
     collection_id: Optional[int] = Query(None, description="集合 ID / Collection ID"),
     media_id: Optional[int] = Query(None, description="媒体 ID / Media ID"),
     taxon_id: Optional[int] = Query(None, description="物种 ID / Taxon ID"),
@@ -343,13 +344,14 @@ def get_annotation_navigation(
     current_user: CurrentUser,
     annotation_id: int,
     media_id: int = Query(..., description="媒体 ID（必传） / Media ID (required)"),
+    project_id: int = Query(..., description="项目 ID（必传） / Project ID (required)"),
 ) -> Any:
     """
     返回同一媒体中当前标注的上一条和下一条（按 annotation_id 排序）。
     Return prev/next annotation IDs within the same media (ordered by annotation_id).
     """
     nav = annotation_service.get_annotation_navigation(
-        session, current_user, annotation_id=annotation_id, media_id=media_id
+        session, current_user, annotation_id=annotation_id, media_id=media_id, project_id=project_id
     )
     return api_success(data=nav)
 

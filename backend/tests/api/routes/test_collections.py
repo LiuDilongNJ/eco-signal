@@ -1390,7 +1390,7 @@ class TestCollectionExport:
     def test_export_collections_no_project_id_fails(
         self, client: TestClient, superuser_token_headers: dict[str, str]
     ) -> None:
-        """Missing project_id query param results in 400 (from PermissionChecker)."""
+        """Missing project_id query param results in 400 from project authorization."""
         r = client.get(
             f"{settings.API_V1_STR}/collections/exports",
             headers=superuser_token_headers

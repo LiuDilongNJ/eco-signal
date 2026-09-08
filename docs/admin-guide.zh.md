@@ -45,7 +45,19 @@
 
 ## 管理用户和权限
 
-通过 Users 和权限控制添加成员，并分配项目或集合访问。权限编辑器会同时显示已保存的权限和继承后的有效访问；保存时只提交该项目或集合显式选择的权限。
+通过 Users 和权限控制，在项目或“项目-集合”路径上分配角色。全局 **Administrator**、**User** 是系统身份；Viewer、Annotator、Reviewer、Manager、Custom 只对当前路径生效。同一个 Collection 挂在另一个 Project 下时是独立路径。
+
+| 路径角色 | 权限 |
+| --- | --- |
+| Viewer | 读取该路径内全部 Media、Site、Annotation、Review |
+| Annotator | 读取 Media 和 Site；创建、维护本人 Annotation |
+| Reviewer | 读取全部 Annotation、Review；创建、维护本人 Review |
+| Manager | 管理该项目或集合路径内全部资源 |
+| Custom | 由管理员配置显式权限 |
+
+只有先选择 **Custom** 才能编辑单项权限。Annotation 和 Review 的 **Own** 仅表示本人创建的对象，**All** 表示路径内所有对象。项目权限会继承到已关联集合；集合只能追加，不能降低继承权限。`public_access`、`public_tags` 始终只读，public tags 不会公开 Review。
+
+运行时授权基于当前“项目-集合”路径的有效权限，并按单一业务动作判断。对象接口返回的资源专属 capabilities 与写接口使用同一授权策略，因此按钮禁用和服务端拒绝遵循同一规则；缺失的 capability 默认视为无权限。
 
 日常工作应只授予所需资源的读或写权限。成员需要管理集合中全部资源时使用集合管理权限；只有需要管理整个项目时才使用项目管理权限。项目与集合关联变化后应重新检查访问，因为集合授权受项目路径限制。
 

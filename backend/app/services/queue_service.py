@@ -9,9 +9,8 @@ from app.enums import QueueStatus
 from app.models.user import User
 from app.repositories import queue_repository
 from app.schemas.queue import QueueDeletionResult, QueueDetail, QueueListItem
-from app.schemas.capability import RowCapabilities
 from app.schemas.response import ApiResponse, PagedApiResponse, api_page, api_success
-from app.services import permission_service
+from app.services import authorization_service, permission_service
 from app.repositories.collection_bundle_export_repository import collection_bundle_export_repository
 from app.services.collection_bundle_export_service import delete_queue_exports
 
@@ -79,6 +78,7 @@ def list_queues(
     )
 
     data = []
+    authz = authorization_service.evaluator(session, current_user, None)
     for queue in queues:
         progress = 0.0
         if queue.total > 0:
@@ -103,7 +103,7 @@ def list_queues(
             stop_time=queue.stop_time,
             error=queue.error,
             warning=queue.warning,
-            capabilities=RowCapabilities(delete=is_admin or queue.user_id == current_user.user_id),
+            capabilities=authz.queue_capabilities(user_id=queue.user_id),
         ))
 
     return api_page(

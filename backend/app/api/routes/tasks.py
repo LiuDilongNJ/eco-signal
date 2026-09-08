@@ -17,7 +17,8 @@ from app.schemas.task import (
     TaskListItem,
     TaskPublic,
 )
-from app.services import permission_service, tabular_import_service, task_service
+from app.services import authorization_service, tabular_import_service, task_service
+from app.services.authorization_policy import AuthorizationAction
 
 router = APIRouter(prefix="/media", tags=["任务 / tasks"])
 
@@ -130,13 +131,12 @@ async def import_tasks(
     dry_run: bool = Form(True),
 ) -> Any:
     """校验或原子导入任务。 / Validate or atomically import tasks."""
-    permission_service.require_collection_resource_permission(
+    authorization_service.require_collection_action(
         session,
+        current_user,
+        AuthorizationAction.MEDIA_EDIT,
         collection_id=collection_id,
         project_id=project_id,
-        user=current_user,
-        resource_type="audio",
-        action="write",
         denied_detail="No audio:write permission on collection",
     )
     parsed = parse_import_upload(file.filename or "", await file.read())

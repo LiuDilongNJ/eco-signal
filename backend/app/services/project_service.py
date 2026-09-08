@@ -20,7 +20,7 @@ from app.schemas.project import (
     ProjectPublic,
     ProjectUpdate,
 )
-from app.schemas.capability import RowCapabilities
+from app.services import authorization_service
 from app.schemas.response import ApiResponse, PagedApiResponse, api_page
 from app.services import permission_service
 
@@ -119,10 +119,9 @@ def get_projects(
         if p.creator:
             p_dict["creator_name"] = p.creator.name
         writable = admin or p.project_id in manageable_project_ids
-        p_dict["capabilities"] = RowCapabilities(
-            edit=writable,
-            delete=admin,
-            link=writable,
+        p_dict["capabilities"] = authorization_service.project_capabilities(
+            admin=admin,
+            writable=writable,
         )
         data.append(ProjectPublic.model_validate(p_dict))
     

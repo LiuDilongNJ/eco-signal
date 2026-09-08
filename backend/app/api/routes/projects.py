@@ -207,7 +207,9 @@ def get_project_summary(
         if not permission_service.can_access_collection(session, current_user, project_id, collection_id, "read"):
             raise HTTPException(status_code=403, detail="Access denied")
 
-    data = statistics_service.get_project_summary(session, project_id, collection_id)
+    data = statistics_service.get_project_summary(
+        session, project_id, collection_id, current_user=current_user
+    )
     return api_success(data=data)
 
 

@@ -5,7 +5,7 @@ from pydantic import ConfigDict, Field, field_validator
 from sqlmodel import SQLModel
 
 from app.enums.task import AssignmentTaskType
-from app.schemas.capability import RowCapabilities
+from app.schemas.capability import TaskCapabilities
 
 
 class AssignableUserPublic(SQLModel):
@@ -32,7 +32,7 @@ class TaskPublic(SQLModel):
     status: str = Field(..., max_length=50)
     comment: Optional[str] = Field(None, max_length=1000)
     datetime: Optional[str] = None
-    capabilities: RowCapabilities = Field(default_factory=RowCapabilities)
+    capabilities: TaskCapabilities = Field(default_factory=TaskCapabilities)
 
     @field_validator("datetime", mode="before")
     @classmethod

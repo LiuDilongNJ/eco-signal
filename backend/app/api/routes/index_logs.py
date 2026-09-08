@@ -14,8 +14,13 @@ from app.schemas.index_log import (
     IndexLogRead,
 )
 from app.schemas.response import ApiResponse, PagedApiResponse, api_page, api_success
-from app.services import index_log_service, permission_service, tabular_import_service
+from app.services import (
+    authorization_service,
+    index_log_service,
+    tabular_import_service,
+)
 from app.services.analysis_service import analysis_service
+from app.services.authorization_policy import AuthorizationAction
 
 router = APIRouter(prefix="/index-logs", tags=["指数日志 / index-logs"])
 
@@ -30,13 +35,12 @@ async def import_index_logs(
     dry_run: bool = Form(True),
 ) -> Any:
     """校验或原子导入指数日志。 / Validate or atomically import index logs."""
-    permission_service.require_collection_resource_permission(
+    authorization_service.require_collection_action(
         session,
+        current_user,
+        AuthorizationAction.MEDIA_EDIT,
         collection_id=collection_id,
         project_id=project_id,
-        user=current_user,
-        resource_type="audio",
-        action="write",
         denied_detail="No audio:write permission on collection",
     )
     parsed = parse_import_upload(file.filename or "", await file.read())

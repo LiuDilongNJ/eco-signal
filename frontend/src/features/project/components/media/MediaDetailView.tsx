@@ -116,7 +116,6 @@ function updateMessageError(key: string, content: string) {
     message.open({ type: "error", content, key, duration: 2 })
 }
 import { useProjectStore } from "../../stores/useProjectStore"
-import { usePermissions } from "@/hooks/usePermissions"
 import { StudioCrumbDropdown } from "../nav/StudioCrumbDropdown"
 import {
     Button,
@@ -741,11 +740,6 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
     /** Edit：按 reviewer_id 拉取本人评审时的 loading */
     const [reviewEditLoading, setReviewEditLoading] = useState(false)
     const [meUserId, setMeUserId] = useState<number | null>(null)
-    const [meIsProjectAdmin, setMeIsProjectAdmin] = useState(false)
-    // Scoped to the project: the detail page may be reached with no single
-    // collection selected, and per-collection denial still comes back as 403.
-    const { can: canInProject } = usePermissions(currentProjectId)
-    const canWriteReview = canInProject("review:write")
     const [userAnnotationColor, setUserAnnotationColor] = useState("#3B82F6")
     const [meUserReady, setMeUserReady] = useState(false)
     const pendingReviewInitRef = useRef(false)
@@ -754,6 +748,25 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
         () => annotationListItems.map((annotation) => annotationPublicToStudioRow(annotation, meUserId)),
         [annotationListItems, meUserId],
     )
+    const canCreateAnnotation = media?.capabilities?.create_annotation === true
+    const canEditAnnotation = editingAnnotationMeta?.capabilities?.edit === true
+    const canDeleteAnnotation = editingAnnotationMeta?.capabilities?.delete === true
+    const canCreateReview = editingAnnotationMeta?.capabilities?.create_review === true
+    const canRunAiModels = media?.capabilities?.run_ai_models === true
+    const canRunAcousticAnalysis = media?.capabilities?.run_analysis === true
+    const canSaveAnnotation = editingAnnotationId == null ? canCreateAnnotation : canEditAnnotation
+    const selectedAnnotations = useMemo(() => {
+        const selectedIds = new Set(selectedAnnotationKeys.map((key) => Number(key)))
+        return annotationListItems.filter((annotation) => selectedIds.has(annotation.annotation_id))
+    }, [annotationListItems, selectedAnnotationKeys])
+    const canAssignSelectedAnnotations =
+        selectedAnnotations.length === selectedAnnotationKeys.length &&
+        selectedAnnotations.length > 0 &&
+        selectedAnnotations.every((annotation) => annotation.capabilities?.assign === true)
+    const canDeleteSelectedAnnotations =
+        selectedAnnotations.length === selectedAnnotationKeys.length &&
+        selectedAnnotations.length > 0 &&
+        selectedAnnotations.every((annotation) => annotation.capabilities?.delete === true)
     /** GET /v1/labels，用于工具栏标签文案与接口定义对齐 */
     const [toolbarLabelsCatalog, setToolbarLabelsCatalog] = useState<LabelPublic[]>([])
     const [labelPopoverOpen, setLabelPopoverOpen] = useState(false)
@@ -876,14 +889,12 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                     const data = getApiData(res)
                     if (!cancelled) {
                         setMeUserId(typeof data.user_id === "number" ? data.user_id : null)
-                        setMeIsProjectAdmin(Boolean(data.is_project_admin || data.is_admin))
                         const nextColor = normalizeUserColorHex(data.color) ?? "#3B82F6"
                         setUserAnnotationColor(nextColor)
                     }
                 } catch {
                     if (!cancelled) {
                         setMeUserId(null)
-                        setMeIsProjectAdmin(false)
                     }
                 } finally {
                     if (!cancelled) setMeUserReady(true)
@@ -2194,6 +2205,14 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
             message.error("Select at least one annotation in the table first.")
             return
         }
+        const selected = annotationListItems.filter((annotation) => annotation_ids.includes(annotation.annotation_id))
+        if (
+            selected.length !== annotation_ids.length ||
+            selected.some((annotation) => annotation.capabilities?.assign !== true)
+        ) {
+            message.error("You do not have permission to assign tasks to the selected annotations.")
+            return
+        }
         assignTaskAnnotationIdsRef.current = [...annotation_ids]
 
         setRightPanel("assign-task")
@@ -2210,7 +2229,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
         } finally {
             setAssignableLoading(false)
         }
-    }, [mediaId, selectedAnnotationKeys])
+    }, [annotationListItems, mediaId, selectedAnnotationKeys])
 
     const toggleAssignUser = useCallback((userId: number, checked: boolean) => {
         setAssignSelectedUserIds((prev) => {
@@ -2258,6 +2277,14 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
             .map((k) => Number(k))
             .filter((n) => Number.isFinite(n) && n > 0)
         if (ids.length === 0) return
+        const selected = annotationListItems.filter((annotation) => ids.includes(annotation.annotation_id))
+        if (
+            selected.length !== ids.length ||
+            selected.some((annotation) => annotation.capabilities?.delete !== true)
+        ) {
+            message.error("You do not have permission to delete the selected annotations.")
+            return
+        }
         const loadingId = openLoadingMessage(`Deleting ${ids.length} annotation(s)…`)
         try {
             if (currentProjectId == null) {
@@ -2273,7 +2300,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
         } finally {
             closeLoadingMessage(loadingId)
         }
-    }, [selectedAnnotationKeys, currentProjectId])
+    }, [annotationListItems, selectedAnnotationKeys, currentProjectId])
 
     const handleExportViewportAnnotationsCsv = useCallback(async () => {
         if (!media || currentProjectId == null) return
@@ -2511,6 +2538,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
         setReviewEditLoading(true)
         try {
             const { items } = await reviewsApi.listPaged({
+                project_id: Number(currentProjectId ?? projectRouteId),
                 annotation_id: annId,
                 reviewer_id: meUserId,
                 page: 1,
@@ -2557,9 +2585,8 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
             message.error("Sign in to delete a review.")
             return
         }
-        const canDelete = meIsProjectAdmin || review.reviewer_id === meUserId
-        if (!canDelete) {
-            message.error("You can only delete your own review.")
+        if (review.capabilities?.delete !== true) {
+            message.error("You do not have permission to delete this review.")
             return
         }
         const annId = Number(review.annotation_id)
@@ -2602,7 +2629,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
         } finally {
             closeLoadingMessage(loadingId)
         }
-    }, [currentProjectId, editingAnnotationReviews, initReviewFormFromReviews, meIsProjectAdmin, meUserId])
+    }, [currentProjectId, editingAnnotationReviews, initReviewFormFromReviews, meUserId])
 
     const sortedEditingAnnotationReviews = useMemo(() => {
         return [...editingAnnotationReviews].sort((a, b) =>
@@ -4266,6 +4293,10 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
             message.error("Missing annotation id.")
             return
         }
+        if (!canDeleteAnnotation) {
+            message.error("You do not have permission to delete this annotation.")
+            return
+        }
         const loadingId = openLoadingMessage("Deleting annotation...")
         try {
             if (currentProjectId == null) {
@@ -4284,7 +4315,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
         } finally {
             closeLoadingMessage(loadingId)
         }
-    }, [closeAnnotationPanel, currentProjectId, reviewContextAnnotationId])
+    }, [canDeleteAnnotation, closeAnnotationPanel, currentProjectId, reviewContextAnnotationId])
 
     const exitAnnotationPanelIfActive = useCallback(() => {
         if (!annotationPanelActiveRef.current) return
@@ -4336,6 +4367,10 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
     ])
 
     const prepareNewAnnotationDraft = useCallback(() => {
+        if (!canCreateAnnotation) {
+            message.error("You do not have permission to create annotations for this media.")
+            return
+        }
         setEditingAnnotationId(null)
         setEditingAnnotationMeta(null)
         setEditingAnnotationReviews([])
@@ -4347,7 +4382,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
         setAnnotationDraftOverlayVisible(true)
         setDistanceFieldUnlocked(false)
         setRightPanel("new-annotation")
-    }, [resetAnnotationFormFields])
+    }, [canCreateAnnotation, resetAnnotationFormFields])
 
     const onMarqueePointerDown = useCallback(
         (e: React.PointerEvent<HTMLDivElement>) => {
@@ -4358,6 +4393,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                 seekSpectrogramToClientXRef.current?.(e.clientX)
                 return
             }
+            if (!canCreateAnnotation) return
             setAnnotationDraftOverlayVisible(true)
             setMarqueePx(null)
             setMarqueeCreating(false)
@@ -4392,7 +4428,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
             setMarqueePx(null)
             setAnnotationDraftHasSize(false)
         },
-        [clientToViewportLayoutPoint, rightPanel],
+        [canCreateAnnotation, clientToViewportLayoutPoint, rightPanel],
     )
 
     const onMarqueePointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
@@ -4819,6 +4855,14 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
     ])
 
     const handleSaveAnnotation = useCallback(async () => {
+        if (editingAnnotationId == null ? !canCreateAnnotation : !canEditAnnotation) {
+            message.error(
+                editingAnnotationId == null
+                    ? "You do not have permission to create annotations for this media."
+                    : "You do not have permission to edit this annotation.",
+            )
+            return
+        }
         if (!annotationDraft) return
         setSavePending(true)
         try {
@@ -4980,6 +5024,8 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
     }, [
         annotationDraft,
         annotationSaveMode,
+        canCreateAnnotation,
+        canEditAnnotation,
         closeAnnotationPanel,
         editingAnnotationId,
         fetchSpectrogramAnnotationsForMedia,
@@ -5004,7 +5050,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
     ])
 
     const handleReviewSubmit = useCallback(async () => {
-        if (!canWriteReview) {
+        if (!canCreateReview) {
             message.error("You do not have permission to review annotations.")
             return
         }
@@ -5116,7 +5162,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
         reviewTaxonId,
         reviewTaxonSearch,
         currentProjectId,
-        canWriteReview,
+        canCreateReview,
     ])
 
     useEffect(() => {
@@ -5734,6 +5780,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                             }
                         }}
                         onOpenAnnotation={(annotationId) => void openAnnotationEditorById(annotationId)}
+                        canCreateAnnotation={canCreateAnnotation}
                         onDraftStart={() => {
                             prepareNewAnnotationDraft()
                         }}
@@ -5935,7 +5982,8 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                                 <ESButton appearance="unstyled"
                                     type="button"
                                     className={`data-btn media-studio-action${rightPanel === "ai-models" ? " active" : ""}`}
-                                    title="Apply AI Models"
+                                    title={canRunAiModels ? "Apply AI Models" : "You do not have permission to run AI models"}
+                                    disabled={!canRunAiModels}
                                     onClick={() => setRightPanel("ai-models")}
                                 >
                                     <Cpu size={14} /> AI Models
@@ -5943,7 +5991,8 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                                 <ESButton appearance="unstyled"
                                     type="button"
                                     className={`data-btn media-studio-action${rightPanel === "acoustic-indices" ? " active" : ""}`}
-                                    title="Acoustic Indices"
+                                    title={canRunAcousticAnalysis ? "Acoustic Indices" : "You do not have permission to calculate acoustic indices"}
+                                    disabled={!canRunAcousticAnalysis}
                                     onClick={() => setRightPanel("acoustic-indices")}
                                 >
                                     <BarChart2 size={14} /> Acoustic Indices
@@ -5951,7 +6000,8 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                                 <ESButton appearance="unstyled"
                                     type="button"
                                     className={`data-btn media-studio-action${rightPanel === "acoustic-analysis" ? " active" : ""}`}
-                                    title="Acoustic Analysis"
+                                    title={canRunAcousticAnalysis ? "Acoustic Analysis" : "You do not have permission to run acoustic analysis"}
+                                    disabled={!canRunAcousticAnalysis}
                                     onClick={() => setRightPanel("acoustic-analysis")}
                                 >
                                     <AudioLines size={14} /> Acoustic Analysis
@@ -6601,7 +6651,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                                                 className={`data-btn ${rightPanel === "assign-task" ? "active" : ""}`}
                                                 style={{ padding: 8, justifyContent: "center" }}
                                                 title="Assign task to selected annotation rows (users with collection access)"
-                                                disabled={selectedAnnotationKeys.length === 0}
+                                                disabled={!canAssignSelectedAnnotations}
                                                 onClick={() => void openAssignTaskPanel()}
                                             >
                                                 <ClipboardList size={16} />
@@ -6611,7 +6661,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                                                 className="data-btn danger"
                                                 style={{ padding: 8, justifyContent: "center", width: "100%" }}
                                                 title="Delete selected rows"
-                                                disabled={selectedAnnotationKeys.length === 0}
+                                                disabled={!canDeleteSelectedAnnotations}
                                                 onClick={() => setDeleteAnnotationsConfirmOpen(true)}
                                             >
                                                 <Trash2 size={16} />
@@ -6807,8 +6857,9 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                                         <ESButton appearance="unstyled"
                                             type="button"
                                             className="studio-annot-header-icon studio-annot-header-icon--danger"
-                                            title="Delete annotation"
+                                            title={canDeleteAnnotation ? "Delete annotation" : "You do not have permission to delete this annotation"}
                                             aria-label="Delete annotation"
+                                            disabled={!canDeleteAnnotation}
                                             onClick={() => setDeleteEditingAnnotationConfirmOpen(true)}
                                         >
                                             <Trash2 size={15} />
@@ -6827,6 +6878,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                                                     layout="vertical"
                                                     className="studio-annotation-form studio-annotation-form--antd shared-drawer-form"
                                                     requiredMark={false}
+                                                    disabled={editingAnnotationId != null && !canEditAnnotation}
                                                 >
                                                     <div className="">
                                                         <div
@@ -7292,8 +7344,9 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                                                                 <Button
                                                                     type="primary"
                                                                     loading={savePending}
+                                                                    disabled={!canSaveAnnotation}
+                                                                    title={canSaveAnnotation ? "Save" : "You do not have permission to create annotations for this media"}
                                                                     onClick={() => void handleSaveAnnotation()}
-                                                                    title="Save"
                                                                 >
                                                                     Save
                                                                 </Button>
@@ -7320,8 +7373,9 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                                                                             />
                                                                         }
                                                                         loading={savePending}
+                                                                        disabled={!canSaveAnnotation}
                                                                         onClick={() => void handleSaveAnnotation()}
-                                                                        title={ANNOTATION_SAVE_MODE_LABELS[annotationSaveMode]}
+                                                                        title={canSaveAnnotation ? ANNOTATION_SAVE_MODE_LABELS[annotationSaveMode] : "You do not have permission to edit this annotation"}
                                                                     >
                                                                         {ANNOTATION_SAVE_MODE_LABELS[annotationSaveMode]}
                                                                     </DropdownMenuButton>
@@ -7337,7 +7391,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                                         <div className="studio-annot-review-module">
                                             <div className="studio-annot-review-head">
                                                 <span className="studio-annot-review-title">REVIEW</span>
-                                                {sortedEditingAnnotationReviews.length > 0 && !reviewPanelExpanded && canWriteReview ? (
+                                                {sortedEditingAnnotationReviews.length > 0 && !reviewPanelExpanded && canCreateReview ? (
                                                     <Button
                                                         type="primary"
                                                         className="studio-annot-review-edit-btn"
@@ -7370,10 +7424,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                                                             <ul className="studio-annot-review-list">
                                                                 {sortedEditingAnnotationReviews.map((r) => {
                                                                     const vk = reviewStatusVisualKey(r.status_name)
-                                                                    const canDeleteReview =
-                                                                        !!authUtils.getToken() &&
-                                                                        meUserId != null &&
-                                                                        (meIsProjectAdmin || r.reviewer_id === meUserId)
+                                                                    const canDeleteReview = r.capabilities?.delete === true
                                                                     return (
                                                                         <li
                                                                             key={`${r.annotation_id}-${r.reviewer_id}`}
@@ -7474,6 +7525,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                                                                             ? " studio-annot-review-status-btn--selected"
                                                                             : ""
                                                                             }`}
+                                                                        disabled={!canCreateReview}
                                                                         onClick={() => {
                                                                             setReviewStatusId(s.id)
                                                                             setReviewTaxonError(null)
@@ -7491,6 +7543,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                                                                 layout="vertical"
                                                                 requiredMark={false}
                                                                 className="studio-review-form shared-drawer-form"
+                                                                disabled={!canCreateReview}
                                                             >
                                                                 {reviewStatusRequiresTaxon(reviewStatusId) ? (
                                                                     <Form.Item
@@ -7592,8 +7645,8 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                                                                     <Button
                                                                         type="primary"
                                                                         loading={reviewSubmitPending}
-                                                                        disabled={!canWriteReview}
-                                                                        title={canWriteReview ? undefined : "You do not have permission to review annotations"}
+                                                                        disabled={!canCreateReview}
+                                                                        title={canCreateReview ? undefined : "You do not have permission to review annotations"}
                                                                         onClick={() => void handleReviewSubmit()}
                                                                     >
                                                                         {myAnnotationReviewRow ? "Update" : "Submit"}

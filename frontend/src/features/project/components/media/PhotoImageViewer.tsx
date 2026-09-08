@@ -75,6 +75,7 @@ type PhotoImageViewerProps = {
     editingAnnotationId: number | null
     draft: PhotoAnnotationBox | null
     draftVisible: boolean
+    canCreateAnnotation: boolean
     userAnnotationColor: string
     currentUserId: number | null
     onAnnotationsVisibleChange: (visible: boolean) => void
@@ -216,6 +217,7 @@ export function PhotoImageViewer({
     editingAnnotationId,
     draft,
     draftVisible,
+    canCreateAnnotation,
     userAnnotationColor,
     currentUserId,
     onAnnotationsVisibleChange,
@@ -444,6 +446,7 @@ export function PhotoImageViewer({
             return
         }
         if (event.button !== 0) return
+        if (!canCreateAnnotation) return
         const point = imagePoint(event)
         if (!point) return
         const replaceExistingDraft = Boolean(draftVisible && draft && editingAnnotationId == null)

@@ -21,7 +21,6 @@ from app.schemas import (
     UserUpdateMe,
 )
 from app.schemas.response import ApiResponse, PagedApiResponse, api_page, api_success
-from app.schemas.capability import RowCapabilities
 from app.schemas.user import (
     COLLECTION_CONTRIBUTOR_ROLES,
     CreatorOption,
@@ -30,7 +29,7 @@ from app.schemas.user import (
     UserListPublic,
     UserPreferenceUpdate,
 )
-from app.services import permission_service
+from app.services import authorization_service, permission_service
 
 _USER_EXPORT_COLUMNS = [
     CsvColumn("user_id"), CsvColumn("username"), CsvColumn("name"),
@@ -219,6 +218,7 @@ def _check_user_manage_permission(
     scope_filter = user_repository.build_manager_scope_user_condition(
         allowed_projects or [],
         allowed_collection_scopes or [],
+        manageable_only=True,
     )
     stmt = select(User.user_id).where(
         User.user_id == target_user.user_id,
@@ -305,7 +305,29 @@ def list_users(
         order_dir=order_dir
     )
 
+    manageable_ids: set[int] = set()
+    if not permission_service.is_admin(current_user):
+        page_user_ids = [
+            (item[0].user_id if type(item).__name__ == "Row" or isinstance(item, tuple) else item.user_id)
+            for item in result["data"]
+        ]
+        if page_user_ids:
+            manageable_filter = user_repository.build_manager_scope_user_condition(
+                allowed_project_ids or [],
+                allowed_collection_scopes or [],
+                manageable_only=True,
+            )
+            manageable_ids = set(
+                session.exec(
+                    select(User.user_id).where(
+                        User.user_id.in_(page_user_ids),
+                        manageable_filter,
+                    )
+                ).all()
+            )
+
     data = []
+    authz = authorization_service.evaluator(session, current_user, None)
     for item in result["data"]:
         # In SQLAlchemy 2.0+ with multiple entities (e.g. select(User, Contributor)), 
         # item is a Row object which acts like a tuple.
@@ -315,27 +337,21 @@ def list_users(
             user_dict["is_admin"] = permission_service.is_admin(user)
             if contrib:
                 user_dict["contrib"] = contrib.contribution_role
-            manageable = permission_service.is_admin(current_user) or not user_dict["is_admin"]
-            user_dict["capabilities"] = RowCapabilities(
-                edit=manageable,
-                delete=manageable and user.user_id != current_user.user_id,
-                reset_password=manageable,
-                manage_permissions=manageable,
-                set_contributor=manageable,
+            user_dict["capabilities"] = authz.user_capabilities(
+                target_user_id=user.user_id,
+                target_is_admin=user_dict["is_admin"],
+                manageable=(user.user_id in manageable_ids),
             )
             data.append(UserListPublic.model_validate(user_dict))
         else:
             target_is_admin = permission_service.is_admin(item)
-            manageable = permission_service.is_admin(current_user) or not target_is_admin
             payload = {
                 **item.model_dump(),
                 "is_admin": target_is_admin,
-                "capabilities": RowCapabilities(
-                    edit=manageable,
-                    delete=manageable and item.user_id != current_user.user_id,
-                    reset_password=manageable,
-                    manage_permissions=manageable,
-                    set_contributor=manageable,
+                "capabilities": authz.user_capabilities(
+                    target_user_id=item.user_id,
+                    target_is_admin=target_is_admin,
+                    manageable=(item.user_id in manageable_ids),
                 ),
             }
             data.append(UserListPublic.model_validate(payload))

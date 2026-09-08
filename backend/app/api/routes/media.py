@@ -38,11 +38,12 @@ from app.schemas.media import (
 )
 from app.schemas.response import (
     ApiErrorResponse,
-    PagedApiResponse,
     ApiResponse,
+    PagedApiResponse,
     api_success,
 )
-from app.services import media_service, permission_service
+from app.services import authorization_service, media_service
+from app.services.authorization_policy import AuthorizationAction
 from app.spectrogram import WINDOW_FUNCTIONS
 
 router = APIRouter(prefix="/media", tags=["媒体 / media"])
@@ -341,13 +342,12 @@ async def create_media(
     - `filename` 保存转码后的实际文件名（音频统一为 `.flac`，含前缀时也会反映在此字段）。 / `filename` stores the normalized storage filename (audio is normalized to `.flac`, including prefix when provided).
     - 实际落盘文件统一为 FLAC，并通过路径兼容规则解析。 / Physical storage is normalized to FLAC and resolved through compatibility path lookup.
     """
-    permission_service.require_collection_resource_permission(
+    authorization_service.require_collection_action(
         session,
+        current_user,
+        AuthorizationAction.MEDIA_EDIT,
         collection_id=request.collection_id,
         project_id=project_id,
-        user=current_user,
-        resource_type="audio",
-        action="write",
         denied_detail="No write permission on collection",
     )
 
@@ -396,11 +396,10 @@ async def import_metadata(
 
     与目标集合中已有元数据记录（或文件内前面的行）所有字段完全一致的行将被跳过，并通过逐行结果及 `skipped` 计数返回。 / Duplicate rows are returned as skipped with a row-level reason.
     """
-    permission_service.require_collection_resource_permission(
+    authorization_service.require_collection_action(
         session,
         current_user,
-        "audio",
-        "write",
+        AuthorizationAction.MEDIA_EDIT,
         project_id=project_id,
         collection_id=collection_id,
         denied_detail="No write permission on collection",

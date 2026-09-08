@@ -709,6 +709,63 @@ class TestMediaList:
         assert rows[readonly_media_id]["capabilities"]["edit"] is False
         assert rows[readonly_media_id]["capabilities"]["link"] is False
 
+    def test_media_detail_capabilities_follow_the_media_collection_scope(
+        self,
+        client: TestClient,
+        normal_user_token_headers: dict,
+        db: Session,
+    ) -> None:
+        project_id, writable_media_id, readonly_media_id = TestMediaBrowse._setup_browse_data(db)
+        writable_collection_id = db.exec(
+            select(MediaCollection.collection_id).where(
+                MediaCollection.media_id == writable_media_id
+            )
+        ).one()
+        readonly_collection_id = db.exec(
+            select(MediaCollection.collection_id).where(
+                MediaCollection.media_id == readonly_media_id
+            )
+        ).one()
+        readonly_collection = db.get(Collection, readonly_collection_id)
+        readonly_collection.public_access = True
+
+        token = normal_user_token_headers["Authorization"].split(" ")[1]
+        user_id = int(pyjwt.decode(token, options={"verify_signature": False})["sub"])
+        for resource_type in ("audio", "annotation"):
+            permission = db.exec(
+                select(Permission).where(
+                    Permission.resource_type == resource_type,
+                    Permission.action == "write",
+                )
+            ).one()
+            db.add(UserPermission(
+                user_id=user_id,
+                permission_id=permission.permission_id,
+                project_id=project_id,
+                collection_id=writable_collection_id,
+            ))
+        db.commit()
+
+        writable_response = client.get(
+            f"{settings.API_V1_STR}/media/{writable_media_id}?project_id={project_id}",
+            headers=normal_user_token_headers,
+        )
+        readonly_response = client.get(
+            f"{settings.API_V1_STR}/media/{readonly_media_id}?project_id={project_id}",
+            headers=normal_user_token_headers,
+        )
+
+        assert writable_response.status_code == 200
+        assert writable_response.json()["data"]["capabilities"]["edit"] is True
+        assert writable_response.json()["data"]["capabilities"]["create_annotation"] is True
+        assert writable_response.json()["data"]["capabilities"]["run_ai_models"] is True
+        assert writable_response.json()["data"]["capabilities"]["run_analysis"] is False
+        assert readonly_response.status_code == 200
+        assert readonly_response.json()["data"]["capabilities"]["edit"] is False
+        assert readonly_response.json()["data"]["capabilities"]["create_annotation"] is False
+        assert readonly_response.json()["data"]["capabilities"]["run_ai_models"] is False
+        assert readonly_response.json()["data"]["capabilities"]["run_analysis"] is False
+
     def test_list_media_missing_project_id(self, client: TestClient, superuser_token_headers: dict) -> None:
         """Return 422 if project_id is missing."""
         r = client.get(

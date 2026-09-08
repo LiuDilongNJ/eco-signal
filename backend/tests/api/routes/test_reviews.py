@@ -114,7 +114,7 @@ def test_list_reviews(
     review, status, col, media, project = create_test_review_env(db, reviewer_id=superuser_id)
 
     response = client.get(
-        f"{settings.API_V1_STR}/reviews/",
+        f"{settings.API_V1_STR}/reviews/?project_id={project.project_id}",
         headers=superuser_token_headers,
     )
     assert response.status_code == 200
@@ -208,7 +208,7 @@ def test_list_reviews_with_filters(
     review, status, col, media, project = create_test_review_env(db, reviewer_id=superuser_id)
     
     response = client.get(
-        f"{settings.API_V1_STR}/reviews/?note=Test Note&status_id={status.annotation_review_status_id}",
+        f"{settings.API_V1_STR}/reviews/?project_id={project.project_id}&note=Test Note&status_id={status.annotation_review_status_id}",
         headers=superuser_token_headers,
     )
     assert response.status_code == 200
@@ -247,12 +247,12 @@ def test_list_reviews_filters_by_collection_id(
     client: TestClient, superuser_token_headers: dict[str, str], db: Session
 ) -> None:
     superuser_id = 1
-    review_in_collection, _, collection, _, _ = create_test_review_env(db, reviewer_id=superuser_id)
+    review_in_collection, _, collection, _, project = create_test_review_env(db, reviewer_id=superuser_id)
     review_other_collection, _, other_collection, _, _ = create_test_review_env(db, reviewer_id=superuser_id)
     assert collection.collection_id != other_collection.collection_id
 
     response = client.get(
-        f"{settings.API_V1_STR}/reviews/?collection_id={collection.collection_id}",
+        f"{settings.API_V1_STR}/reviews/?project_id={project.project_id}&collection_id={collection.collection_id}",
         headers=superuser_token_headers,
     )
     assert response.status_code == 200
@@ -277,7 +277,7 @@ def test_export_reviews(
     review, status, col, media, project = create_test_review_env(db, reviewer_id=superuser_id)
 
     response = client.get(
-        f"{settings.API_V1_STR}/reviews/exports?sort_by=annotation_id",
+        f"{settings.API_V1_STR}/reviews/exports?project_id={project.project_id}&sort_by=annotation_id",
         headers=superuser_token_headers,
     )
     assert response.status_code == 200
@@ -407,13 +407,13 @@ class TestReviewPermissionLogic:
         review, status, col, media, project = create_test_review_env(db, reviewer_id=normal_user_id)
 
         response = client.get(
-            f"{settings.API_V1_STR}/reviews/",
+        f"{settings.API_V1_STR}/reviews/?project_id={project.project_id}",
             headers=normal_user_token_headers,
         )
         assert response.status_code == 200
         data = response.json()
         items = data["data"]
-        assert any(
+        assert not any(
             r["annotation_id"] == review.annotation_id and r["reviewer_id"] == normal_user_id
             for r in items
         )
@@ -427,7 +427,7 @@ class TestReviewPermissionLogic:
         review, status, col, media, project = create_test_review_env(db, reviewer_id=other_user.user_id)
 
         response = client.get(
-            f"{settings.API_V1_STR}/reviews/",
+        f"{settings.API_V1_STR}/reviews/?project_id={project.project_id}",
             headers=normal_user_token_headers,
         )
         assert response.status_code == 200
@@ -453,7 +453,7 @@ class TestReviewPermissionLogic:
         _grant_collection_perm(db, normal_user_id, col.collection_id, "collection:write")
 
         response = client.get(
-            f"{settings.API_V1_STR}/reviews/",
+        f"{settings.API_V1_STR}/reviews/?project_id={project.project_id}",
             headers=normal_user_token_headers,
         )
         assert response.status_code == 200

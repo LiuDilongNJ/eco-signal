@@ -2492,6 +2492,153 @@ class TestProjectSummary:
         assert contributors[1]["email"] == contributor_user.email
         assert contributors[1]["contribution_role"] == "annotator"
 
+    def test_summary_project_scoped_to_accessible_collections_for_collection_user(
+        self, client: TestClient, db: Session
+    ) -> None:
+        """User with access to only one collection sees narrowed stats in project overview."""
+        from tests.utils.user import authentication_token_from_email
+        email = f"col_user_{random_lower_string()[:8]}@example.com"
+        headers = authentication_token_from_email(client=client, email=email, db=db)
+        user = db.exec(select(User).where(User.email == email)).one()
+
+        project = create_test_project(db, public=False)
+        col1 = Collection(
+            name=f"Coll 1 {random_lower_string()[:6]}",
+            description="col1",
+            public_access=False,
+            public_tags=False,
+            creator_id=user.user_id,
+        )
+        col2 = Collection(
+            name=f"Coll 2 {random_lower_string()[:6]}",
+            description="col2",
+            public_access=False,
+            public_tags=False,
+            creator_id=user.user_id,
+        )
+        db.add_all([col1, col2])
+        db.flush()
+        db.add_all([
+            ProjectCollection(project_id=project.project_id, collection_id=col1.collection_id),
+            ProjectCollection(project_id=project.project_id, collection_id=col2.collection_id),
+        ])
+        db.commit()
+        db.refresh(col1)
+        db.refresh(col2)
+
+        self._create_media_in_collection(db, collection_id=col1.collection_id, media_type="audio")
+        self._create_media_in_collection(db, collection_id=col1.collection_id, media_type="audio")
+        self._create_media_in_collection(db, collection_id=col2.collection_id, media_type="audio")
+        self._create_media_in_collection(db, collection_id=col2.collection_id, media_type="audio")
+        self._create_media_in_collection(db, collection_id=col2.collection_id, media_type="audio")
+
+        # Grant user project:read and col1 collection:read
+        proj_read_perm = db.exec(select(Permission).where(Permission.name == "project:read")).one()
+        coll_read_perm = db.exec(select(Permission).where(Permission.name == "collection:read")).one()
+        db.add(UserPermission(user_id=user.user_id, project_id=project.project_id, permission_id=proj_read_perm.permission_id))
+        db.add(UserPermission(user_id=user.user_id, project_id=project.project_id, collection_id=col1.collection_id, permission_id=coll_read_perm.permission_id))
+        db.commit()
+
+        r = client.get(
+            f"{settings.API_V1_STR}/project-overviews",
+            params={"project_id": project.project_id},
+            headers=headers,
+        )
+        assert r.status_code == 200
+        stats = r.json()["data"]["stats"]
+        assert stats["collections_or_projects"] == 1
+        assert stats["audios"] == 2
+
+    def test_summary_project_full_scope_for_project_manager(
+        self, client: TestClient, db: Session
+    ) -> None:
+        """Project manager sees full scope of all project collections in project overview."""
+        from tests.utils.user import authentication_token_from_email
+        email = f"mgr_user_{random_lower_string()[:8]}@example.com"
+        headers = authentication_token_from_email(client=client, email=email, db=db)
+        manager = db.exec(select(User).where(User.email == email)).one()
+
+        project = create_test_project(db, public=False)
+        col1 = Collection(
+            name=f"Mgr Coll 1 {random_lower_string()[:6]}",
+            description="col1",
+            public_access=False,
+            public_tags=False,
+            creator_id=manager.user_id,
+        )
+        col2 = Collection(
+            name=f"Mgr Coll 2 {random_lower_string()[:6]}",
+            description="col2",
+            public_access=False,
+            public_tags=False,
+            creator_id=manager.user_id,
+        )
+        db.add_all([col1, col2])
+        db.flush()
+        db.add_all([
+            ProjectCollection(project_id=project.project_id, collection_id=col1.collection_id),
+            ProjectCollection(project_id=project.project_id, collection_id=col2.collection_id),
+        ])
+        db.commit()
+        db.refresh(col1)
+        db.refresh(col2)
+
+        self._create_media_in_collection(db, collection_id=col1.collection_id, media_type="audio")
+        self._create_media_in_collection(db, collection_id=col2.collection_id, media_type="audio")
+
+        proj_write_perm = db.exec(select(Permission).where(Permission.name == "project:write")).one()
+        db.add(UserPermission(user_id=manager.user_id, project_id=project.project_id, permission_id=proj_write_perm.permission_id))
+        db.commit()
+
+        r = client.get(
+            f"{settings.API_V1_STR}/project-overviews",
+            params={"project_id": project.project_id},
+            headers=headers,
+        )
+        assert r.status_code == 200
+        stats = r.json()["data"]["stats"]
+        assert stats["collections_or_projects"] == 2
+        assert stats["audios"] == 2
+
+    def test_summary_project_scoped_to_empty_when_no_collections_accessible(
+        self, client: TestClient, db: Session
+    ) -> None:
+        """User with project:read but no collection access gets zero stats in project overview."""
+        from tests.utils.user import authentication_token_from_email
+        email = f"empty_user_{random_lower_string()[:8]}@example.com"
+        headers = authentication_token_from_email(client=client, email=email, db=db)
+        user = db.exec(select(User).where(User.email == email)).one()
+
+        project = create_test_project(db, public=False)
+        col = Collection(
+            name=f"Private Coll {random_lower_string()[:6]}",
+            description="private",
+            public_access=False,
+            public_tags=False,
+            creator_id=user.user_id,
+        )
+        db.add(col)
+        db.flush()
+        db.add(ProjectCollection(project_id=project.project_id, collection_id=col.collection_id))
+        db.commit()
+        db.refresh(col)
+
+        self._create_media_in_collection(db, collection_id=col.collection_id, media_type="audio")
+
+        proj_read_perm = db.exec(select(Permission).where(Permission.name == "project:read")).one()
+        db.add(UserPermission(user_id=user.user_id, project_id=project.project_id, permission_id=proj_read_perm.permission_id))
+        db.commit()
+
+        r = client.get(
+            f"{settings.API_V1_STR}/project-overviews",
+            params={"project_id": project.project_id},
+            headers=headers,
+        )
+        assert r.status_code == 200
+        stats = r.json()["data"]["stats"]
+        assert stats["collections_or_projects"] == 0
+        assert stats["audios"] == 0
+
 
 def test_project_urls_are_validated_and_normalized(
     client: TestClient, superuser_token_headers: dict[str, str], db: Session

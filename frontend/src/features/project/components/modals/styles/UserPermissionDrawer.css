@@ -204,9 +204,51 @@
 }
 
 .upd-role-container {
-    flex: 0 0 80px;
+    flex: 0 0 130px;
     display: flex;
     justify-content: center;
+}
+
+.upd-role-select.ant-select {
+    width: 124px;
+    text-align: left;
+}
+
+.upd-role-select.ant-select .ant-select-selector {
+    min-height: 30px;
+    border-color: var(--border-light) !important;
+    background: var(--bg-surface) !important;
+    box-shadow: none !important;
+}
+
+.upd-role-select.ant-select .ant-select-selection-item,
+.upd-role-select.ant-select .ant-select-selection-placeholder,
+.upd-role-select.ant-select .ant-select-arrow {
+    color: var(--text-main) !important;
+    font-size: 13px;
+}
+
+.upd-role-select.ant-select:not(.ant-select-disabled):hover .ant-select-selector,
+.upd-role-select.ant-select-focused .ant-select-selector {
+    border-color: var(--brand) !important;
+}
+
+.upd-role-select-popup.ant-select-dropdown {
+    padding: 4px;
+    border: 1px solid var(--border-light);
+    background: var(--bg-surface);
+}
+
+.upd-role-select-popup.ant-select-dropdown .ant-select-item {
+    min-height: 30px;
+    border-radius: 5px;
+    color: var(--text-main);
+}
+
+.upd-role-select-popup.ant-select-dropdown .ant-select-item-option-active:not(.ant-select-item-option-disabled),
+.upd-role-select-popup.ant-select-dropdown .ant-select-item-option-selected:not(.ant-select-item-option-disabled) {
+    background: color-mix(in srgb, var(--brand) 14%, transparent);
+    color: var(--text-main);
 }
 
 .upd-actions-container {
@@ -255,11 +297,13 @@
 
 .upd-icons-container {
     display: flex;
-    gap: 8px;
+    gap: 16px;
     align-items: center;
+    padding-bottom: 5px;
 }
 
 .upd-icon-item {
+    position: relative;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -267,6 +311,36 @@
     border: none;
     padding: 4px;
     border-radius: 4px;
+}
+
+.upd-icon-scope-marker {
+    position: absolute;
+    right: -11px;
+    bottom: -7px;
+    z-index: 1;
+    min-width: 20px;
+    padding: 1px 3px;
+    border: 1px solid var(--border-light);
+    border-radius: 999px;
+    background: var(--bg-surface);
+    color: var(--text-muted);
+    font-size: 7px;
+    font-weight: 700;
+    line-height: 1.2;
+    letter-spacing: 0.02em;
+    text-align: center;
+}
+
+.upd-icon-item--scope-own .upd-icon-scope-marker {
+    border-color: var(--brand);
+    color: var(--brand);
+}
+
+.upd-icon-item--scope-all .upd-icon-scope-marker,
+.upd-icon-item--scope-all-own .upd-icon-scope-marker {
+    background: var(--brand-tint);
+    border-color: var(--brand);
+    color: var(--brand);
 }
 
 .upd-icon-item--inherited {

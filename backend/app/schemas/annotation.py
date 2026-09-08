@@ -6,7 +6,7 @@ from pydantic import ConfigDict, Field, field_serializer, model_validator
 from sqlmodel import SQLModel
 
 from app.schemas.review import ReviewRead
-from app.schemas.capability import RowCapabilities
+from app.schemas.capability import AnnotationCapabilities
 
 
 class AnnotationTaskSummary(SQLModel):
@@ -121,7 +121,7 @@ class AnnotationPublic(SQLModel):
     confidence: Optional[float] = None
     
     creation_date: datetime
-    capabilities: RowCapabilities = Field(default_factory=RowCapabilities)
+    capabilities: AnnotationCapabilities = Field(default_factory=AnnotationCapabilities)
 
     model_config = ConfigDict(from_attributes=True)
 

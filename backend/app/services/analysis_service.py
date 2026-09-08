@@ -39,8 +39,9 @@ from app.schemas.analysis import (
 )
 from app.schemas.index_log import IndexLogCreateRequest, IndexLogCreateResponse
 from app.schemas.queue import QueueDetail
-from app.services import permission_service
+from app.services import authorization_service
 from app.services.acoustic_selection_service import prepare_acoustic_selection
+from app.services.authorization_policy import AuthorizationAction
 from app.workers.publisher import TaskPublisher
 
 logger = logging.getLogger(__name__)
@@ -127,21 +128,16 @@ class AnalysisService:
         media: Media,
         current_user: User,
     ) -> None:
-        if permission_service.is_admin(current_user) or media.uploader_id == current_user.user_id:
-            return
-
         statement = select(MediaCollection).where(MediaCollection.media_id == media_id)
         collections = session.exec(statement).all()
-        has_write = permission_service.has_resource_permission_on_any_collection_path(
-            session,
-            current_user,
-            [mc.collection_id for mc in collections],
-            "collection",
-            "write",
-            project_id=project_id,
+        authorization_service.evaluator(session, current_user, project_id).require(
+            AuthorizationAction.MEDIA_RUN_ACOUSTIC,
+            authorization_service.AuthorizationSubject(
+                frozenset(mc.collection_id for mc in collections),
+                uploader_id=media.uploader_id,
+            ),
+            detail="collection:write permission required",
         )
-        if not has_write:
-            raise HTTPException(status_code=403, detail="collection:write permission required")
 
     def preview_acoustic_index(
         self,
@@ -971,10 +967,14 @@ class AnalysisService:
         if media.media_type != "audio":
             raise HTTPException(status_code=422, detail="Acoustic analysis is only available for audio media")
 
-        if permission_service.is_admin(current_user):
-            return media
-
-        if media.uploader_id == current_user.user_id:
+        authz = authorization_service.evaluator(session, current_user, project_id)
+        uploader_subject = authorization_service.AuthorizationSubject(
+            uploader_id=media.uploader_id
+        )
+        if authz.allows(
+            AuthorizationAction.MEDIA_RUN_AI_MODELS,
+            uploader_subject,
+        ):
             return media
 
         statement = (
@@ -987,17 +987,15 @@ class AnalysisService:
         if not collections:
             raise HTTPException(status_code=403, detail="Access denied")
 
-        if permission_service.has_resource_permission_on_any_collection_path(
-            session,
-            current_user,
-            [mc.collection_id for mc in collections],
-            "audio",
-            "read",
-            project_id=project_id,
-        ):
-            return media
-
-        raise HTTPException(status_code=403, detail="Access denied")
+        authz.require(
+            AuthorizationAction.MEDIA_RUN_AI_MODELS,
+            authorization_service.AuthorizationSubject(
+                frozenset(mc.collection_id for mc in collections),
+                uploader_id=media.uploader_id,
+            ),
+            detail="Access denied",
+        )
+        return media
 
     def _resolve_audio_path(
         self,

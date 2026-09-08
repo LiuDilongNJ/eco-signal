@@ -280,6 +280,7 @@ class AnnotationRepository(BaseRepository[Annotation, Any, Any]):
     def _build_list_candidate_query(
         self,
         accessible_collection_ids: list[int] | None = None,
+        own_collection_ids: list[int] | None = None,
         current_user_id: int | None = None,
         is_admin: bool = False,
         filters: dict | None = None,
@@ -330,8 +331,11 @@ class AnnotationRepository(BaseRepository[Annotation, Any, Any]):
                 conditions.append(self._build_media_scope_exists(
                     collection_ids=accessible_collection_ids,
                 ))
-            if current_user_id is not None:
-                conditions.append(Annotation.creator_id == current_user_id)
+            if current_user_id is not None and own_collection_ids:
+                conditions.append(sa.and_(
+                    Annotation.creator_id == current_user_id,
+                    self._build_media_scope_exists(collection_ids=own_collection_ids),
+                ))
             if conditions:
                 stmt = stmt.where(sa.or_(*conditions))
             else:
@@ -389,6 +393,7 @@ class AnnotationRepository(BaseRepository[Annotation, Any, Any]):
         self,
         session: Session,
         accessible_collection_ids: list[int] | None = None,
+        own_collection_ids: list[int] | None = None,
         current_user_id: int | None = None,
         is_admin: bool = False,
         page: int = 1,
@@ -399,11 +404,12 @@ class AnnotationRepository(BaseRepository[Annotation, Any, Any]):
         **filters,
     ) -> tuple[list[dict], int]:
         """Get paginated list of annotations with related data."""
-        if not is_admin and not accessible_collection_ids and current_user_id is None:
+        if not is_admin and not accessible_collection_ids and not (current_user_id and own_collection_ids):
             return [], 0
 
         candidate_stmt = self._build_list_candidate_query(
             accessible_collection_ids=accessible_collection_ids,
+            own_collection_ids=own_collection_ids,
             current_user_id=current_user_id,
             is_admin=is_admin,
             filters=filters,
@@ -425,6 +431,7 @@ class AnnotationRepository(BaseRepository[Annotation, Any, Any]):
         else:
             page_stmt = self._build_list_candidate_query(
                 accessible_collection_ids=accessible_collection_ids,
+                own_collection_ids=own_collection_ids,
                 current_user_id=current_user_id,
                 is_admin=is_admin,
                 filters=filters,

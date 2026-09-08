@@ -1,6 +1,6 @@
 import dayjs from "dayjs"
 import { apiClient } from "../client"
-import type { RowCapabilities } from "../capabilities"
+import type { IndexLogCapabilities } from "../capabilities"
 
 export interface IndexLogDeleteItem {
     log_id: number
@@ -62,7 +62,7 @@ export interface IndexLogPublic {
     media_name?: string | null
     user_name?: string | null
     index_name?: string | null
-    capabilities?: RowCapabilities
+    capabilities?: IndexLogCapabilities
 }
 
 export interface PagedIndexLogsResponse {

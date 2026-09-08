@@ -13,6 +13,9 @@ export interface CollectionPermissionConfig {
     collection_name: string
     stored_permissions: string[]
     effective_permissions: string[]
+    inherited_permissions: string[]
+    assigned_role: AccessRoleCode | null
+    can_manage_collection: boolean
 }
 
 export interface ProjectPermissionConfig {
@@ -21,6 +24,7 @@ export interface ProjectPermissionConfig {
     can_manage_project: boolean
     stored_permissions: string[]
     effective_permissions: string[]
+    assigned_role: AccessRoleCode | null
     collections: CollectionPermissionConfig[]
 }
 
@@ -34,12 +38,25 @@ export interface CollectionPermissionAssignment {
     project_id: number
     collection_id: number
     stored_permissions: string[]
+    role: AccessRoleCode | null
 }
 
 export interface ProjectPermissionAssignment {
     project_id: number
     stored_permissions: string[]
+    role: AccessRoleCode | null
     collections: CollectionPermissionAssignment[]
+}
+
+export type AccessRoleCode = "viewer" | "annotator" | "reviewer" | "manager" | "custom"
+
+export interface AccessRolePublic {
+    code: AccessRoleCode
+    name: string
+    kind: "access"
+    display_order: number
+    project_permissions: string[]
+    collection_permissions: string[]
 }
 
 export interface UserPermissionSyncRequest {
@@ -51,6 +68,10 @@ export const permissionsApi = {
     /** 获取所有权限定义 */
     listPermissions() {
         return apiClient.get<{ code: number; message: string; data: PermissionPublic[] }>("/v1/permissions")
+    },
+
+    listAccessRoles() {
+        return apiClient.get<{ code: number; message: string; data: AccessRolePublic[] }>("/v1/roles", { params: { kind: "access" } })
     },
     
     /** 获取用户权限配置快照 */

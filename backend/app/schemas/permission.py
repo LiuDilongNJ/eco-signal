@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Literal, Optional
 
 from sqlmodel import SQLModel
 
@@ -15,7 +15,10 @@ class CollectionPermissionConfig(SQLModel):
     project_id: int
     collection_id: int
     collection_name: str
+    can_manage_collection: bool
+    assigned_role: Optional[str] = None
     stored_permissions: list[str]
+    inherited_permissions: list[str] = []
     effective_permissions: list[str]
 
 
@@ -24,6 +27,7 @@ class ProjectPermissionConfig(SQLModel):
     project_id: int
     project_name: str
     can_manage_project: bool
+    assigned_role: Optional[str] = None
     stored_permissions: list[str]
     effective_permissions: list[str]
     collections: list[CollectionPermissionConfig]
@@ -40,12 +44,14 @@ class CollectionPermissionAssignment(SQLModel):
     """Editable stored permissions for one collection under a project."""
     project_id: int
     collection_id: int
+    role: Optional[Literal["viewer", "annotator", "reviewer", "manager", "custom"]] = None
     stored_permissions: list[str] = []
 
 
 class ProjectPermissionAssignment(SQLModel):
     """Editable stored permissions for one project and its collections."""
     project_id: int
+    role: Optional[Literal["viewer", "annotator", "reviewer", "manager", "custom"]] = None
     stored_permissions: list[str] = []
     collections: list[CollectionPermissionAssignment] = []
 

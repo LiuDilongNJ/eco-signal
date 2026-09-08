@@ -18,6 +18,8 @@
 #                    persisted as LEGACY_APP_URL in .env.
 #   --repair-network-federation
 #                     Repair only federation settings in an already migrated target
+#   --repair-permissions
+#                     Repair / re-migrate permissions into user_scope_role in an already migrated target
 #   -h, --help       Show help
 
 set -euo pipefail
@@ -45,6 +47,7 @@ SKIP_FILES=false
 COPY_FILES=false
 RESET_TARGET=false
 REPAIR_NETWORK_FEDERATION=false
+REPAIR_PERMISSIONS=false
 LEGACY_APP_URL_OVERRIDE=""
 
 # Shell environment wins over .env so one-off runs can override persisted settings.
@@ -131,6 +134,7 @@ while [[ $# -gt 0 ]]; do
         --copy-files) COPY_FILES=true; shift ;;
         --reset-target) RESET_TARGET=true; shift ;;
         --repair-network-federation) REPAIR_NETWORK_FEDERATION=true; shift ;;
+        --repair-permissions) REPAIR_PERMISSIONS=true; shift ;;
         --legacy-app-url)
             [[ $# -ge 2 && -n "$2" ]] || die "--legacy-app-url requires a URL"
             LEGACY_APP_URL_OVERRIDE="$2"
@@ -274,6 +278,7 @@ if [[ "$REPAIR_NETWORK_FEDERATION" == true ]]; then
     info "Repairing migrated federation settings only..."
     REPAIR_ARGS=(--repair-network-federation)
     [[ "$DRY_RUN" == true ]] && REPAIR_ARGS+=(--dry-run)
+    "${DOCKER_COMPOSE[@]}" cp "${PROJECT_ROOT}/backend/scripts/." backend:/app/scripts/
     "${DOCKER_COMPOSE[@]}" exec -T \
         -e LEGACY_APP_URL="$LEGACY_APP_URL_VALUE" \
         -e LEGACY_HOST_URL="$LEGACY_HOST_URL_VALUE" \
@@ -305,6 +310,23 @@ if [[ "$SKIP_DB" == false ]]; then
         die "Cannot reach MySQL at ${MYSQL_HOST}:${MYSQL_PORT}"
     fi
     success "Legacy MySQL is reachable."
+fi
+
+if [[ "$REPAIR_PERMISSIONS" == true ]]; then
+    info "Repairing / re-migrating permissions into user_scope_role..."
+    REPAIR_ARGS=(--repair-permissions)
+    [[ "$DRY_RUN" == true ]] && REPAIR_ARGS+=(--dry-run)
+    "${DOCKER_COMPOSE[@]}" cp "${PROJECT_ROOT}/backend/scripts/." backend:/app/scripts/
+    "${DOCKER_COMPOSE[@]}" exec -T \
+        -e MYSQL_HOST="host.docker.internal" \
+        -e MYSQL_PORT="$MYSQL_PORT" \
+        -e MYSQL_USER="$MYSQL_USER" \
+        -e MYSQL_PASSWORD="$MYSQL_PASSWORD" \
+        -e MYSQL_DB="$MYSQL_DB" \
+        backend \
+        python scripts/migrate_from_biosounds.py "${REPAIR_ARGS[@]}"
+    success "Permission repair finished."
+    exit 0
 fi
 
 backup_target_state() {
@@ -444,6 +466,9 @@ else
     fi
     [[ "$DRY_RUN" == true ]] && DB_MIGRATE_ARGS+=(--dry-run)
     [[ "$RESET_TARGET" == true ]] && DB_MIGRATE_ARGS+=(--reset-target)
+
+    info "Syncing latest migration scripts into backend container..."
+    "${DOCKER_COMPOSE[@]}" cp "${PROJECT_ROOT}/backend/scripts/." backend:/app/scripts/
 
     MIGRATION_EXIT=0
     if "${DOCKER_COMPOSE[@]}" exec -T \

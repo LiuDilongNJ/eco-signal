@@ -24,7 +24,10 @@ def get_current_user_menu_items(
         set()
         if is_admin
         else permission_service.get_effective_permission_pairs(
-            session, current_user.user_id
+            session,
+            current_user.user_id,
+            project_id=project_id,
+            collection_id=collection_id,
         )
     )
 
@@ -71,19 +74,25 @@ def get_current_user_menu_items(
     def has(resource_type: str, action: str) -> bool:
         return is_admin or (resource_type, action) in permission_pairs
 
+    def can_access_resource(resource_type: str) -> bool:
+        return any(
+            has(resource_type, action)
+            for action in ("read", "write", "read_own", "write_own")
+        )
+
     return [
         _menu_item("Projects", has_project_write_here),
         _menu_item("Collections", can_manage_project_level_menus),
         _menu_item("Users", can_manage_users),
-        _menu_item("Audios", can_show_collection_scoped_items and has("audio", "read")),
-        _menu_item("Photos", can_show_collection_scoped_items and has("audio", "read")),
-        _menu_item("Sites", can_show_collection_scoped_items and has("site", "read")),
-        _menu_item("Annotations", can_show_collection_scoped_items and has("annotation", "read")),
-        _menu_item("Reviews", can_show_collection_scoped_items and has("review", "read")),
+        _menu_item("Audios", can_show_collection_scoped_items and can_access_resource("audio")),
+        _menu_item("Photos", can_show_collection_scoped_items and can_access_resource("audio")),
+        _menu_item("Sites", can_show_collection_scoped_items and can_access_resource("site")),
+        _menu_item("Annotations", can_show_collection_scoped_items and can_access_resource("annotation")),
+        _menu_item("Reviews", can_show_collection_scoped_items and can_access_resource("review")),
         _menu_item(
             "Tasks",
             can_show_collection_scoped_items
-            and (has("audio", "write") or has("review", "write")),
+            and (has("audio", "write") or has("review", "write") or has("review", "write_own")),
         ),
         _menu_item("Queue", True),
         _menu_item("Index Logs", True),

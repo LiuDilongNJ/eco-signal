@@ -1,7 +1,7 @@
 import type { ApiResponse, PagedApiResponse } from "../../types"
 import { apiClient } from "../client"
 import { getApiData } from "../utils"
-import type { RowCapabilities } from "../capabilities"
+import type { TaskCapabilities } from "../capabilities"
 
 export interface TaskListItem {
     task_id: number
@@ -17,7 +17,7 @@ export interface TaskListItem {
     datetime: string | null
     media_name: string | null
     media_type?: string | null
-    capabilities?: RowCapabilities
+    capabilities?: TaskCapabilities
 }
 
 export interface AssignableUserPublic {

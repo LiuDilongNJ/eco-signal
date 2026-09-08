@@ -45,7 +45,7 @@ from app.models.media import (
 # Network Federation
 from app.models.network import NetworkNode
 from app.models.operation_log import OperationLog
-from app.models.permission import Permission, UserPermission
+from app.models.permission import Permission, RolePermission, UserPermission, UserScopeRole
 # Projects & Collections
 from app.models.project import Project, ProjectBase, ProjectCollection, ProjectContributor
 # Sites & Geography
@@ -66,6 +66,8 @@ __all__ = [
     "UserPreference",
     "Permission",
     "UserPermission",
+    "RolePermission",
+    "UserScopeRole",
     # Projects & Collections
     "Project",
     "ProjectBase",

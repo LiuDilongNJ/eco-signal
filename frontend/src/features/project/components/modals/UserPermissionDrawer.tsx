@@ -1,6 +1,6 @@
 import { Button as ESButton } from "@/components/ui"
 import { useState, useEffect, useMemo, useCallback } from "react"
-import { Button, Switch, message, ConfigProvider, Tooltip, Space } from "@/components/ui"
+import { Button, Switch, message, ConfigProvider, Select, Tooltip, Space } from "@/components/ui"
 import { LoadingState } from "@/components/ui"
 import { FormDrawer } from "@/components/ui"
 
@@ -8,7 +8,7 @@ import { X, Mic, MapPin, ScanLine, ClipboardCheck, Check, ChevronDown, ChevronRi
 import { useAppStore } from "@/store/useAppStore"
 import { useAntdBrandConfig } from "../../hooks/useAntdBrandConfig"
 import { permissionsApi } from "../../../../api/endpoints/permissions"
-import type { CollectionPermissionConfig, ProjectPermissionConfig, UserPermissionConfig } from "../../../../api/endpoints/permissions"
+import type { AccessRoleCode, AccessRolePublic, CollectionPermissionConfig, ProjectPermissionConfig, UserPermissionConfig } from "../../../../api/endpoints/permissions"
 import { CustomScrollArea } from "@/components/ui"
 import { isSuccessfulDrawerResponse } from "./utils/isSuccessfulDrawerResponse"
 import "./styles/UserPermissionDrawer.css"
@@ -37,6 +37,7 @@ export function UserPermissionDrawer({ open, userId, userIds, onClose, onSuccess
     const [loading, setLoading] = useState(false)
     const [saving, setSaving] = useState(false)
     const [config, setConfig] = useState<UserPermissionConfig | null>(null)
+    const [accessRoles, setAccessRoles] = useState<AccessRolePublic[]>([])
     const [expandedProjects, setExpandedProjects] = useState<number[]>([])
     const targetUserIds = useMemo(
         () => Array.from(new Set((userIds?.length ? userIds : userId != null ? [userId] : [])
@@ -46,16 +47,30 @@ export function UserPermissionDrawer({ open, userId, userIds, onClose, onSuccess
     )
     const primaryUserId = targetUserIds[0] ?? null
     const isBatch = targetUserIds.length > 1
+    const projectRoleOptions = useMemo(() =>
+        accessRoles.map((accessRole) => ({
+            value: accessRole.code,
+            label: accessRole.name,
+            disabled: accessRole.code === "manager" && !config?.can_manage_admin_role,
+        })), [accessRoles, config?.can_manage_admin_role])
+    const collectionRoleOptions = useMemo(() => [
+        { value: "", label: "None" },
+        ...accessRoles.map((accessRole) => ({ value: accessRole.code, label: accessRole.name })),
+    ], [accessRoles])
 
     const projectHasStoredAccess = (project: ProjectPermissionConfig) =>
-        project.stored_permissions.length > 0 || project.collections.some(collection => collection.stored_permissions.length > 0)
+        project.assigned_role !== null || project.stored_permissions.length > 0 || project.collections.some(collection => collection.assigned_role !== null || collection.stored_permissions.length > 0)
 
-    const collectionHasStoredAccess = (collection: CollectionPermissionConfig) => collection.stored_permissions.length > 0
+    const collectionHasStoredAccess = (collection: CollectionPermissionConfig) => collection.assigned_role !== null || collection.stored_permissions.length > 0
 
     const fetchConfig = useCallback(async (id: number) => {
         setLoading(true)
         try {
-            const res = await permissionsApi.getUserPermissionConfig(id)
+            const [res, roles] = await Promise.all([
+                permissionsApi.getUserPermissionConfig(id),
+                permissionsApi.listAccessRoles(),
+            ])
+            setAccessRoles(roles.data ?? [])
             if (res.data) {
                 const nextConfig = isBatch
                     ? {
@@ -64,10 +79,12 @@ export function UserPermissionDrawer({ open, userId, userIds, onClose, onSuccess
                         projects: res.data.projects.map((project) => ({
                             ...project,
                             stored_permissions: [],
+                            assigned_role: null,
                             effective_permissions: [],
                             collections: project.collections.map((collection) => ({
                                 ...collection,
                                 stored_permissions: [],
+                                assigned_role: null,
                                 effective_permissions: [],
                             })),
                         })),
@@ -108,21 +125,23 @@ export function UserPermissionDrawer({ open, userId, userIds, onClose, onSuccess
             const projects = config.projects
                 .map(p => {
                     const collections = p.collections
-                        .filter(c => c.stored_permissions.length > 0)
+                        .filter(c => c.assigned_role !== null || c.stored_permissions.length > 0)
                         .map(c => ({
                             project_id: p.project_id,
                             collection_id: c.collection_id,
                             stored_permissions: c.stored_permissions,
+                            role: c.assigned_role,
                         }))
                     const storedPermissions = p.can_manage_project ? p.stored_permissions : []
 
                     return {
                         project_id: p.project_id,
                         stored_permissions: storedPermissions,
+                        role: p.can_manage_project ? p.assigned_role : null,
                         collections,
                     }
                 })
-                .filter(p => p.stored_permissions.length > 0 || p.collections.length > 0)
+                .filter(p => p.role !== null || p.stored_permissions.length > 0 || p.collections.length > 0)
 
             const payload = {
                 is_admin: !isBatch && config.can_manage_admin_role ? config.is_admin : undefined,
@@ -186,12 +205,12 @@ export function UserPermissionDrawer({ open, userId, userIds, onClose, onSuccess
                     if (isEnabled) {
                         return {
                             ...p,
-                            stored_permissions: [],
-                            collections: p.collections.map(c => ({ ...c, stored_permissions: [] })),
+                            stored_permissions: [], assigned_role: null,
+                            collections: p.collections.map(c => ({ ...c, stored_permissions: [], assigned_role: null })),
                         }
                     }
-                    return p.stored_permissions.length === 0
-                        ? { ...p, stored_permissions: ["project:read"] }
+                    return p.assigned_role === null
+                        ? { ...p, assigned_role: "custom", stored_permissions: [] }
                         : p
                 }),
             }
@@ -205,8 +224,32 @@ export function UserPermissionDrawer({ open, userId, userIds, onClose, onSuccess
 
     const getIconState = (permissions: string[], resource: string): PermissionAction => {
         if (permissions.includes(`${resource}:write`)) return "write"
+        if (permissions.includes(`${resource}:write_own`)) return "write"
         if (permissions.includes(`${resource}:read`)) return "read"
+        if (permissions.includes(`${resource}:read_own`)) return "read"
         return "none"
+    }
+
+    const getPermissionScopeLabel = (permissions: string[], resource: string) => {
+        if (permissions.includes(`${resource}:write`)) return "Write all"
+        if (permissions.includes(`${resource}:read`) && permissions.includes(`${resource}:write_own`)) return "Read all, write own"
+        if (permissions.includes(`${resource}:write_own`)) return "Write own"
+        if (permissions.includes(`${resource}:read`)) return "Read all"
+        if (permissions.includes(`${resource}:read_own`)) return "Read own"
+        return "None"
+    }
+
+    const getPermissionScopeMarker = (permissions: string[], resource: string) => {
+        if (resource !== "annotation" && resource !== "review") return null
+        if (permissions.includes(`${resource}:write`)) return { label: "ALL", kind: "all" }
+        if (permissions.includes(`${resource}:read`) && permissions.includes(`${resource}:write_own`)) {
+            return { label: "ALL/OWN", kind: "all-own" }
+        }
+        if (permissions.includes(`${resource}:write_own`) || permissions.includes(`${resource}:read_own`)) {
+            return { label: "OWN", kind: "own" }
+        }
+        if (permissions.includes(`${resource}:read`)) return { label: "ALL", kind: "all" }
+        return null
     }
 
     const getProjectIconState = (project: ProjectPermissionConfig, resource: string): PermissionAction => {
@@ -240,6 +283,16 @@ export function UserPermissionDrawer({ open, userId, userIds, onClose, onSuccess
             if (!prev) return null
             const newConfig = { ...prev }
             const updatePerms = (perms: string[]): string[] => {
+                if (resource === "annotation" || resource === "review") {
+                    const basePerms = perms.filter(p => !p.startsWith(`${resource}:`))
+                    const has = (action: string) => perms.includes(`${resource}:${action}`)
+                    if (has("write")) return basePerms
+                    if (has("read") && has("write_own")) return [...basePerms, `${resource}:write`]
+                    if (has("read")) return [...basePerms, `${resource}:read`, `${resource}:write_own`]
+                    if (has("write_own")) return [...basePerms, `${resource}:read`]
+                    if (has("read_own")) return [...basePerms, `${resource}:write_own`]
+                    return [...basePerms, `${resource}:read_own`]
+                }
                 const currentState = getIconState(perms, resource)
                 const basePerms = perms.filter(p => !p.startsWith(`${resource}:`))
                 if (currentState === "none") return [...basePerms, `${resource}:read`]
@@ -248,7 +301,7 @@ export function UserPermissionDrawer({ open, userId, userIds, onClose, onSuccess
             }
             if (scope === "project") {
                 newConfig.projects = newConfig.projects.map(p => {
-                    if (p.project_id === id && p.can_manage_project) {
+                    if (p.project_id === id && p.can_manage_project && p.assigned_role === "custom") {
                         const nextPerms = updatePerms(p.stored_permissions)
                         return {
                             ...p,
@@ -261,14 +314,16 @@ export function UserPermissionDrawer({ open, userId, userIds, onClose, onSuccess
                 newConfig.projects = newConfig.projects.map(p => ({
                     ...p,
                     collections: p.collections.map(c =>
-                        c.collection_id === id && p.project_id === projectId && p.can_manage_project
+                        c.collection_id === id && p.project_id === projectId && c.can_manage_collection && c.assigned_role === "custom"
                             ? {
                                 ...c,
-                                stored_permissions: updateCollectionPerms(
-                                    c.stored_permissions,
-                                    resource,
-                                    getProjectIconState(p, resource),
-                                ),
+                                stored_permissions: resource === "annotation" || resource === "review"
+                                    ? updatePerms(c.stored_permissions)
+                                    : updateCollectionPerms(
+                                        c.stored_permissions,
+                                        resource,
+                                        getProjectIconState(p, resource),
+                                    ),
                             }
                             : c
                     )
@@ -281,7 +336,7 @@ export function UserPermissionDrawer({ open, userId, userIds, onClose, onSuccess
     const toggleCollectionEnabled = (projectId: number, collectionId: number) => {
         if (config?.is_admin) return
         const project = config?.projects.find(p => p.project_id === projectId)
-        if (!project?.can_manage_project) return
+        if (!project) return
         const collection = project.collections.find(c => c.collection_id === collectionId)
         if (!collection) return
         const isEnabled = collectionHasStoredAccess(collection)
@@ -293,12 +348,38 @@ export function UserPermissionDrawer({ open, userId, userIds, onClose, onSuccess
                     ...p,
                     collections: p.collections.map(c => {
                         if (c.collection_id !== collectionId) return c
-                        if (isEnabled) return { ...c, stored_permissions: [] }
-                        return c.stored_permissions.length === 0
-                            ? { ...c, stored_permissions: ["collection:read"] }
+                        if (!c.can_manage_collection) return c
+                        if (isEnabled) return { ...c, stored_permissions: [], assigned_role: null }
+                        return c.assigned_role === null
+                            ? { ...c, assigned_role: "viewer", stored_permissions: [] }
                             : c
                     }),
                 } : p),
+            }
+        })
+    }
+
+    const setScopeRole = (
+        scope: "project" | "collection", role: AccessRoleCode | null, id: number, projectId?: number,
+    ) => {
+        if (!config || config.is_admin) return
+        setConfig(prev => {
+            if (!prev) return null
+            const withRole = (permissions: string[], nextRole: AccessRoleCode | null) => ({
+                assigned_role: nextRole,
+                stored_permissions: nextRole === "custom" ? permissions : [],
+            })
+            return {
+                ...prev,
+                projects: prev.projects.map(project => scope === "project" && project.project_id === id && project.can_manage_project
+                    ? { ...project, ...withRole(project.stored_permissions, role) }
+                    : {
+                        ...project,
+                        collections: project.collections.map(collection => scope === "collection"
+                            && project.project_id === projectId && collection.collection_id === id && collection.can_manage_collection
+                            ? { ...collection, ...withRole(collection.stored_permissions, role) }
+                            : collection),
+                    }),
             }
         })
     }
@@ -354,14 +435,34 @@ export function UserPermissionDrawer({ open, userId, userIds, onClose, onSuccess
             if (!permission.includes(":")) continue
             const [resource, action] = permission.split(":", 2)
             if (!resource || !action) continue
-            const existing = getIconState(merged, resource)
-            if (existing === "write") continue
+            const withoutResource = merged.filter(p => !p.startsWith(`${resource}:`))
+            const actions = new Set(
+                merged
+                    .filter(p => p.startsWith(`${resource}:`))
+                    .map(p => p.slice(resource.length + 1)),
+            )
+
             if (action === "write") {
-                const withoutResource = merged.filter(p => !p.startsWith(`${resource}:`))
-                merged.splice(0, merged.length, ...withoutResource, `${resource}:write`)
-            } else if (action === "read" && existing === "none") {
-                merged.push(`${resource}:read`)
+                actions.clear()
+                actions.add("write")
+            } else if (!actions.has("write")) {
+                if (action === "read") {
+                    actions.add("read")
+                    actions.delete("read_own")
+                } else if (action === "write_own") {
+                    actions.add("write_own")
+                    actions.delete("read_own")
+                } else if (action === "read_own" && !actions.has("read") && !actions.has("write_own")) {
+                    actions.add("read_own")
+                }
             }
+
+            merged.splice(
+                0,
+                merged.length,
+                ...withoutResource,
+                ...[...actions].map((mergedAction) => `${resource}:${mergedAction}`),
+            )
         }
         return merged
     }
@@ -423,11 +524,12 @@ export function UserPermissionDrawer({ open, userId, userIds, onClose, onSuccess
                             ? "var(--brand)"
                             : emptyColor
                     const itemBackground = state === "write" ? "var(--brand)" : "transparent"
-                    const stateLabel = state.charAt(0).toUpperCase() + state.slice(1)
+                    const stateLabel = getPermissionScopeLabel(permissions, m.key)
+                    const scopeMarker = getPermissionScopeMarker(permissions, m.key)
                     return (
                         <Tooltip key={m.key} title={`${m.label}: ${inherited ? "Inherited " : ""}${stateLabel}`}>
                             <div
-                                className={`upd-icon-item${inherited ? " upd-icon-item--inherited" : ""}`}
+                                className={`upd-icon-item${state === "write" ? " upd-icon-item--write" : ""}${inherited ? " upd-icon-item--inherited" : ""}${scopeMarker ? ` upd-icon-item--scope-${scopeMarker.kind}` : ""}`}
                                 onClick={(e) => { e.stopPropagation(); if (!disabled) toggleIconPerm(scope, id, m.key, projectId); }}
                                 style={{
                                     cursor: config?.is_admin || disabled ? "not-allowed" : "pointer",
@@ -438,6 +540,7 @@ export function UserPermissionDrawer({ open, userId, userIds, onClose, onSuccess
                                 }}
                             >
                                 <m.icon size={18} strokeWidth={state === "none" ? 2 : 2.5} />
+                                {scopeMarker && <span className="upd-icon-scope-marker" aria-hidden="true">{scopeMarker.label}</span>}
                             </div>
                         </Tooltip>
                     )
@@ -521,10 +624,10 @@ export function UserPermissionDrawer({ open, userId, userIds, onClose, onSuccess
                             ) : (
                                 <div className="upd-drawer-list-container">
                                     {config?.projects.map(project => {
-                                        const isFullAdmin = project.stored_permissions.includes("project:write");
+                                        const isFullAdmin = project.assigned_role === "manager";
                                         const projectChecked = projectHasStoredAccess(project);
                                         const isProjectExpanded = expandedProjects.includes(project.project_id);
-                                        const role = isFullAdmin ? 'Manager' : (projectChecked ? 'User' : null);
+                                        const role = project.assigned_role;
                                         const canEditProject = project.can_manage_project && !config.is_admin;
                                         const canExpandProject = projectChecked && !isFullAdmin;
                                         return (
@@ -563,46 +666,42 @@ export function UserPermissionDrawer({ open, userId, userIds, onClose, onSuccess
                                                     </div>
                                                     <div className="upd-divider" />
                                                     <div className="upd-role-container">
-                                                        {role && (
-                                                            <span
-                                                                className={`upd-badge ${role === "Manager" ? "upd-badge--manager" : "upd-badge--user"}`}
-                                                                role="button"
-                                                                tabIndex={canEditProject ? 0 : -1}
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation()
-                                                                    if (canEditProject) toggleRole("project", project.project_id)
-                                                                }}
-                                                                onKeyDown={(e) => {
-                                                                    if (canEditProject && (e.key === "Enter" || e.key === " ")) {
-                                                                        e.preventDefault()
-                                                                        e.stopPropagation()
-                                                                        toggleRole("project", project.project_id)
-                                                                    }
-                                                                }}
-                                                            >
-                                                                {role}
-                                                            </span>
-                                                        )}
+                                                        {projectChecked && <Select
+                                                            className="upd-role-select"
+                                                            classNames={{ popup: { root: "upd-role-select-popup" } }}
+                                                            aria-label={`Project role for ${project.project_name}`}
+                                                            disabled={!canEditProject}
+                                                            allowClear={role !== null}
+                                                            placeholder="Custom"
+                                                            value={role ?? undefined}
+                                                            options={projectRoleOptions}
+                                                            onChange={(value) => setScopeRole("project", (value ?? null) as AccessRoleCode | null, project.project_id)}
+                                                        />}
                                                     </div>
                                                     <div className="upd-actions-container">
-                                                        {isFullAdmin ? <div className="upd-full-access-text">Full Project Access</div> : renderIcons("project", project.project_id, project.stored_permissions, !canEditProject)}
+                                                        {renderIcons(
+                                                            "project",
+                                                            project.project_id,
+                                                            role === "custom" ? project.stored_permissions : project.effective_permissions,
+                                                            !canEditProject || role !== "custom",
+                                                        )}
                                                     </div>
                                                 </div>
                                                 {canExpandProject && isProjectExpanded && project.collections.map(col => {
-                                                    const isColFullAdmin = col.stored_permissions.includes("collection:write");
+                                                    const isColFullAdmin = col.assigned_role === "manager";
                                                     const displayPermissions = getCollectionDisplayPermissions(project, col);
                                                     const inheritedResources = new Set(
                                                         MODULE_KEYS.filter(resource => isInheritedIcon(project, col, resource))
                                                     );
                                                     const isUnlocked = collectionHasStoredAccess(col);
-                                                    const colRole = isColFullAdmin ? 'Manager' : (isUnlocked ? 'User' : null);
-                                                    const canEditCollection = project.can_manage_project && !config.is_admin;
+                                                    const colRole = col.assigned_role;
+                                                    const canEditCollection = col.can_manage_collection && !config.is_admin;
                                                     return (
                                                         <div key={col.collection_id} className="upd-row  upd-collection-row">
                                                             <div className="upd-collection-info">
                                                                 <div
-                                                                    onClick={(e) => { e.stopPropagation(); if (!isColFullAdmin && canEditCollection) toggleCollectionEnabled(project.project_id, col.collection_id); }}
-                                                                    style={{ cursor: isColFullAdmin || !canEditCollection ? 'not-allowed' : 'pointer' }}
+                                                                    onClick={(e) => { e.stopPropagation(); if (canEditCollection) toggleCollectionEnabled(project.project_id, col.collection_id); }}
+                                                                    style={{ cursor: !canEditCollection ? 'not-allowed' : 'pointer' }}
                                                                 >
                                                                     {isUnlocked ? (
                                                                         <div className="upd-checkbox-checked"><Check size={12} strokeWidth={4} /></div>
@@ -614,29 +713,18 @@ export function UserPermissionDrawer({ open, userId, userIds, onClose, onSuccess
                                                             </div>
                                                             <div className="upd-divider" />
                                                             <div className="upd-role-container">
-                                                                {colRole && (
-                                                                    <span
-                                                                        className={`upd-badge ${colRole === "Manager" ? "upd-badge--manager" : "upd-badge--user"}`}
-                                                                        role="button"
-                                                                        tabIndex={canEditCollection ? 0 : -1}
-                                                                        onClick={(e) => {
-                                                                            e.stopPropagation()
-                                                                            if (canEditCollection) toggleRole("collection", col.collection_id, project.project_id)
-                                                                        }}
-                                                                        onKeyDown={(e) => {
-                                                                            if (canEditCollection && (e.key === "Enter" || e.key === " ")) {
-                                                                                e.preventDefault()
-                                                                                e.stopPropagation()
-                                                                                toggleRole("collection", col.collection_id, project.project_id)
-                                                                            }
-                                                                        }}
-                                                                    >
-                                                                        {colRole}
-                                                                    </span>
-                                                                )}
+                                                                {isUnlocked && <Select
+                                                                    className="upd-role-select"
+                                                                    classNames={{ popup: { root: "upd-role-select-popup" } }}
+                                                                    aria-label={`Collection role for ${col.collection_name}`}
+                                                                    disabled={!canEditCollection}
+                                                                    value={colRole ?? ""}
+                                                                    options={collectionRoleOptions}
+                                                                    onChange={(value) => setScopeRole("collection", (value || null) as AccessRoleCode | null, col.collection_id, project.project_id)}
+                                                                />}
                                                             </div>
                                                             <div className="upd-actions-container">
-                                                                {isColFullAdmin ? <div className="upd-full-access-text">Full Collection Access</div> : renderIcons("collection", col.collection_id, displayPermissions, !isUnlocked || !canEditCollection, project.project_id, inheritedResources)}
+                                                                {renderIcons("collection", col.collection_id, displayPermissions, !isUnlocked || !canEditCollection || colRole !== "custom", project.project_id, inheritedResources)}
                                                             </div>
                                                         </div>
                                                     );

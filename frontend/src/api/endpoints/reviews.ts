@@ -1,6 +1,6 @@
 import { apiClient } from "../client"
 import type { FilterOptionReviewStatus, FilterOptionTaxon, FilterOptionUser } from "../utils"
-import type { RowCapabilities } from "../capabilities"
+import type { ReviewCapabilities } from "../capabilities"
 
 /** 与 GET 标注详情内嵌 reviews、POST/PUT 响应一致 */
 export interface AnnotationReviewRead {
@@ -15,7 +15,7 @@ export interface AnnotationReviewRead {
     reviewer_name: string
     status_name: string
     taxon_name?: string | null
-    capabilities?: RowCapabilities
+    capabilities?: ReviewCapabilities
 }
 
 export interface ReviewCreatePayload {
@@ -34,7 +34,7 @@ export interface ReviewUpdatePayload {
 
 /** GET /v1/reviews 查询参数，与当前后端路由一致。 */
 export interface ReviewsListParams {
-    project_id?: number | null
+    project_id: number
     collection_id?: number | null
     page?: number
     page_size?: number
@@ -55,7 +55,7 @@ export interface ReviewsListParams {
 }
 
 export interface ReviewsExportParams {
-    project_id?: number | null
+    project_id: number
     collection_id?: number | null
     annotation_id?: number | null
     media_name?: string | null
@@ -106,7 +106,7 @@ export const reviewsApi = {
     /** 获取 Reviews 分页列表（原始响应） */
     getList(params: ReviewsListParams, ignoreUnauthorized?: boolean) {
         return apiClient.get<ReviewsPagedBody>("/v1/reviews", {
-            params: cleanParams(params as Record<string, unknown>),
+            params: cleanParams(params as unknown as Record<string, unknown>),
             ignoreUnauthorized,
         })
     },
@@ -117,7 +117,7 @@ export const reviewsApi = {
         pageInfo: ReviewsPageInfo
     }> {
         const res = await apiClient.get<ReviewsPagedBody>("/v1/reviews", {
-            params: cleanParams(params as Record<string, unknown>),
+            params: cleanParams(params as unknown as Record<string, unknown>),
             ignoreUnauthorized,
         })
         if (res.code !== 0) {
@@ -191,7 +191,7 @@ export const reviewsApi = {
 
     exportCsv(params: ReviewsExportParams) {
         return apiClient.download("/v1/reviews/exports", {
-            params: cleanParams(params as Record<string, unknown>),
+            params: cleanParams(params as unknown as Record<string, unknown>),
         })
     },
 }

@@ -23,7 +23,7 @@ from app.models import Collection, Permission, Role, User, UserPermission
 from app.models.effective_permission import UserEffectivePermission
 from app.models.project import Project, ProjectCollection
 from app.repositories.permission_repository import permission_repository
-from app.services.permission_service import _SUB_RESOURCE_TYPES
+from app.services.permission_rules import SUB_RESOURCE_TYPES
 from app.services.permission_service import (
     has_resource_permission as _has_resource_permission,
 )
@@ -236,6 +236,7 @@ def _user_collection_permission_names_for_path(
 def _project_assignment(project_id: int, stored_permissions: list[str], collections: list[dict] | None = None) -> dict:
     return {
         "project_id": project_id,
+        "role": "custom" if stored_permissions else None,
         "stored_permissions": stored_permissions,
         "collections": collections or [],
     }
@@ -245,6 +246,7 @@ def _collection_assignment(project_id: int, collection_id: int, stored_permissio
     return {
         "project_id": project_id,
         "collection_id": collection_id,
+        "role": "custom" if stored_permissions else None,
         "stored_permissions": stored_permissions,
     }
 
@@ -1667,21 +1669,21 @@ class TestStep5CollectionWrite:
         col = _create_collection(db, user.user_id)
         _grant_collection_perm(db, user.user_id, col.collection_id, "collection:write")
 
-        for res in _SUB_RESOURCE_TYPES:
+        for res in SUB_RESOURCE_TYPES:
             assert has_resource_permission(db, user, res, "read", collection_id=col.collection_id), \
                 f"collection:write should imply {res}:read"
             assert has_resource_permission(db, user, res, "write", collection_id=col.collection_id), \
                 f"collection:write should imply {res}:write"
 
     def test_collection_write_does_not_grant_project_permissions(self, db: Session) -> None:
-        """collection:write must NOT grant project:read or project:write."""
+        """Collection management grants parent project visibility, but not project management."""
         user = _create_user(db)
         proj = _create_project(db, user.user_id)
         col = _create_collection(db, user.user_id)
         _link_project_collection(db, proj.project_id, col.collection_id)
         _grant_collection_perm(db, user.user_id, col.collection_id, "collection:write")
 
-        assert not has_resource_permission(db, user, "project", "read", project_id=proj.project_id)
+        assert has_resource_permission(db, user, "project", "read", project_id=proj.project_id)
         assert not has_resource_permission(db, user, "project", "write", project_id=proj.project_id)
 
 
@@ -1696,7 +1698,7 @@ class TestStep6ProjectWrite:
         _link_project_collection(db, proj.project_id, col.collection_id)
         _grant_project_perm(db, user.user_id, proj.project_id, "project:write")
 
-        for res in _SUB_RESOURCE_TYPES:
+        for res in SUB_RESOURCE_TYPES:
             assert has_resource_permission(db, user, res, "read", collection_id=col.collection_id), \
                 f"project:write should imply {res}:read via collection"
             assert has_resource_permission(db, user, res, "write", collection_id=col.collection_id), \
@@ -1746,37 +1748,37 @@ class TestStep7WriteImpliesRead:
 
 
 class TestSubResourceTypesConstant:
-    """Verify _SUB_RESOURCE_TYPES contains expected members."""
+    """Verify the inherited sub-resource set contains expected members."""
 
     def test_sub_resource_types_include_audio(self) -> None:
-        assert "audio" in _SUB_RESOURCE_TYPES
+        assert "audio" in SUB_RESOURCE_TYPES
 
     def test_sub_resource_types_include_site(self) -> None:
-        assert "site" in _SUB_RESOURCE_TYPES
+        assert "site" in SUB_RESOURCE_TYPES
 
     def test_sub_resource_types_include_annotation(self) -> None:
-        assert "annotation" in _SUB_RESOURCE_TYPES
+        assert "annotation" in SUB_RESOURCE_TYPES
 
     def test_sub_resource_types_include_review(self) -> None:
-        assert "review" in _SUB_RESOURCE_TYPES
+        assert "review" in SUB_RESOURCE_TYPES
 
     def test_sub_resource_types_do_not_include_project(self) -> None:
-        assert "project" not in _SUB_RESOURCE_TYPES
+        assert "project" not in SUB_RESOURCE_TYPES
 
     def test_sub_resource_types_do_not_include_collection(self) -> None:
-        assert "collection" not in _SUB_RESOURCE_TYPES
+        assert "collection" not in SUB_RESOURCE_TYPES
 
     def test_sub_resource_types_do_not_include_queue(self) -> None:
         """queue is excluded from the permission system."""
-        assert "queue" not in _SUB_RESOURCE_TYPES
+        assert "queue" not in SUB_RESOURCE_TYPES
 
     def test_sub_resource_types_do_not_include_task(self) -> None:
-        """task is excluded from _SUB_RESOURCE_TYPES (access controlled via collection:write)."""
-        assert "task" not in _SUB_RESOURCE_TYPES
+        """Task is excluded from inherited resource permissions."""
+        assert "task" not in SUB_RESOURCE_TYPES
 
     def test_sub_resource_types_do_not_include_index_log(self) -> None:
-        """index_log is excluded from _SUB_RESOURCE_TYPES (access controlled via collection:write)."""
-        assert "index_log" not in _SUB_RESOURCE_TYPES
+        """Index log is excluded from inherited resource permissions."""
+        assert "index_log" not in SUB_RESOURCE_TYPES
 
 
 class TestPublicTagsAnnotationAccess:

@@ -1,7 +1,7 @@
 import { apiClient } from "../client"
 import { getApiData } from "../utils"
 import type { FilterOptionLabel, FilterOptionUser } from "../utils"
-import type { RowCapabilities } from "../capabilities"
+import type { MediaCapabilities } from "../capabilities"
 
 export interface MediaPublic {
     media_id?: number
@@ -46,7 +46,7 @@ export interface MediaPublic {
     media_url?: string | null
     image_width?: number | null
     image_height?: number | null
-    capabilities?: RowCapabilities
+    capabilities?: MediaCapabilities
     [key: string]: any
 }
 
@@ -213,6 +213,7 @@ export interface RecordingDetail extends Record<string, unknown> {
     duration_s?: number
     sampling_rate_hz?: number
     theme_value?: string | null
+    capabilities?: MediaCapabilities
     theme_source?: string | null
     channels?: string
     bit_depth?: string

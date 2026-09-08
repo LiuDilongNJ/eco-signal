@@ -1,7 +1,7 @@
 import { apiClient } from "../client"
 import { getApiData, type FilterOptionUser } from "../utils"
 import type { AnnotationReviewRead } from "./reviews"
-import type { RowCapabilities } from "../capabilities"
+import type { AnnotationCapabilities } from "../capabilities"
 
 /** 当前用户在该标注上被分配的 tag 任务（仅当有对应 Task 时返回） */
 export interface AnnotationTaskSummary {
@@ -46,7 +46,7 @@ export interface AnnotationPublic {
     task?: AnnotationTaskSummary | null
     /** 列表接口也会批量附带（见 annotation_service.get_annotation_list） */
     reviews?: AnnotationReviewRead[]
-    capabilities?: RowCapabilities
+    capabilities?: AnnotationCapabilities
 }
 
 /** GET /v1/annotations/{annotation_id} §4.5 标注详情（含审阅列表） */
@@ -237,7 +237,7 @@ export const annotationsApi = {
      */
     exportViewportCsv(params: {
         media_id: number
-        project_id?: number
+        project_id: number
         view_time_start: number
         view_time_end: number
         view_freq_min: number

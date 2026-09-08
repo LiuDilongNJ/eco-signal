@@ -7,23 +7,23 @@ from fastapi import HTTPException
 from sqlmodel import Session, select
 
 from app.core.config import settings
-from app.models import Collection, Project, Role, User
+from app.models import Collection, Project, Role, User, UserScopeRole
 from app.models.project import ProjectCollection
-from app.services import permission_service
+from app.services import permission_config_service, permission_rules, permission_service
 
 
 def test_normalize_permissions_extended():
     """Test all branches of _normalize_permissions."""
     # Empty case
-    assert permission_service._normalize_permissions([], "project") == []
+    assert permission_rules.normalize_permissions([], "project") == []
 
     # Sub-resource present -> adds scope:read
-    res = permission_service._normalize_permissions(["audio:read"], "project")
+    res = permission_rules.normalize_permissions(["audio:read"], "project")
     assert "audio:read" in res
     assert "project:read" in res
 
     # project:write case
-    res = permission_service._normalize_permissions(["project:write", "audio:read"], "project")
+    res = permission_rules.normalize_permissions(["project:write", "audio:read"], "project")
     assert "project:write" in res
     assert "audio:read" not in res
     assert "project:read" not in res
@@ -31,16 +31,16 @@ def test_normalize_permissions_extended():
 def test_remove_cross_scope_redundancies_extended():
     """Test _remove_cross_scope_redundancies edge cases."""
     # project:write covers all
-    assert permission_service._remove_cross_scope_redundancies(["audio:read"], {"project:write"}) == []
+    assert permission_rules.remove_cross_scope_redundancies(["audio:read"], {"project:write"}) == []
 
     # parent has audio:write, collection has audio:read -> redundant
-    assert permission_service._remove_cross_scope_redundancies(["audio:read"], {"audio:write"}) == []
+    assert permission_rules.remove_cross_scope_redundancies(["audio:read"], {"audio:write"}) == []
 
     # parent has audio:read, collection has audio:read -> redundant
-    assert permission_service._remove_cross_scope_redundancies(["audio:read"], {"audio:read"}) == []
+    assert permission_rules.remove_cross_scope_redundancies(["audio:read"], {"audio:read"}) == []
 
     # parent has site:read, collection has audio:read -> NOT redundant
-    assert permission_service._remove_cross_scope_redundancies(["audio:read"], {"site:read"}) == ["audio:read"]
+    assert permission_rules.remove_cross_scope_redundancies(["audio:read"], {"site:read"}) == ["audio:read"]
 
 class TestPermissionServiceComprehensive:
     """Integration tests for high coverage."""
@@ -96,12 +96,12 @@ class TestPermissionServiceComprehensive:
 
         # Test admin toggle
         req = MockRequest(is_admin=True, projects=[])
-        permission_service.sync_user_permissions_global(db, user.user_id, req, current_user=admin)
+        permission_config_service.sync_user_permissions_global(db, user.user_id, req, current_user=admin)
         db.refresh(user)
         assert user.role_id == 1  # Superuser
 
         req = MockRequest(is_admin=False, projects=[])
-        permission_service.sync_user_permissions_global(db, user.user_id, req, current_user=admin)
+        permission_config_service.sync_user_permissions_global(db, user.user_id, req, current_user=admin)
         db.refresh(user)
         assert user.role_id != 1
 
@@ -370,7 +370,8 @@ class TestUserEffectivePermissionView:
                     project.project_id,
                     collection.collection_id,
                     resource_type,
-                ) == {"read", "write"}
+                ) == ({"read", "write", "read_own", "write_own"}
+                      if resource_type in {"annotation", "review"} else {"read", "write"})
 
         assert permission_repository.has_collection_resource_permission(
             db, user.user_id, project.project_id, col_a.collection_id, "audio", "read"
@@ -466,7 +467,8 @@ class TestUserEffectivePermissionView:
                 project.project_id,
                 collection.collection_id,
                 resource_type,
-            ) == {"read", "write"}
+            ) == ({"read", "write", "read_own", "write_own"}
+                  if resource_type in {"annotation", "review"} else {"read", "write"})
 
     def test_collection_permission_stays_on_project_collection_path(self, db: Session) -> None:
         user = _create_user(db)
@@ -788,6 +790,7 @@ def _project_node(project_id, stored_permissions, collections=None):
     return SimpleNamespace(
         project_id=project_id,
         stored_permissions=stored_permissions,
+        role="custom" if stored_permissions else None,
         collections=collections or [],
     )
 
@@ -797,16 +800,17 @@ def _collection_node(project_id, collection_id, stored_permissions):
         project_id=project_id,
         collection_id=collection_id,
         stored_permissions=stored_permissions,
+        role="custom" if stored_permissions else None,
     )
 
 
 def test_non_admin_manager_cannot_grant_project_write():
-    context = permission_service._PermissionManagementContext(
+    context = permission_config_service._PermissionManagementContext(
         project_ids={1}, collection_scopes=set()
     )
     request_projects = [_project_node(1, ["project:write"])]
     with pytest.raises(HTTPException) as exc:
-        permission_service._validate_permission_payload(
+        permission_config_service._validate_permission_payload(
             request_projects, _GRANT_PERM_MAP, context
         )
     assert exc.value.status_code == 403
@@ -814,24 +818,52 @@ def test_non_admin_manager_cannot_grant_project_write():
 
 
 def test_non_admin_manager_can_grant_collection_write():
-    context = permission_service._PermissionManagementContext(
+    context = permission_config_service._PermissionManagementContext(
         project_ids={1}, collection_scopes=set()
     )
     request_projects = [
         _project_node(1, [], [_collection_node(1, 10, ["collection:write"])])
     ]
     # Should not raise: a project:write manager may delegate collection:write.
-    permission_service._validate_permission_payload(
+    permission_config_service._validate_permission_payload(
         request_projects, _GRANT_PERM_MAP, context
     )
 
 
 def test_admin_can_grant_project_write():
-    context = permission_service._PermissionManagementContext(
+    context = permission_config_service._PermissionManagementContext(
         project_ids=None, collection_scopes=None
     )
     request_projects = [_project_node(1, ["project:write"])]
     # Admin context is unrestricted.
-    permission_service._validate_permission_payload(
+    permission_config_service._validate_permission_payload(
         request_projects, _GRANT_PERM_MAP, context
+    )
+
+
+def test_reviewer_path_role_expands_all_read_and_own_review_write(db: Session):
+    user = _create_user(db)
+    project = _create_project(db, owner_id=1)
+    collection = _create_collection(db, owner_id=1)
+    db.add(ProjectCollection(project_id=project.project_id, collection_id=collection.collection_id))
+    reviewer = db.exec(select(Role).where(Role.code == "reviewer")).one()
+    db.add(UserScopeRole(
+        user_id=user.user_id,
+        role_id=reviewer.role_id,
+        project_id=project.project_id,
+        collection_id=collection.collection_id,
+    ))
+    db.commit()
+
+    assert permission_service.has_resource_permission(
+        db, user, "annotation", "read", project_id=project.project_id, collection_id=collection.collection_id
+    )
+    assert permission_service.has_resource_permission(
+        db, user, "review", "read", project_id=project.project_id, collection_id=collection.collection_id
+    )
+    assert permission_service.has_resource_permission(
+        db, user, "review", "write_own", project_id=project.project_id, collection_id=collection.collection_id
+    )
+    assert not permission_service.has_resource_permission(
+        db, user, "review", "write", project_id=project.project_id, collection_id=collection.collection_id
     )

@@ -100,6 +100,7 @@ sudo ./migrate-data.sh <source-project-dir> [options]
 - `--skip-files`：跳过静态文件迁移
 - `--copy-files`：将来源静态文件复制到 `app-media-data` 卷
 - `--reset-target`：备份目标数据库和媒体、清理业务数据后迁移
+- `--repair-permissions`：在已迁移的目标环境中重新将历史权限修复映射至 `user_scope_role` 访问角色架构
 - `--legacy-app-url <url>`：提供用于识别联邦节点的来源公开地址
 
 脚本会在容器内迁移开始前从宿主机检查来源 MySQL 连通性。新部署目标首次迁移时，预置的 Demo Project、集合和站点要求使用 `--reset-target`。修改 `LEGACY_PROJECT_DIR` 后必须重建容器；普通 `docker compose restart` 不会刷新绑定挂载。默认直接挂载方式会在数据库处理前验证 `/app/sounds/sounds`、`/app/sounds/images` 和 `/app/sounds/projects`。复制方式将文件放入 `app-media-data`，迁移后不再依赖来源目录保持挂载。

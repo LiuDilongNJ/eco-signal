@@ -232,6 +232,47 @@ class TestCurrentUserMenuItems:
         assert "Queue" in visible
         assert "Index Logs" in visible
 
+    @pytest.mark.parametrize(
+        ("permission_name", "visible_menus"),
+        [
+            ("annotation:write_own", {"Annotations"}),
+            ("review:write_own", {"Reviews", "Tasks"}),
+        ],
+    )
+    def test_own_resource_permissions_show_the_accessible_menus(
+        self,
+        client: TestClient,
+        db: Session,
+        permission_name: str,
+        visible_menus: set[str],
+    ) -> None:
+        user = _create_user(db)
+        collection = _create_collection(db, user.user_id)
+        project = _grant_collection_permission(db, user, collection, permission_name)
+
+        r = client.get(_menu_url(project.project_id), headers=_headers_for_user(user))
+
+        assert r.status_code == 200
+        assert _visible_names(r.json()) == visible_menus | {"Queue", "Index Logs"}
+
+    def test_menu_permissions_do_not_leak_from_another_project(
+        self,
+        client: TestClient,
+        db: Session,
+    ) -> None:
+        user = _create_user(db)
+        target_collection = _create_collection(db, user.user_id)
+        target_project = _grant_collection_permission(
+            db, user, target_collection, "annotation:write_own"
+        )
+        other_collection = _create_collection(db, user.user_id)
+        _grant_collection_permission(db, user, other_collection, "review:read")
+
+        r = client.get(_menu_url(target_project.project_id), headers=_headers_for_user(user))
+
+        assert r.status_code == 200
+        assert _visible_names(r.json()) == {"Annotations", "Queue", "Index Logs"}
+
     def test_admin_with_project_id_hides_collection_scoped_menus_when_project_has_no_collections(
         self,
         client: TestClient,

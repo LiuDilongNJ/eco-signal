@@ -676,7 +676,7 @@ def test_export_annotations(
     )
 
     response = client.get(
-        f"{settings.API_V1_STR}/annotations/exports",
+        f"{settings.API_V1_STR}/annotations/exports?project_id={project.project_id}",
         headers=superuser_token_headers,
     )
 
@@ -959,7 +959,7 @@ class TestAnnotationPublicTagsPermission:
     def test_normal_user_always_sees_own_annotations(
         self, client: TestClient, normal_user_token_headers: dict[str, str], db: Session
     ) -> None:
-        """Normal user always sees their own annotations regardless of collection settings."""
+        """Being an object creator alone does not bypass path read access."""
         token = normal_user_token_headers["Authorization"].split(" ")[1]
         payload = pyjwt.decode(token, options={"verify_signature": False})
         normal_user_id = int(payload["sub"])
@@ -983,7 +983,7 @@ class TestAnnotationPublicTagsPermission:
         assert response.status_code == 200
         data = response.json()
         found = any(r["annotation_id"] == ann.annotation_id for r in data["data"])
-        assert found
+        assert not found
 
     def test_normal_user_viewport_filter_only_narrows_existing_visibility(
         self, client: TestClient, normal_user_token_headers: dict[str, str], db: Session
@@ -1036,7 +1036,7 @@ class TestAnnotationPublicTagsPermission:
 
         assert response.status_code == 200
         ids = [row["annotation_id"] for row in response.json()["data"]]
-        assert own_overlap.annotation_id in ids
+        assert own_overlap.annotation_id not in ids
         assert foreign_overlap.annotation_id not in ids
 
 

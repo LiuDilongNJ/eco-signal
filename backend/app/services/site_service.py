@@ -28,8 +28,8 @@ from app.schemas.site import (
     SitePublic,
     SiteUpdate,
 )
-from app.services import permission_service
-from app.services import row_capability_service
+from app.services import access_scope_service, authorization_service, permission_service
+from app.services.authorization_policy import AuthorizationAction
 
 _SITE_EXPORT_COLUMNS = [
     CsvColumn("site_id"), CsvColumn("uuid"), CsvColumn("name"),
@@ -325,22 +325,11 @@ def list_sites(
         order_by=order_by,
         order_dir=order_dir,
     )
-    writable_ids = row_capability_service.project_collection_ids(
-        session,
-        current_user,
-        filters.get("project_id"),
-        "site",
-        "write",
-    )
+    authz = authorization_service.evaluator(session, current_user, filters.get("project_id"))
     site_list = []
     for site in items:
         item = _build_site_public(site)
-        item.capabilities = row_capability_service.linked_capabilities(
-            set(item.collection_ids),
-            writable_collection_ids=writable_ids,
-            assignable_collection_ids=set(),
-            run_analysis=False,
-        )
+        item.capabilities = authz.site_capabilities(set(item.collection_ids))
         site_list.append(item)
     return api_page(data=site_list, total=total, page=page, page_size=page_size)
 
@@ -354,7 +343,7 @@ def get_site_options(
     name: str | None = None,
 ) -> list[SiteOption]:
     if collection_id is not None and project_id is not None:
-        permission_service.resolve_collection_project_id(
+        access_scope_service.resolve_collection_project_id(
             session,
             collection_id,
             project_id,
@@ -1030,17 +1019,12 @@ def delete_site(session: Session, site_id: int, current_user: User, project_id: 
     if not site:
         raise HTTPException(status_code=404, detail="Site not found")
 
-    if not permission_service.is_admin(current_user):
-        collection_ids = [sc.collection_id for sc in (site.site_collections or [])]
-        if not permission_service.has_resource_permission_on_any_collection_path(
-            session,
-            current_user,
-            collection_ids,
-            "site",
-            "write",
-            project_id=project_id,
-        ):
-            raise HTTPException(status_code=403, detail="No site:write permission on this site")
+    collection_ids = [sc.collection_id for sc in (site.site_collections or [])]
+    authorization_service.evaluator(session, current_user, project_id).require(
+        AuthorizationAction.SITE_DELETE,
+        authorization_service.AuthorizationSubject(frozenset(collection_ids)),
+        detail="No site:write permission on this site",
+    )
 
     # Block deletion if any media is still linked to this site
     has_media = session.exec(
@@ -1103,7 +1087,7 @@ def get_iucn_options(
 
     resolved_project_id = project_id
     if collection_id is not None:
-        resolved_project_id = permission_service.resolve_collection_project_id(
+        resolved_project_id = access_scope_service.resolve_collection_project_id(
             session,
             collection_id,
             project_id,

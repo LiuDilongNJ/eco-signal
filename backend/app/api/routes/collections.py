@@ -26,9 +26,14 @@ from app.schemas.collection import (
     CollectionViewResponse,
 )
 from app.schemas.option import CollectionOption
-from app.schemas.response import PagedApiResponse, ApiResponse, api_success
-from app.services import collection_service, permission_service
-from app.services import tabular_import_service
+from app.schemas.response import ApiResponse, PagedApiResponse, api_success
+from app.services import (
+    authorization_service,
+    collection_service,
+    permission_service,
+    tabular_import_service,
+)
+from app.services.authorization_policy import AuthorizationAction
 from app.utils import parse_uuid
 
 router = APIRouter(prefix="/collections", tags=["集合 / collections"])
@@ -293,12 +298,9 @@ def list_collection_taxons(
     如果用户在任一项目路径上对该集合拥有读取权限，则可见。
     / Visible if the user has read access to the collection on any linked project path.
     """
-    permission_service.require_any_collection_path_permission(
-        session,
-        current_user,
-        "collection",
-        "read",
-        collection_id=collection_id,
+    authorization_service.evaluator(session, current_user, None).require(
+        AuthorizationAction.COLLECTION_VIEW,
+        authorization_service.AuthorizationSubject(frozenset({collection_id})),
     )
     taxons = collection_service.list_collection_taxons(session, collection_id, current_user)
     return api_success(data=taxons)
@@ -321,12 +323,9 @@ def update_collection_taxons(
     需要在任一项目路径上拥有 collection:write 权限。
     / Requires collection:write permission on any linked project path.
     """
-    permission_service.require_any_collection_path_permission(
-        session,
-        current_user,
-        "collection",
-        "write",
-        collection_id=collection_id,
+    authorization_service.evaluator(session, current_user, None).require(
+        AuthorizationAction.COLLECTION_SET_TAXONS,
+        authorization_service.AuthorizationSubject(frozenset({collection_id})),
     )
     collection_service.update_collection_taxons(session, collection_id, taxons_in, current_user)
     return api_success()

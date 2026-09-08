@@ -93,3 +93,44 @@ def test_init_db_does_nothing_when_both_missing():
         init_db(mock_session)
 
     mock_session.add.assert_not_called()
+
+
+def test_sync_db_sequences_skips_non_postgresql():
+    """sync_db_sequences skips execution if dialect is not postgresql."""
+    mock_session = MagicMock()
+    mock_bind = MagicMock()
+    mock_bind.dialect.name = "sqlite"
+    mock_session.get_bind.return_value = mock_bind
+
+    from app.core.db import sync_db_sequences
+    sync_db_sequences(mock_session)
+
+    mock_session.exec.assert_not_called()
+    mock_session.commit.assert_not_called()
+
+
+def test_sync_db_sequences_skips_when_bind_is_none():
+    """sync_db_sequences skips execution if session has no bind."""
+    mock_session = MagicMock()
+    mock_session.get_bind.return_value = None
+
+    from app.core.db import sync_db_sequences
+    sync_db_sequences(mock_session)
+
+    mock_session.exec.assert_not_called()
+    mock_session.commit.assert_not_called()
+
+
+def test_sync_db_sequences_executes_on_postgresql():
+    """sync_db_sequences executes the reset SQL and commits on PostgreSQL."""
+    mock_session = MagicMock()
+    mock_bind = MagicMock()
+    mock_bind.dialect.name = "postgresql"
+    mock_session.get_bind.return_value = mock_bind
+
+    from app.core.db import sync_db_sequences
+    sync_db_sequences(mock_session)
+
+    mock_session.exec.assert_called_once()
+    mock_session.commit.assert_called_once()
+
