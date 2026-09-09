@@ -100,7 +100,8 @@ from app.workers.publisher import TaskPublisher
 logger = logging.getLogger(__name__)
 
 PLAYER_SPECTROGRAM_TYPE = "spectrogram"
-PLAYER_SPECTROGRAM_SUFFIX = "_player_s.png"
+PLAYER_SPECTROGRAM_FILENAME_RE = re.compile(r"(?:_|-)player_s\.png$", re.IGNORECASE)
+LEGACY_SMALL_SPECTROGRAM_FILENAME_RE = re.compile(r"^\d+-small_s\.png$", re.IGNORECASE)
 _DETAIL_ASSET_DIR = Path("tmp") / "detail"
 _DETAIL_ASSET_TTL = timedelta(hours=12)
 _DETAIL_ASSET_LOCK_TIMEOUT_SECONDS = 60.0
@@ -297,11 +298,16 @@ def _preview_relative_candidates(
 ) -> list[Path]:
     dir_token = str(directory or "")
     normalized_type = (preview_type or "").strip().lower()
-    # Audio thumbnails remain alongside recordings; photo thumbnails live with image media.
+    is_legacy_small_spectrogram = bool(
+        _preview_basename(filename)
+        and LEGACY_SMALL_SPECTROGRAM_FILENAME_RE.search(_preview_basename(filename) or "")
+    )
+    # Audio thumbnails remain alongside recordings, except migrated legacy overview
+    # images which were stored under images rather than alongside the recording.
     if normalized_type in {"spectrogram", "waveform", PLAYER_SPECTROGRAM_TYPE}:
         category = "images"
     elif normalized_type == "thumbnail":
-        category = "images" if media_type == "photo" else "sounds"
+        category = "images" if media_type == "photo" or is_legacy_small_spectrogram else "sounds"
     else:
         category = "images"
     return [Path(category) / str(collection_id) / dir_token / filename]
@@ -375,7 +381,7 @@ def _resolve_preview_file_path(media: Media, preview: Preview) -> Path | None:
 
 def _is_player_spectrogram_preview(preview: Preview) -> bool:
     filename = _preview_basename(preview.filename)
-    return bool(filename and filename.endswith(PLAYER_SPECTROGRAM_SUFFIX))
+    return bool(filename and PLAYER_SPECTROGRAM_FILENAME_RE.search(filename))
 
 
 def _preview_priority(preview: Preview) -> tuple[int, int]:

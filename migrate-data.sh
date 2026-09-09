@@ -378,21 +378,29 @@ copy_to_volume() {
     local src_dir="$1"
     local dest_subdir="$2"
     local full_volume="$3"
+    local backend_id backend_image
 
     if [[ ! -d "$src_dir" ]]; then
         warn "Source directory not found, skipping: $src_dir"
         return
     fi
 
-    local src_count
-    src_count=$(find "$src_dir" -type f | wc -l | tr -d ' ')
-    info "Syncing $src_count files: $src_dir -> <volume>/$dest_subdir/"
+    backend_id=$("${DOCKER_COMPOSE[@]}" ps -q backend 2>/dev/null | head -n 1)
+    [[ -n "$backend_id" ]] || die "The backend container is not running."
+    backend_image=$(docker inspect --format '{{.Config.Image}}' "$backend_id")
+
+    info "Copying $src_dir -> <volume>/$dest_subdir/"
 
     docker run --rm \
+        --entrypoint python \
         -v "$full_volume:/data" \
-        -v "$src_dir:/src:ro" \
-        alpine:3 \
-        sh -c "mkdir -p /data/${dest_subdir} && find /data/${dest_subdir} -mindepth 1 -maxdepth 1 -exec rm -rf {} + && cp -a /src/. /data/${dest_subdir}/"
+        -v "$src_dir:/source:ro" \
+        -v "${PROJECT_ROOT}/backend/scripts/copy_media_tree.py:/tool/copy_media_tree.py:ro" \
+        "$backend_image" \
+        /tool/copy_media_tree.py \
+        --source /source \
+        --destination "/data/${dest_subdir}" \
+        --label "$dest_subdir"
 }
 
 tree_stats() {

@@ -297,6 +297,18 @@ def normalize_preview_filename(value) -> str:
     return Path(normalized).name
 
 
+def map_legacy_preview_type(value) -> str:
+    """Map legacy preview roles to the current preview type vocabulary."""
+    normalized = str(value or "").strip().lower()
+    if normalized == "spectrogram-small":
+        return "thumbnail"
+    if normalized in {"spectrogram", "spectrogram-large", "spectrogram-player"}:
+        return "spectrogram"
+    if normalized in {"waveform", "waveform-small", "waveform-large"}:
+        return "waveform"
+    return "spectrogram"
+
+
 def reset_derived_migration_stats() -> None:
     for group in DERIVED_MIGRATION_STATS.values():
         for key in list(group):
@@ -2347,23 +2359,13 @@ def compare_media_sample(mysql_conn, pg_conn, media_id: int) -> None:
 
 def migrate_spectrograms(mysql_conn, pg_conn, dry_run: bool) -> int:
     """Old: spectrogram → New: preview"""
-    # Normalize old type names to new ones
-    TYPE_MAP = {
-        "spectrogram": "spectrogram",
-        "spectrogram-small": "spectrogram",
-        "spectrogram-large": "spectrogram",
-        "spectrogram-player": "spectrogram",
-        "waveform": "waveform",
-        "waveform-small": "waveform",
-        "waveform-large": "waveform",
-    }
     rows = iter_mysql_rows(
         mysql_conn,
         "SELECT spectrogram_id, recording_id, filename, type FROM spectrogram",
     )
     count = 0
     for r in rows:
-        new_type = TYPE_MAP.get(r["type"], "spectrogram")
+        new_type = map_legacy_preview_type(r["type"])
         preview_filename = normalize_preview_filename(r["filename"])
         if not dry_run:
             pg_exec(

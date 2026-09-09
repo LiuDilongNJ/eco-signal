@@ -1040,6 +1040,21 @@ def test_normalize_preview_filename_uses_basename_only():
     )
 
 
+@pytest.mark.parametrize(
+    ("legacy_type", "expected"),
+    [
+        ("spectrogram-small", "thumbnail"),
+        ("spectrogram-player", "spectrogram"),
+        ("spectrogram-large", "spectrogram"),
+        ("waveform-small", "waveform"),
+    ],
+)
+def test_map_legacy_preview_type_preserves_preview_role(legacy_type, expected):
+    module = _load_script_module()
+
+    assert module.map_legacy_preview_type(legacy_type) == expected
+
+
 def test_transfer_users_preserves_source_color_and_fft():
     module = _load_script_module()
     mysql_conn = FakeConnection()

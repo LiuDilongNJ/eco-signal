@@ -1000,6 +1000,32 @@ class TestMediaService:
             f"/sounds/sounds/{col.collection_id}/7/a_thumb.png"
         )
 
+    def test_get_media_by_id_legacy_thumbnail_resolves_images_path(
+        self, db: Session, setup_data
+    ):
+        user = setup_data["user"]
+        project = setup_data["project"]
+        col = setup_data["collection"]
+        media = Media(
+            name="M_LEGACY_PREVIEW_THUMB",
+            creator_id=user.user_id,
+            media_type="audio",
+            is_metadata=True,
+            directory=7,
+        )
+        db.add(media)
+        db.flush()
+        db.add(MediaCollection(media_id=media.media_id, collection_id=col.collection_id, added_by=user.user_id))
+        db.add(Preview(media_id=media.media_id, filename="21808577-small_s.png", type="thumbnail"))
+        col.public_access = True
+        db.commit()
+
+        res = media_service.get_media(db, project.project_id, media.media_id, user)
+
+        assert res.previews[0].url.endswith(
+            f"/sounds/images/{col.collection_id}/7/21808577-small_s.png"
+        )
+
     def test_get_media_by_id_prefers_player_preview_for_default_url(
         self, db: Session, setup_data
     ):
@@ -1027,6 +1053,33 @@ class TestMediaService:
         assert res.previews
         assert res.previews[0].url.endswith(
             f"/sounds/images/{col.collection_id}/8/a_player_s.png"
+        )
+
+    def test_get_media_by_id_prefers_legacy_player_preview_for_default_url(
+        self, db: Session, setup_data
+    ):
+        user = setup_data["user"]
+        project = setup_data["project"]
+        col = setup_data["collection"]
+        media = Media(
+            name="M_LEGACY_PREVIEW_PLAYER",
+            creator_id=user.user_id,
+            media_type="audio",
+            is_metadata=True,
+            directory=8,
+        )
+        db.add(media)
+        db.flush()
+        db.add(MediaCollection(media_id=media.media_id, collection_id=col.collection_id, added_by=user.user_id))
+        db.add(Preview(media_id=media.media_id, filename="21808577-small_s.png", type="thumbnail"))
+        db.add(Preview(media_id=media.media_id, filename="21808577-player_s.png", type="spectrogram"))
+        col.public_access = True
+        db.commit()
+
+        res = media_service.get_media(db, project.project_id, media.media_id, user)
+
+        assert res.previews[0].url.endswith(
+            f"/sounds/images/{col.collection_id}/8/21808577-player_s.png"
         )
 
     def test_resolve_spectrogram_fft_size_prefers_user_preference(self, db: Session, setup_data):
