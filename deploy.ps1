@@ -36,10 +36,15 @@ if (-not $domain) { $domain = 'localhost' }
 $httpsValue = if ($env:ENABLE_HTTPS) { $env:ENABLE_HTTPS } else { Get-ComposeEnvironmentValue 'ENABLE_HTTPS' }
 $httpsEnabled = $httpsValue -eq 'true'
 $email = if ($env:EMAIL) { $env:EMAIL } else { Get-ComposeEnvironmentValue 'EMAIL' }
+$mediaStorageMode = if ($env:MEDIA_STORAGE_MODE) { $env:MEDIA_STORAGE_MODE } else { Get-ComposeEnvironmentValue 'MEDIA_STORAGE_MODE' }
+if (-not $mediaStorageMode) { $mediaStorageMode = 'managed' }
 
 if ($httpsValue -notin @('true', 'false')) { throw 'ENABLE_HTTPS must be true or false' }
 if ($httpsEnabled -and (($domain -eq 'localhost') -or -not $email)) {
     throw 'HTTPS requires a public DOMAIN and EMAIL for certificate issuance'
+}
+if ($mediaStorageMode -notin @('managed', 'direct-mount')) {
+    throw 'MEDIA_STORAGE_MODE must be managed or direct-mount'
 }
 
 New-Item -ItemType Directory -Path $stateDir -Force | Out-Null
@@ -55,6 +60,7 @@ Set-Content -LiteralPath (Join-Path $lockDir 'owner') -Value "pid=$PID`nhost=$en
 
 try {
     $script:composeArgs = @('compose', '--project-name', $projectName, '--profile', 'production', '-f', $composeFile)
+    if ($mediaStorageMode -eq 'direct-mount') { $script:composeArgs += @('-f', 'docker-compose.media-direct.yml') }
     if ($httpsEnabled) { $script:composeArgs += @('-f', 'docker-compose.https.yml') }
 
     $resolvedConfig = (& docker @script:composeArgs config)
@@ -63,7 +69,7 @@ try {
         throw 'Resolved configuration contains development runtime settings'
     }
 
-    Write-Host "Deployment mode: $(if ($httpsEnabled) { 'HTTPS' } else { 'HTTP' })"
+    Write-Host "Deployment mode: $(if ($httpsEnabled) { 'HTTPS' } else { 'HTTP' }), media=$mediaStorageMode"
     Write-Host 'Resolved production services:'
     Invoke-Compose @('config', '--services')
 

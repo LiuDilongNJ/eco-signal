@@ -103,7 +103,7 @@ sudo ./migrate-data.sh <source-project-dir> [options]
 - `--repair-permissions`：在已迁移的目标环境中重新将历史权限修复映射至 `user_scope_role` 访问角色架构
 - `--legacy-app-url <url>`：提供用于识别联邦节点的来源公开地址
 
-脚本会在容器内迁移开始前从宿主机检查来源 MySQL 连通性。新部署目标首次迁移时，预置的 Demo Project、集合和站点要求使用 `--reset-target`。修改 `LEGACY_PROJECT_DIR` 后必须重建容器；普通 `docker compose restart` 不会刷新绑定挂载。默认直接挂载方式会在数据库处理前验证 `/app/sounds/sounds`、`/app/sounds/images` 和 `/app/sounds/projects`。复制方式将文件放入 `app-media-data`，迁移后不再依赖来源目录保持挂载。
+脚本会在容器内迁移开始前从宿主机检查来源 MySQL 连通性。新部署目标首次迁移时，预置的 Demo Project、集合和站点要求使用 `--reset-target`。默认直接挂载方式会在数据库处理前验证 `/app/sounds/sounds`、`/app/sounds/images` 和 `/app/sounds/projects`。复制方式会校验已复制的目录、设置 `MEDIA_STORAGE_MODE=managed` 并重建正在运行的媒体服务；之后已有媒体访问和新上传均使用 `app-media-data`，脚本不会自动删除来源目录。
 
 无法自动解析来源公开地址时，传入 `--legacy-app-url <url>` 或设置 `LEGACY_APP_URL`。若没有有效的 `http://` 或 `https://` 候选值，地址解析会在写入前停止。
 
@@ -143,6 +143,7 @@ staging 工作流为 `.github/workflows/deploy-staging.yml`，在推送到 `main
 | `PROJECT_NAME` | `ecoSignal` |
 | `POSTGRES_USER` / `POSTGRES_DB` | `postgres` / `ecosignal` |
 | `DOCKER_IMAGE_BACKEND` / `DOCKER_IMAGE_FRONTEND` | `backend` / `frontend` |
+| `MEDIA_STORAGE_MODE` | `managed`；仅在持续挂载来源媒体时使用 `direct-mount` |
 | `LEGACY_PROJECT_DIR` | `./ecoSound-web`；来源媒体路径 |
 | `LEGACY_APP_URL` / `LEGACY_HOST_URL` | 来源公开地址 / 联邦中心 |
 | `GEO_DB_READY_URL` / `GEO_DB_XR_SEED_URL` | 内置地理数据默认地址 |

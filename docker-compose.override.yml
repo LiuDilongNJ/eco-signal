@@ -74,9 +74,6 @@ services:
       - app-media-data:/app/sounds
       - birdnet-model-data:/models/birdnet:ro
       - ./data:/app/data # Mount raw geo data files for one-time import
-      - ${LEGACY_PROJECT_DIR:-./ecoSound-web}/sounds:/app/sounds/sounds
-      - ${LEGACY_PROJECT_DIR:-./ecoSound-web}/sound_images:/app/sounds/images
-      - ${LEGACY_PROJECT_DIR:-./ecoSound-web}/project_images:/app/sounds/projects
 
   worker:
     restart: "on-failure:3"
@@ -108,9 +105,6 @@ services:
     volumes:
       - app-media-data:/app/sounds
       - birdnet-model-data:/models/birdnet
-      - ${LEGACY_PROJECT_DIR:-./ecoSound-web}/sounds:/app/sounds/sounds
-      - ${LEGACY_PROJECT_DIR:-./ecoSound-web}/sound_images:/app/sounds/images
-      - ${LEGACY_PROJECT_DIR:-./ecoSound-web}/project_images:/app/sounds/projects
 
   frontend:
     restart: "no"

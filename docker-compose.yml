@@ -182,9 +182,6 @@ services:
         --error-logfile -
     volumes:
       - app-media-data:/app/sounds
-      - ${LEGACY_PROJECT_DIR:-./ecoSound-web}/sounds:/app/sounds/sounds
-      - ${LEGACY_PROJECT_DIR:-./ecoSound-web}/sound_images:/app/sounds/images
-      - ${LEGACY_PROJECT_DIR:-./ecoSound-web}/project_images:/app/sounds/projects
       - prometheus-metrics:/tmp/prometheus
     cpus: 2.0
 
@@ -241,9 +238,6 @@ services:
     command: python -m app.workers.rabbitmq_worker
     volumes:
       - app-media-data:/app/sounds
-      - ${LEGACY_PROJECT_DIR:-./ecoSound-web}/sounds:/app/sounds/sounds
-      - ${LEGACY_PROJECT_DIR:-./ecoSound-web}/sound_images:/app/sounds/images
-      - ${LEGACY_PROJECT_DIR:-./ecoSound-web}/project_images:/app/sounds/projects
       - prometheus-metrics:/tmp/prometheus
     cpus: 1.0
 
@@ -285,9 +279,6 @@ services:
     command: python -m app.workers.rabbitmq_worker
     volumes:
       - app-media-data:/app/sounds
-      - ${LEGACY_PROJECT_DIR:-./ecoSound-web}/sounds:/app/sounds/sounds
-      - ${LEGACY_PROJECT_DIR:-./ecoSound-web}/sound_images:/app/sounds/images
-      - ${LEGACY_PROJECT_DIR:-./ecoSound-web}/project_images:/app/sounds/projects
       - prometheus-metrics:/tmp/prometheus
     cpus: 1.0
 
@@ -309,9 +300,6 @@ services:
       - "${FRONTEND_PORT:-80}:80"
     volumes:
       - app-media-data:/usr/share/nginx/media:ro
-      - ${LEGACY_PROJECT_DIR:-./ecoSound-web}/sounds:/usr/share/nginx/media/sounds:ro
-      - ${LEGACY_PROJECT_DIR:-./ecoSound-web}/sound_images:/usr/share/nginx/media/images:ro
-      - ${LEGACY_PROJECT_DIR:-./ecoSound-web}/project_images:/usr/share/nginx/media/projects:ro
 volumes:
   app-db-data:
   redis-data:

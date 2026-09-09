@@ -82,7 +82,7 @@ The following limit or select the transfer strategy:
 - `--skip-files`: skip static file migration (transfers only database if used alone)
 - `--copy-files`: copy source static files into the target-managed `app-media-data` volume
 
-The script checks source MySQL connectivity from the host before starting the in-container transfer. When the target is a fresh deployment, its seeded Demo Project, collection, and site require `--reset-target` before the first migration. Changing `LEGACY_PROJECT_DIR` requires container recreation; a plain `docker compose restart` does not refresh the bind mount. The default direct-mount strategy verifies `/app/sounds/sounds`, `/app/sounds/images`, and `/app/sounds/projects` before database work. Copy mode places files in `app-media-data`, so later access does not depend on the source directory remaining mounted.
+The script checks source MySQL connectivity from the host before starting the in-container transfer. When the target is a fresh deployment, its seeded Demo Project, collection, and site require `--reset-target` before the first migration. The default direct-mount strategy verifies `/app/sounds/sounds`, `/app/sounds/images`, and `/app/sounds/projects` before database work. Copy mode verifies the copied trees, sets `MEDIA_STORAGE_MODE=managed`, and recreates running media services. Later access and new uploads then use `app-media-data`; the source directories are not deleted automatically.
 
 If the source public address cannot be detected, pass `--legacy-app-url <url>` or set `LEGACY_APP_URL`. Address resolution stops before writes if no valid `http://` or `https://` candidate exists.
 
@@ -120,6 +120,7 @@ Optional GitHub variables include:
 | `PROJECT_NAME` | `ecoSignal` |
 | `POSTGRES_USER` / `POSTGRES_DB` | `postgres` / `ecosignal` |
 | `DOCKER_IMAGE_BACKEND` / `DOCKER_IMAGE_FRONTEND` | `backend` / `frontend` |
+| `MEDIA_STORAGE_MODE` | `managed`; use `direct-mount` only when source media remains mounted |
 | `LEGACY_PROJECT_DIR` | `./ecoSound-web`; source media path |
 | `LEGACY_APP_URL` / `LEGACY_HOST_URL` | Source public URL / federation hub |
 | `GEO_DB_READY_URL` / `GEO_DB_XR_SEED_URL` | Bundled geographical-data defaults |

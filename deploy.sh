@@ -50,6 +50,8 @@ domain="${domain:-localhost}"
 https_enabled="${ENABLE_HTTPS:-$(environment_value ENABLE_HTTPS)}"
 https_enabled="$(printf '%s' "$https_enabled" | tr '[:upper:]' '[:lower:]')"
 email="${EMAIL:-$(environment_value EMAIL)}"
+media_storage_mode="${MEDIA_STORAGE_MODE:-$(environment_value MEDIA_STORAGE_MODE)}"
+media_storage_mode="${media_storage_mode:-managed}"
 
 if [[ "$https_enabled" != "true" && "$https_enabled" != "false" ]]; then
     echo "ENABLE_HTTPS must be true or false" >&2
@@ -57,6 +59,10 @@ if [[ "$https_enabled" != "true" && "$https_enabled" != "false" ]]; then
 fi
 if [[ "$https_enabled" == "true" ]] && { [[ "$domain" == "localhost" ]] || [[ -z "$email" ]]; }; then
     echo "HTTPS requires a public DOMAIN and EMAIL for certificate issuance" >&2
+    exit 2
+fi
+if [[ "$media_storage_mode" != "managed" && "$media_storage_mode" != "direct-mount" ]]; then
+    echo "MEDIA_STORAGE_MODE must be managed or direct-mount" >&2
     exit 2
 fi
 
@@ -72,6 +78,9 @@ printf 'pid=%s\nhost=%s\nstarted_at=%s\n' "$$" "$(hostname)" "$(date -u +%Y-%m-%
 trap 'rm -rf "$lock_dir"' EXIT INT TERM
 
 compose=(docker compose --project-name "$project_name" --profile production -f "$compose_file")
+if [[ "$media_storage_mode" == "direct-mount" ]]; then
+    compose+=(-f docker-compose.media-direct.yml)
+fi
 if [[ "$https_enabled" == "true" ]]; then
     compose+=(-f docker-compose.https.yml)
 fi
@@ -86,7 +95,7 @@ if grep -Eq 'ecosignal-backend-dev|uvicorn.*--reload|target: 5173|published: "51
     exit 2
 fi
 
-echo "Deployment mode: $([[ "$https_enabled" == true ]] && echo HTTPS || echo HTTP)"
+echo "Deployment mode: $([[ "$https_enabled" == true ]] && echo HTTPS || echo HTTP), media=${media_storage_mode}"
 echo "Resolved production services:"
 run_compose config --services
 

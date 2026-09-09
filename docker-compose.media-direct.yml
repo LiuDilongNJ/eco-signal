@@ -1,0 +1,24 @@
+services:
+  backend:
+    volumes:
+      - ${LEGACY_PROJECT_DIR:-./ecoSound-web}/sounds:/app/sounds/sounds
+      - ${LEGACY_PROJECT_DIR:-./ecoSound-web}/sound_images:/app/sounds/images
+      - ${LEGACY_PROJECT_DIR:-./ecoSound-web}/project_images:/app/sounds/projects
+
+  worker:
+    volumes:
+      - ${LEGACY_PROJECT_DIR:-./ecoSound-web}/sounds:/app/sounds/sounds
+      - ${LEGACY_PROJECT_DIR:-./ecoSound-web}/sound_images:/app/sounds/images
+      - ${LEGACY_PROJECT_DIR:-./ecoSound-web}/project_images:/app/sounds/projects
+
+  worker-analysis:
+    volumes:
+      - ${LEGACY_PROJECT_DIR:-./ecoSound-web}/sounds:/app/sounds/sounds
+      - ${LEGACY_PROJECT_DIR:-./ecoSound-web}/sound_images:/app/sounds/images
+      - ${LEGACY_PROJECT_DIR:-./ecoSound-web}/project_images:/app/sounds/projects
+
+  frontend:
+    volumes:
+      - ${LEGACY_PROJECT_DIR:-./ecoSound-web}/sounds:/usr/share/nginx/media/sounds:ro
+      - ${LEGACY_PROJECT_DIR:-./ecoSound-web}/sound_images:/usr/share/nginx/media/images:ro
+      - ${LEGACY_PROJECT_DIR:-./ecoSound-web}/project_images:/usr/share/nginx/media/projects:ro

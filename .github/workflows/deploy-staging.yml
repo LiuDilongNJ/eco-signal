@@ -34,6 +34,7 @@ jobs:
       DOCKER_IMAGE_FRONTEND: ${{ vars.DOCKER_IMAGE_FRONTEND || 'frontend' }}
       TAG: ${{ github.sha }}
       SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+      MEDIA_STORAGE_MODE: ${{ vars.MEDIA_STORAGE_MODE || 'managed' }}
       LEGACY_PROJECT_DIR: ${{ vars.LEGACY_PROJECT_DIR || './ecoSound-web' }}
       GEO_DB_READY_URL: ${{ vars.GEO_DB_READY_URL || 'https://github.com/csaay/geo_db/releases/download/v1.0.2/geo_db_ready.zip' }}
       GEO_DB_XR_SEED_URL: ${{ vars.GEO_DB_XR_SEED_URL || 'https://github.com/csaay/geo_db/releases/download/v1.0.2/col_xr_seed.zip' }}
@@ -68,6 +69,7 @@ jobs:
           DOCKER_IMAGE_BACKEND=${DOCKER_IMAGE_BACKEND}
           DOCKER_IMAGE_FRONTEND=${DOCKER_IMAGE_FRONTEND}
           TAG=${TAG}
+          MEDIA_STORAGE_MODE=${MEDIA_STORAGE_MODE}
           LEGACY_PROJECT_DIR=${LEGACY_PROJECT_DIR}
           GEO_DB_AUTO_DOWNLOAD=true
           GEO_DB_READY_URL=${GEO_DB_READY_URL}

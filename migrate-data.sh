@@ -8,7 +8,7 @@
 #   --dry-run        Preview migration without writing data
 #   --skip-db        Skip database migration
 #   --skip-files     Skip static file migration
-#   --copy-files     Copy legacy static files into app-media-data volume (emergency mode)
+#   --copy-files     Copy source static files into the managed app-media-data volume
 #   --reset-target   Required after a fresh deploy (Demo Project/collection/site
 #                    seed data). Backup current ecoSignal DB/media, clear
 #                    business data, then migrate
@@ -152,11 +152,15 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+MEDIA_MODE="$(media_mode)"
 CURRENT_ENVIRONMENT="$(resolve_setting ENVIRONMENT local)"
 COMPOSE_PROJECT="$(normalize_project_name "$(resolve_setting STACK_NAME ecosignal)")"
-DOCKER_COMPOSE=(docker compose --project-name "$COMPOSE_PROJECT")
-if [[ "$CURRENT_ENVIRONMENT" == "staging" || "$CURRENT_ENVIRONMENT" == "production" ]]; then
-    DOCKER_COMPOSE=(docker compose --project-name "$COMPOSE_PROJECT" -f docker-compose.yml)
+DOCKER_COMPOSE=(docker compose --project-name "$COMPOSE_PROJECT" -f docker-compose.yml)
+if [[ "$CURRENT_ENVIRONMENT" != "staging" && "$CURRENT_ENVIRONMENT" != "production" ]]; then
+    DOCKER_COMPOSE+=(-f docker-compose.override.yml)
+fi
+if [[ "$MEDIA_MODE" == "direct-mount" ]]; then
+    DOCKER_COMPOSE+=(-f docker-compose.media-direct.yml)
 fi
 COMPOSE_DISPLAY="$(compose_display_command)"
 COMPOSE_DISPLAY="${COMPOSE_DISPLAY% }"
@@ -168,7 +172,6 @@ else
     OLD_PROJECT_DIR="$(cd "$OLD_PROJECT_DIR" && pwd)"
 fi
 
-MEDIA_MODE="$(media_mode)"
 LEGACY_CONFIG_APP_URL="$(parse_legacy_ini APP_URL)"
 LEGACY_CONFIG_HOST_URL="$(parse_legacy_ini HOST_URL)"
 LEGACY_ENV_APP_URL="$(resolve_setting LEGACY_APP_URL)"
@@ -230,6 +233,14 @@ if [[ "$REPAIR_NETWORK_FEDERATION" == true ]]; then
     [[ "$COPY_FILES" == false ]] || die "--repair-network-federation cannot be combined with --copy-files"
 fi
 
+if [[ "$COPY_FILES" == true && "$SKIP_FILES" == true ]]; then
+    die "--copy-files cannot be combined with --skip-files"
+fi
+
+if [[ "$COPY_FILES" == true && "$REPAIR_PERMISSIONS" == true ]]; then
+    die "--copy-files cannot be combined with --repair-permissions"
+fi
+
 MISSING_DIRS=()
 for subdir in sounds sound_images project_images; do
     if [[ ! -d "$OLD_PROJECT_DIR/$subdir" ]]; then
@@ -288,10 +299,24 @@ if [[ "$REPAIR_NETWORK_FEDERATION" == true ]]; then
     exit 0
 fi
 
-recreate_media_mount_services() {
-    info "Recreating backend and worker so legacy media bind mounts use the current LEGACY_PROJECT_DIR..."
-    "${DOCKER_COMPOSE[@]}" up -d --force-recreate backend worker
-    success "Backend and worker recreated for legacy media mounts."
+recreate_running_media_services() {
+    local service container_id
+    local services=()
+    for service in backend worker worker-analysis frontend; do
+        container_id=$("${DOCKER_COMPOSE[@]}" ps -q "$service" 2>/dev/null | head -n 1)
+        if [[ -n "$container_id" ]] && [[ "$(docker inspect --format '{{.State.Running}}' "$container_id")" == "true" ]]; then
+            services+=("$service")
+        fi
+    done
+
+    if [[ ${#services[@]} -eq 0 ]]; then
+        warn "No running media services need recreation. Future starts will use $MEDIA_MODE mode."
+        return 0
+    fi
+
+    info "Recreating media services for $MEDIA_MODE mode: ${services[*]}"
+    "${DOCKER_COMPOSE[@]}" up -d --force-recreate "${services[@]}"
+    success "Media services recreated for $MEDIA_MODE mode."
 }
 
 MYSQL_HOST="${MYSQL_HOST:-127.0.0.1}"
@@ -370,6 +395,66 @@ copy_to_volume() {
         sh -c "mkdir -p /data/${dest_subdir} && find /data/${dest_subdir} -mindepth 1 -maxdepth 1 -exec rm -rf {} + && cp -a /src/. /data/${dest_subdir}/"
 }
 
+tree_stats() {
+    local mount_spec="$1"
+    local tree_path="$2"
+
+    docker run --rm -v "$mount_spec" alpine:3 sh -c '
+        count=$(find "$1" -type f | wc -l | tr -d " ")
+        bytes=$(find "$1" -type f -exec wc -c {} \; | awk "{ total += \$1 } END { print total + 0 }")
+        printf "%s %s\\n" "$count" "$bytes"
+    ' sh "$tree_path"
+}
+
+verify_copied_tree() {
+    local src_dir="$1"
+    local dest_subdir="$2"
+    local full_volume="$3"
+    local source_stats destination_stats
+
+    source_stats=$(tree_stats "$src_dir:/tree:ro" /tree)
+    destination_stats=$(tree_stats "$full_volume:/data" "/data/$dest_subdir")
+    if [[ "$source_stats" != "$destination_stats" ]]; then
+        die "Copied media verification failed for $dest_subdir: source=$source_stats destination=$destination_stats"
+    fi
+    success "Verified $dest_subdir: $source_stats (files bytes)"
+}
+
+persist_media_storage_mode() {
+    local mode="$1"
+    local env_file="${PROJECT_ROOT}/.env"
+    local temp_file
+
+    temp_file=$(mktemp "${env_file}.tmp.XXXXXX")
+    if [[ -f "$env_file" ]]; then
+        awk '$0 !~ /^MEDIA_STORAGE_MODE=/' "$env_file" > "$temp_file"
+    fi
+    printf 'MEDIA_STORAGE_MODE=%s\n' "$mode" >> "$temp_file"
+    mv "$temp_file" "$env_file"
+    success "Persisted MEDIA_STORAGE_MODE=$mode in .env"
+}
+
+verify_managed_media_mounts() {
+    local service container_id mounts
+    for service in backend worker worker-analysis frontend; do
+        container_id=$("${DOCKER_COMPOSE[@]}" ps -q "$service" 2>/dev/null | head -n 1)
+        [[ -n "$container_id" ]] || continue
+        mounts=$(docker inspect --format '{{range .Mounts}}{{printf "%s %s\n" .Type .Destination}}{{end}}' "$container_id")
+        if awk '$1 == "bind" && ($2 ~ /^\/app\/sounds(\/|$)/ || $2 ~ /^\/usr\/share\/nginx\/media(\/|$)/) { exit 1 }' <<< "$mounts"; then
+            :
+        else
+            die "Managed media mode still has a bind mount in $service"
+        fi
+    done
+
+    "${DOCKER_COMPOSE[@]}" exec -T backend sh -lc '
+        test -d /app/sounds/sounds
+        test -d /app/sounds/images
+        test -d /app/sounds/projects
+    '
+    success "Managed media mounts verified."
+}
+
 verify_direct_mount_access() {
     info "Verifying direct-mount media paths in backend container..."
     "${DOCKER_COMPOSE[@]}" exec -T backend sh -lc '
@@ -418,7 +503,7 @@ prepare_media_access() {
     fi
 
     require_full_legacy_media_tree "${MISSING_DIRS[@]-}"
-    recreate_media_mount_services
+    recreate_running_media_services
     verify_direct_mount_access
     success "Direct-mount media verification completed."
 }
@@ -522,7 +607,20 @@ elif [[ "$COPY_FILES" == true ]]; then
     copy_to_volume "${OLD_PROJECT_DIR}/sounds" "sounds" "$FULL_VOLUME"
     copy_to_volume "${OLD_PROJECT_DIR}/sound_images" "images" "$FULL_VOLUME"
     copy_to_volume "${OLD_PROJECT_DIR}/project_images" "projects" "$FULL_VOLUME"
-    success "Static file migration completed."
+    for source_and_destination in \
+        "${OLD_PROJECT_DIR}/sounds:sounds" \
+        "${OLD_PROJECT_DIR}/sound_images:images" \
+        "${OLD_PROJECT_DIR}/project_images:projects"; do
+        source_dir="${source_and_destination%%:*}"
+        destination_dir="${source_and_destination##*:}"
+        [[ -d "$source_dir" ]] || continue
+        verify_copied_tree "$source_dir" "$destination_dir" "$FULL_VOLUME"
+    done
+
+    persist_media_storage_mode managed
+    recreate_running_media_services
+    verify_managed_media_mounts
+    success "Static file migration completed and managed media storage is active."
 else
     info "Direct-mount mode enabled (default): no file copy is required because legacy media access was pre-verified before migration."
 fi
@@ -540,6 +638,7 @@ else
         info "Target backup saved at: $BACKUP_ROOT"
     fi
     if [[ "$MEDIA_MODE" == "direct-mount" ]]; then
+        persist_media_storage_mode direct-mount
         info "Legacy media access depends on recreated backend/worker bind mounts, not a plain docker compose restart."
     fi
 fi
