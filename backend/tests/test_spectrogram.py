@@ -121,7 +121,7 @@ def test_silence_thumbnail_uses_frequency_overlay(
     image = Image.open(io.BytesIO(png_bytes))
 
     assert image.size == (300, 150)
-    assert commands[0][:3] == ["convert", "-fill", "white"]
+    assert commands[0][:5] == ["convert", "-font", "DejaVu-Sans", "-fill", "white"]
     assert "text 5,15 '4000 Hz '" in commands[0]
     assert image.convert("L").getextrema() == (0, 255)
 
@@ -235,7 +235,7 @@ def test_stereo_thumbnail_uses_stacked_overlay(
 
     assert grayscale.getbbox() is not None
     assert commands[0][:5] == ["montage", "-tile", "1x2", "-mode", "Concatenate"]
-    assert commands[1][:3] == ["convert", "-fill", "white"]
+    assert commands[1][:5] == ["convert", "-font", "DejaVu-Sans", "-fill", "white"]
     assert "text 5,15 '4000 Hz '" in commands[1]
     assert "text 5,85 '4000 Hz'" in commands[1]
     assert "text 290,15 'L'" in commands[1]

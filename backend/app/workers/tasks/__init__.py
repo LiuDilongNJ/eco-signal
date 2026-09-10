@@ -8,7 +8,7 @@ from app.workers.tasks.maintenance import (
     sync_network_nodes,
     startup_sync_network_nodes,
 )
-from app.workers.tasks.media import process_media_batch
+from app.workers.tasks.media import process_audio_resampling, process_media_batch
 from app.workers.tasks.offline_imports import import_collection_bundle
 from app.workers.tasks.offline_exports import export_collection_bundle
 
@@ -18,6 +18,7 @@ __all__ = [
     "analyze_insects",
     "analyze_acoustic_index",
     "process_media_batch",
+    "process_audio_resampling",
     "cleanup_expired_chunks",
     "cleanup_expired_offline_imports",
     "cleanup_expired_collection_bundle_exports",

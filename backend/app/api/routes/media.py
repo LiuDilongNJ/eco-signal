@@ -29,6 +29,7 @@ from app.schemas.media import (
     MediaCollectionLinksSyncRequest,
     MediaCreate,
     MediaCreateResponse,
+    AudioFileMetadataPublic,
     MediaListPublic,
     MediaNavigation,
     MediaOption,
@@ -52,6 +53,26 @@ router_views = APIRouter(tags=["媒体 / media"])
 logger = logging.getLogger(__name__)
 _SPECTROGRAM_FFT_SIZES = {128, 256, 512, 1024, 2048, 4096}
 _MAX_SPECTROGRAM_PIXELS = 4_000_000
+
+
+@router.get("/{media_id}/audio-metadata", response_model=ApiResponse[AudioFileMetadataPublic], summary="读取音频元数据 / Get Audio Metadata")
+def get_audio_metadata(
+    media_id: int,
+    session: SessionDep,
+    current_user: CurrentUserOptional,
+    project_id: int = Query(..., description="项目 ID / Project ID"),
+    download: bool = Query(False, description="下载 JSON / Download JSON"),
+) -> Any:
+    """读取已保存的音频源信息和嵌入标签。 / Read persisted audio source information and embedded tags."""
+    metadata = media_service.get_audio_file_metadata(session, media_id, project_id, current_user)
+    if download:
+        filename = f"{metadata.stored.get('filename') or media_id}_metadata.json"
+        return RawResponse(
+            content=metadata.model_dump_json(),
+            media_type="application/json; charset=utf-8",
+            headers={"Content-Disposition": build_download_content_disposition(filename)},
+        )
+    return api_success(data=metadata)
 
 
 @router.get("", response_model=PagedApiResponse[list[MediaListPublic]], summary="列出媒体 / List Media")

@@ -15,6 +15,7 @@ class WorkerTaskType(str, Enum):
     ANALYZE_INSECTS = "analyze_insects"
     ANALYZE_ACOUSTIC_INDEX = "analyze_acoustic_index"
     PROCESS_MEDIA_BATCH = "process_media_batch"
+    AUDIO_RESAMPLING = "audio_resampling"
     MERGE_FILE_CHUNKS = "merge_file_chunks"
     IMPORT_COLLECTION_BUNDLE = "import_collection_bundle"
     EXPORT_COLLECTION_BUNDLE = "export_collection_bundle"

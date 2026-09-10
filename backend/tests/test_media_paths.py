@@ -94,9 +94,9 @@ def test_analysis_audio_candidates_keep_supported_filename_first() -> None:
 
 
 def test_audio_filename_candidates_try_recorded_name_before_companions() -> None:
-    assert audio_filename_candidates("clip.flac") == ["clip.flac", "clip.wav"]
-    assert audio_filename_candidates("clip.wav") == ["clip.wav", "clip.flac"]
-    assert audio_filename_candidates("clip.mp3") == ["clip.mp3", "clip.flac", "clip.wav"]
+    assert audio_filename_candidates("clip.flac") == ["clip.flac", "clip.wav", "clip.mp3", "clip.ogg"]
+    assert audio_filename_candidates("clip.wav") == ["clip.wav", "clip.flac", "clip.mp3", "clip.ogg"]
+    assert audio_filename_candidates("clip.mp3") == ["clip.mp3", "clip.flac", "clip.wav", "clip.ogg"]
 
 
 def test_analysis_audio_candidates_prefer_companion_wav_for_unsupported_filename() -> None:

@@ -98,6 +98,7 @@ export interface CreateAudioMediaPayload extends CreateMediaPayloadBase {
     recording_gain_db?: number
     duty_cycle_recording?: number
     duty_cycle_period?: number
+    target_sampling_rate_hz?: number
 }
 
 export interface CreatePhotoMediaPayload extends CreateMediaPayloadBase {
@@ -172,6 +173,33 @@ export interface MediaAudioSetting {
     bit_depth?: number
     channel_num?: number
     duration_s?: number
+    metadata_available?: boolean
+}
+
+export interface AudioFileMetadata {
+    media_id: number
+    schema_version: number
+    source: Record<string, string | number | null>
+    stored: Record<string, string | number | null>
+    tags: Record<string, Record<string, Array<string | number | boolean>>>
+    warnings: string[]
+}
+
+export interface AudioResamplingJobRequest {
+    media_ids: number[]
+    target_sampling_rate_hz: number
+}
+
+export interface MediaBatchFailedItem {
+    media_id: number
+    status_code: number
+    message: string
+}
+
+export interface AudioResamplingJobResponse {
+    queue_id: number
+    accepted_media_ids: number[]
+    rejected: MediaBatchFailedItem[]
 }
 
 export interface MediaPhotoSetting {
@@ -345,6 +373,25 @@ export const mediaApi = {
             params: { ...(clean ?? {}), project_id: projectId },
             ignoreUnauthorized,
         })
+    },
+
+    async getAudioMetadata(mediaId: number, projectId: number): Promise<AudioFileMetadata> {
+        const response = await apiClient.get<{ code: number; message: string; data: AudioFileMetadata }>(
+            `/v1/media/${mediaId}/audio-metadata`, { params: { project_id: projectId } },
+        )
+        return getApiData(response)
+    },
+
+    downloadAudioMetadata(mediaId: number, projectId: number) {
+        return apiClient.download(`/v1/media/${mediaId}/audio-metadata`, {
+            params: { project_id: projectId, download: true },
+        })
+    },
+
+    createAudioResamplingJob(projectId: number, payload: AudioResamplingJobRequest) {
+        return apiClient.post<{ code: number; message: string; data: AudioResamplingJobResponse }>(
+            "/v1/audio-resampling-jobs", payload, { params: { project_id: projectId } },
+        )
     },
 
     /** 更新媒体记录 */

@@ -2609,6 +2609,7 @@ class TestMediaGet:
             "bit_depth": 16,
             "channel_num": 1,
             "duration_s": 66.0,
+            "metadata_available": False,
         }
 
 

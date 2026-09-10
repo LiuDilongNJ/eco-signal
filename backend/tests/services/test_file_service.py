@@ -1,9 +1,55 @@
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 from fastapi import HTTPException
 
-from app.services.file_service import FileService
+from app.services.file_service import FileService, _missing_audio_tag_names
+
+
+def test_missing_audio_tag_names_matches_values_across_tag_namespaces() -> None:
+    source_tags = {
+        "id3v2": {
+            "TIT2": ["Field recording"],
+            "TPE1": ["Researcher"],
+            "TSSE": ["Source encoder"],
+        }
+    }
+    stored_tags = {
+        "vorbis_comment": {
+            "title": ["Field recording"],
+            "artist": ["Researcher"],
+            "encoder": ["Stored encoder"],
+        }
+    }
+
+    assert _missing_audio_tag_names(source_tags, stored_tags) == []
+
+
+def test_missing_audio_tag_names_reports_only_unretained_content_tags() -> None:
+    source_tags = {
+        "id3v2": {
+            "TIT2": ["Field recording"],
+            "TPE1": ["Researcher"],
+            "TXXX:comment": ["Dawn survey"],
+        }
+    }
+    stored_tags = {"vorbis_comment": {"title": ["Field recording"]}}
+
+    assert _missing_audio_tag_names(source_tags, stored_tags) == ["TPE1", "TXXX:comment"]
+
+
+def test_extract_audio_tags_returns_empty_mapping_when_file_has_no_tags(
+    tmp_path, monkeypatch
+) -> None:
+    service = FileService(base_dir=str(tmp_path))
+    audio = MagicMock(tags=None)
+    monkeypatch.setattr("app.services.file_service.mutagen.File", lambda *args, **kwargs: audio)
+
+    tags, warnings = service._extract_audio_tags(tmp_path / "untagged.wav")
+
+    assert tags == {}
+    assert warnings == []
 
 
 def test_merge_and_validate_chunks_validates_photo_and_keeps_file(tmp_path, monkeypatch) -> None:

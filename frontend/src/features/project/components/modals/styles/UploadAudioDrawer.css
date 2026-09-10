@@ -219,3 +219,21 @@
     box-shadow: none !important;
     filter: none !important;
 }
+
+.upload-audio-preprocessing {
+    border-top: 1px solid var(--border-color);
+    margin-top: 16px;
+    padding-top: 16px;
+}
+
+.upload-audio-preprocessing__switch {
+    margin-top: 10px;
+    margin-bottom: 8px !important;
+}
+
+.upload-audio-preprocessing__hint {
+    display: block;
+    color: var(--warning);
+    font-size: 12px;
+    line-height: 1.5;
+}

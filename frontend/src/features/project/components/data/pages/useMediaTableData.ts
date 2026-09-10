@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react"
-import { mediaApi, type MediaListItem } from "../../../../../api/endpoints/media"
+import { mediaApi } from "../../../../../api/endpoints/media"
 import { sitesApi, type SiteOption } from "../../../../../api/endpoints/sites"
 import { licensesApi, type LicenseOption } from "../../../../../api/endpoints/licenses"
 import { sensorsApi, type SensorOption } from "../../../../../api/endpoints/sensors"
@@ -83,6 +83,7 @@ export function useMediaTableData(
                     bit_depth: item.audio_setting?.bit_depth,
                     channel_num: item.audio_setting?.channel_num,
                     duration_s: item.audio_setting?.duration_s,
+                    metadata_available: item.audio_setting?.metadata_available ?? false,
                     exposure_ms: item.photo_setting?.exposure_ms,
                     aperture: item.photo_setting?.aperture,
                     iso: item.photo_setting?.iso,

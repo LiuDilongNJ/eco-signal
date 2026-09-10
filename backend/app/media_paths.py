@@ -83,8 +83,7 @@ def audio_filename_candidates(filename: str | None) -> list[str]:
 
     Order:
     1. Stored database filename as-is
-    2. Same stem with .flac extension
-    3. Same stem with .wav extension
+    2. Same stem with legacy FLAC/WAV/MP3/OGG extensions
     """
     if not filename:
         return []
@@ -94,7 +93,7 @@ def audio_filename_candidates(filename: str | None) -> list[str]:
         return []
 
     stem = Path(raw).stem
-    candidates: list[str] = [raw, f"{stem}.flac", f"{stem}.wav"]
+    candidates: list[str] = [raw, f"{stem}.flac", f"{stem}.wav", f"{stem}.mp3", f"{stem}.ogg"]
     deduped: list[str] = []
     for item in candidates:
         if item not in deduped:

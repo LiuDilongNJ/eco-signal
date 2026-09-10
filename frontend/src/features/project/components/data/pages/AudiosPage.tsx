@@ -9,7 +9,7 @@ import type { ColumnDef, FormFieldDef } from "../DataPageLayout"
 import { mediaApi } from "../../../../../api/endpoints/media"
 import { useProjectStore } from "../../../stores/useProjectStore"
 import { message } from "@/components/ui"
-import { Music2, Link as LinkIcon, Tag as TagIcon, ClipboardList as ClipboardListIcon, Bot as BotIcon, Activity as ActivityIcon } from "lucide-react"
+import { Music2, Link as LinkIcon, Tag as TagIcon, ClipboardList as ClipboardListIcon, Bot as BotIcon, Activity as ActivityIcon, Info, Waves } from "lucide-react"
 import { UploadAudioDrawer } from "../../modals/UploadAudioDrawer"
 import { EditMediaDrawer } from "../../modals/EditMediaDrawer"
 import { LinkItemToCollectionsDrawer } from "../../modals/LinkItemToCollectionsDrawer"
@@ -17,6 +17,8 @@ import { SetLabelsDrawer } from "../../modals/SetLabelsDrawer"
 import { AssignTasksDrawer } from "../../modals/AssignTasksDrawer"
 import { RunAIModelsDrawer } from "../../modals/RunAIModelsDrawer"
 import { AcousticIndicesDrawer } from "../../modals/AcousticIndicesDrawer"
+import { AudioMetadataDrawer } from "../../modals/AudioMetadataDrawer"
+import { ResampleAudioDrawer } from "../../modals/ResampleAudioDrawer"
 import { downloadFile } from "@/utils/download"
 import { buildMediaQueryParams } from "./mediaQueryParams"
 import { useMediaTableData } from "./useMediaTableData"
@@ -96,6 +98,8 @@ export function AudiosPage() {
     const [runAIMediaIds, setRunAIMediaIds] = useState<number[]>([])
     const [idxDrawerOpen, setIdxDrawerOpen] = useState(false)
     const [idxMediaIds, setIdxMediaIds] = useState<number[]>([])
+    const [metadataMediaId, setMetadataMediaId] = useState<number | null>(null)
+    const [resampleMediaIds, setResampleMediaIds] = useState<number[]>([])
     const audioInputRef = useRef<HTMLInputElement>(null)
     const mediaProcessingAbortRef = useRef<AbortController | null>(null)
 
@@ -312,6 +316,10 @@ export function AudiosPage() {
                     const canAssignSelection = selectionCan(selectedRows, rows, "media_id", "assign")
                     const canRunAiModelsSelection = selectionCan(selectedRows, rows, "media_id", "run_ai_models")
                     const canRunAcousticAnalysisSelection = selectionCan(selectedRows, rows, "media_id", "run_analysis")
+                    const chosen = rows.filter((row) => selectedIds.includes(Number(row.media_id)))
+                    const metadataRow = chosen.length === 1 ? chosen[0] : null
+                    const canShowMetadata = Boolean(metadataRow && !isMetadataValue(metadataRow.is_metadata) && metadataRow.metadata_available)
+                    const canResample = chosen.length > 0 && chosen.every((row) => !isMetadataValue(row.is_metadata) && rowCan(row, "edit"))
                     return (
                     <>
                         <ESButton
@@ -374,6 +382,8 @@ export function AudiosPage() {
                         }}>
                             <ActivityIcon size={14} /> Acoustic Indices
                         </ESButton>
+                        <ESButton appearance="unstyled" className="data-btn" title={canShowMetadata ? "View audio metadata" : "Select one audio file with metadata"} disabled={!canShowMetadata} onClick={() => setMetadataMediaId(Number(metadataRow?.media_id))}><Info size={14} /> Metadata</ESButton>
+                        <ESButton appearance="unstyled" className="data-btn" title={canResample ? "Resample selected recordings" : "Select editable audio files"} disabled={!canResample} onClick={() => setResampleMediaIds(selectedIds)}><Waves size={14} /> Resample</ESButton>
                     </>
                     )
                 }}
@@ -389,6 +399,19 @@ export function AudiosPage() {
                 canAdd={canWriteAudio}
                 canEditRecord={(record) => rowCan(record, "edit")}
                 canDeleteRecord={(record) => rowCan(record, "delete")}
+            />
+
+            <AudioMetadataDrawer open={metadataMediaId != null} mediaId={metadataMediaId} projectId={currentProjectId ? Number(currentProjectId) : null} onClose={() => setMetadataMediaId(null)} />
+            <ResampleAudioDrawer
+                open={resampleMediaIds.length > 0}
+                mediaIds={resampleMediaIds}
+                projectId={currentProjectId ? Number(currentProjectId) : null}
+                maxTargetSamplingRate={Math.min(...rows
+                    .filter((row) => resampleMediaIds.includes(Number(row.media_id)))
+                    .map((row) => Number(row.sampling_rate_hz))
+                    .filter(Number.isFinite))}
+                onClose={() => setResampleMediaIds([])}
+                onSubmitted={(queueId) => { void refreshAfterMediaProcessing(queueId) }}
             />
 
             <UploadAudioDrawer
@@ -445,10 +468,10 @@ export function AudiosPage() {
                             duty_cycle_period: formData.duty_cycle_period ? Number(formData.duty_cycle_period) : undefined,
                             note: formData.note,
                             doi: formData.doi,
+                            target_sampling_rate_hz: formData.resampleEnabled ? formData.target_sampling_rate_hz : undefined,
                         }, createMediaParams)
                         const queueId = response.data?.queue_id
                         message.success("Audio upload submitted. Processing will continue in the background.")
-                        // Refresh immediately, then refresh again when asynchronous processing writes the media rows.
                         uploadQueue.reset()
                         refresh()
                         if (queueId) {

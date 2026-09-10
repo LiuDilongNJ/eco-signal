@@ -22,6 +22,7 @@ from app.workers.tasks.media import (
     _find_duplicate_media,
     _md5_file,
     _resolve_batch_queue_status,
+    process_audio_resampling,
     process_media,
 )
 
@@ -105,15 +106,78 @@ def test_find_duplicate_media_scoped_to_collection(db: Session):
 
 
 @pytest.mark.anyio
+@patch("app.workers.tasks.media._md5_file", side_effect=AssertionError("MD5 must remain the source hash"))
+@patch("app.workers.tasks.media.generate_media_previews")
+@patch("app.workers.tasks.media.file_service.resample_stored_audio")
+@patch("app.workers.tasks.media.resolve_existing_audio_media_path")
+@patch("app.workers.tasks.media._mark_batch_queue_running")
+async def test_resampling_preserves_existing_source_md5(
+    _mock_mark_running,
+    mock_resolve_path,
+    mock_resample_audio,
+    mock_generate_previews,
+    mock_md5,
+    tmp_path: Path,
+):
+    source_path = tmp_path / "recording.flac"
+    source_path.write_bytes(b"resampled-audio")
+    media = MagicMock()
+    media.media_type = "audio"
+    media.directory = "dir1"
+    media.filename = "recording.flac"
+    media.md5_hash = "original-source-md5"
+    media.audio_setting = MagicMock()
+    media.audio_setting.file_metadata = {"source": {"filename": "recording.wav"}}
+    media.audio_setting.sampling_rate_hz = 48000
+    media.audio_setting.bit_depth = 16
+    media.audio_setting.channel_num = 1
+    media.audio_setting.duration_s = 1.0
+    link = MagicMock(collection_id=10)
+    queue = MagicMock()
+    queue.warning = None
+    media_session = MagicMock()
+    media_session.get.return_value = media
+    media_session.exec.side_effect = [
+        MagicMock(first=MagicMock(return_value=link)),
+        MagicMock(all=MagicMock(return_value=[])),
+    ]
+    queue_session = MagicMock()
+    queue_session.get.return_value = queue
+    media_context = MagicMock()
+    media_context.__enter__.return_value = media_session
+    queue_context = MagicMock()
+    queue_context.__enter__.return_value = queue_session
+    mock_resolve_path.return_value = source_path
+    mock_resample_audio.return_value = {
+        "stored": {
+            "sampling_rate_hz": 24000,
+            "bit_depth": 16,
+            "channel_num": 1,
+            "duration_s": 1.0,
+        }
+    }
+
+    with patch("app.workers.tasks.media.Session", side_effect=[media_context, queue_context]):
+        result = await process_audio_resampling(
+            ctx={}, queue_id=5, media_ids=[1], target_sampling_rate_hz=24000,
+        )
+
+    assert result == {"queue_id": 5, "completed": 1, "failed": 0}
+    assert media.md5_hash == "original-source-md5"
+    mock_md5.assert_not_called()
+    mock_generate_previews.assert_called_once()
+
+
+@pytest.mark.anyio
 class TestProcessMediaTask:
     """Tests for the process_media ARQ task."""
 
     @pytest.fixture(autouse=True)
     def mock_streaming_md5(self):
-        with patch("app.workers.tasks.media._md5_file", return_value="streamed-md5"), patch(
+        with patch("app.workers.tasks.media._md5_file", return_value="streamed-md5") as mock_md5, patch(
             "app.workers.tasks.media._find_duplicate_media", return_value=None
         ):
-            yield
+            yield mock_md5
 
     async def test_file_upload_not_found(self):
         """Returns error if FileUpload record does not exist."""
@@ -129,7 +193,7 @@ class TestProcessMediaTask:
         assert result == {"error": "FileUpload not found"}
 
     @patch("app.workers.tasks.media.generate_thumbnail")
-    @patch("app.workers.tasks.media.file_service.ensure_audio_is_flac")
+    @patch("app.workers.tasks.media.file_service.prepare_audio_for_storage")
     @patch("mutagen.File")
     @patch("hashlib.md5")
     @patch("shutil.move")
@@ -151,7 +215,7 @@ class TestProcessMediaTask:
     ):
         """Successful media processing flow."""
         mock_session = MagicMock()
-        mock_ensure_flac.return_value = (Path("/tmp/test.flac"), "test.flac")
+        mock_ensure_flac.return_value = (Path("/tmp/test.flac"), "test.flac", {"stored": {"sampling_rate_hz": 48000, "channel_num": 2, "bit_depth": 24, "duration_s": 10.5}})
         mock_generate_thumbnail.return_value = b"\x89PNG\r\nfake"
         
         # Mock FileUpload record
@@ -220,6 +284,57 @@ class TestProcessMediaTask:
         # Verify file move
         mock_move.assert_called_once()
         mock_ensure_flac.assert_called_once()
+
+    @patch("app.workers.tasks.media.generate_media_previews")
+    @patch("app.workers.tasks.media.file_service.prepare_audio_for_storage")
+    @patch("shutil.move")
+    @patch("pathlib.Path.mkdir")
+    @patch("pathlib.Path.is_file", return_value=True)
+    @patch("pathlib.Path.stat")
+    async def test_process_audio_records_md5_before_storage_transformation(
+        self,
+        mock_stat,
+        mock_is_file,
+        mock_mkdir,
+        mock_move,
+        mock_prepare_audio,
+        mock_generate_previews,
+        mock_streaming_md5,
+    ):
+        mock_stat.return_value.st_size = 1000
+        mock_prepare_audio.return_value = (
+            Path("/tmp/recording.flac"),
+            "recording.flac",
+            {"stored": {"sampling_rate_hz": 24000, "channel_num": 1, "duration_s": 1.0}},
+        )
+        mock_session = MagicMock()
+        file_upload = FileUpload(
+            file_upload_id=1,
+            filename="recording.wav",
+            path="/tmp/recording.wav",
+            status=1,
+            uploader_id=1,
+            directory="dir1",
+        )
+        mock_session.get.return_value = file_upload
+        created_media: list[Media] = []
+
+        def capture_add(obj):
+            if isinstance(obj, AudioSetting):
+                obj.audio_setting_id = 100
+            elif isinstance(obj, Media):
+                obj.media_id = 200
+                created_media.append(obj)
+
+        mock_session.add.side_effect = capture_add
+        with patch("app.workers.tasks.media.Session", return_value=mock_session):
+            mock_session.__enter__ = MagicMock(return_value=mock_session)
+            mock_session.__exit__ = MagicMock(return_value=False)
+            result = await process_media(ctx={}, file_upload_id=1, collection_id=10)
+
+        assert result["status"] == "completed"
+        mock_streaming_md5.assert_called_once_with(Path("/app/sounds/tmp/recording.wav"))
+        assert created_media[0].md5_hash == "streamed-md5"
 
     @patch("app.workers.tasks.media.generate_media_previews")
     @patch("app.workers.tasks.media._photo_metadata")
@@ -294,7 +409,7 @@ class TestProcessMediaTask:
         mock_move.assert_called_once()
 
     @patch("app.workers.tasks.media._find_duplicate_media", return_value=999)
-    @patch("app.workers.tasks.media.file_service.ensure_audio_is_flac")
+    @patch("app.workers.tasks.media.file_service.prepare_audio_for_storage")
     @patch("mutagen.File")
     @patch("pathlib.Path.unlink")
     @patch("pathlib.Path.is_file")
@@ -310,7 +425,7 @@ class TestProcessMediaTask:
     ):
         """Audio with an existing MD5 in the collection is skipped, not inserted."""
         mock_session = MagicMock()
-        mock_ensure_flac.return_value = (Path("/tmp/test.flac"), "test.flac")
+        mock_ensure_flac.return_value = (Path("/tmp/test.flac"), "test.flac", {"stored": {"sampling_rate_hz": 48000, "channel_num": 2, "bit_depth": 24, "duration_s": 10.5}})
         file_upload = FileUpload(
             file_upload_id=1,
             filename="test.wav",
@@ -396,7 +511,7 @@ class TestProcessMediaTask:
         mock_unlink.assert_called_once()
 
     @patch("app.workers.tasks.media.generate_thumbnail")
-    @patch("app.workers.tasks.media.file_service.ensure_audio_is_flac")
+    @patch("app.workers.tasks.media.file_service.prepare_audio_for_storage")
     @patch("mutagen.File")
     @patch("hashlib.md5")
     @patch("shutil.move")
@@ -419,7 +534,7 @@ class TestProcessMediaTask:
         """Audio stores prefixed FLAC filename while keeping original display name in media.name."""
         mock_session = MagicMock()
         mock_generate_thumbnail.return_value = b"\x89PNG\r\nfake"
-        mock_ensure_flac.return_value = (Path("/tmp/LEGACY_test.flac"), "LEGACY_test.flac")
+        mock_ensure_flac.return_value = (Path("/tmp/LEGACY_test.flac"), "LEGACY_test.flac", {"stored": {"sampling_rate_hz": 48000, "channel_num": 2, "bit_depth": 24, "duration_s": 10.5}})
 
         file_upload = FileUpload(
             file_upload_id=1,
@@ -507,7 +622,7 @@ class TestProcessMediaTask:
         mock_session.commit.assert_called_once()
 
     @patch("app.workers.tasks.media.generate_thumbnail")
-    @patch("app.workers.tasks.media.file_service.ensure_audio_is_flac")
+    @patch("app.workers.tasks.media.file_service.prepare_audio_for_storage")
     @patch("mutagen.File")
     @patch("pathlib.Path.is_file")
     @patch("pathlib.Path.stat")
@@ -523,7 +638,7 @@ class TestProcessMediaTask:
     ):
         """Continues with defaults if mutagen fails."""
         mock_session = MagicMock()
-        mock_ensure_flac.return_value = (Path("/tmp/test.flac"), "test.flac")
+        mock_ensure_flac.return_value = (Path("/tmp/test.flac"), "test.flac", {"stored": {"sampling_rate_hz": 48000, "channel_num": 2, "bit_depth": 24, "duration_s": 10.5}})
         mock_generate_thumbnail.return_value = b"\x89PNG\r\nfake"
         file_upload = FileUpload(file_upload_id=1, path="/tmp/test.wav", filename="test.wav")
         mock_session.get.return_value = file_upload
@@ -542,7 +657,7 @@ class TestProcessMediaTask:
                     
         assert result["status"] == "completed"
 
-    @patch("app.workers.tasks.media.file_service.ensure_audio_is_flac")
+    @patch("app.workers.tasks.media.file_service.prepare_audio_for_storage")
     @patch("mutagen.File")
     @patch("pathlib.Path.is_file")
     @patch("pathlib.Path.stat")
@@ -557,7 +672,7 @@ class TestProcessMediaTask:
     ):
         """Handles invalid date/time strings without crashing."""
         mock_session = MagicMock()
-        mock_ensure_flac.return_value = (Path("/tmp/test.flac"), "test.flac")
+        mock_ensure_flac.return_value = (Path("/tmp/test.flac"), "test.flac", {"stored": {"sampling_rate_hz": 48000, "channel_num": 2, "bit_depth": 24, "duration_s": 10.5}})
         file_upload = FileUpload(file_upload_id=1, path="/tmp/test.wav", filename="test.wav")
         mock_session.get.return_value = file_upload
         mock_is_file.return_value = True
@@ -579,7 +694,7 @@ class TestProcessMediaTask:
         
         assert result["status"] == "completed"
 
-    @patch("app.workers.tasks.media.file_service.ensure_audio_is_flac")
+    @patch("app.workers.tasks.media.file_service.prepare_audio_for_storage")
     @patch("mutagen.File")
     @patch("pathlib.Path.is_file")
     @patch("pathlib.Path.stat")
@@ -594,7 +709,7 @@ class TestProcessMediaTask:
     ):
         """Handles mutagen returning None."""
         mock_session = MagicMock()
-        mock_ensure_flac.return_value = (Path("/tmp/test.flac"), "test.flac")
+        mock_ensure_flac.return_value = (Path("/tmp/test.flac"), "test.flac", {"stored": {"sampling_rate_hz": 48000, "channel_num": 2, "bit_depth": 24, "duration_s": 10.5}})
         file_upload = FileUpload(file_upload_id=1, path="/tmp/test.wav", filename="test.wav")
         mock_session.get.return_value = file_upload
         mock_is_file.return_value = True
@@ -609,7 +724,7 @@ class TestProcessMediaTask:
                 with patch("pathlib.Path.mkdir"):
                     await process_media(ctx={}, file_upload_id=1, collection_id=10)
 
-    @patch("app.workers.tasks.media.file_service.ensure_audio_is_flac")
+    @patch("app.workers.tasks.media.file_service.prepare_audio_for_storage")
     @patch("mutagen.File")
     @patch("pathlib.Path.is_file")
     @patch("pathlib.Path.stat")
@@ -624,7 +739,7 @@ class TestProcessMediaTask:
     ):
         """Handles mutagen returning object with None info."""
         mock_session = MagicMock()
-        mock_ensure_flac.return_value = (Path("/tmp/test.flac"), "test.flac")
+        mock_ensure_flac.return_value = (Path("/tmp/test.flac"), "test.flac", {"stored": {"sampling_rate_hz": 48000, "channel_num": 2, "bit_depth": 24, "duration_s": 10.5}})
         file_upload = FileUpload(file_upload_id=1, path="/tmp/test.wav", filename="test.wav")
         mock_session.get.return_value = file_upload
         mock_is_file.return_value = True
@@ -647,7 +762,7 @@ class TestProcessMediaTask:
     # Thumbnail generation tests
     # ------------------------------------------------------------------
 
-    @patch("app.workers.tasks.media.file_service.ensure_audio_is_flac")
+    @patch("app.workers.tasks.media.file_service.prepare_audio_for_storage")
     @patch("app.workers.tasks.media.generate_thumbnail")
     @patch("app.workers.tasks.media.generate_player_spectrogram")
     @patch("mutagen.File")
@@ -677,7 +792,7 @@ class TestProcessMediaTask:
 
         mock_generate_thumbnail.return_value = b"\x89PNG\r\nfake"
         mock_generate_player_spectrogram.return_value = b"\x89PNG\r\nplayer"
-        mock_ensure_flac.return_value = (Path("/tmp/test.flac"), "test.flac")
+        mock_ensure_flac.return_value = (Path("/tmp/test.flac"), "test.flac", {"stored": {"sampling_rate_hz": 48000, "channel_num": 2, "bit_depth": 24, "duration_s": 10.5}})
 
         mock_session = MagicMock()
         file_upload = FileUpload(
@@ -738,7 +853,7 @@ class TestProcessMediaTask:
         assert any("test_player_s.png" in preview.filename for preview in preview_objects)
         assert mock_write_bytes.call_count == 2
 
-    @patch("app.workers.tasks.media.file_service.ensure_audio_is_flac")
+    @patch("app.workers.tasks.media.file_service.prepare_audio_for_storage")
     @patch("app.workers.tasks.media.generate_thumbnail")
     @patch("mutagen.File")
     @patch("hashlib.md5")
@@ -763,7 +878,7 @@ class TestProcessMediaTask:
     ):
         """If thumbnail generation raises, the media record is still created."""
         mock_generate_thumbnail.side_effect = RuntimeError("librosa exploded")
-        mock_ensure_flac.return_value = (Path("/tmp/test.flac"), "test.flac")
+        mock_ensure_flac.return_value = (Path("/tmp/test.flac"), "test.flac", {"stored": {"sampling_rate_hz": 44100, "channel_num": 2, "bit_depth": 16, "duration_s": 3.0}})
 
         mock_session = MagicMock()
         file_upload = FileUpload(
@@ -806,7 +921,7 @@ class TestProcessMediaTask:
         assert result["status"] == "completed"
         assert result["media_id"] == 21
 
-    @patch("app.workers.tasks.media.file_service.ensure_audio_is_flac")
+    @patch("app.workers.tasks.media.file_service.prepare_audio_for_storage")
     @patch("pathlib.Path.is_file")
     async def test_process_media_flac_conversion_failure_sets_error(
         self,
@@ -839,7 +954,7 @@ class TestProcessMediaTask:
         assert file_upload.error == "ffmpeg conversion failed: decoder error"
 
     @patch("app.workers.tasks.media.generate_thumbnail")
-    @patch("app.workers.tasks.media.file_service.ensure_audio_is_flac")
+    @patch("app.workers.tasks.media.file_service.prepare_audio_for_storage")
     @patch("mutagen.File")
     @patch("hashlib.md5")
     @patch("shutil.move")
@@ -876,7 +991,7 @@ class TestProcessMediaTask:
         mock_stat.return_value.st_size = 123
         mock_read_bytes.return_value = b"flac-data"
         mock_md5.return_value.hexdigest.return_value = "flac-hash"
-        mock_ensure_flac.return_value = (Path("/tmp/field.flac"), "field.flac")
+        mock_ensure_flac.return_value = (Path("/tmp/field.flac"), "field.flac", {"stored": {"sampling_rate_hz": 48000, "channel_num": 1, "bit_depth": 16, "duration_s": 1.0}})
 
         mock_audio = MagicMock()
         mock_audio.info.length = 1.0
@@ -904,6 +1019,7 @@ class TestProcessMediaTask:
         mock_ensure_flac.assert_called_once_with(
             Path("/app/sounds/tmp/field.flac"),
             source_filename="field.flac",
+            target_sampling_rate_hz=None,
         )
 
     @patch("app.workers.tasks.media.generate_thumbnail")

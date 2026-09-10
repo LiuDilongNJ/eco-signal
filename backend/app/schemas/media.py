@@ -32,8 +32,36 @@ class AudioSettingPublic(SQLModel):
     bit_depth: Optional[int] = None
     channel_num: Optional[int] = None
     duration_s: float
+    metadata_available: bool = False
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class AudioFileMetadataPublic(SQLModel):
+    """Audio file metadata returned by the detail endpoint."""
+    media_id: int
+    schema_version: int
+    source: dict
+    stored: dict
+    tags: dict[str, dict[str, list[str | int | float | bool]]] = Field(default_factory=dict)
+    warnings: list[str] = Field(default_factory=list)
+
+
+class AudioResamplingJobRequest(SQLModel):
+    media_ids: list[int] = Field(min_length=1, max_length=100)
+    target_sampling_rate_hz: int = Field(ge=8000, le=384000)
+
+
+class AudioResamplingRejectedItem(SQLModel):
+    media_id: int
+    status_code: int
+    message: str
+
+
+class AudioResamplingJobResponse(SQLModel):
+    queue_id: int
+    accepted_media_ids: list[int]
+    rejected: list[AudioResamplingRejectedItem] = Field(default_factory=list)
 
 
 class PhotoSettingPublic(SQLModel):
@@ -83,6 +111,12 @@ class MediaCreate(SQLModel):
     duty_cycle_period: Optional[int] = Field(None, description="Duty cycle period (seconds)")
     note: Optional[str] = Field(None, max_length=250, description="Optional note")
     doi: Optional[str] = Field(None, max_length=255, description="DOI")
+    target_sampling_rate_hz: Optional[int] = Field(
+        default=None,
+        ge=8000,
+        le=384000,
+        description="Target audio sample rate in Hz; only downsampling is allowed",
+    )
 
     @field_validator("date_time")
     @classmethod
@@ -113,6 +147,7 @@ class MediaCreate(SQLModel):
                 "recording_gain_db",
                 "duty_cycle_recording",
                 "duty_cycle_period",
+                "target_sampling_rate_hz",
             }
             supplied = sorted(audio_only_fields & self.model_fields_set)
             if supplied:

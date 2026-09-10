@@ -1,0 +1,13 @@
+.resample-audio-rate-option {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    gap: 12px;
+}
+
+.resample-audio-rate-option__reason {
+    color: var(--text-muted);
+    font-size: 12px;
+    white-space: nowrap;
+}

@@ -26,6 +26,7 @@ _THUMB_HALF_HEIGHT = 75
 _THUMB_FFT_SIZE = 4096
 _THUMB_MIN_FREQ = 10
 _THUMB_WINDOW = "hanning"
+_THUMB_ANNOTATION_FONT = "DejaVu-Sans"
 _PLAYER_WIDTH = 1200
 _PLAYER_HEIGHT = 400
 _KAISER_BETA = 14.0
@@ -577,6 +578,8 @@ def _annotated_mono_thumbnail_bytes(
         if not _run_imagemagick_command(
             [
                 "convert",
+                "-font",
+                _THUMB_ANNOTATION_FONT,
                 "-fill",
                 "white",
                 "-draw",
@@ -621,6 +624,8 @@ def _annotated_stereo_thumbnail_bytes(
         if not _run_imagemagick_command(
             [
                 "convert",
+                "-font",
+                _THUMB_ANNOTATION_FONT,
                 "-fill",
                 "white",
                 "-draw",

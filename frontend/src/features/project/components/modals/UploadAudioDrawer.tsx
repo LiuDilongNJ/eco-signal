@@ -15,6 +15,7 @@ import type { LicenseOption } from "../../../../api/endpoints/licenses"
 import type { SensorOption } from "../../../../api/endpoints/sensors"
 import type { UserOption } from "../../../../api/endpoints/users"
 import { MEDIA_ADD_TITLES, filterSensorsForMediaType, formatSensorOptionLabel } from "./mediaForm"
+import { RESAMPLING_RATE_OPTIONS, isValidResamplingRate } from "./resamplingOptions"
 import "./styles/FormDrawer.css"
 import "./styles/UploadAudioDrawer.css"
 
@@ -52,7 +53,7 @@ interface UploadAudioDrawerProps {
 
 const MEDIUM_OPTIONS = ["Air", "Water"]
 
-type UploadAudioValidationField = "date_time" | "sensor_id" | "gain"
+type UploadAudioValidationField = "date_time" | "sensor_id" | "gain" | "target_sampling_rate_hz"
 
 export function UploadAudioDrawer({ open, initialFiles = [], siteOptions = [], licenseOptions = [], sensorOptions = [], userOptions = [], currentUserId = null, onClose, onSave, onAddMoreFiles, onRetry }: UploadAudioDrawerProps) {
     const isDark = useAppStore(s => s.effectiveTheme === "dark")
@@ -112,6 +113,9 @@ export function UploadAudioDrawer({ open, initialFiles = [], siteOptions = [], l
         }
         if (formData.gain == null || String(formData.gain).trim() === "") {
             nextErrors.gain = "Please enter Gain (dB)"
+        }
+        if (formData.resampleEnabled && !isValidResamplingRate(formData.target_sampling_rate_hz)) {
+            nextErrors.target_sampling_rate_hz = "Choose a sample rate between 8000 and 384000 Hz"
         }
         setValidationErrors(nextErrors)
         return Object.keys(nextErrors).length === 0
@@ -430,6 +434,42 @@ export function UploadAudioDrawer({ open, initialFiles = [], siteOptions = [], l
                                         onChange={v => setFormData(p => ({ ...p, creator_id: v }))}
                                     />
                                 </Form.Item>
+                                <div className="upload-audio-preprocessing">
+                                    <Typography.Text strong>Pre-processing</Typography.Text>
+                                    <Form.Item label="Resample recordings" className="upload-audio-preprocessing__switch">
+                                        <Switch
+                                            checked={Boolean(formData.resampleEnabled)}
+                                            onChange={(enabled) => setFormData((previous) => ({
+                                                ...previous,
+                                                resampleEnabled: enabled,
+                                                target_sampling_rate_hz: enabled ? previous.target_sampling_rate_hz : undefined,
+                                            }))}
+                                        />
+                                    </Form.Item>
+                                    {formData.resampleEnabled ? <>
+                                        <Form.Item
+                                            label="Target Sample Rate (Hz)"
+                                            validateStatus={validationErrors.target_sampling_rate_hz ? "error" : undefined}
+                                            help={validationErrors.target_sampling_rate_hz}
+                                        >
+                                            <Select
+                                                value={RESAMPLING_RATE_OPTIONS.includes(formData.target_sampling_rate_hz) ? formData.target_sampling_rate_hz : "custom"}
+                                                options={[
+                                                    ...RESAMPLING_RATE_OPTIONS.map((rate) => ({ value: rate, label: String(rate) })),
+                                                    { value: "custom", label: "Custom" },
+                                                ]}
+                                                onChange={(value) => setFormData((previous) => ({
+                                                    ...previous,
+                                                    target_sampling_rate_hz: value === "custom" ? undefined : value,
+                                                }))}
+                                            />
+                                        </Form.Item>
+                                        {!RESAMPLING_RATE_OPTIONS.includes(formData.target_sampling_rate_hz) ? <Form.Item label="Custom Sample Rate (Hz)">
+                                            <Input type="number" min={8000} max={384000} onChange={(event) => setFormData((previous) => ({ ...previous, target_sampling_rate_hz: Number(event.target.value) }))} />
+                                        </Form.Item> : null}
+                                        <Typography.Text type="secondary" className="upload-audio-preprocessing__hint">Only lower sample rates are supported. MP3 and OGG recordings are re-encoded and may lose quality.</Typography.Text>
+                                    </> : null}
+                                </div>
                             </Form>
                         </div>
                     </div>

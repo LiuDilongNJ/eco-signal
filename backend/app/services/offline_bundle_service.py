@@ -312,6 +312,7 @@ def _media_payload(media: Media, source: Path | None = None) -> dict[str, Any]:
             "bit_depth": media.audio_setting.bit_depth,
             "channel_num": media.audio_setting.channel_num,
             "duration_s": media.audio_setting.duration_s,
+            "file_metadata": media.audio_setting.file_metadata,
         }
 
     photo_setting = None
@@ -1012,6 +1013,7 @@ def _import_bundle_payloads(
                 bit_depth=audio.get("bit_depth"),
                 channel_num=audio.get("channel_num"),
                 duration_s=audio["duration_s"],
+                file_metadata=audio.get("file_metadata"),
             )
             session.add(audio_setting)
             session.flush()

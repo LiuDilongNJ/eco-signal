@@ -2,6 +2,7 @@ from fastapi import APIRouter
 
 from app.api.routes import (
     analysis,
+    audio_resampling_jobs,
     annotations,
     cameras,
     collections,
@@ -65,6 +66,7 @@ api_router.include_router(sites.router_views)
 api_router.include_router(roles.router)
 api_router.include_router(media.router)
 api_router.include_router(media.router_views)
+api_router.include_router(audio_resampling_jobs.router)
 api_router.include_router(labels.router)
 api_router.include_router(labels.router_media)
 api_router.include_router(label_settings.router)

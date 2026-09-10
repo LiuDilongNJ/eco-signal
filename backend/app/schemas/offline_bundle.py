@@ -77,6 +77,7 @@ class OfflineAudioSettingPayload(BundleModel):
     bit_depth: int | None = Field(default=None, gt=0)
     channel_num: int | None = Field(default=None, gt=0)
     duration_s: float = Field(ge=0)
+    file_metadata: dict | None = None
 
 
 class OfflinePhotoSettingPayload(BundleModel):

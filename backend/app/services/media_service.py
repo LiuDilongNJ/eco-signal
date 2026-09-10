@@ -83,6 +83,8 @@ from app.schemas.media import (
     MediaTimelineRange,
     MediaTimelineResponse,
     MediaUpdate,
+    AudioSettingPublic,
+    AudioFileMetadataPublic,
     PhotoSettingPublic,
     PreviewPublic,
 )
@@ -98,6 +100,84 @@ from app.spectrogram import (
 from app.workers.publisher import TaskPublisher
 
 logger = logging.getLogger(__name__)
+
+
+def _audio_setting_public(audio_setting: AudioSetting | None) -> AudioSettingPublic | None:
+    if audio_setting is None:
+        return None
+    return AudioSettingPublic(
+        recording_gain_db=audio_setting.recording_gain_db,
+        sampling_rate_hz=audio_setting.sampling_rate_hz,
+        bit_depth=audio_setting.bit_depth,
+        channel_num=audio_setting.channel_num,
+        duration_s=audio_setting.duration_s,
+        metadata_available=audio_setting.file_metadata is not None,
+    )
+
+
+def get_audio_file_metadata(
+    session: Session, media_id: int, project_id: int, user: User | None
+) -> AudioFileMetadataPublic:
+    """Return the stored metadata for one authorized audio item."""
+    get_media(session, project_id, media_id, user)
+    media = media_repository.get_with_detail_relations(session, media_id)
+    if not media or media.media_type != "audio" or media.is_metadata or not media.audio_setting:
+        raise HTTPException(status_code=404, detail="Audio metadata is not available")
+    if _get_audio_path_for_media(media) is None:
+        raise HTTPException(status_code=404, detail="Audio file not found on server")
+    raw = media.audio_setting.file_metadata
+    if not raw:
+        raise HTTPException(status_code=404, detail="Audio metadata is not available")
+    stored = dict(raw.get("stored") or {})
+    stored.update({
+        "filename": media.filename,
+        "sampling_rate_hz": media.audio_setting.sampling_rate_hz,
+        "bit_depth": media.audio_setting.bit_depth,
+        "channel_num": media.audio_setting.channel_num,
+        "duration_s": media.audio_setting.duration_s,
+        "size_b": media.size_b,
+    })
+    return AudioFileMetadataPublic(
+        media_id=media_id,
+        schema_version=int(raw.get("schema_version") or 1),
+        source=dict(raw.get("source") or {}),
+        stored=stored,
+        tags=dict(raw.get("tags") or {}),
+        warnings=list(raw.get("warnings") or []),
+    )
+
+
+async def create_audio_resampling_job(
+    session: Session,
+    user: User,
+    publisher: TaskPublisher,
+    media_ids: list[int],
+    target_sampling_rate_hz: int,
+) -> Queue:
+    """Create and publish an audio resampling queue."""
+    queue = Queue(
+        type="audio_resampling",
+        user_id=user.user_id,
+        total=len(media_ids),
+        status=QueueStatus.PENDING,
+    )
+    session.add(queue)
+    session.commit()
+    session.refresh(queue)
+    try:
+        await publisher.enqueue_task(
+            WorkerTaskType.AUDIO_RESAMPLING,
+            queue_id=queue.queue_id,
+            media_ids=media_ids,
+            target_sampling_rate_hz=target_sampling_rate_hz,
+        )
+    except Exception:
+        logger.exception("Failed to enqueue audio resampling queue_id=%s", queue.queue_id)
+        queue.status = QueueStatus.ERROR
+        queue.error = "Failed to enqueue audio resampling job"
+        session.add(queue)
+        session.commit()
+    return queue
 
 PLAYER_SPECTROGRAM_TYPE = "spectrogram"
 PLAYER_SPECTROGRAM_FILENAME_RE = re.compile(r"(?:_|-)player_s\.png$", re.IGNORECASE)
@@ -738,6 +818,7 @@ async def create_media(
             duty_cycle_period=request.duty_cycle_period,
             note=request.note,
             doi=request.doi,
+            target_sampling_rate_hz=request.target_sampling_rate_hz,
         )
     except Exception:
         logger.exception("Failed to enqueue media batch queue_id=%s", batch_queue.queue_id)
@@ -3186,7 +3267,7 @@ def _build_media_public(
         image_width=image_width,
         image_height=image_height,
         previews=previews,
-        audio_setting=media.audio_setting,
+        audio_setting=_audio_setting_public(media.audio_setting),
         photo_setting=PhotoSettingPublic.model_validate(media.photo_setting) if media.photo_setting else None,
         labels=labels,
     )

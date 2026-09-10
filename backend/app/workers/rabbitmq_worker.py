@@ -61,6 +61,7 @@ from app.workers.tasks import (
     import_collection_bundle,
     merge_file_chunks,
     process_media_batch,
+    process_audio_resampling,
     startup_sync_network_nodes,
     sync_network_nodes,
 )
@@ -87,6 +88,7 @@ TASK_REGISTRY: dict[str, TaskHandler] = {
     WorkerTaskType.ANALYZE_INSECTS.value: analyze_insects,
     WorkerTaskType.ANALYZE_ACOUSTIC_INDEX.value: analyze_acoustic_index,
     WorkerTaskType.PROCESS_MEDIA_BATCH.value: process_media_batch,
+    WorkerTaskType.AUDIO_RESAMPLING.value: process_audio_resampling,
     WorkerTaskType.MERGE_FILE_CHUNKS.value: merge_file_chunks,
     WorkerTaskType.IMPORT_COLLECTION_BUNDLE.value: import_collection_bundle,
     WorkerTaskType.EXPORT_COLLECTION_BUNDLE.value: export_collection_bundle,

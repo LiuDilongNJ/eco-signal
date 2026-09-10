@@ -8,7 +8,6 @@ from pathlib import Path
 from time import monotonic
 from typing import Any
 
-import mutagen
 from fastapi import HTTPException
 from PIL import Image, UnidentifiedImageError
 from sqlmodel import Session, select
@@ -22,8 +21,9 @@ from app.media_paths import (
     media_root,
     normalize_media_relative_path,
     primary_media_path,
+    resolve_existing_audio_media_path,
 )
-from app.models import FileUpload, Media, AudioSetting, MediaCollection, Queue, PhotoSetting
+from app.models import FileUpload, Media, AudioSetting, MediaCollection, Queue, PhotoSetting, Preview
 from app.services.file_service import file_service
 from app.services.media_preview_service import (
     generate_media_previews,
@@ -181,12 +181,13 @@ async def process_media(
         note: str | None = None,
         doi: str | None = None,
         display_filename: str | None = None,
+        target_sampling_rate_hz: int | None = None,
 ) -> dict[str, Any]:
     """
     Process uploaded media file.
 
     This task:
-    1. Normalizes audio uploads to FLAC when needed (physical storage)
+    1. Applies the audio storage policy and optional downsampling
     2. Extracts audio metadata (duration, sample rate, channels, bit depth)
     3. Creates media record where filename reflects normalized storage filename
     4. Moves file to permanent location
@@ -233,16 +234,20 @@ async def process_media(
             if not file_path.is_file():
                 raise FileNotFoundError(f"File not found or is a directory: {file_path}")
 
+            # Hash the source before audio conversion so the value remains stable.
+            md5_hash = _md5_file(file_path)
             storage_filename = file_upload.filename
             media_filename = file_upload.filename
             media_name = file_upload.name
+            audio_file_metadata: dict[str, Any] | None = None
             if actual_media_type == "audio":
                 resolved_display_filename = display_filename or file_upload.filename
                 source_suffix = file_path.suffix.lower()
                 started_at = monotonic()
-                file_path, normalized_filename = file_service.ensure_audio_is_flac(
+                file_path, normalized_filename, audio_file_metadata = file_service.prepare_audio_for_storage(
                     file_path,
                     source_filename=resolved_display_filename,
+                    target_sampling_rate_hz=target_sampling_rate_hz,
                 )
                 storage_filename = normalized_filename
                 media_filename = normalized_filename
@@ -250,7 +255,7 @@ async def process_media(
                 file_upload.filename = normalized_filename
                 file_upload.path = str(normalize_media_relative_path(file_path))
                 logger.info(
-                    "Normalized upload %s from %s to %s (display=%s) in %.3fs",
+                    "Prepared upload %s from %s to %s (display=%s) in %.3fs",
                     file_upload_id,
                     source_suffix or "<no_ext>",
                     normalized_filename,
@@ -260,8 +265,7 @@ async def process_media(
 
             file_size = file_path.stat().st_size
 
-            # Calculate MD5 hash and skip duplicates within the same collection
-            md5_hash = _md5_file(file_path)
+            # Duplicate detection uses the source hash within this collection.
             duplicate_media_id = _find_duplicate_media(session, md5_hash, collection_id)
             if duplicate_media_id is not None:
                 logger.info(
@@ -289,25 +293,11 @@ async def process_media(
             sampling_rate = 44100
             channel_num = 1
             if actual_media_type == "audio":
-                # Extract audio metadata using mutagen or similar
-                duration = 0.0
-                bit_depth = 16
-                try:
-                    audio = mutagen.File(str(file_path))
-
-                    if audio is None:
-                        logger.info("mutagen returned None for file %s", file_path)
-                    else:
-                        info = getattr(audio, "info", None)
-                        if info:
-                            duration = getattr(info, "length", 0.0)
-                            sampling_rate = getattr(info, "sample_rate", 44100)
-                            channel_num = getattr(info, "channels", 1)
-                            bit_depth = getattr(info, "bits_per_sample", 16)
-                        else:
-                            logger.warning("mutagen info is None for file %s", file_path)
-                except Exception as e:
-                    logger.warning(f"Could not extract audio metadata: {e}")
+                stored = (audio_file_metadata or {}).get("stored", {})
+                duration = float(stored.get("duration_s") or 0.0)
+                sampling_rate = int(stored.get("sampling_rate_hz") or 44100)
+                channel_num = int(stored.get("channel_num") or 1)
+                bit_depth = stored.get("bit_depth")
 
                 audio_setting = AudioSetting(
                     recording_gain_db=recording_gain_db,
@@ -315,6 +305,7 @@ async def process_media(
                     bit_depth=bit_depth,
                     channel_num=channel_num,
                     duration_s=duration,
+                    file_metadata=audio_file_metadata,
                 )
                 session.add(audio_setting)
                 session.flush()
@@ -525,6 +516,7 @@ async def process_media_batch(
     duty_cycle_period: int | None = None,
     note: str | None = None,
     doi: str | None = None,
+    target_sampling_rate_hz: int | None = None,
 ) -> dict[str, Any]:
     """Process one submitted media batch and settle its queue once all files are terminal."""
     cancellation_token: CancellationToken | None = ctx.get("cancellation_token")
@@ -571,6 +563,7 @@ async def process_media_batch(
             note=note,
             doi=doi,
             display_filename=item.get("display_filename"),
+            target_sampling_rate_hz=target_sampling_rate_hz,
         )
         _sync_batch_completed(queue_id, item_ids)
 
@@ -618,3 +611,71 @@ async def process_media_batch(
         "total": len(item_ids),
         "status": result_status,
     }
+
+
+async def process_audio_resampling(
+    ctx: dict[str, Any],
+    queue_id: int,
+    media_ids: list[int],
+    target_sampling_rate_hz: int,
+) -> dict[str, Any]:
+    """Resample each accepted audio independently so one failure never aborts a batch."""
+    _mark_batch_queue_running(queue_id)
+    warnings: list[str] = []
+    failures: list[str] = []
+    completed = 0
+    for media_id in media_ids:
+        with Session(engine) as session:
+            media = session.get(Media, media_id)
+            if not media or media.media_type != "audio" or not media.audio_setting:
+                failures.append(f"Media {media_id}: audio is not available")
+                continue
+            link = session.exec(
+                select(MediaCollection).where(MediaCollection.media_id == media_id).order_by(MediaCollection.collection_id)
+            ).first()
+            path = resolve_existing_audio_media_path(link.collection_id, media.directory or "", media.filename) if link else None
+            if path is None:
+                failures.append(f"Media {media_id}: audio file not found on server")
+                continue
+            try:
+                updated_metadata = file_service.resample_stored_audio(
+                    path,
+                    target_sampling_rate_hz=target_sampling_rate_hz,
+                    file_metadata=media.audio_setting.file_metadata or {},
+                )
+                stored = updated_metadata.get("stored") or {}
+                media.audio_setting.file_metadata = updated_metadata
+                media.audio_setting.sampling_rate_hz = int(stored.get("sampling_rate_hz") or media.audio_setting.sampling_rate_hz)
+                media.audio_setting.bit_depth = stored.get("bit_depth")
+                media.audio_setting.channel_num = stored.get("channel_num")
+                media.audio_setting.duration_s = float(stored.get("duration_s") or media.audio_setting.duration_s)
+                media.size_b = path.stat().st_size
+                for preview in session.exec(select(Preview).where(Preview.media_id == media_id)).all():
+                    session.delete(preview)
+                generate_media_previews(
+                    session, media=media, collection_id=link.collection_id, source_path=path,
+                    thumbnail_generator=generate_thumbnail, player_generator=generate_player_spectrogram,
+                    photo_generator=_generate_photo_thumbnail, atomic=False,
+                )
+                session.add(media)
+                session.commit()
+                completed += 1
+                warnings.extend(updated_metadata.get("warnings") or [])
+            except Exception as exc:
+                session.rollback()
+                logger.exception("Resampling failed for media %s", media_id)
+                failures.append(f"Media {media_id}: {exc}")
+    with Session(engine) as session:
+        queue = session.get(Queue, queue_id)
+        if queue:
+            queue.completed = completed
+            queue.error = "; ".join(failures) or None
+            queue.warning = "; ".join(dict.fromkeys(warnings)) or None
+            queue.status, _ = _resolve_batch_queue_status(
+                has_failures=bool(failures),
+                has_warning=bool(queue.warning),
+            )
+            queue.stop_time = dt.now(datetime.UTC)
+            session.add(queue)
+            session.commit()
+    return {"queue_id": queue_id, "completed": completed, "failed": len(failures)}

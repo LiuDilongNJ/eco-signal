@@ -1,0 +1,6 @@
+.audio-metadata-drawer__section { margin-bottom: 22px; }
+.audio-metadata-drawer__row { display: grid; grid-template-columns: minmax(150px, 1fr) 2fr; gap: 12px; padding: 6px 0; border-bottom: 1px solid var(--border-color); white-space: pre-line; word-break: break-word; }
+.audio-metadata-drawer__row span:first-child { color: var(--text-muted); }
+.audio-metadata-drawer__tags { margin-top: 10px; padding: 10px; background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: 8px; }
+.audio-metadata-drawer__warnings { color: var(--warning); }
+.audio-metadata-drawer__footer { display: flex; gap: 8px; }

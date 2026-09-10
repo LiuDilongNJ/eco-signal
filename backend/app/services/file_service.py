@@ -1,8 +1,11 @@
 import logging
+import json
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
+
+import mutagen
 
 from fastapi import UploadFile, HTTPException
 from sqlmodel import Session
@@ -28,6 +31,53 @@ from app.services.upload_validation_service import (
 
 logger = logging.getLogger(__name__)
 _STREAM_CHUNK_SIZE = 1024 * 1024
+
+
+def _as_int(value: object) -> int | None:
+    try:
+        return int(str(value)) if value not in (None, "N/A", "") else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _as_float(value: object) -> float | None:
+    try:
+        return float(str(value)) if value not in (None, "N/A", "") else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _json_tag_value(value: object) -> str | int | float | bool:
+    if isinstance(value, (str, int, float, bool)):
+        return value
+    if isinstance(value, bytes):
+        return f"binary:{len(value)} bytes"
+    return str(value)
+
+
+_NON_CONTENT_AUDIO_TAG_KEYS = {"encoder", "tsse"}
+
+
+def _missing_audio_tag_names(
+    source_tags: dict[str, dict[str, list[str | int | float | bool]]],
+    stored_tags: dict[str, dict[str, list[str | int | float | bool]]],
+) -> list[str]:
+    """Return source tag names whose values are absent after a format conversion."""
+    stored_values = {
+        str(value).casefold()
+        for namespace in stored_tags.values()
+        for values in namespace.values()
+        for value in values
+    }
+    missing: list[str] = []
+    for namespace in source_tags.values():
+        for name, values in namespace.items():
+            if name.casefold() in _NON_CONTENT_AUDIO_TAG_KEYS:
+                continue
+            if any(str(value).casefold() not in stored_values for value in values):
+                missing.append(name)
+    return list(dict.fromkeys(missing))
+
 
 # Allowed file types by category
 ALLOWED_EXTENSIONS = {
@@ -61,9 +111,167 @@ class FileService:
         """Extract file extension from filename."""
         return filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
 
-    def normalize_audio_filename_to_flac(self, filename: str) -> str:
-        """Normalize any audio filename to a lowercase .flac extension."""
-        return f"{Path(filename).stem}.flac"
+    def _probe_audio(self, path: Path) -> dict[str, Any]:
+        """Read the actual container and stream properties, never trusting its suffix."""
+        command = ["ffprobe", "-v", "error", "-show_format", "-show_streams", "-of", "json", str(path)]
+        try:
+            completed = subprocess.run(command, capture_output=True, text=True, check=True)
+            payload = json.loads(completed.stdout)
+        except FileNotFoundError as exc:
+            raise RuntimeError("ffprobe is not installed") from exc
+        except (subprocess.CalledProcessError, json.JSONDecodeError) as exc:
+            raise RuntimeError("Unable to read audio file format") from exc
+        stream = next((item for item in payload.get("streams", []) if item.get("codec_type") == "audio"), None)
+        if not stream:
+            raise ValueError("Uploaded file does not contain an audio stream")
+        fmt = payload.get("format") or {}
+        container = str(fmt.get("format_name") or "").split(",")[0].lower()
+        return {
+            "container": container,
+            "codec": str(stream.get("codec_name") or "").lower(),
+            "bit_rate_bps": _as_int(stream.get("bit_rate") or fmt.get("bit_rate")),
+            "sampling_rate_hz": _as_int(stream.get("sample_rate")),
+            "bit_depth": _as_int(stream.get("bits_per_raw_sample") or stream.get("bits_per_sample")),
+            "channel_num": _as_int(stream.get("channels")),
+            "duration_s": _as_float(stream.get("duration") or fmt.get("duration")),
+        }
+
+    def _extract_audio_tags(self, path: Path) -> tuple[dict[str, dict[str, list[str | int | float | bool]]], list[str]]:
+        """Extract embedded tags and normalize their values for JSON storage."""
+        tags: dict[str, dict[str, list[str | int | float | bool]]] = {
+            "id3v2": {}, "vorbis_comment": {}, "riff_info": {}, "other": {},
+        }
+        warnings: list[str] = []
+        try:
+            audio = mutagen.File(path, easy=False)
+            raw_tags = getattr(audio, "tags", None)
+            if not raw_tags:
+                return {}, warnings
+            tag_class = raw_tags.__class__.__module__.lower()
+            namespace = "id3v2" if "id3" in tag_class else "vorbis_comment" if "vorbis" in tag_class or "flac" in tag_class else "riff_info" if "wave" in tag_class else "other"
+            for key, value in raw_tags.items():
+                values = value if isinstance(value, (list, tuple)) else [value]
+                normalized = [_json_tag_value(item) for item in values]
+                tags[namespace][str(key)] = normalized
+        except Exception as exc:
+            logger.warning("Could not read embedded audio tags from %s: %s", path, exc)
+            warnings.append("Embedded metadata could not be fully read")
+        return {key: value for key, value in tags.items() if value}, warnings
+
+    def prepare_audio_for_storage(
+        self,
+        source_path: Path,
+        *,
+        source_filename: str,
+        target_sampling_rate_hz: int | None = None,
+    ) -> tuple[Path, str, dict[str, Any]]:
+        """Validate audio, convert PCM to FLAC, and apply the requested downsampling."""
+        if not source_path.is_file():
+            raise FileNotFoundError(f"File not found or is a directory: {source_path}")
+
+        source = self._probe_audio(source_path)
+        codec = source["codec"]
+        container = source["container"]
+        supported = {"pcm_s16le", "pcm_s24le", "pcm_s32le", "pcm_f32le", "flac", "mp3", "vorbis", "opus"}
+        if codec not in supported:
+            raise ValueError(f"Unsupported audio codec: {codec or 'unknown'}")
+        source_rate = source["sampling_rate_hz"]
+        if not source_rate:
+            raise ValueError("Audio sampling rate is unavailable")
+        if target_sampling_rate_hz and target_sampling_rate_hz > source_rate:
+            raise ValueError("Target sampling rate must not exceed the source sampling rate")
+
+        tags, warnings = self._extract_audio_tags(source_path)
+        target_codec = "flac" if codec.startswith("pcm_") else codec
+        target_container = "flac" if target_codec == "flac" else "mp3" if target_codec == "mp3" else "ogg"
+        extension = ".flac" if target_codec == "flac" else ".mp3" if target_codec == "mp3" else ".ogg"
+        target_filename = f"{Path(source_filename).stem}{extension}"
+        target_path = source_path.with_name(target_filename)
+        must_convert = codec.startswith("pcm_") or (target_sampling_rate_hz is not None and target_sampling_rate_hz < source_rate)
+        if must_convert:
+            temporary_path = target_path.with_name(f".{target_path.stem}.processing{target_path.suffix}")
+            command = ["ffmpeg", "-y", "-nostdin", "-i", str(source_path), "-map", "0:a:0", "-vn", "-sn", "-dn", "-map_metadata", "0"]
+            if target_sampling_rate_hz:
+                command.extend(["-ar", str(target_sampling_rate_hz)])
+            encoder = {"flac": "flac", "mp3": "libmp3lame", "vorbis": "libvorbis", "opus": "libopus"}[target_codec]
+            command.extend(["-c:a", encoder, str(temporary_path)])
+            try:
+                subprocess.run(command, capture_output=True, text=True, check=True)
+                stored = self._probe_audio(temporary_path)
+                if target_sampling_rate_hz and stored["sampling_rate_hz"] != target_sampling_rate_hz:
+                    raise RuntimeError("Converted file has an unexpected sampling rate")
+                temporary_path.replace(target_path)
+                if source_path != target_path:
+                    source_path.unlink(missing_ok=True)
+            except FileNotFoundError as exc:
+                raise RuntimeError("ffmpeg is not installed") from exc
+            except Exception:
+                temporary_path.unlink(missing_ok=True)
+                raise
+        else:
+            stored = source
+            if source_path.name != target_filename:
+                source_path.replace(target_path)
+
+        stored = self._probe_audio(target_path)
+        metadata = {
+            "schema_version": 1,
+            "source": {"filename": source_filename, **source},
+            "stored": {"filename": target_filename, "container": target_container, **stored},
+            "tags": tags,
+            "warnings": warnings,
+        }
+        if must_convert and tags:
+            stored_tags, _ = self._extract_audio_tags(target_path)
+            missing_tag_names = _missing_audio_tag_names(tags, stored_tags)
+            if missing_tag_names:
+                metadata["warnings"].append(
+                    "Embedded metadata was not retained for: " + ", ".join(missing_tag_names)
+                )
+        return target_path, target_filename, metadata
+
+    def resample_stored_audio(
+        self,
+        source_path: Path,
+        *,
+        target_sampling_rate_hz: int,
+        file_metadata: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Atomically replace a stored audio file with a lower-rate equivalent."""
+        current = self._probe_audio(source_path)
+        current_rate = current["sampling_rate_hz"]
+        if not current_rate or target_sampling_rate_hz > current_rate:
+            raise ValueError("Target sampling rate must not exceed the current sampling rate")
+        if target_sampling_rate_hz == current_rate:
+            updated = dict(file_metadata)
+            updated.setdefault("warnings", []).append("Resampling skipped because the target rate already matches the stored file")
+            return updated
+        codec = current["codec"]
+        encoder = {"flac": "flac", "mp3": "libmp3lame", "vorbis": "libvorbis", "opus": "libopus"}.get(codec)
+        if not encoder:
+            raise ValueError(f"Unsupported audio codec: {codec or 'unknown'}")
+        temporary_path = source_path.with_name(f".{source_path.stem}.resampling{source_path.suffix}")
+        command = [
+            "ffmpeg", "-y", "-nostdin", "-i", str(source_path), "-map", "0:a:0",
+            "-vn", "-sn", "-dn", "-map_metadata", "0", "-ar", str(target_sampling_rate_hz),
+            "-c:a", encoder, str(temporary_path),
+        ]
+        try:
+            subprocess.run(command, capture_output=True, text=True, check=True)
+            stored = self._probe_audio(temporary_path)
+            if stored["sampling_rate_hz"] != target_sampling_rate_hz:
+                raise RuntimeError("Converted file has an unexpected sampling rate")
+            temporary_path.replace(source_path)
+        except Exception:
+            temporary_path.unlink(missing_ok=True)
+            raise
+        updated = dict(file_metadata)
+        updated["stored"] = {"filename": source_path.name, **stored}
+        warnings = list(updated.get("warnings") or [])
+        if codec in {"mp3", "vorbis", "opus"}:
+            warnings.append("Lossy audio was re-encoded during resampling and may have lower quality")
+        updated["warnings"] = warnings
+        return updated
     
     def _validate_file_type(
         self, 
@@ -271,65 +479,6 @@ class FileService:
         """Get the directory for storing chunks of a file."""
         return self.base_dir / logical_chunk_dir_path(filename, batch_id)
 
-    def ensure_audio_is_flac(
-        self,
-        source_path: Path,
-        *,
-        source_filename: str,
-    ) -> tuple[Path, str]:
-        """
-        Normalize an uploaded audio file to FLAC on disk.
-
-        Returns:
-            The normalized FLAC path and filename.
-
-        Raises:
-            FileNotFoundError: Source file is missing.
-            RuntimeError: ffmpeg is unavailable or conversion fails.
-        """
-        if not source_path.is_file():
-            raise FileNotFoundError(f"File not found or is a directory: {source_path}")
-
-        target_filename = self.normalize_audio_filename_to_flac(source_filename)
-        target_path = source_path.with_name(target_filename)
-        source_suffix = source_path.suffix.lower()
-
-        if source_suffix == ".flac":
-            if source_path.name != target_filename:
-                target_path.parent.mkdir(parents=True, exist_ok=True)
-                source_path.replace(target_path)
-                logger.info("Normalized FLAC filename from %s to %s", source_path.name, target_filename)
-            return target_path, target_filename
-
-        command = [
-            "ffmpeg",
-            "-y",
-            "-nostdin",
-            "-i",
-            str(source_path),
-            "-map",
-            "0:a",
-            "-vn",
-            "-sn",
-            "-dn",
-            "-map_metadata",
-            "-1",
-            "-c:a",
-            "flac",
-            str(target_path),
-        ]
-        try:
-            subprocess.run(command, capture_output=True, text=True, check=True)
-        except FileNotFoundError as exc:
-            raise RuntimeError("ffmpeg is not installed") from exc
-        except subprocess.CalledProcessError as exc:
-            if target_path.exists():
-                target_path.unlink()
-            detail = (exc.stderr or exc.stdout or str(exc)).strip()
-            raise RuntimeError(f"ffmpeg conversion failed: {detail}") from exc
-
-        source_path.unlink()
-        return target_path, target_filename
     
     async def save_chunk(
         self,

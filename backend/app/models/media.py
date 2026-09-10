@@ -5,8 +5,9 @@ This module contains Media, MediaCollection, AudioSetting, PhotoSetting, Preview
 """
 import uuid as uuid_lib
 from datetime import datetime
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
+from sqlalchemy import Column, JSON
 from sqlmodel import Field, Relationship, SQLModel
 
 if TYPE_CHECKING:
@@ -41,6 +42,8 @@ class AudioSetting(SQLModel, table=True):
     bit_depth: Optional[int] = Field(default=16, index=True)
     channel_num: Optional[int] = Field(default=1)
     duration_s: float
+    # Keep source and stored-file details together with the embedded tags.
+    file_metadata: dict[str, Any] | None = Field(default=None, sa_column=Column(JSON))
     creation_date: datetime = Field(default_factory=datetime.utcnow)
 
     # Relationships
