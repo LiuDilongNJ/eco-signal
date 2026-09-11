@@ -284,26 +284,26 @@ def read_user_me(
                 )
             )
 
-    can_write_audio = False
+    can_write_media = False
     if project_id is not None:
         if collection_id is not None:
-            can_write_audio = permission_service.has_resource_permission(
+            can_write_media = permission_service.has_resource_permission(
                 session,
                 current_user,
-                "audio",
+                "media",
                 "write",
                 project_id=project_id,
                 collection_id=collection_id,
             )
         elif permission_service.is_admin(current_user):
-            can_write_audio = bool(
+            can_write_media = bool(
                 permission_repository.get_project_collection_ids(session, project_id)
             )
         elif current_user.user_id is not None:
-            can_write_audio = permission_repository.has_effective_collection_permission_in_project(
+            can_write_media = permission_repository.has_effective_collection_permission_in_project(
                 session,
                 current_user.user_id,
-                "audio",
+                "media",
                 "write",
                 project_id,
             )
@@ -314,7 +314,7 @@ def read_user_me(
             "preference": current_user.preference,
             "is_admin": permission_service.is_admin(current_user),
             "is_project_admin": is_project_admin,
-            "can_write_audio": can_write_audio,
+            "can_write_media": can_write_media,
         }
     )
     return api_success(data=data)

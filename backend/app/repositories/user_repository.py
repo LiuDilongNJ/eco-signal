@@ -458,7 +458,7 @@ class UserRepository(BaseRepository[User, UserCreate, UserUpdate]):
                 requester_scope.user_id == requester_user_id,
                 requester_scope.project_id == project_id,
                 requester_scope.scope_type == "project_collection",
-                requester_scope.resource_type == "audio",
+                requester_scope.resource_type == "media",
                 requester_scope.action == "write",
                 requester_scope.collection_id == candidate_scope.collection_id,
             ]

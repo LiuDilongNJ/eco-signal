@@ -1,5 +1,5 @@
 SUB_RESOURCE_TYPES: frozenset[str] = frozenset({
-    "audio", "site", "annotation", "review"
+    "media", "site", "annotation", "review"
 })
 COLLECTION_SCOPED_RESOURCES: frozenset[str] = frozenset({"collection", *SUB_RESOURCE_TYPES})
 ACCESS_ROLE_CODES: frozenset[str] = frozenset({"viewer", "annotator", "reviewer", "manager", "custom"})

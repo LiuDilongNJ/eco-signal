@@ -26,7 +26,7 @@ describe("useCreatorOptions", () => {
 
     it("does not load Creator candidates for a read-only project scope", async () => {
         api.getMe.mockResolvedValue({
-            data: { ...currentUser, can_write_audio: false },
+            data: { ...currentUser, can_write_media: false },
         })
 
         const { result } = renderHook(() => useCreatorOptions(122, 1514))
@@ -39,7 +39,7 @@ describe("useCreatorOptions", () => {
 
     it("loads Creator candidates only when the scope allows audio writes", async () => {
         api.getMe.mockResolvedValue({
-            data: { ...currentUser, can_write_audio: true },
+            data: { ...currentUser, can_write_media: true },
         })
         api.getCreatorOptions.mockResolvedValue({
             data: [{ user_id: 10, name: "Another User", username: "another-user" }],

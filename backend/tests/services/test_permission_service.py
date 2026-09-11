@@ -18,29 +18,29 @@ def test_normalize_permissions_extended():
     assert permission_rules.normalize_permissions([], "project") == []
 
     # Sub-resource present -> adds scope:read
-    res = permission_rules.normalize_permissions(["audio:read"], "project")
-    assert "audio:read" in res
+    res = permission_rules.normalize_permissions(["media:read"], "project")
+    assert "media:read" in res
     assert "project:read" in res
 
     # project:write case
-    res = permission_rules.normalize_permissions(["project:write", "audio:read"], "project")
+    res = permission_rules.normalize_permissions(["project:write", "media:read"], "project")
     assert "project:write" in res
-    assert "audio:read" not in res
+    assert "media:read" not in res
     assert "project:read" not in res
 
 def test_remove_cross_scope_redundancies_extended():
     """Test _remove_cross_scope_redundancies edge cases."""
     # project:write covers all
-    assert permission_rules.remove_cross_scope_redundancies(["audio:read"], {"project:write"}) == []
+    assert permission_rules.remove_cross_scope_redundancies(["media:read"], {"project:write"}) == []
 
-    # parent has audio:write, collection has audio:read -> redundant
-    assert permission_rules.remove_cross_scope_redundancies(["audio:read"], {"audio:write"}) == []
+    # parent has media:write, collection has media:read -> redundant
+    assert permission_rules.remove_cross_scope_redundancies(["media:read"], {"media:write"}) == []
 
-    # parent has audio:read, collection has audio:read -> redundant
-    assert permission_rules.remove_cross_scope_redundancies(["audio:read"], {"audio:read"}) == []
+    # parent has media:read, collection has media:read -> redundant
+    assert permission_rules.remove_cross_scope_redundancies(["media:read"], {"media:read"}) == []
 
-    # parent has site:read, collection has audio:read -> NOT redundant
-    assert permission_rules.remove_cross_scope_redundancies(["audio:read"], {"site:read"}) == ["audio:read"]
+    # parent has site:read, collection has media:read -> NOT redundant
+    assert permission_rules.remove_cross_scope_redundancies(["media:read"], {"site:read"}) == ["media:read"]
 
 class TestPermissionServiceComprehensive:
     """Integration tests for high coverage."""
@@ -230,7 +230,7 @@ class TestPartialUniqueIndex:
         col = _create_collection(db, owner_id=1)
         project_id = _ensure_project_for_collection(db, col.collection_id, owner_id=1)
 
-        perm = db.exec(select(Permission).where(Permission.name == "audio:read")).one()
+        perm = db.exec(select(Permission).where(Permission.name == "media:read")).one()
         db.add(
             UserPermission(
                 user_id=user.user_id,
@@ -260,7 +260,7 @@ class TestPartialUniqueIndex:
         project_a_id = _ensure_project_for_collection(db, col_a.collection_id, owner_id=1)
         project_b_id = _ensure_project_for_collection(db, col_b.collection_id, owner_id=1)
 
-        perm = db.exec(select(Permission).where(Permission.name == "audio:read")).one()
+        perm = db.exec(select(Permission).where(Permission.name == "media:read")).one()
         db.add(
             UserPermission(
                 user_id=user.user_id,
@@ -363,7 +363,7 @@ class TestUserEffectivePermissionView:
             db, user.user_id, project.project_id, None, "project"
         ) == {"read", "write"}
         for collection in (col_a, col_b):
-            for resource_type in ("collection", "audio", "site", "annotation", "review"):
+            for resource_type in ("collection", "media", "site", "annotation", "review"):
                 assert self._permission_actions(
                     db,
                     user.user_id,
@@ -374,7 +374,7 @@ class TestUserEffectivePermissionView:
                       if resource_type in {"annotation", "review"} else {"read", "write"})
 
         assert permission_repository.has_collection_resource_permission(
-            db, user.user_id, project.project_id, col_a.collection_id, "audio", "read"
+            db, user.user_id, project.project_id, col_a.collection_id, "media", "read"
         )
         assert set(
             permission_repository.get_effective_collection_scopes(
@@ -392,26 +392,26 @@ class TestUserEffectivePermissionView:
         col_b = _create_collection(db, owner_id=1)
         db.add(ProjectCollection(project_id=project.project_id, collection_id=col_a.collection_id))
         db.add(ProjectCollection(project_id=project.project_id, collection_id=col_b.collection_id))
-        audio_read = db.exec(select(Permission).where(Permission.name == "audio:read")).one()
+        media_read = db.exec(select(Permission).where(Permission.name == "media:read")).one()
         db.add(
             UserPermission(
                 user_id=user.user_id,
                 project_id=project.project_id,
-                permission_id=audio_read.permission_id,
+                permission_id=media_read.permission_id,
             )
         )
         db.commit()
 
         assert set(
             permission_repository.get_effective_collection_scopes(
-                db, user.user_id, "audio", "read", project_id=project.project_id
+                db, user.user_id, "media", "read", project_id=project.project_id
             )
         ) == {
             (project.project_id, col_a.collection_id),
             (project.project_id, col_b.collection_id),
         }
         assert not permission_repository.has_effective_permission(
-            db, user.user_id, "audio", "read", project_id=project.project_id
+            db, user.user_id, "media", "read", project_id=project.project_id
         )
 
     def test_project_sub_resource_write_expands_read_and_write_only_for_resource(self, db: Session) -> None:
@@ -419,12 +419,12 @@ class TestUserEffectivePermissionView:
         project = _create_project(db, owner_id=1)
         collection = _create_collection(db, owner_id=1)
         db.add(ProjectCollection(project_id=project.project_id, collection_id=collection.collection_id))
-        audio_write = db.exec(select(Permission).where(Permission.name == "audio:write")).one()
+        media_write = db.exec(select(Permission).where(Permission.name == "media:write")).one()
         db.add(
             UserPermission(
                 user_id=user.user_id,
                 project_id=project.project_id,
-                permission_id=audio_write.permission_id,
+                permission_id=media_write.permission_id,
             )
         )
         db.commit()
@@ -434,7 +434,7 @@ class TestUserEffectivePermissionView:
             user.user_id,
             project.project_id,
             collection.collection_id,
-            "audio",
+            "media",
         ) == {"read", "write"}
         assert self._permission_actions(
             db,
@@ -460,7 +460,7 @@ class TestUserEffectivePermissionView:
         )
         db.commit()
 
-        for resource_type in ("collection", "audio", "site", "annotation", "review"):
+        for resource_type in ("collection", "media", "site", "annotation", "review"):
             assert self._permission_actions(
                 db,
                 user.user_id,
@@ -775,8 +775,8 @@ _GRANT_PERM_MAP = {
     "project:write": 2,
     "collection:read": 3,
     "collection:write": 4,
-    "audio:read": 5,
-    "audio:write": 6,
+    "media:read": 5,
+    "media:write": 6,
     "site:read": 7,
     "site:write": 8,
     "annotation:read": 9,

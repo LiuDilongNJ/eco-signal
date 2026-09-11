@@ -35,7 +35,7 @@ def has_resource_permission(
     Args:
         session: Database session
         user: User object (must be loaded with role)
-        resource_type: Type of resource to check (e.g. 'audio', 'collection')
+        resource_type: Type of resource to check (e.g. 'media', 'collection')
         action: Action to perform ('read' or 'write')
         collection_id: The collection context (required for collection/sub-resource checks)
         project_id: The project context (required for project-level checks)
@@ -102,8 +102,8 @@ def _is_public_read_allowed(
     if project_id is None or collection_id is None:
         return False
 
-    # collection.public_access within public project -> collection/audio/site readable.
-    if resource_type in {"collection", "audio", "site"}:
+    # collection.public_access within public project -> collection/media/site readable.
+    if resource_type in {"collection", "media", "site"}:
         return permission_repository.is_public_project_collection(
             session, project_id, collection_id
         )
@@ -176,7 +176,7 @@ def _public_read_permission_names(
         project_id=project_id,
         collection_id=collection_id,
     ):
-        names.update({"collection:read", "audio:read", "site:read"})
+        names.update({"collection:read", "media:read", "site:read"})
     if permission_repository.get_public_collection_scopes(
         session,
         project_id=project_id,

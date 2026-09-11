@@ -119,15 +119,15 @@ def _make_media(db: Session, collection: Collection, user_id: int,
     return m
 
 
-def _grant_audio_read(db: Session, user_id: int, collection_id: int) -> None:
+def _grant_media_read(db: Session, user_id: int, collection_id: int) -> None:
     project = Project(name=f"proj_{random_lower_string()[:6]}", creator_id=user_id, url="https://recording.example")
     db.add(project)
     db.flush()
     db.add(ProjectCollection(project_id=project.project_id, collection_id=collection_id))
     db.flush()
-    perm = db.exec(select(Permission).where(Permission.name == "audio:read")).first()
+    perm = db.exec(select(Permission).where(Permission.name == "media:read")).first()
     if not perm:
-        perm = Permission(name="audio:read", resource_type="audio", action="read")
+        perm = Permission(name="media:read", resource_type="media", action="read")
         db.add(perm)
         db.flush()
     db.add(UserPermission(user_id=user_id, project_id=project.project_id, collection_id=collection_id, permission_id=perm.permission_id))
@@ -210,7 +210,7 @@ class TestMediaDetailLabels:
         db.commit()
 
         # normal user should NOT see admin's label
-        _grant_audio_read(db, normal.user_id, col.collection_id)
+        _grant_media_read(db, normal.user_id, col.collection_id)
         db.commit()
 
         r = client.get(

@@ -274,7 +274,7 @@ class TestSyncUserPermissionsGlobal:
             headers=superuser_token_headers,
             json={
                 "projects": [
-                    _project_assignment(proj.project_id, ["project:read", "audio:write"])
+                    _project_assignment(proj.project_id, ["project:read", "media:write"])
                 ]
             },
         )
@@ -283,7 +283,7 @@ class TestSyncUserPermissionsGlobal:
         assert data["code"] == 0
         assert data["data"] is None
         names = _user_project_permission_names(db, user.user_id, proj.project_id)
-        assert "audio:write" in names
+        assert "media:write" in names
         assert "project:read" in names
 
     def test_sync_collection_scope_permissions(
@@ -322,7 +322,7 @@ class TestSyncUserPermissionsGlobal:
         col = _create_collection(db, user.user_id)
         _link_project_collection(db, proj.project_id, col.collection_id)
         # First grant some permissions
-        _grant_collection_perm(db, user.user_id, col.collection_id, "audio:read")
+        _grant_collection_perm(db, user.user_id, col.collection_id, "media:read")
         # Then clear them
         r = client.put(
             f"{settings.API_V1_STR}/users/{user.user_id}/permissions",
@@ -567,7 +567,7 @@ class TestSyncUserPermissionsGlobal:
                     _project_assignment(
                         proj.project_id,
                         ["project:write"],
-                        [_collection_assignment(proj.project_id, col.collection_id, ["audio:read", "site:write"])],
+                        [_collection_assignment(proj.project_id, col.collection_id, ["media:read", "site:write"])],
                     ),
                 ]
             },
@@ -580,7 +580,7 @@ class TestSyncUserPermissionsGlobal:
     def test_sync_normalizes_redundant_with_scope_write(
         self, client: TestClient, superuser_token_headers: dict[str, str], db: Session
     ) -> None:
-        """project:write + audio:write → only project:write is stored."""
+        """project:write + media:write → only project:write is stored."""
         user = _create_user(db)
         proj = _create_project(db, user.user_id)
         r = client.put(
@@ -589,7 +589,7 @@ class TestSyncUserPermissionsGlobal:
             json={
                 "projects": [
                     _project_assignment(proj.project_id, [
-                        "project:write", "audio:write", "site:read"
+                        "project:write", "media:write", "site:read"
                     ])
                 ]
             },
@@ -601,7 +601,7 @@ class TestSyncUserPermissionsGlobal:
     def test_sync_normalizes_write_implies_read(
         self, client: TestClient, superuser_token_headers: dict[str, str], db: Session
     ) -> None:
-        """audio:write + audio:read → only audio:write is stored."""
+        """media:write + media:read → only media:write is stored."""
         user = _create_user(db)
         proj = _create_project(db, user.user_id)
         col = _create_collection(db, user.user_id)
@@ -614,7 +614,7 @@ class TestSyncUserPermissionsGlobal:
                     _project_assignment(
                         proj.project_id,
                         [],
-                        [_collection_assignment(proj.project_id, col.collection_id, ["audio:write", "audio:read"])],
+                        [_collection_assignment(proj.project_id, col.collection_id, ["media:write", "media:read"])],
                     )
                 ]
             },
@@ -622,14 +622,14 @@ class TestSyncUserPermissionsGlobal:
         assert r.status_code == 200
         assert r.json()["data"] is None
         assert _user_collection_permission_names(db, user.user_id, col.collection_id) == {
-            "audio:write",
+            "media:write",
             "collection:read",
         }
 
     def test_sync_normalizes_cross_scope_project_covers_collection(
         self, client: TestClient, superuser_token_headers: dict[str, str], db: Session
     ) -> None:
-        """project audio:write makes collection audio:write redundant."""
+        """project media:write makes collection media:write redundant."""
         user = _create_user(db)
         proj = _create_project(db, user.user_id)
         col = _create_collection(db, user.user_id)
@@ -642,8 +642,8 @@ class TestSyncUserPermissionsGlobal:
                 "projects": [
                     _project_assignment(
                         proj.project_id,
-                        ["audio:write"],
-                        [_collection_assignment(proj.project_id, col.collection_id, ["audio:write"])],
+                        ["media:write"],
+                        [_collection_assignment(proj.project_id, col.collection_id, ["media:write"])],
                     ),
                 ]
             },
@@ -651,7 +651,7 @@ class TestSyncUserPermissionsGlobal:
         assert r.status_code == 200
         assert r.json()["data"] is None
         assert _user_project_permission_names(db, user.user_id, proj.project_id) == {
-            "audio:write",
+            "media:write",
             "project:read",
         }
         assert _user_collection_permission_names(db, user.user_id, col.collection_id) == set()
@@ -673,7 +673,7 @@ class TestSyncUserPermissionsGlobal:
                     _project_assignment(
                         proj.project_id,
                         ["project:write"],
-                        [_collection_assignment(proj.project_id, col.collection_id, ["collection:write", "audio:read"])],
+                        [_collection_assignment(proj.project_id, col.collection_id, ["collection:write", "media:read"])],
                     ),
                 ]
             },
@@ -685,7 +685,7 @@ class TestSyncUserPermissionsGlobal:
     def test_sync_cross_scope_project_write_covers_collection_read(
         self, client: TestClient, superuser_token_headers: dict[str, str], db: Session
     ) -> None:
-        """project audio:write + collection audio:read → audio:read filtered (write implies read)."""
+        """project media:write + collection media:read → media:read filtered (write implies read)."""
         user = _create_user(db)
         proj = _create_project(db, user.user_id)
         col = _create_collection(db, user.user_id)
@@ -698,8 +698,8 @@ class TestSyncUserPermissionsGlobal:
                 "projects": [
                     _project_assignment(
                         proj.project_id,
-                        ["audio:write"],
-                        [_collection_assignment(proj.project_id, col.collection_id, ["audio:read"])],
+                        ["media:write"],
+                        [_collection_assignment(proj.project_id, col.collection_id, ["media:read"])],
                     ),
                 ]
             },
@@ -711,7 +711,7 @@ class TestSyncUserPermissionsGlobal:
     def test_sync_cross_scope_project_read_keeps_collection_write(
         self, client: TestClient, superuser_token_headers: dict[str, str], db: Session
     ) -> None:
-        """project audio:read + collection audio:write → audio:write is NOT redundant, kept."""
+        """project media:read + collection media:write → media:write is NOT redundant, kept."""
         user = _create_user(db)
         proj = _create_project(db, user.user_id)
         col = _create_collection(db, user.user_id)
@@ -724,8 +724,8 @@ class TestSyncUserPermissionsGlobal:
                 "projects": [
                     _project_assignment(
                         proj.project_id,
-                        ["audio:read"],
-                        [_collection_assignment(proj.project_id, col.collection_id, ["audio:write"])],
+                        ["media:read"],
+                        [_collection_assignment(proj.project_id, col.collection_id, ["media:write"])],
                     ),
                 ]
             },
@@ -733,7 +733,7 @@ class TestSyncUserPermissionsGlobal:
         assert r.status_code == 200
         assert r.json()["data"] is None
         assert _user_collection_permission_names(db, user.user_id, col.collection_id) == {
-            "audio:write",
+            "media:write",
             "collection:read",
         }
 
@@ -751,14 +751,14 @@ class TestSyncUserPermissionsGlobal:
             headers=superuser_token_headers,
             json={
                 "projects": [
-                    _project_assignment(proj.project_id, ["audio:read", "site:read"]),
+                    _project_assignment(proj.project_id, ["media:read", "site:read"]),
                 ]
             },
         )
         assert r.status_code == 200
         assert r.json()["data"] is None
         assert _user_project_permission_names(db, user.user_id, proj.project_id) == {
-            "audio:read",
+            "media:read",
             "site:read",
             "project:read",
         }
@@ -780,7 +780,7 @@ class TestSyncUserPermissionsGlobal:
                     _project_assignment(
                         proj.project_id,
                         [],
-                        [_collection_assignment(proj.project_id, col.collection_id, ["audio:read", "site:read"])],
+                        [_collection_assignment(proj.project_id, col.collection_id, ["media:read", "site:read"])],
                     ),
                 ]
             },
@@ -788,7 +788,7 @@ class TestSyncUserPermissionsGlobal:
         assert r.status_code == 200
         assert r.json()["data"] is None
         assert _user_collection_permission_names(db, user.user_id, col.collection_id) == {
-            "audio:read",
+            "media:read",
             "site:read",
             "collection:read",
         }
@@ -844,7 +844,7 @@ class TestSyncUserPermissionsGlobal:
         proj = _create_project(db, user.user_id)
         col = _create_collection(db, user.user_id)
         _link_project_collection(db, proj.project_id, col.collection_id)
-        _grant_collection_perm(db, user.user_id, col.collection_id, "audio:write")
+        _grant_collection_perm(db, user.user_id, col.collection_id, "media:write")
 
         r = client.put(
             f"{settings.API_V1_STR}/users/{user.user_id}/permissions",
@@ -906,7 +906,7 @@ class TestSyncUserPermissionsGlobal:
         _link_project_collection(db, project.project_id, col_omitted.collection_id)
         _grant_project_perm(db, manager_id, project.project_id, "project:write")
         _grant_project_perm(db, target.user_id, project.project_id, "project:read")
-        _grant_collection_perm(db, target.user_id, col_kept.collection_id, "audio:write", project_id=project.project_id)
+        _grant_collection_perm(db, target.user_id, col_kept.collection_id, "media:write", project_id=project.project_id)
         _grant_collection_perm(db, target.user_id, col_omitted.collection_id, "site:write", project_id=project.project_id)
 
         r = client.put(
@@ -917,13 +917,13 @@ class TestSyncUserPermissionsGlobal:
                     _project_assignment(
                         project.project_id,
                         ["project:read"],
-                        [_collection_assignment(project.project_id, col_kept.collection_id, ["audio:write"])],
+                        [_collection_assignment(project.project_id, col_kept.collection_id, ["media:write"])],
                     )
                 ]
             },
         )
         assert r.status_code == 200
-        assert "audio:write" in _user_collection_permission_names(db, target.user_id, col_kept.collection_id)
+        assert "media:write" in _user_collection_permission_names(db, target.user_id, col_kept.collection_id)
         assert _user_collection_permission_names(db, target.user_id, col_omitted.collection_id) == set()
 
     def test_non_admin_collection_window_clears_only_that_project_path(
@@ -951,7 +951,7 @@ class TestSyncUserPermissionsGlobal:
             db,
             target.user_id,
             shared_col.collection_id,
-            "audio:write",
+            "media:write",
             project_id=project_a.project_id,
         )
         _grant_collection_perm(
@@ -1260,7 +1260,7 @@ class TestGetUserPermissionConfig:
         proj = _create_project(db, user.user_id)
         col = _create_collection(db, user.user_id)
         _link_project_collection(db, proj.project_id, col.collection_id)
-        _grant_project_perm(db, user.user_id, proj.project_id, "audio:write")
+        _grant_project_perm(db, user.user_id, proj.project_id, "media:write")
         _grant_collection_perm(db, user.user_id, col.collection_id, "site:read")
 
         r = client.get(
@@ -1270,7 +1270,7 @@ class TestGetUserPermissionConfig:
         assert r.status_code == 200
         data = r.json()["data"]
         proj_data = next(p for p in data["projects"] if p["project_id"] == proj.project_id)
-        assert "audio:write" in proj_data["stored_permissions"]
+        assert "media:write" in proj_data["stored_permissions"]
         col_data = next(c for c in proj_data["collections"] if c["collection_id"] == col.collection_id)
         assert "site:read" in col_data["stored_permissions"]
 
@@ -1381,7 +1381,7 @@ class TestGetUserPermissionConfig:
                 "projects": [
                     _project_assignment(
                         proj.project_id,
-                        ["audio:read", "site:write", "annotation:read", "review:write"],
+                        ["media:read", "site:write", "annotation:read", "review:write"],
                     )
                 ]
             },
@@ -1398,7 +1398,7 @@ class TestGetUserPermissionConfig:
         col_data = next(c for c in proj_data["collections"] if c["collection_id"] == col.collection_id)
 
         assert col_data["stored_permissions"] == []
-        assert "audio:read" in col_data["effective_permissions"]
+        assert "media:read" in col_data["effective_permissions"]
         assert "site:write" in col_data["effective_permissions"]
         assert "annotation:read" in col_data["effective_permissions"]
         assert "review:write" in col_data["effective_permissions"]
@@ -1420,7 +1420,7 @@ class TestGetUserPermissionConfig:
                     _project_assignment(
                         proj.project_id,
                         ["review:write"],
-                        [_collection_assignment(proj.project_id, col.collection_id, ["audio:read"])],
+                        [_collection_assignment(proj.project_id, col.collection_id, ["media:read"])],
                     )
                 ]
             },
@@ -1428,7 +1428,7 @@ class TestGetUserPermissionConfig:
         assert r.status_code == 200
 
         assert _user_collection_permission_names(db, user.user_id, col.collection_id) == {
-            "audio:read",
+            "media:read",
             "collection:read",
         }
 
@@ -1441,9 +1441,9 @@ class TestGetUserPermissionConfig:
         proj_data = next(p for p in data["projects"] if p["project_id"] == proj.project_id)
         col_data = next(c for c in proj_data["collections"] if c["collection_id"] == col.collection_id)
 
-        assert "audio:read" in col_data["stored_permissions"]
+        assert "media:read" in col_data["stored_permissions"]
         assert "review:write" not in col_data["stored_permissions"]
-        assert "audio:read" in col_data["effective_permissions"]
+        assert "media:read" in col_data["effective_permissions"]
         assert "review:write" in col_data["effective_permissions"]
 
     def test_project_manager_sees_only_managed_project_tree(
@@ -1604,11 +1604,11 @@ class TestStep2PublicResource:
         col = _create_collection(db, user.user_id, public_access=True)
         assert not has_resource_permission(db, user, "collection", "write", collection_id=col.collection_id)
 
-    def test_public_collection_inherits_to_audio(self, db: Session) -> None:
-        """Public collection (public_access=True) grants audio:read."""
+    def test_public_collection_inherits_to_media(self, db: Session) -> None:
+        """Public collection (public_access=True) grants media:read."""
         user = _create_user(db)
         col = _create_collection(db, user.user_id, public_access=True)
-        assert has_resource_permission(db, user, "audio", "read", collection_id=col.collection_id)
+        assert has_resource_permission(db, user, "media", "read", collection_id=col.collection_id)
 
     def test_public_collection_inherits_to_site(self, db: Session) -> None:
         """Public collection (public_access=True) grants site:read."""
@@ -1616,11 +1616,11 @@ class TestStep2PublicResource:
         col = _create_collection(db, user.user_id, public_access=True)
         assert has_resource_permission(db, user, "site", "read", collection_id=col.collection_id)
 
-    def test_public_collection_does_not_inherit_audio_write(self, db: Session) -> None:
-        """Public collection does NOT grant audio:write."""
+    def test_public_collection_does_not_inherit_media_write(self, db: Session) -> None:
+        """Public collection does NOT grant media:write."""
         user = _create_user(db)
         col = _create_collection(db, user.user_id, public_access=True)
-        assert not has_resource_permission(db, user, "audio", "write", collection_id=col.collection_id)
+        assert not has_resource_permission(db, user, "media", "write", collection_id=col.collection_id)
 
     def test_public_collection_does_not_inherit_to_annotation_without_public_tags(self, db: Session) -> None:
         """public_access alone does NOT grant annotation:read; need public_tags for that."""
@@ -1646,46 +1646,46 @@ class TestStep2PublicResource:
 class TestStep3DirectCollectionPermission:
     """Step 3: Direct collection-level permission match."""
 
-    def test_direct_audio_read(self, db: Session) -> None:
+    def test_direct_media_read(self, db: Session) -> None:
         user = _create_user(db)
         col = _create_collection(db, user.user_id)
-        _grant_collection_perm(db, user.user_id, col.collection_id, "audio:read")
-        assert has_resource_permission(db, user, "audio", "read", collection_id=col.collection_id)
+        _grant_collection_perm(db, user.user_id, col.collection_id, "media:read")
+        assert has_resource_permission(db, user, "media", "read", collection_id=col.collection_id)
 
-    def test_direct_audio_write_implies_read(self, db: Session) -> None:
-        """audio:write at collection scope implies audio:read via step 7."""
+    def test_direct_media_write_implies_read(self, db: Session) -> None:
+        """media:write at collection scope implies media:read via step 7."""
         user = _create_user(db)
         col = _create_collection(db, user.user_id)
-        _grant_collection_perm(db, user.user_id, col.collection_id, "audio:write")
-        assert has_resource_permission(db, user, "audio", "read", collection_id=col.collection_id)
+        _grant_collection_perm(db, user.user_id, col.collection_id, "media:write")
+        assert has_resource_permission(db, user, "media", "read", collection_id=col.collection_id)
 
     def test_no_permission_denied(self, db: Session) -> None:
         user = _create_user(db)
         col = _create_collection(db, user.user_id)
-        assert not has_resource_permission(db, user, "audio", "read", collection_id=col.collection_id)
+        assert not has_resource_permission(db, user, "media", "read", collection_id=col.collection_id)
 
     def test_permission_does_not_bleed_to_other_collection(self, db: Session) -> None:
         user = _create_user(db)
         col_a = _create_collection(db, user.user_id)
         col_b = _create_collection(db, user.user_id)
-        _grant_collection_perm(db, user.user_id, col_a.collection_id, "audio:write")
+        _grant_collection_perm(db, user.user_id, col_a.collection_id, "media:write")
         # col_a has permission, col_b must not
-        assert has_resource_permission(db, user, "audio", "write", collection_id=col_a.collection_id)
-        assert not has_resource_permission(db, user, "audio", "write", collection_id=col_b.collection_id)
+        assert has_resource_permission(db, user, "media", "write", collection_id=col_a.collection_id)
+        assert not has_resource_permission(db, user, "media", "write", collection_id=col_b.collection_id)
 
 
 class TestStep4ProjectLevelInheritance:
     """Step 4: Project-level binding makes permission inherit to all collections under that project."""
 
-    def test_audio_read_at_project_level_inherits_to_collection(self, db: Session) -> None:
-        """audio:read bound at project scope is inherited by its collection."""
+    def test_media_read_at_project_level_inherits_to_collection(self, db: Session) -> None:
+        """media:read bound at project scope is inherited by its collection."""
         user = _create_user(db)
         proj = _create_project(db, user.user_id)
         col = _create_collection(db, user.user_id)
         _link_project_collection(db, proj.project_id, col.collection_id)
-        _grant_project_perm(db, user.user_id, proj.project_id, "audio:read")
+        _grant_project_perm(db, user.user_id, proj.project_id, "media:read")
 
-        assert has_resource_permission(db, user, "audio", "read", collection_id=col.collection_id)
+        assert has_resource_permission(db, user, "media", "read", collection_id=col.collection_id)
 
     def test_project_level_perm_not_applied_to_unrelated_collection(self, db: Session) -> None:
         """Project-level permission must NOT bleed to collections in other projects."""
@@ -1694,10 +1694,10 @@ class TestStep4ProjectLevelInheritance:
         col_in_proj = _create_collection(db, user.user_id)
         col_out = _create_collection(db, user.user_id)  # not linked to proj
         _link_project_collection(db, proj.project_id, col_in_proj.collection_id)
-        _grant_project_perm(db, user.user_id, proj.project_id, "audio:read")
+        _grant_project_perm(db, user.user_id, proj.project_id, "media:read")
 
-        assert has_resource_permission(db, user, "audio", "read", collection_id=col_in_proj.collection_id)
-        assert not has_resource_permission(db, user, "audio", "read", collection_id=col_out.collection_id)
+        assert has_resource_permission(db, user, "media", "read", collection_id=col_in_proj.collection_id)
+        assert not has_resource_permission(db, user, "media", "read", collection_id=col_out.collection_id)
 
     def test_project_read_does_not_cascade_to_sub_resources(self, db: Session) -> None:
         """project:read on project scope does NOT cascade to sub-resources (only direct match, step 4)."""
@@ -1706,11 +1706,11 @@ class TestStep4ProjectLevelInheritance:
         col = _create_collection(db, user.user_id)
         _link_project_collection(db, proj.project_id, col.collection_id)
         # project:read is granted at project scope — this only grants project resource itself
-        # via step 4, because resource_type='project' is matched, not collection/audio
+        # via step 4, because resource_type='project' is matched, not collection/media
         _grant_project_perm(db, user.user_id, proj.project_id, "project:read")
 
-        # project:read should NOT cascade to audio
-        assert not has_resource_permission(db, user, "audio", "read", collection_id=col.collection_id)
+        # project:read should NOT cascade to media
+        assert not has_resource_permission(db, user, "media", "read", collection_id=col.collection_id)
 
 
 class TestStep5CollectionWrite:
@@ -1778,32 +1778,32 @@ class TestStep6ProjectWrite:
         _grant_project_perm(db, user.user_id, proj_a.project_id, "project:write")
 
         # col_a: should pass
-        assert has_resource_permission(db, user, "audio", "read", collection_id=col_a.collection_id)
+        assert has_resource_permission(db, user, "media", "read", collection_id=col_a.collection_id)
         # col_b: must NOT pass
-        assert not has_resource_permission(db, user, "audio", "read", collection_id=col_b.collection_id)
+        assert not has_resource_permission(db, user, "media", "read", collection_id=col_b.collection_id)
 
 
 class TestStep7WriteImpliesRead:
     """Step 7: write implies read for same resource."""
 
-    def test_audio_write_implies_audio_read(self, db: Session) -> None:
+    def test_media_write_implies_media_read(self, db: Session) -> None:
         user = _create_user(db)
         col = _create_collection(db, user.user_id)
-        _grant_collection_perm(db, user.user_id, col.collection_id, "audio:write")
-        assert has_resource_permission(db, user, "audio", "read", collection_id=col.collection_id)
+        _grant_collection_perm(db, user.user_id, col.collection_id, "media:write")
+        assert has_resource_permission(db, user, "media", "read", collection_id=col.collection_id)
 
-    def test_audio_read_does_not_imply_audio_write(self, db: Session) -> None:
+    def test_media_read_does_not_imply_media_write(self, db: Session) -> None:
         user = _create_user(db)
         col = _create_collection(db, user.user_id)
-        _grant_collection_perm(db, user.user_id, col.collection_id, "audio:read")
-        assert not has_resource_permission(db, user, "audio", "write", collection_id=col.collection_id)
+        _grant_collection_perm(db, user.user_id, col.collection_id, "media:read")
+        assert not has_resource_permission(db, user, "media", "write", collection_id=col.collection_id)
 
 
 class TestSubResourceTypesConstant:
     """Verify the inherited sub-resource set contains expected members."""
 
-    def test_sub_resource_types_include_audio(self) -> None:
-        assert "audio" in SUB_RESOURCE_TYPES
+    def test_sub_resource_types_include_media(self) -> None:
+        assert "media" in SUB_RESOURCE_TYPES
 
     def test_sub_resource_types_include_site(self) -> None:
         assert "site" in SUB_RESOURCE_TYPES

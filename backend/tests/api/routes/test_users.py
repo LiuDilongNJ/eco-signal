@@ -177,7 +177,7 @@ def test_creator_options_reject_unreachable_project(
     assert response.status_code == 403
 
 
-def test_creator_options_require_audio_write_in_requested_project(
+def test_creator_options_require_media_write_in_requested_project(
     client: TestClient,
     normal_user_token_headers: dict[str, str],
     db: Session,
@@ -197,8 +197,8 @@ def test_creator_options_require_audio_write_in_requested_project(
         project_name="Creator Other Writable Project",
         collection_name="Creator Other Writable Collection",
     )
-    _grant_permission(db, user, "audio", "read", project_id=readable_project.project_id)
-    _grant_permission(db, user, "audio", "write", project_id=writable_project.project_id)
+    _grant_permission(db, user, "media", "read", project_id=readable_project.project_id)
+    _grant_permission(db, user, "media", "write", project_id=writable_project.project_id)
 
     response = client.get(
         f"{settings.API_V1_STR}/users/creators?project_id={readable_project.project_id}",
@@ -206,10 +206,10 @@ def test_creator_options_require_audio_write_in_requested_project(
     )
 
     assert response.status_code == 403
-    assert response.json()["message"] == "No audio:write permission on the requested project or collection"
+    assert response.json()["message"] == "No media:write permission on the requested project or collection"
 
 
-def test_creator_options_allow_collection_audio_write_only_for_that_collection(
+def test_creator_options_allow_collection_media_write_only_for_that_collection(
     client: TestClient,
     normal_user_token_headers: dict[str, str],
     db: Session,
@@ -235,7 +235,7 @@ def test_creator_options_allow_collection_audio_write_only_for_that_collection(
     _grant_permission(
         db,
         user,
-        "audio",
+        "media",
         "write",
         project_id=project.project_id,
         collection_id=writable_collection.collection_id,
@@ -254,7 +254,7 @@ def test_creator_options_allow_collection_audio_write_only_for_that_collection(
     assert denied.status_code == 403
 
 
-def test_current_user_reports_scoped_audio_write_capability(
+def test_current_user_reports_scoped_media_write_capability(
     client: TestClient,
     normal_user_token_headers: dict[str, str],
     db: Session,
@@ -277,19 +277,19 @@ def test_current_user_reports_scoped_audio_write_capability(
         collection_id=other_collection.collection_id,
     ))
     db.commit()
-    _grant_permission(db, user, "audio", "read", project_id=project.project_id)
+    _grant_permission(db, user, "media", "read", project_id=project.project_id)
 
     read_only = client.get(
         f"{settings.API_V1_STR}/current-user?project_id={project.project_id}",
         headers=normal_user_token_headers,
     )
     assert read_only.status_code == 200
-    assert read_only.json()["data"]["can_write_audio"] is False
+    assert read_only.json()["data"]["can_write_media"] is False
 
     _grant_permission(
         db,
         user,
-        "audio",
+        "media",
         "write",
         project_id=project.project_id,
         collection_id=writable_collection.collection_id,
@@ -308,9 +308,9 @@ def test_current_user_reports_scoped_audio_write_capability(
         headers=normal_user_token_headers,
     )
 
-    assert all_collections.json()["data"]["can_write_audio"] is True
-    assert writable_scope.json()["data"]["can_write_audio"] is True
-    assert read_only_scope.json()["data"]["can_write_audio"] is False
+    assert all_collections.json()["data"]["can_write_media"] is True
+    assert writable_scope.json()["data"]["can_write_media"] is True
+    assert read_only_scope.json()["data"]["can_write_media"] is False
 
 
 def test_get_users_normal_user_me_with_project_write(
@@ -596,7 +596,7 @@ def test_get_existing_user(
     api_user = json_resp["data"]
     assert user.email == api_user["email"]
     assert api_user["color"] == "#00AAFF"
-    assert "can_write_audio" not in api_user
+    assert "can_write_media" not in api_user
 
 
 def test_get_existing_user_current_user(client: TestClient, db: Session) -> None:
@@ -3116,7 +3116,7 @@ CURRENT_USER_PERMISSIONS_URL = f"{settings.API_V1_STR}/current-user/permissions"
 ALL_PERMISSION_NAMES = {
     "project:read", "project:write",
     "collection:read", "collection:write",
-    "audio:read", "audio:write",
+    "media:read", "media:write",
     "site:read", "site:write",
     "annotation:read", "annotation:write",
     "review:read", "review:write",
@@ -3175,7 +3175,7 @@ def test_current_user_permissions_project_write_expands_to_collection_scope(
         normal_user_token_headers,
     )
 
-    assert {"project:write", "collection:write", "review:write", "audio:write"} <= permissions
+    assert {"project:write", "collection:write", "review:write", "media:write"} <= permissions
 
 
 def test_current_user_permissions_review_read_does_not_grant_write(
@@ -3345,7 +3345,7 @@ def test_current_user_permissions_anonymous_gets_public_reads_only(
     assert permissions == {
         "project:read",
         "collection:read",
-        "audio:read",
+        "media:read",
         "site:read",
         "annotation:read",
     }
@@ -3390,7 +3390,7 @@ def test_current_user_permissions_public_tags_off_hides_annotation_read(
     )
 
     assert "annotation:read" not in permissions
-    assert {"collection:read", "audio:read", "site:read"} <= permissions
+    assert {"collection:read", "media:read", "site:read"} <= permissions
 
 
 def test_current_user_permissions_public_read_never_implies_write(

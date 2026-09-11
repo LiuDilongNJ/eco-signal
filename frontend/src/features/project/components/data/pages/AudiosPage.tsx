@@ -9,7 +9,7 @@ import type { ColumnDef, FormFieldDef } from "../DataPageLayout"
 import { mediaApi } from "../../../../../api/endpoints/media"
 import { useProjectStore } from "../../../stores/useProjectStore"
 import { message } from "@/components/ui"
-import { Music2, Link as LinkIcon, Tag as TagIcon, ClipboardList as ClipboardListIcon, Bot as BotIcon, Activity as ActivityIcon, Info, Waves } from "lucide-react"
+import { AudioLines, Link as LinkIcon, Tag as TagIcon, ClipboardList as ClipboardListIcon, Bot as BotIcon, Activity as ActivityIcon, Info, Waves } from "lucide-react"
 import { UploadAudioDrawer } from "../../modals/UploadAudioDrawer"
 import { EditMediaDrawer } from "../../modals/EditMediaDrawer"
 import { LinkItemToCollectionsDrawer } from "../../modals/LinkItemToCollectionsDrawer"
@@ -122,7 +122,7 @@ export function AudiosPage() {
     const uploadQueue = useMediaUploadQueue("audio", currentCollectionId)
     const { creatorOptions, currentUserId } = useCreatorOptions(currentProjectId, currentCollectionId)
     const { can } = usePermissions(currentProjectId, currentCollectionId)
-    const canWriteAudio = can("audio:write")
+    const canWriteMedia = can("media:write")
 
     useEffect(() => () => {
         mediaProcessingAbortRef.current?.abort()
@@ -243,7 +243,7 @@ export function AudiosPage() {
     const addDropdownItems = [
         {
             key: 'audios',
-            label: (<span style={{ display: 'flex', alignItems: 'center', gap: 8 }}><Music2 size={16} /> Audios</span>),
+            label: (<span style={{ display: 'flex', alignItems: 'center', gap: 8 }}><AudioLines size={16} /> Audios</span>),
             onClick: () => audioInputRef.current?.click(),
         },
     ]
@@ -265,15 +265,15 @@ export function AudiosPage() {
                     importLabel: "Metadata",
                     instructionsLabel: "Metadata Instructions",
                     fields: { project_id: currentProjectId, collection_id: currentCollectionId, media_type: "audio" },
-                    disabled: !canWriteAudio || !currentProjectId || !currentCollectionId || currentCollectionId === "all",
-                    disabledReason: canWriteAudio
+                    disabled: !canWriteMedia || !currentProjectId || !currentCollectionId || currentCollectionId === "all",
+                    disabledReason: canWriteMedia
                         ? "Select a project and collection before importing audio metadata"
                         : "You do not have permission to import audio metadata",
                 }}
                 columns={COLUMNS}
                 rows={rows}
                 formFields={FORM_FIELDS}
-                icon={Music2}
+                icon={AudioLines}
                 loading={loading}
                 serverSide={true}
                 totalRows={totalRows}
@@ -396,7 +396,7 @@ export function AudiosPage() {
                 addDropdownItems={addDropdownItems}
                 addDisabled={!currentCollectionId || currentCollectionId === 'all'}
                 addDisabledTooltip="Before uploading media, please select a collection."
-                canAdd={canWriteAudio}
+                canAdd={canWriteMedia}
                 canEditRecord={(record) => rowCan(record, "edit")}
                 canDeleteRecord={(record) => rowCan(record, "delete")}
             />

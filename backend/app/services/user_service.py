@@ -374,26 +374,26 @@ def list_creator_options(
         requester_user_id: int | None = None
     else:
         if collection_id is not None:
-            has_audio_write = permission_service.has_resource_permission(
+            has_media_write = permission_service.has_resource_permission(
                 session,
                 current_user,
-                "audio",
+                "media",
                 "write",
                 project_id=project_id,
                 collection_id=collection_id,
             )
         else:
-            has_audio_write = permission_repository.has_effective_collection_permission_in_project(
+            has_media_write = permission_repository.has_effective_collection_permission_in_project(
                 session,
                 current_user.user_id,
-                "audio",
+                "media",
                 "write",
                 project_id,
             )
-        if not has_audio_write:
+        if not has_media_write:
             raise HTTPException(
                 status_code=403,
-                detail="No audio:write permission on the requested project or collection",
+                detail="No media:write permission on the requested project or collection",
             )
         requester_user_id = current_user.user_id
 

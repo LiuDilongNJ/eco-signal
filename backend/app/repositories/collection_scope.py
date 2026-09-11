@@ -10,7 +10,7 @@ def resolve_project_collection_scope(
     project_id: int,
     collection_id: int | None = None,
     user_id: int | None = None,
-    resource_type: str = "audio",
+    resource_type: str = "media",
     action: str = "read",
     include_public: bool = True,
     is_admin: bool = False,

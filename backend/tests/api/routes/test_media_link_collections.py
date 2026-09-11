@@ -167,7 +167,7 @@ class TestMediaCollectionLinkOptions:
         link_collection_to_project(db, media_project.project_id, media_collection.collection_id)
         media = create_test_media(db, media_collection.collection_id, creator_id=user.user_id)
 
-        grant_permission(db, user.user_id, "audio", "write", collection_id=media_collection.collection_id)
+        grant_permission(db, user.user_id, "media", "write", collection_id=media_collection.collection_id)
 
         r = client.get(
             f"{settings.API_V1_STR}/media/{media.media_id}/collection-options",
@@ -240,7 +240,7 @@ class TestSyncMediaCollections:
         link_collection_to_project(db, project.project_id, target_collection.collection_id)
         media = create_test_media(db, current_collection.collection_id, creator_id=user.user_id)
 
-        grant_permission(db, user.user_id, "audio", "write", project_id=project.project_id, collection_id=current_collection.collection_id)
+        grant_permission(db, user.user_id, "media", "write", project_id=project.project_id, collection_id=current_collection.collection_id)
         grant_permission(db, user.user_id, "collection", "write", project_id=project.project_id, collection_id=current_collection.collection_id)
         grant_permission(db, user.user_id, "collection", "write", project_id=project.project_id, collection_id=target_collection.collection_id)
 
@@ -295,7 +295,7 @@ class TestSyncMediaCollections:
         link_collection_to_project(db, project.project_id, target_collection.collection_id)
         media = create_test_media(db, current_collection.collection_id, creator_id=user.user_id)
 
-        grant_permission(db, user.user_id, "audio", "write", project_id=project.project_id, collection_id=current_collection.collection_id)
+        grant_permission(db, user.user_id, "media", "write", project_id=project.project_id, collection_id=current_collection.collection_id)
         grant_permission(db, user.user_id, "collection", "write", project_id=project.project_id, collection_id=current_collection.collection_id)
 
         r = client.put(

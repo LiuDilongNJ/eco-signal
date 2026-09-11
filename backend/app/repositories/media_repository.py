@@ -218,7 +218,7 @@ class MediaRepository(BaseRepository[Media, dict, MediaUpdate]):
             project_id=project_id,
             collection_id=collection_id,
             user_id=user_id,
-            resource_type="audio",
+            resource_type="media",
             action="read",
         )
         return query, filters

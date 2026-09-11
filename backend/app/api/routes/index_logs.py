@@ -41,7 +41,7 @@ async def import_index_logs(
         AuthorizationAction.MEDIA_EDIT,
         collection_id=collection_id,
         project_id=project_id,
-        denied_detail="No audio:write permission on collection",
+        denied_detail="No media:write permission on collection",
     )
     parsed = parse_import_upload(file.filename or "", await file.read())
     report = tabular_import_service.import_index_logs(

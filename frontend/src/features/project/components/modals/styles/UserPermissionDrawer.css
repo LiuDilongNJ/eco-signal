@@ -204,9 +204,11 @@
 }
 
 .upd-role-container {
-    flex: 0 0 130px;
+    flex: 0 0 155px;
     display: flex;
-    justify-content: center;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 6px;
 }
 
 .upd-role-select.ant-select {
@@ -357,3 +359,45 @@
 .upd-icon-item:hover {
     background: rgba(0, 0, 0, 0.04);
 }
+
+.upd-role-warning {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #e6a23c;
+    cursor: help;
+    flex-shrink: 0;
+}
+
+.upd-role-warning-icon {
+    stroke-width: 2.2;
+}
+
+.upd-icon-divergence-marker {
+    position: absolute;
+    left: -7px;
+    top: -7px;
+    z-index: 2;
+    width: 14px;
+    height: 14px;
+    border: 1.5px solid var(--brand);
+    border-radius: 50%;
+    background: var(--bg-surface);
+    color: var(--brand);
+    font-size: 8px;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+}
+
+.upd-icon-item--divergent {
+    border-style: dashed !important;
+}
+
+.upd-checkbox--disabled {
+    opacity: 0.75;
+    cursor: not-allowed;
+}
+

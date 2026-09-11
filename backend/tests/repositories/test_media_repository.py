@@ -778,11 +778,11 @@ class TestMediaRepository:
 
         perm = db.exec(
             select(Permission).where(
-                Permission.resource_type == "audio", Permission.action == "read"
+                Permission.resource_type == "media", Permission.action == "read"
             )
         ).first()
         if not perm:
-            perm = Permission(resource_type="audio", action="read", name="audio:read")
+            perm = Permission(resource_type="media", action="read", name="media:read")
             db.add(perm)
             db.flush()
 

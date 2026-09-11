@@ -26,13 +26,13 @@ def test_every_business_action_has_one_policy():
     [
         (
             AuthorizationAction.MEDIA_RUN_AI_MODELS,
-            {("audio", "read"): {10}},
+            {("media", "read"): {10}},
             authorization_service.AuthorizationSubject(frozenset({10})),
             True,
         ),
         (
             AuthorizationAction.MEDIA_RUN_ACOUSTIC,
-            {("audio", "read"): {10}},
+            {("media", "read"): {10}},
             authorization_service.AuthorizationSubject(frozenset({10})),
             False,
         ),

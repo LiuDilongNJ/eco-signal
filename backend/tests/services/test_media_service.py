@@ -2735,10 +2735,10 @@ class TestMediaServiceScenarios:
         db.add(MediaCollection(media_id=media.media_id, collection_id=col.collection_id, added_by=user.user_id))
         db.flush()
 
-        # Grant audio:read
-        perm = db.exec(select(Permission).where(Permission.name == "audio:read")).first()
+        # Grant media:read
+        perm = db.exec(select(Permission).where(Permission.name == "media:read")).first()
         if not perm:
-            perm = Permission(name="audio:read", resource_type="audio", action="read")
+            perm = Permission(name="media:read", resource_type="media", action="read")
             db.add(perm)
             db.flush()
         db.add(UserPermission(user_id=user.user_id, project_id=project.project_id, collection_id=col.collection_id, permission_id=perm.permission_id))

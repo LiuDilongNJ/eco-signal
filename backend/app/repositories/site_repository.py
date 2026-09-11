@@ -949,7 +949,7 @@ class SiteRepository(BaseRepository[Site, SiteCreate, SiteUpdate]):
                 use_project_site_scope=False,
             )
 
-        media_collection_ids = _resolve_ids("audio")
+        media_collection_ids = _resolve_ids("media")
         use_project_site_scope = (
             collection_id is None
             and has_project_site_scope

@@ -117,7 +117,7 @@ def grant_audio_read_permission(
         project_id = project_ids[0]
     read_perm = db.exec(
         select(Permission).where(
-            Permission.resource_type == "audio",
+            Permission.resource_type == "media",
             Permission.action == "read",
         )
     ).one()
@@ -141,7 +141,7 @@ def grant_project_audio_read_permission(
     """Grant project-scoped audio:read."""
     read_perm = db.exec(
         select(Permission).where(
-            Permission.resource_type == "audio",
+            Permission.resource_type == "media",
             Permission.action == "read",
         )
     ).one()

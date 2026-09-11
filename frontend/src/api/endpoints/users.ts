@@ -18,7 +18,7 @@ export interface UserPublic {
 }
 
 export interface CurrentUserPublic extends UserPublic {
-    can_write_audio: boolean
+    can_write_media: boolean
 }
 
 /** Effective `resource:action` grants for a scope, used to gate action buttons. */

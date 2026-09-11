@@ -16,7 +16,7 @@ export type PermissionAction = "read" | "write" | "read_own" | "write_own"
 export type PermissionResource =
     | "project"
     | "collection"
-    | "audio"
+    | "media"
     | "site"
     | "annotation"
     | "review"

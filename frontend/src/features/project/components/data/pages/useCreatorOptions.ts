@@ -39,7 +39,7 @@ export function useCreatorOptions(projectId: ScopeId, collectionId: ScopeId) {
                 }
                 setCurrentUser(me)
 
-                if (!meResponse.data.can_write_audio) {
+                if (!meResponse.data.can_write_media) {
                     setCreatorOptions([])
                     return
                 }

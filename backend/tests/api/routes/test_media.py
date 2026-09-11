@@ -685,7 +685,7 @@ class TestMediaList:
         user_id = int(pyjwt.decode(token, options={"verify_signature": False})["sub"])
         permission = db.exec(
             select(Permission).where(
-                Permission.resource_type == "audio",
+                Permission.resource_type == "media",
                 Permission.action == "write",
             )
         ).one()
@@ -731,7 +731,7 @@ class TestMediaList:
 
         token = normal_user_token_headers["Authorization"].split(" ")[1]
         user_id = int(pyjwt.decode(token, options={"verify_signature": False})["sub"])
-        for resource_type in ("audio", "annotation"):
+        for resource_type in ("media", "annotation"):
             permission = db.exec(
                 select(Permission).where(
                     Permission.resource_type == resource_type,
@@ -1549,7 +1549,7 @@ class TestMediaBrowse:
 
         audio_read_perm = db.exec(
             select(Permission).where(
-                Permission.resource_type == "audio",
+                Permission.resource_type == "media",
                 Permission.action == "read",
             )
         ).first()
@@ -1611,7 +1611,7 @@ class TestMediaBrowse:
 
         audio_read_perm = db.exec(
             select(Permission).where(
-                Permission.resource_type == "audio",
+                Permission.resource_type == "media",
                 Permission.action == "read",
             )
         ).first()
@@ -1673,7 +1673,7 @@ class TestMediaBrowse:
 
         audio_read_perm = db.exec(
             select(Permission).where(
-                Permission.resource_type == "audio",
+                Permission.resource_type == "media",
                 Permission.action == "read",
             )
         ).first()
@@ -2016,7 +2016,7 @@ class TestMediaBrowse:
 
         audio_read_perm = db.exec(
             select(Permission).where(
-                Permission.resource_type == "audio",
+                Permission.resource_type == "media",
                 Permission.action == "read",
             )
         ).first()
@@ -2075,7 +2075,7 @@ class TestMediaBrowse:
         assert private_collection_id is not None
         audio_read_perm = db.exec(
             select(Permission).where(
-                Permission.resource_type == "audio",
+                Permission.resource_type == "media",
                 Permission.action == "read",
             )
         ).first()

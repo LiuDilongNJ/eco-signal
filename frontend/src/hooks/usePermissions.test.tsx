@@ -111,7 +111,7 @@ describe("usePermissions", () => {
     })
 
     it('treats the "all" collection view as an unscoped project query', async () => {
-        respondWith(["audio:write"])
+        respondWith(["media:write"])
 
         const { result } = renderHook(() => usePermissions(1, "all"), { wrapper })
 

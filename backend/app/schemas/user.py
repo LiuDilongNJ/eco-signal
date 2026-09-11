@@ -147,7 +147,7 @@ class UserPublic(SQLModel):
 
 class CurrentUserPublic(UserPublic):
     """Current-user response with capabilities evaluated for the requested scope."""
-    can_write_audio: bool = False
+    can_write_media: bool = False
 
 
 class CurrentUserPermissionsPublic(SQLModel):

@@ -191,7 +191,7 @@ class TestCurrentUserMenuItems:
     @pytest.mark.parametrize(
         ("permission_name", "visible_menus"),
         [
-            ("audio:read", {"Audios", "Photos"}),
+            ("media:read", {"Audios", "Photos"}),
             ("site:read", {"Sites"}),
             ("annotation:read", {"Annotations"}),
             ("review:read", {"Reviews"}),
@@ -213,8 +213,8 @@ class TestCurrentUserMenuItems:
         assert r.status_code == 200
         assert _visible_names(r.json()) == visible_menus | {"Queue", "Index Logs"}
 
-    @pytest.mark.parametrize("permission_name", ["audio:write", "review:write"])
-    def test_task_menu_requires_audio_or_review_write(
+    @pytest.mark.parametrize("permission_name", ["media:write", "review:write"])
+    def test_task_menu_requires_media_or_review_write(
         self,
         client: TestClient,
         db: Session,
@@ -341,7 +341,7 @@ class TestCurrentUserMenuItems:
         user = _create_user(db)
         target_project = _create_project(db, user.user_id)
         other_collection = _create_collection(db, user.user_id)
-        _grant_collection_permission(db, user, other_collection, "audio:read")
+        _grant_collection_permission(db, user, other_collection, "media:read")
 
         r = client.get(_menu_url(target_project.project_id), headers=_headers_for_user(user))
 

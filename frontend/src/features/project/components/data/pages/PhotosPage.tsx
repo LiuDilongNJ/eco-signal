@@ -96,7 +96,7 @@ export function PhotosPage() {
     const uploadQueue = useMediaUploadQueue("photo", currentCollectionId)
     const { creatorOptions, currentUserId } = useCreatorOptions(currentProjectId, currentCollectionId)
     const { can } = usePermissions(currentProjectId, currentCollectionId)
-    const canWriteAudio = can("audio:write")
+    const canWriteMedia = can("media:write")
 
     useEffect(() => () => {
         mediaProcessingAbortRef.current?.abort()
@@ -227,8 +227,8 @@ export function PhotosPage() {
                     importLabel: "Metadata",
                     instructionsLabel: "Metadata Instructions",
                     fields: { project_id: currentProjectId, collection_id: currentCollectionId, media_type: "photo" },
-                    disabled: !canWriteAudio || !currentProjectId || !currentCollectionId || currentCollectionId === "all",
-                    disabledReason: canWriteAudio
+                    disabled: !canWriteMedia || !currentProjectId || !currentCollectionId || currentCollectionId === "all",
+                    disabledReason: canWriteMedia
                         ? "Select a project and collection before importing photo metadata"
                         : "You do not have permission to import photo metadata",
                 }}
@@ -325,7 +325,7 @@ export function PhotosPage() {
                 addDropdownItems={addDropdownItems}
                 addDisabled={!currentCollectionId || currentCollectionId === "all"}
                 addDisabledTooltip="Before uploading media, please select a collection."
-                canAdd={canWriteAudio}
+                canAdd={canWriteMedia}
                 canEditRecord={(record) => rowCan(record, "edit")}
                 canDeleteRecord={(record) => rowCan(record, "delete")}
             />

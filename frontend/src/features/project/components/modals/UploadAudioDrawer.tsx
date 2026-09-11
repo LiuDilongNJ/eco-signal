@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react"
 import { Button, ConfigProvider, Typography, Select, Input, Switch, Progress, Form, DatePicker } from "@/components/ui"
 import { FormDrawer } from "@/components/ui"
 
-import { Music2, CheckCircle2, Upload, RefreshCw } from "lucide-react"
+import { AudioLines, CheckCircle2, Upload, RefreshCw } from "lucide-react"
 import { useAppStore } from "@/store/useAppStore"
 import { useAntdBrandConfig } from "../../hooks/useAntdBrandConfig"
 import { CustomScrollArea } from "@/components/ui"
@@ -225,7 +225,7 @@ export function UploadAudioDrawer({ open, initialFiles = [], siteOptions = [], l
                                             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
                                                 {f.status === 'done'
                                                     ? <CheckCircle2 size={16} color="var(--brand)" />
-                                                    : <Music2 size={16} color="var(--brand)" />}
+                                                    : <AudioLines size={16} color="var(--brand)" />}
                                                 <Typography.Text style={{ fontSize: 13, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                                     {f.name}
                                                 </Typography.Text>

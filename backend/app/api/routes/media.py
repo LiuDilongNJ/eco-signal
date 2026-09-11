@@ -247,10 +247,10 @@ def get_media_timeline(
     获取媒体 timeline 视图所需数据。 / Get media timeline data.
 
     权限规则 / Permission rules:
-    - 仅传 `project_id`：匿名仅可访问公开项目中的公开集合媒体；登录用户可访问项目下“公开集合 + 有 `audio:read` 权限集合”的媒体。
-      / `project_id` only: anonymous users can access media from public collections under a public project; authenticated users can access public + `audio:read` collections under the project.
-    - 同时传 `collection_id`：该集合必须属于项目，且权限按 `audio:read` 校验。
-      / With `collection_id`: the collection must belong to the project, and access is checked with `audio:read`.
+    - 仅传 `project_id`：匿名仅可访问公开项目中的公开集合媒体；登录用户可访问项目下“公开集合 + 有 `media:read` 权限集合”的媒体。
+      / `project_id` only: anonymous users can access media from public collections under a public project; authenticated users can access public + `media:read` collections under the project.
+    - 同时传 `collection_id`：该集合必须属于项目，且权限按 `media:read` 校验。
+      / With `collection_id`: the collection must belong to the project, and access is checked with `media:read`.
 
     查询行为 / Query behavior:
     - `site_ids` 过滤命中指定站点，同时保留未地理关联记录。 /
@@ -319,8 +319,8 @@ def get_media_collection_link_options(
     获取媒体关联集合弹窗数据。 / Get grouped options for media-collection link dialog.
 
     - 需要对当前项目有 project:write 权限。 / Requires project:write on the current project.
-    - 还需要对该媒体当前所属任一集合有 audio:write 权限。 /
-      Also requires audio:write on at least one collection currently linked to the media.
+    - 还需要对该媒体当前所属任一集合有 media:write 权限。 /
+      Also requires media:write on at least one collection currently linked to the media.
     """
     media_service.require_media_resource_write(
         session,
@@ -466,7 +466,7 @@ def update_media(
     """
     更新媒体记录。 / Update a media record.
 
-    需要对该媒体所属的至少一个集合拥有 audio:write 权限。 / Requires audio:write permission on at least one of its collections.
+    需要对该媒体所属的至少一个集合拥有 media:write 权限。 / Requires media:write permission on at least one of its collections.
     通过完整的权限继承链进行检查（project:write 和 collection:write 均可满足）。 /
     Checked via the inherited permission chain (project:write and collection:write both satisfy it).
     """
@@ -501,9 +501,9 @@ def sync_media_collection_links(
     """
     批量全量同步媒体与集合关系。 / Fully sync media-collection links in batch.
 
-    - 对每个媒体：需要对该媒体当前所属任一集合有 audio:write 权限。 /
-      For each media: requires audio:write on at least one collection currently linked to it.
-    - 对请求中的每个集合都需要 audio:write 权限。 / Requires audio:write on every requested collection.
+    - 对每个媒体：需要对该媒体当前所属任一集合有 media:write 权限。 /
+      For each media: requires media:write on at least one collection currently linked to it.
+    - 对请求中的每个集合都需要 media:write 权限。 / Requires media:write on every requested collection.
     - 所有媒体都会被覆盖为同一组 collection_ids。 / Every media is overwritten with the same collection_ids.
     """
     data = media_service.sync_media_collection_links(
@@ -526,7 +526,7 @@ def delete_media(
     """
     删除媒体记录。 / Delete a media record.
 
-    需要 audio:write 权限。 / Requires audio:write permission.
+    需要 media:write 权限。 / Requires media:write permission.
     """
     return media_service.delete_media(session, media_id, current_user, project_id=project_id)
 
@@ -551,9 +551,9 @@ def stream_audio(
     Stream an audio file with permission check, optional time trimming, bandpass and channel selection.
 
     支持 HTTP Range 请求（无任何处理参数时）。 / Supports HTTP Range requests when no processing is requested.
-    匿名可访问公开集合媒体；私有媒体返回 403。登录用户需具备 audio:read 或命中公开集合。
+    匿名可访问公开集合媒体；私有媒体返回 403。登录用户需具备 media:read 或命中公开集合。
     / Anonymous can access media in public collections; private media returns 403.
-    Authenticated users need audio:read or public-collection access.
+    Authenticated users need media:read or public-collection access.
     前端下载当前视口时必须传 `start_time` 和 `end_time`；若启用频带裁剪，还应同时传
     `min_freq`、`max_freq` 和 `filter=true`，并优先使用响应头中的下载文件名。
     / Frontend viewport downloads must send `start_time` and `end_time`; when band filtering is enabled,
@@ -634,9 +634,9 @@ def get_spectrogram(
     服务端生成频谱图 PNG（逐列 FFT、120 dB 动态范围、8-bit 调色板、线性频率轴）。
     Generate spectrogram PNG server-side via per-column FFT, 120 dB range, 8-bit palette, linear frequency axis.
 
-    匿名可访问公开集合媒体；私有媒体返回 403。登录用户需具备 audio:read 或命中公开集合。
+    匿名可访问公开集合媒体；私有媒体返回 403。登录用户需具备 media:read 或命中公开集合。
     / Anonymous can access media in public collections; private media returns 403.
-    Authenticated users need audio:read or public-collection access.
+    Authenticated users need media:read or public-collection access.
     当前视口下载应沿用本接口参数，并优先使用响应头中的当前下载文件名。
     / Viewport downloads should reuse this endpoint's query params and prefer the current download filename
     from the response headers.

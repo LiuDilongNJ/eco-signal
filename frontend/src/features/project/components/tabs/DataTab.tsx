@@ -19,7 +19,7 @@ import {
     ListChecks,
     Activity,
     ScrollText,
-    Music2,
+    AudioLines,
     Image,
 } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
@@ -53,7 +53,7 @@ const ICON_MAP: Record<string, LucideIcon> = {
     "project": FolderKanban,
     "collection": Library,
     "user": Users,
-    "audio": Music2,
+    "audio": AudioLines,
     "photo": Image,
     "site": MapPin,
     "annotation": ScanLine,

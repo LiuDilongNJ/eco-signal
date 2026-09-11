@@ -548,7 +548,7 @@ def require_media_resource_write(
     project_id: int | None,
     denied_detail: str = "No write permission on this media's collection",
 ) -> list[MediaCollection]:
-    """Require audio:write on at least one project-local collection linked to a media record."""
+    """Require media:write on at least one project-local collection linked to a media record."""
     media = session.get(Media, media_id)
     if not media:
         raise HTTPException(status_code=404, detail="Media not found")
@@ -1432,7 +1432,7 @@ def _resolve_visible_media_collection_ids(
         project_id=project_id,
         collection_id=collection_id,
         user_id=user_id,
-        resource_type="audio",
+        resource_type="media",
         action="read",
         include_public=True,
     )
@@ -1746,7 +1746,7 @@ def build_media_timeline_data(
             if not permission_service.has_resource_permission(
                 session,
                 current_user,
-                "audio",
+                "media",
                 "read",
                 project_id=project_id,
                 collection_id=collection_id,
@@ -1767,7 +1767,7 @@ def build_media_timeline_data(
                 permission_repository.get_accessible_collection_ids(
                     session,
                     current_user.user_id,
-                    resource_type="audio",
+                    resource_type="media",
                     action="read",
                     project_id=project_id,
                 )
@@ -1945,7 +1945,7 @@ def get_media(
             if permission_service.has_resource_permission(
                 session,
                 user,
-                "audio",
+                "media",
                 "read",
                 project_id=project_id,
                 collection_id=mc.collection_id,
@@ -3048,7 +3048,7 @@ def sync_media_collections(
             session,
             user.user_id,
             requested_scopes,
-            "audio",
+            "media",
             "write",
         ):
             allowed_collection_ids = set(
@@ -3056,7 +3056,7 @@ def sync_media_collections(
                     session,
                     user.user_id,
                     project_id,
-                    "audio",
+                    "media",
                     "write",
                 )
             )

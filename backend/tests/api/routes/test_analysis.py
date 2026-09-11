@@ -700,9 +700,9 @@ class TestAnalysisRouteScenarios:
         media = setup_analysis_scenario_data["media"]
         project = setup_analysis_scenario_data["project"]
 
-        perm_read = db.exec(select(Permission).where(Permission.name == "audio:read")).first()
+        perm_read = db.exec(select(Permission).where(Permission.name == "media:read")).first()
         if not perm_read:
-            perm_read = Permission(name="audio:read", resource_type="audio", action="read")
+            perm_read = Permission(name="media:read", resource_type="media", action="read")
             db.add(perm_read)
             db.flush()
         db.add(UserPermission(user_id=u2.user_id, project_id=project.project_id, collection_id=col.collection_id, permission_id=perm_read.permission_id))

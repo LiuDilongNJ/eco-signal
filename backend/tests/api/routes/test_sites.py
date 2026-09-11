@@ -568,7 +568,7 @@ class TestSiteOptions:
             project_id=project.project_id,
         )
         grant_permission(
-            db, user.user_id, "audio", "read", collection_id=private_col.collection_id
+            db, user.user_id, "media", "read", collection_id=private_col.collection_id
         )
         grant_permission(
             db,
@@ -862,7 +862,7 @@ class TestSiteMap:
         private_col = create_test_collection(db, public_access=False)
         link_collection_to_project(db, project.project_id, private_col.collection_id)
         grant_permission(db, user.user_id, "site", "read", collection_id=private_col.collection_id)
-        grant_permission(db, user.user_id, "audio", "read", collection_id=private_col.collection_id)
+        grant_permission(db, user.user_id, "media", "read", collection_id=private_col.collection_id)
         grant_permission(db, user.user_id, "project", "read", project_id=project.project_id)
 
         db.add(IucnGet(iucn_get_id=9001, pid=0, name="Realm-X", level=1))
@@ -1114,8 +1114,8 @@ class TestSiteMap:
         link_collection_to_project(db, project.project_id, col_b.collection_id)
         grant_permission(db, user.user_id, "site", "read", collection_id=col_a.collection_id)
         grant_permission(db, user.user_id, "site", "read", collection_id=col_b.collection_id)
-        grant_permission(db, user.user_id, "audio", "read", collection_id=col_a.collection_id)
-        grant_permission(db, user.user_id, "audio", "read", collection_id=col_b.collection_id)
+        grant_permission(db, user.user_id, "media", "read", collection_id=col_a.collection_id)
+        grant_permission(db, user.user_id, "media", "read", collection_id=col_b.collection_id)
 
         site = create_test_site(
             db, col_a.collection_id, name="Aligned Site", longitude=110.0, latitude=20.0
@@ -1201,7 +1201,7 @@ class TestSiteMap:
         external_col = create_test_collection(db, public_access=False, name="External Private")
         link_collection_to_project(db, project.project_id, project_col.collection_id)
         grant_permission(db, user.user_id, "site", "read", collection_id=project_col.collection_id)
-        grant_permission(db, user.user_id, "audio", "read", collection_id=external_col.collection_id)
+        grant_permission(db, user.user_id, "media", "read", collection_id=external_col.collection_id)
 
         site = create_test_site(
             db, project_col.collection_id, name="Scoped Private Site", longitude=100.0, latitude=30.0
