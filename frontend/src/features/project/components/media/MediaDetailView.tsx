@@ -53,7 +53,7 @@ import {
     ArrowLeft,
     Search,
     Volume2,
-    Move,
+    Maximize,
     Share2,
 } from "lucide-react"
 import {
@@ -6373,18 +6373,14 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                             <MediaViewerToolbarButton
                                 className="btn-toolbar"
                                 label="Reset spectrogram time and frequency range"
-                                icon={<Move size={20} strokeWidth={2} />}
+                                icon={<Maximize size={20} strokeWidth={2} />}
                                 onClick={resetSpectrogramToFullView}
                             />
 
                             <MediaViewerToolbarButton
                                 className="btn-toolbar"
                                 active={spectrogramMagnifierZoomed}
-                                label={
-                                    annotationDraft
-                                        ? "Zoom the spectrogram to this annotation"
-                                        : "Zoom the spectrogram to the selection"
-                                }
+                                label="Zoom the spectrogram to this annotation/selection"
                                 icon={<AnnotationZoomIcon size={20} strokeWidth={2} />}
                                 disabled={
                                     !(annotationDraft || (editingAnnotationMeta && editingAnnotationId)) ||

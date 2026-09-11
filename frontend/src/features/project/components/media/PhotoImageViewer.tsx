@@ -1,5 +1,4 @@
 import {
-    Button as ESButton,
     Input as ESInput,
     LoadingState,
     message,
@@ -20,8 +19,7 @@ import {
     ClipboardList,
     Eye,
     EyeOff,
-    Move,
-    Scan,
+    Maximize,
     Search,
     ZoomIn,
     ZoomOut,
@@ -45,6 +43,26 @@ export type PhotoAnnotationBox = {
 export type PhotoZoomRequest = {
     nonce: number
     box: PhotoAnnotationBox
+}
+
+function AnnotationZoomIcon({ size = 20, strokeWidth = 2 }: { size?: number; strokeWidth?: number }) {
+    return (
+        <svg
+            width={size}
+            height={size}
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={strokeWidth}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+        >
+            <rect x="1.5" y="1.5" width="21" height="21" rx="2.5" strokeDasharray="4 3" />
+            <circle cx="14.25" cy="14.25" r="4.25" />
+            <path d="m17.25 17.25 3.25 3.25" />
+        </svg>
+    )
 }
 
 type Point = { x: number; y: number }
@@ -825,70 +843,51 @@ export function PhotoImageViewer({
                     role="toolbar"
                     aria-label="Annotation tools"
                 >
-                    <ESButton appearance="unstyled"
-                        type="button"
+                    <MediaViewerToolbarButton
                         className="btn-toolbar"
-                        style={{ padding: 8, justifyContent: "center" }}
-                        title="Reset photo view"
-                        aria-label="Reset photo view"
+                        label="Reset photo view"
+                        icon={<Maximize size={20} strokeWidth={2} />}
                         onClick={fitToViewport}
-                    >
-                        <Move size={20} strokeWidth={2} />
-                    </ESButton>
-                    <ESButton appearance="unstyled"
-                        type="button"
+                    />
+                    <MediaViewerToolbarButton
                         className="btn-toolbar"
-                        style={{ padding: 8, justifyContent: "center" }}
-                        title={activeBox ? "Zoom the photo to this annotation" : "Zoom the photo to the selection"}
+                        label="Zoom the photo to this annotation/selection"
+                        icon={<AnnotationZoomIcon size={20} strokeWidth={2} />}
                         disabled={!activeBox}
                         onClick={() => zoomToBox(activeBox)}
-                    >
-                        <Scan size={20} strokeWidth={2} />
-                    </ESButton>
-                    <ESButton appearance="unstyled"
-                        type="button"
+                    />
+                    <MediaViewerToolbarButton
                         className="btn-toolbar"
-                        style={{ padding: 8, justifyContent: "center" }}
-                        title="Previous annotation"
+                        label="Previous annotation"
+                        icon={<ChevronLeft size={20} strokeWidth={2} />}
                         disabled={!canNavigateAnnotation}
                         onClick={onPreviousAnnotation}
-                    >
-                        <ChevronLeft size={22} strokeWidth={2} />
-                    </ESButton>
-                    <ESButton appearance="unstyled"
-                        type="button"
+                    />
+                    <MediaViewerToolbarButton
                         className="btn-toolbar"
-                        style={{ padding: 8, justifyContent: "center" }}
-                        title="Next annotation"
+                        label="Next annotation"
+                        icon={<ChevronRight size={20} strokeWidth={2} />}
                         disabled={!canNavigateAnnotation}
                         onClick={onNextAnnotation}
-                    >
-                        <ChevronRight size={22} strokeWidth={2} />
-                    </ESButton>
-                    <ESButton appearance="unstyled"
-                        type="button"
-                        className={`btn-toolbar${navAutoZoomToAnnotation ? " active" : ""}`}
-                        style={{ padding: 8, justifyContent: "center" }}
-                        title={
+                    />
+                    <MediaViewerToolbarButton
+                        className="btn-toolbar"
+                        active={navAutoZoomToAnnotation}
+                        label={
                             navAutoZoomToAnnotation
                                 ? "On: Previous/Next also zooms the viewer to each annotation. Click to jump only."
                                 : "Off: Previous/Next only switches the annotation. Click to also auto-zoom the viewer."
                         }
-                        aria-pressed={navAutoZoomToAnnotation}
+                        icon={<Search size={20} strokeWidth={2} />}
                         onClick={onToggleNavAutoZoomToAnnotation}
-                    >
-                        <Search size={20} strokeWidth={2} />
-                    </ESButton>
-                    <ESButton appearance="unstyled"
-                        type="button"
-                        className={`btn-toolbar${navOnlyTaskTagged ? " active" : ""}`}
-                        style={{ padding: 8, justifyContent: "center" }}
-                        title="When on: Previous/Next only among annotations that show the Task pill."
-                        aria-pressed={navOnlyTaskTagged}
+                    />
+                    <MediaViewerToolbarButton
+                        className="btn-toolbar"
+                        active={navOnlyTaskTagged}
+                        label="When on: Previous/Next only among annotations that show the Task pill."
+                        icon={<ClipboardList size={20} strokeWidth={2} />}
                         onClick={onToggleNavOnlyTaskTagged}
-                    >
-                        <ClipboardList size={20} strokeWidth={2} />
-                    </ESButton>
+                    />
                 </div>
             </div>
 
