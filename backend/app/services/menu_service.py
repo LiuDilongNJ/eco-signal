@@ -94,6 +94,6 @@ def get_current_user_menu_items(
             can_show_collection_scoped_items
             and (has("media", "write") or has("review", "write") or has("review", "write_own")),
         ),
-        _menu_item("Queue", True),
         _menu_item("Index Logs", True),
+        _menu_item("Queue", True),
     ]

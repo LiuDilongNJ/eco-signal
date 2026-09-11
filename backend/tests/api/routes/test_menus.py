@@ -26,8 +26,8 @@ EXPECTED_MENU_ORDER = [
     "Annotations",
     "Reviews",
     "Tasks",
-    "Queue",
     "Index Logs",
+    "Queue",
 ]
 
 
