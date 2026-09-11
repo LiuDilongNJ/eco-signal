@@ -168,7 +168,7 @@ function clampBoxToImage(
 
 function annotationTitle(annotation: AnnotationPublic, label: string): string {
     const box = normalizeBox(annotation)
-    return `ID ${annotation.annotation_id} · ${label} · Min X ${box.min_x}px · Max X ${box.max_x}px · Min Y ${box.min_y}px · Max Y ${box.max_y}px`
+    return `ID ${annotation.annotation_id} · ${label} · Min X (px) ${box.min_x} · Max X (px) ${box.max_x} · Min Y (px) ${box.min_y} · Max Y (px) ${box.max_y}`
 }
 
 function moveBox(

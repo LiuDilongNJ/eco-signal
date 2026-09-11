@@ -1813,7 +1813,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                     soundscape: a.soundscape_component,
                     presentation,
                     ...px,
-                    title: `ID ${a.annotation_id} · ${sc || "-"} · Min X ${formatAnnotationTimeSec(phys.min_x)}s · Max X ${formatAnnotationTimeSec(phys.max_x)}s · Min Y ${formatAnnotationHz(phys.min_y)} Hz · Max Y ${formatAnnotationHz(phys.max_y)} Hz`,
+                    title: `ID ${a.annotation_id} · ${sc || "-"} · Min X (s) ${formatAnnotationTimeSec(phys.min_x)} · Max X (s) ${formatAnnotationTimeSec(phys.max_x)} · Min Y (Hz) ${formatAnnotationHz(phys.min_y)} · Max Y (Hz) ${formatAnnotationHz(phys.max_y)}`,
                 }
             })
             .filter((x): x is NonNullable<typeof x> => x != null)
@@ -6435,14 +6435,14 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                         {/* Freq/Time range info */}
                         <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 600, color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>
                             <span title="Visible Time Range">
-                                x:{" "}
+                                x (s):{" "}
                                 {totalDuration > 0
                                     ? `${formatDisplayNumber(specViewStart)} – ${formatDisplayNumber(specVisibleEnd)}`
                                     : ""}
                             </span>
                             <span style={{ width: 1, height: 12, background: "var(--border-color)" }} />
                             <span title="Visible Frequency Range">
-                                y:{" "}
+                                y (Hz):{" "}
                                 {`${formatDisplayNumber(specFreqMinHz)} – ${formatDisplayNumber(
                                     specFreqMaxHz,
                                 )}`}
@@ -6913,7 +6913,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                                                         >
                                                             <Row gutter={[14, 0]} className={isPhoto ? "studio-annot-photo-coordinate-row" : undefined}>
                                                                 <Col xs={isPhoto ? 24 : 12} sm={isPhoto ? 12 : 6}>
-                                                                    <Form.Item label={renderStudioRequiredLabel("Min X")} className="studio-annot-form-item">
+                                                                    <Form.Item label={renderStudioRequiredLabel(isPhoto ? "Min X (px)" : "Min X (s)")} className="studio-annot-form-item">
                                                                         <InputNumber
                                                                             style={{ width: "100%" }}
                                                                             precision={4}
@@ -6928,7 +6928,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                                                                     </Form.Item>
                                                                 </Col>
                                                                 <Col xs={isPhoto ? 24 : 12} sm={isPhoto ? 12 : 6}>
-                                                                    <Form.Item label={renderStudioRequiredLabel("Max X")} className="studio-annot-form-item">
+                                                                    <Form.Item label={renderStudioRequiredLabel(isPhoto ? "Max X (px)" : "Max X (s)")} className="studio-annot-form-item">
                                                                         <InputNumber
                                                                             style={{ width: "100%" }}
                                                                             precision={4}
@@ -6943,7 +6943,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                                                                     </Form.Item>
                                                                 </Col>
                                                                 <Col xs={isPhoto ? 24 : 12} sm={isPhoto ? 12 : 6}>
-                                                                    <Form.Item label={renderStudioRequiredLabel("Min Y")} className="studio-annot-form-item">
+                                                                    <Form.Item label={renderStudioRequiredLabel(isPhoto ? "Min Y (px)" : "Min Y (Hz)")} className="studio-annot-form-item">
                                                                         <InputNumber
                                                                             style={{ width: "100%" }}
                                                                             precision={4}
@@ -6958,7 +6958,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                                                                     </Form.Item>
                                                                 </Col>
                                                                 <Col xs={isPhoto ? 24 : 12} sm={isPhoto ? 12 : 6}>
-                                                                    <Form.Item label={renderStudioRequiredLabel("Max Y")} className="studio-annot-form-item">
+                                                                    <Form.Item label={renderStudioRequiredLabel(isPhoto ? "Max Y (px)" : "Max Y (Hz)")} className="studio-annot-form-item">
                                                                         <InputNumber
                                                                             style={{ width: "100%" }}
                                                                             precision={4}
