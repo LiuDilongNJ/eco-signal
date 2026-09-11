@@ -306,43 +306,56 @@
 
 .upd-icon-item {
     position: relative;
-    display: flex;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
-    transition: all 0.2s;
-    border: none;
-    padding: 4px;
-    border-radius: 4px;
+    width: 34px;
+    height: 34px;
+    box-sizing: border-box;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    border-radius: 7px;
+    user-select: none;
+    flex-shrink: 0;
 }
 
-.upd-icon-scope-marker {
+.upd-icon-item:not([style*="not-allowed"]):hover {
+    transform: translateY(-1px);
+    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.08);
+}
+
+.upd-icon-badge-br {
     position: absolute;
-    right: -11px;
-    bottom: -7px;
-    z-index: 1;
-    min-width: 20px;
-    padding: 1px 3px;
-    border: 1px solid var(--border-light);
+    right: -5px;
+    bottom: -5px;
+    z-index: 2;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1.5px;
+    padding: 1.5px 3.5px;
     border-radius: 999px;
+    border: 1px solid var(--brand);
     background: var(--bg-surface);
-    color: var(--text-muted);
-    font-size: 7px;
-    font-weight: 700;
-    line-height: 1.2;
-    letter-spacing: 0.02em;
-    text-align: center;
+    color: var(--brand);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+    line-height: 1;
 }
 
-.upd-icon-item--scope-own .upd-icon-scope-marker {
-    border-color: var(--brand);
+.upd-icon-badge-tl {
+    position: absolute;
+    left: -5px;
+    top: -5px;
+    z-index: 2;
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    padding: 1.5px 3.5px;
+    border-radius: 999px;
+    border: 1px solid var(--brand);
+    background: var(--bg-surface);
     color: var(--brand);
-}
-
-.upd-icon-item--scope-all .upd-icon-scope-marker,
-.upd-icon-item--scope-all-own .upd-icon-scope-marker {
-    background: var(--brand-tint);
-    border-color: var(--brand);
-    color: var(--brand);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+    line-height: 1;
 }
 
 .upd-icon-item--inherited {
@@ -354,10 +367,6 @@
         rgba(0, 0, 0, 0.04) 4px,
         rgba(0, 0, 0, 0.04) 8px
     );
-}
-
-.upd-icon-item:hover {
-    background: rgba(0, 0, 0, 0.04);
 }
 
 .upd-role-warning {
@@ -375,9 +384,9 @@
 
 .upd-icon-divergence-marker {
     position: absolute;
-    left: -7px;
-    top: -7px;
-    z-index: 2;
+    right: -6px;
+    top: -6px;
+    z-index: 3;
     width: 14px;
     height: 14px;
     border: 1.5px solid var(--brand);
@@ -390,6 +399,7 @@
     align-items: center;
     justify-content: center;
     line-height: 1;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
 }
 
 .upd-icon-item--divergent {
