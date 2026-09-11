@@ -52,7 +52,6 @@ import {
     BarChart2,
     AudioLines,
     ArrowLeft,
-    Scan,
     Search,
     Volume2,
     Move,
@@ -114,6 +113,26 @@ function updateMessageSuccess(key: string, content: string) {
 
 function updateMessageError(key: string, content: string) {
     message.open({ type: "error", content, key, duration: 2 })
+}
+
+function AnnotationZoomIcon({ size = 20, strokeWidth = 2 }: { size?: number; strokeWidth?: number }) {
+    return (
+        <svg
+            width={size}
+            height={size}
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={strokeWidth}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+        >
+            <rect x="1.5" y="1.5" width="21" height="21" rx="2.5" strokeDasharray="4 3" />
+            <circle cx="14.25" cy="14.25" r="4.25" />
+            <path d="m17.25 17.25 3.25 3.25" />
+        </svg>
+    )
 }
 import { useProjectStore } from "../../stores/useProjectStore"
 import { StudioCrumbDropdown } from "../nav/StudioCrumbDropdown"
@@ -6330,7 +6349,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                                         ? "Zoom the spectrogram to this annotation"
                                         : "Zoom the spectrogram to the selection"
                                 }
-                                icon={<Scan size={20} strokeWidth={2} />}
+                                icon={<AnnotationZoomIcon size={20} strokeWidth={2} />}
                                 disabled={
                                     !(annotationDraft || (editingAnnotationMeta && editingAnnotationId)) ||
                                     spectrogramMagnifierZoomed
