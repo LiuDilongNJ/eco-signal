@@ -4,7 +4,7 @@ import { Button, Switch, message, ConfigProvider, Select, Tooltip, Space } from 
 import { LoadingState } from "@/components/ui"
 import { FormDrawer } from "@/components/ui"
 
-import { X, AudioLines, MapPin, ScanLine, ClipboardCheck, Check, ChevronDown, ChevronRight, AlertTriangle } from "lucide-react"
+import { X, AudioLines, MapPin, ScanLine, ClipboardCheck, Check, ChevronDown, ChevronRight, AlertTriangle, Eye, Pencil, User, Users } from "lucide-react"
 import { useAppStore } from "@/store/useAppStore"
 import { useAntdBrandConfig } from "../../hooks/useAntdBrandConfig"
 import { permissionsApi } from "../../../../api/endpoints/permissions"
@@ -29,6 +29,30 @@ const MODULE_ICONS = [
 ]
 
 type PermissionAction = "none" | "read" | "write"
+export type DetailedPermissionState =
+    | "none"
+    | "read_own"
+    | "read_all"
+    | "write_own"
+    | "read_all_write_own"
+    | "write_all"
+
+const MicroEye = () => (
+    <svg
+        width="9"
+        height="7.5"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2.2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+    >
+        <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
+        <circle cx="12" cy="12" r="3" fill="currentColor" />
+    </svg>
+)
 
 const MODULE_KEYS = MODULE_ICONS.map(m => m.key)
 
@@ -46,16 +70,16 @@ const DEFAULT_ACCESS_ROLES: AccessRolePublic[] = [
         name: "Annotator",
         kind: "access",
         display_order: 20,
-        project_permissions: ["project:read", "media:read", "site:read", "annotation:read", "annotation:write_own", "review:read"],
-        collection_permissions: ["collection:read", "media:read", "site:read", "annotation:read", "annotation:write_own", "review:read"],
+        project_permissions: ["project:read", "media:read", "site:read", "annotation:read", "annotation:write_own", "review:read", "review:write_own"],
+        collection_permissions: ["collection:read", "media:read", "site:read", "annotation:read", "annotation:write_own", "review:read", "review:write_own"],
     },
     {
         code: "reviewer",
         name: "Reviewer",
         kind: "access",
         display_order: 30,
-        project_permissions: ["project:read", "media:read", "site:read", "annotation:read", "review:read", "review:write_own", "site:read"],
-        collection_permissions: ["collection:read", "media:read", "site:read", "annotation:read", "review:read", "review:write_own", "site:read"],
+        project_permissions: ["project:read", "media:read", "site:read", "annotation:read", "review:read", "review:write_own"],
+        collection_permissions: ["collection:read", "media:read", "site:read", "annotation:read", "review:read", "review:write_own"],
     },
     {
         code: "manager",
@@ -123,6 +147,32 @@ export function UserPermissionDrawer({ open, userId, userIds, currentUserId, onC
             ])
             setAccessRoles(roles.data ?? [])
             if (res.data) {
+                const normalizeProjects = (projects: ProjectPermissionConfig[]) =>
+                    projects.map(project => {
+                        const hasStored =
+                            project.assigned_role !== null ||
+                            project.stored_permissions.length > 0 ||
+                            project.collections.some(
+                                c => c.assigned_role !== null || c.stored_permissions.length > 0,
+                            )
+                        const assignedRole =
+                            hasStored && project.assigned_role === null ? "custom" : project.assigned_role
+                        return {
+                            ...project,
+                            assigned_role: assignedRole,
+                            collections: project.collections.map(col => {
+                                const colHasStored =
+                                    col.assigned_role !== null || col.stored_permissions.length > 0
+                                const colAssignedRole =
+                                    colHasStored && col.assigned_role === null ? "custom" : col.assigned_role
+                                return {
+                                    ...col,
+                                    assigned_role: colAssignedRole,
+                                }
+                            }),
+                        }
+                    })
+
                 const nextConfig = isBatch
                     ? {
                         ...res.data,
@@ -140,7 +190,10 @@ export function UserPermissionDrawer({ open, userId, userIds, currentUserId, onC
                             })),
                         })),
                     }
-                    : res.data
+                    : {
+                        ...res.data,
+                        projects: normalizeProjects(res.data.projects),
+                    }
                 setConfig(nextConfig)
                 // Initialize expanded projects based on explicit or inherited permission rows.
                 const expanded = nextConfig.projects
@@ -294,28 +347,34 @@ export function UserPermissionDrawer({ open, userId, userIds, currentUserId, onC
         return "none"
     }
 
-    const getPermissionScopeLabel = (permissions: string[], resource: string) => {
-        if (permissions.includes("project:write") || permissions.includes("collection:write")) return "Write all"
-        if (permissions.includes(`${resource}:write`)) return "Write all"
-        if (permissions.includes(`${resource}:read`) && permissions.includes(`${resource}:write_own`)) return "Read all, write own"
-        if (permissions.includes(`${resource}:write_own`)) return "Write own"
-        if (permissions.includes(`${resource}:read`)) return "Read all"
-        if (permissions.includes(`${resource}:read_own`)) return "Read own"
-        return "None"
+    const getDetailedPermissionState = (permissions: string[], resource: string): DetailedPermissionState => {
+        if (permissions.includes("project:write") || permissions.includes("collection:write") || permissions.includes(`${resource}:write`)) {
+            return "write_all"
+        }
+        if (permissions.includes(`${resource}:read`) && permissions.includes(`${resource}:write_own`)) {
+            return "read_all_write_own"
+        }
+        if (permissions.includes(`${resource}:write_own`)) {
+            return "write_own"
+        }
+        if (permissions.includes(`${resource}:read`)) {
+            return "read_all"
+        }
+        if (permissions.includes(`${resource}:read_own`)) {
+            return "read_own"
+        }
+        return "none"
     }
 
-    const getPermissionScopeMarker = (permissions: string[], resource: string) => {
-        if (resource !== "annotation" && resource !== "review") return null
-        if (permissions.includes("project:write") || permissions.includes("collection:write")) return { label: "ALL", kind: "all" }
-        if (permissions.includes(`${resource}:write`)) return { label: "ALL", kind: "all" }
-        if (permissions.includes(`${resource}:read`) && permissions.includes(`${resource}:write_own`)) {
-            return { label: "ALL/OWN", kind: "all-own" }
+    const getPermissionScopeLabel = (detailedState: DetailedPermissionState): string => {
+        switch (detailedState) {
+            case "write_all": return "Write all"
+            case "read_all_write_own": return "Read all, write own"
+            case "write_own": return "Write own"
+            case "read_all": return "Read all"
+            case "read_own": return "Read own"
+            case "none": default: return "None"
         }
-        if (permissions.includes(`${resource}:write_own`) || permissions.includes(`${resource}:read_own`)) {
-            return { label: "OWN", kind: "own" }
-        }
-        if (permissions.includes(`${resource}:read`)) return { label: "ALL", kind: "all" }
-        return null
     }
 
     const getProjectIconState = (project: ProjectPermissionConfig, resource: string): PermissionAction => {
@@ -367,11 +426,20 @@ export function UserPermissionDrawer({ open, userId, userIds, currentUserId, onC
             }
             if (scope === "project") {
                 newConfig.projects = newConfig.projects.map(p => {
-                    if (p.project_id === id && p.can_manage_project && p.assigned_role === "custom") {
+                    const projectRole = p.assigned_role ?? "custom"
+                    if (p.project_id === id && p.can_manage_project && projectRole === "custom") {
                         const nextPerms = updatePerms(p.stored_permissions)
+                        // Clear divergent overrides on this resource for contained collections
+                        // so they cleanly inherit this project-level permission.
+                        const updatedCollections = p.collections.map(c => ({
+                            ...c,
+                            stored_permissions: c.stored_permissions.filter(perm => !perm.startsWith(`${resource}:`)),
+                        }))
                         return {
                             ...p,
+                            assigned_role: "custom",
                             stored_permissions: nextPerms,
+                            collections: updatedCollections,
                         }
                     }
                     return p
@@ -640,28 +708,41 @@ export function UserPermissionDrawer({ open, userId, userIds, currentUserId, onC
         return (
             <div className="upd-icons-container">
                 {MODULE_ICONS.map(m => {
-                    const state = getIconState(permissions, m.key)
+                    const detailedState = getDetailedPermissionState(permissions, m.key)
+                    const isWrite = detailedState === "write_all" || detailedState === "write_own" || detailedState === "read_all_write_own"
+                    const isRead = detailedState === "read_all" || detailedState === "read_own"
+                    const isNone = detailedState === "none"
+
                     const inherited = inheritedResources.has(m.key)
                     const divergent = divergentResources.has(m.key)
-                    const emptyColor = isDark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.15)"
-                    const borderColor = state === "none"
-                        ? (isDark ? "rgba(255,255,255,0.1)" : "var(--border-light)")
+
+                    const emptyColor = isDark ? "rgba(255,255,255,0.25)" : "rgba(0,0,0,0.2)"
+                    const borderColor = isNone
+                        ? (isDark ? "rgba(255,255,255,0.12)" : "var(--border-light)")
                         : "var(--brand)"
-                    const itemColor = state === "write"
+                    const itemColor = isWrite
                         ? "#fff"
-                        : state === "read"
+                        : isRead
                             ? "var(--brand)"
                             : emptyColor
-                    const itemBackground = state === "write" ? "var(--brand)" : "transparent"
-                    const stateLabel = getPermissionScopeLabel(permissions, m.key)
-                    const scopeMarker = getPermissionScopeMarker(permissions, m.key)
+                    const itemBackground = isWrite ? "var(--brand)" : "transparent"
+
+                    const stateLabel = getPermissionScopeLabel(detailedState)
                     const tooltipPrefix = divergent ? "[Customized] " : inherited ? "[Inherited] " : ""
                     const moduleLabel = m.key === "media" ? "Media (Audios, Photos)" : m.label
+                    const fullLabel = `${tooltipPrefix}${moduleLabel}: ${stateLabel}`
+
                     return (
-                        <Tooltip key={m.key} title={`${tooltipPrefix}${moduleLabel}: ${stateLabel}`}>
+                        <Tooltip key={m.key} title={fullLabel}>
                             <div
-                                className={`upd-icon-item${state === "write" ? " upd-icon-item--write" : ""}${inherited ? " upd-icon-item--inherited" : ""}${divergent ? " upd-icon-item--divergent" : ""}${scopeMarker ? ` upd-icon-item--scope-${scopeMarker.kind}` : ""}`}
-                                onClick={(e) => { e.stopPropagation(); if (!disabled) toggleIconPerm(scope, id, m.key, projectId); }}
+                                className={`upd-icon-item${isWrite ? " upd-icon-item--write" : ""}${isNone ? " upd-icon-item--none" : ""}${inherited ? " upd-icon-item--inherited" : ""}${divergent ? " upd-icon-item--divergent" : ""}`}
+                                data-state={detailedState}
+                                data-resource={m.key}
+                                aria-label={fullLabel}
+                                onClick={(e) => {
+                                    e.stopPropagation()
+                                    if (!disabled) toggleIconPerm(scope, id, m.key, projectId)
+                                }}
                                 style={{
                                     cursor: config?.is_admin || disabled ? "not-allowed" : "pointer",
                                     color: itemColor,
@@ -670,9 +751,48 @@ export function UserPermissionDrawer({ open, userId, userIds, currentUserId, onC
                                     opacity: config?.is_admin || disabled ? 0.6 : inherited ? 0.75 : 1,
                                 }}
                             >
-                                {divergent && <span className="upd-icon-divergence-marker" aria-hidden="true">C</span>}
-                                <m.icon size={18} strokeWidth={state === "none" ? 2 : 2.5} />
-                                {scopeMarker && <span className="upd-icon-scope-marker" aria-hidden="true">{scopeMarker.label}</span>}
+                                {divergent && (
+                                    <span className="upd-icon-divergence-marker" aria-label="Customized override">
+                                        C
+                                    </span>
+                                )}
+
+                                {/* Top-Left Sight Badge for Read All, Write Own */}
+                                {detailedState === "read_all_write_own" && (
+                                    <span className="upd-icon-badge-tl" aria-label="Sight: Read all">
+                                        <MicroEye />
+                                        <Users size={8} strokeWidth={2.5} aria-hidden="true" />
+                                    </span>
+                                )}
+
+                                {/* Center Module Icon: ALWAYS preserves module identity */}
+                                <m.icon size={17} strokeWidth={isNone ? 1.8 : 2.2} aria-hidden="true" />
+
+                                {/* Bottom-Right Action & Scope Badge */}
+                                {detailedState === "read_own" && (
+                                    <span className="upd-icon-badge-br" aria-label="Read own">
+                                        <MicroEye />
+                                        <User size={8} strokeWidth={2.5} aria-hidden="true" />
+                                    </span>
+                                )}
+                                {detailedState === "read_all" && (
+                                    <span className="upd-icon-badge-br" aria-label="Read all">
+                                        <MicroEye />
+                                        <Users size={8} strokeWidth={2.5} aria-hidden="true" />
+                                    </span>
+                                )}
+                                {(detailedState === "write_own" || detailedState === "read_all_write_own") && (
+                                    <span className="upd-icon-badge-br" aria-label="Write own">
+                                        <Pencil size={8} strokeWidth={2.5} aria-hidden="true" />
+                                        <User size={8} strokeWidth={2.5} aria-hidden="true" />
+                                    </span>
+                                )}
+                                {detailedState === "write_all" && (
+                                    <span className="upd-icon-badge-br" aria-label="Write all">
+                                        <Pencil size={8} strokeWidth={2.5} aria-hidden="true" />
+                                        <Users size={8} strokeWidth={2.5} aria-hidden="true" />
+                                    </span>
+                                )}
                             </div>
                         </Tooltip>
                     )
@@ -813,11 +933,11 @@ export function UserPermissionDrawer({ open, userId, userIds, currentUserId, onC
                                                                     disabled={!canEditProject}
                                                                     allowClear={false}
                                                                     placeholder="Custom"
-                                                                    value={role ?? undefined}
+                                                                    value={role ?? "custom"}
                                                                     options={projectRoleOptions}
                                                                     onChange={(value) => setScopeRole("project", (value ?? null) as AccessRoleCode | null, project.project_id)}
                                                                 />
-                                                                {role === "custom" && (
+                                                                {(role ?? "custom") === "custom" && (
                                                                     <Tooltip title="Some permission combinations may not be useful">
                                                                         <span className="upd-role-warning" aria-label="Custom role warning">
                                                                             <AlertTriangle size={15} className="upd-role-warning-icon" />
@@ -832,7 +952,7 @@ export function UserPermissionDrawer({ open, userId, userIds, currentUserId, onC
                                                             "project",
                                                             project.project_id,
                                                             projectDisplayPermissions,
-                                                            !canEditProject || role !== "custom",
+                                                            !canEditProject || (role ?? "custom") !== "custom",
                                                             undefined,
                                                             undefined,
                                                             projectDivergentResources,
@@ -841,7 +961,7 @@ export function UserPermissionDrawer({ open, userId, userIds, currentUserId, onC
                                                 </div>
                                                 {canExpandProject && isProjectExpanded && project.collections.map(col => {
                                                     const isColUnlocked = isProjectNamedRole || collectionHasStoredAccess(col);
-                                                    const effectiveColRole = isProjectNamedRole ? project.assigned_role : col.assigned_role;
+                                                    const effectiveColRole = isProjectNamedRole ? project.assigned_role : (col.assigned_role ?? "custom");
                                                     const displayPermissions = getCollectionDisplayPermissions(project, col);
                                                     const inheritedResources = new Set(
                                                         MODULE_KEYS.filter(resource => isInheritedIcon(project, col, resource))
@@ -894,11 +1014,12 @@ export function UserPermissionDrawer({ open, userId, userIds, currentUserId, onC
                                                                                     classNames={{ popup: { root: "upd-role-select-popup" } }}
                                                                                     aria-label={`Collection role for ${col.collection_name}`}
                                                                                     disabled={!canEditCollection}
-                                                                                    value={col.assigned_role ?? undefined}
+                                                                                    allowClear={false}
+                                                                                    value={col.assigned_role ?? "custom"}
                                                                                     options={collectionRoleOptions}
                                                                                     onChange={(value) => setScopeRole("collection", (value || null) as AccessRoleCode | null, col.collection_id, project.project_id)}
                                                                                 />
-                                                                                {col.assigned_role === "custom" && (
+                                                                                {(col.assigned_role ?? "custom") === "custom" && (
                                                                                     <Tooltip title="Some permission combinations may not be useful">
                                                                                         <span className="upd-role-warning" aria-label="Custom role warning">
                                                                                             <AlertTriangle size={15} className="upd-role-warning-icon" />
@@ -915,7 +1036,7 @@ export function UserPermissionDrawer({ open, userId, userIds, currentUserId, onC
                                                                     "collection",
                                                                     col.collection_id,
                                                                     displayPermissions,
-                                                                    isProjectNamedRole || !isColUnlocked || !canEditCollection || col.assigned_role !== "custom",
+                                                                    isProjectNamedRole || !isColUnlocked || !canEditCollection || (col.assigned_role ?? "custom") !== "custom",
                                                                     project.project_id,
                                                                     inheritedResources,
                                                                     collectionDivergentResources,

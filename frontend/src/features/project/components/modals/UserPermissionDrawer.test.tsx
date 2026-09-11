@@ -360,4 +360,274 @@ describe("UserPermissionDrawer", () => {
             }],
         })
     })
+
+    it("normalizes null assigned_role to custom and displays Custom on project select", async () => {
+        mocks.getUserPermissionConfig.mockResolvedValue({
+            data: {
+                is_admin: false,
+                can_manage_admin_role: false,
+                projects: [{
+                    project_id: 1,
+                    project_name: "Project One",
+                    can_manage_project: true,
+                    stored_permissions: ["media:read"],
+                    effective_permissions: ["media:read"],
+                    assigned_role: null,
+                    collections: [{
+                        project_id: 1,
+                        collection_id: 10,
+                        collection_name: "Collection One",
+                        can_manage_collection: true,
+                        stored_permissions: [],
+                        effective_permissions: ["media:read"],
+                        inherited_permissions: ["media:read"],
+                        assigned_role: null,
+                    }],
+                }],
+            },
+        })
+        mocks.listAccessRoles.mockResolvedValue({
+            data: [
+                { code: "viewer", name: "Viewer", kind: "access", display_order: 1, project_permissions: [], collection_permissions: [] },
+                { code: "custom", name: "Custom", kind: "access", display_order: 2, project_permissions: [], collection_permissions: [] },
+            ],
+        })
+
+        render(
+            <MemoryRouter>
+                <UserPermissionDrawer open userId={2} onClose={vi.fn()} />
+            </MemoryRouter>,
+        )
+
+        await screen.findByText("Project One")
+        const projectSelect = screen.getByRole("combobox", { name: "Project role for Project One" })
+        const selectContainer = projectSelect.closest(".ant-select")
+        expect(selectContainer).toHaveTextContent("Custom")
+    })
+
+    it("displays read-all-write-own state and sight badge for annotator role on both annotation and review", async () => {
+        mocks.getUserPermissionConfig.mockResolvedValue({
+            data: {
+                is_admin: false,
+                can_manage_admin_role: false,
+                projects: [{
+                    project_id: 1,
+                    project_name: "Project One",
+                    can_manage_project: true,
+                    stored_permissions: [],
+                    effective_permissions: ["project:read", "media:read", "site:read", "annotation:read", "annotation:write_own", "review:read", "review:write_own"],
+                    assigned_role: "annotator",
+                    collections: [],
+                }],
+            },
+        })
+        mocks.listAccessRoles.mockResolvedValue({
+            data: [{
+                code: "annotator",
+                name: "Annotator",
+                kind: "access",
+                display_order: 20,
+                project_permissions: ["project:read", "media:read", "site:read", "annotation:read", "annotation:write_own", "review:read", "review:write_own"],
+                collection_permissions: ["collection:read", "media:read", "site:read", "annotation:read", "annotation:write_own", "review:read", "review:write_own"],
+            }],
+        })
+
+        render(
+            <MemoryRouter>
+                <UserPermissionDrawer open userId={2} onClose={vi.fn()} />
+            </MemoryRouter>,
+        )
+
+        await screen.findByText("Project One")
+        const markers = document.querySelectorAll('[data-state="read_all_write_own"]')
+        expect(markers.length).toBeGreaterThanOrEqual(2)
+
+        const sightBadges = screen.getAllByLabelText("Sight: Read all")
+        expect(sightBadges.length).toBeGreaterThanOrEqual(2)
+    })
+
+    it("clears collection divergence when project permission icon is clicked", async () => {
+        mocks.getUserPermissionConfig.mockResolvedValue({
+            data: {
+                is_admin: false,
+                can_manage_admin_role: false,
+                projects: [{
+                    project_id: 1,
+                    project_name: "Project One",
+                    can_manage_project: true,
+                    stored_permissions: ["media:read"],
+                    effective_permissions: ["media:read"],
+                    assigned_role: "custom",
+                    collections: [{
+                        project_id: 1,
+                        collection_id: 10,
+                        collection_name: "Collection One",
+                        can_manage_collection: true,
+                        stored_permissions: ["media:write"],
+                        effective_permissions: ["media:write"],
+                        inherited_permissions: ["media:read"],
+                        assigned_role: "custom",
+                    }],
+                }],
+            },
+        })
+        mocks.listAccessRoles.mockResolvedValue({
+            data: [
+                { code: "custom", name: "Custom", kind: "access", display_order: 1, project_permissions: [], collection_permissions: [] },
+            ],
+        })
+
+        const user = userEvent.setup()
+        render(
+            <MemoryRouter>
+                <UserPermissionDrawer open userId={2} onClose={vi.fn()} />
+            </MemoryRouter>,
+        )
+
+        await screen.findByText("Project One")
+        if (!screen.queryByText("Collection One")) {
+            await user.click(screen.getByRole("button", { name: "Project One" }))
+        }
+        await screen.findByText("Collection One")
+
+        // Initially there are divergence "C" markers
+        expect(screen.getAllByText("C").length).toBeGreaterThanOrEqual(2)
+
+        // Click the project's media icon (first icon in project row)
+        const projectRow = screen.getByText("Project One").closest(".upd-project-row")
+        if (!projectRow) throw new Error("Project row missing")
+        const mediaIcon = projectRow.querySelector(".upd-icon-item")
+        if (!mediaIcon) throw new Error("Media icon missing")
+
+        await user.click(mediaIcon)
+
+        // Now the collection override was cleared and divergence C markers are removed
+        expect(screen.queryByText("C")).toBeNull()
+    })
+
+    it("cycles through Model 2 permission states on click in Custom mode", async () => {
+        mocks.getUserPermissionConfig.mockResolvedValue({
+            data: {
+                is_admin: false,
+                can_manage_admin_role: false,
+                projects: [{
+                    project_id: 1,
+                    project_name: "Project One",
+                    can_manage_project: true,
+                    stored_permissions: [],
+                    effective_permissions: [],
+                    assigned_role: "custom",
+                    collections: [],
+                }],
+            },
+        })
+        mocks.listAccessRoles.mockResolvedValue({
+            data: [
+                { code: "custom", name: "Custom", kind: "access", display_order: 1, project_permissions: [], collection_permissions: [] },
+            ],
+        })
+
+        const user = userEvent.setup()
+        render(
+            <MemoryRouter>
+                <UserPermissionDrawer open userId={2} onClose={vi.fn()} />
+            </MemoryRouter>,
+        )
+
+        await screen.findByText("Project One")
+        const projectRow = screen.getByText("Project One").closest(".upd-project-row")
+        if (!projectRow) throw new Error("Project row missing")
+
+        const icons = projectRow.querySelectorAll(".upd-icon-item")
+        const annotationIcon = icons[2]
+        if (!annotationIcon) throw new Error("Annotation icon missing")
+
+        // 1. Initial State: none
+        expect(annotationIcon).toHaveAttribute("data-state", "none")
+        expect(annotationIcon).toHaveAttribute("aria-label", "Annotation: None")
+
+        // 2. Click -> Read own
+        await user.click(annotationIcon)
+        expect(annotationIcon).toHaveAttribute("data-state", "read_own")
+        expect(annotationIcon.querySelector(".upd-icon-badge-br")).not.toBeNull()
+
+        // 3. Click -> Write own
+        await user.click(annotationIcon)
+        expect(annotationIcon).toHaveAttribute("data-state", "write_own")
+        expect(annotationIcon).toHaveClass("upd-icon-item--write")
+
+        // 4. Click -> Read all
+        await user.click(annotationIcon)
+        expect(annotationIcon).toHaveAttribute("data-state", "read_all")
+        expect(annotationIcon).not.toHaveClass("upd-icon-item--write")
+
+        // 5. Click -> Read all, write own (State 4)
+        await user.click(annotationIcon)
+        expect(annotationIcon).toHaveAttribute("data-state", "read_all_write_own")
+        expect(annotationIcon.querySelector(".upd-icon-badge-tl")).not.toBeNull()
+        expect(annotationIcon.querySelector(".upd-icon-badge-br")).not.toBeNull()
+
+        // 6. Click -> Write all (State 5)
+        await user.click(annotationIcon)
+        expect(annotationIcon).toHaveAttribute("data-state", "write_all")
+        expect(annotationIcon.querySelector(".upd-icon-badge-tl")).toBeNull()
+        expect(annotationIcon.querySelector(".upd-icon-badge-br")).not.toBeNull()
+
+        // 7. Click -> resets to None
+        await user.click(annotationIcon)
+        expect(annotationIcon).toHaveAttribute("data-state", "none")
+    })
+
+    it("preserves module identity on all 4 modules regardless of configured permissions", async () => {
+        mocks.getUserPermissionConfig.mockResolvedValue({
+            data: {
+                is_admin: false,
+                can_manage_admin_role: false,
+                projects: [{
+                    project_id: 1,
+                    project_name: "Project One",
+                    can_manage_project: true,
+                    stored_permissions: [
+                        "media:read",
+                        "site:write",
+                        "annotation:read",
+                        "annotation:write_own",
+                        "review:write",
+                    ],
+                    effective_permissions: [
+                        "media:read",
+                        "site:write",
+                        "annotation:read",
+                        "annotation:write_own",
+                        "review:write",
+                    ],
+                    assigned_role: "custom",
+                    collections: [],
+                }],
+            },
+        })
+        mocks.listAccessRoles.mockResolvedValue({
+            data: [{ code: "custom", name: "Custom", kind: "access", display_order: 1, project_permissions: [], collection_permissions: [] }],
+        })
+
+        render(
+            <MemoryRouter>
+                <UserPermissionDrawer open userId={2} onClose={vi.fn()} />
+            </MemoryRouter>,
+        )
+
+        await screen.findByText("Project One")
+        const projectRow = screen.getByText("Project One").closest(".upd-project-row")
+        if (!projectRow) throw new Error("Project row missing")
+
+        const mediaItem = projectRow.querySelector('[data-resource="media"]')
+        const siteItem = projectRow.querySelector('[data-resource="site"]')
+        const annotItem = projectRow.querySelector('[data-resource="annotation"]')
+        const reviewItem = projectRow.querySelector('[data-resource="review"]')
+
+        expect(mediaItem).toHaveAttribute("data-state", "read_all")
+        expect(siteItem).toHaveAttribute("data-state", "write_all")
+        expect(annotItem).toHaveAttribute("data-state", "read_all_write_own")
+        expect(reviewItem).toHaveAttribute("data-state", "write_all")
+    })
 })
