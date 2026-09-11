@@ -6465,22 +6465,21 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                         <div style={{ flex: 1 }} />
 
                         {/* Freq/Time range info */}
-                        <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 600, color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 24, fontWeight: 600, color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>
                             <Tooltip title="Visible Time Range">
                                 <span>
-                                    x (s):{" "}
+                                    x :{" "}
                                     {totalDuration > 0
-                                        ? `${formatDisplayNumber(specViewStart)} – ${formatDisplayNumber(specVisibleEnd)}`
+                                        ? `${formatDisplayNumber(specViewStart)} – ${formatDisplayNumber(specVisibleEnd)} s`
                                         : ""}
                                 </span>
                             </Tooltip>
-                            <span style={{ width: 1, height: 12, background: "var(--border-color)" }} />
                             <Tooltip title="Visible Frequency Range">
                                 <span>
-                                    y (Hz):{" "}
+                                    y :{" "}
                                     {`${formatDisplayNumber(specFreqMinHz)} – ${formatDisplayNumber(
                                         specFreqMaxHz,
-                                    )}`}
+                                    )} Hz`}
                                 </span>
                             </Tooltip>
                         </div>
