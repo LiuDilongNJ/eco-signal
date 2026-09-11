@@ -5,7 +5,7 @@ from sqlmodel import Session, create_engine, select, text
 
 from app.core.config import settings
 from app.core.security import get_password_hash
-from app.models import Role, User
+from app.models import Camera, Lens, Microphone, Recorder, Role, Sensor, User
 from app.repositories import role_repository
 from app.schemas.role import RoleCreate
 
@@ -17,6 +17,90 @@ engine = create_engine(
     pool_recycle=settings.DB_POOL_RECYCLE,
     pool_pre_ping=True,
 )
+
+
+DEFAULT_TEST_RECORDER_NAME = "Test Recorder"
+DEFAULT_TEST_MICROPHONE_NAME = "Test Microphone"
+DEFAULT_TEST_CAMERA_NAME = "Test Camera"
+DEFAULT_TEST_LENS_NAME = "Test Lens"
+DEFAULT_TEST_AUDIO_SENSOR_NAME = "Test Audio Sensor"
+DEFAULT_TEST_PHOTO_SENSOR_NAME = "Test Photo Sensor"
+
+
+def ensure_default_sensors(session: Session) -> None:
+    """Create test sensors required for first-run media uploads."""
+    recorder = session.exec(
+        select(Recorder).where(Recorder.name == DEFAULT_TEST_RECORDER_NAME)
+    ).first()
+    if not recorder:
+        recorder = Recorder(name=DEFAULT_TEST_RECORDER_NAME, brand="ecoSignal", version="test")
+        session.add(recorder)
+
+    microphone = session.exec(
+        select(Microphone).where(Microphone.name == DEFAULT_TEST_MICROPHONE_NAME)
+    ).first()
+    if not microphone:
+        microphone = Microphone(
+            name=DEFAULT_TEST_MICROPHONE_NAME,
+            microphone_element="test",
+        )
+        session.add(microphone)
+
+    camera = session.exec(
+        select(Camera).where(Camera.name == DEFAULT_TEST_CAMERA_NAME)
+    ).first()
+    if not camera:
+        camera = Camera(name=DEFAULT_TEST_CAMERA_NAME, brand="ecoSignal", version="test")
+        session.add(camera)
+
+    lens = session.exec(
+        select(Lens).where(Lens.name == DEFAULT_TEST_LENS_NAME)
+    ).first()
+    if not lens:
+        lens = Lens(name=DEFAULT_TEST_LENS_NAME, brand="ecoSignal")
+        session.add(lens)
+
+    session.commit()
+    for device in (recorder, microphone, camera, lens):
+        session.refresh(device)
+
+    audio_sensor = session.exec(
+        select(Sensor).where(
+            Sensor.name == DEFAULT_TEST_AUDIO_SENSOR_NAME,
+            Sensor.sensor_type == "audio",
+        )
+    ).first()
+    if not audio_sensor:
+        session.add(
+            Sensor(
+                name=DEFAULT_TEST_AUDIO_SENSOR_NAME,
+                sensor_type="audio",
+                recorder_id=recorder.recorder_id,
+                microphone_id=microphone.microphone_id,
+                description="Default test recorder-microphone combination for first-run uploads.",
+                serial_number="TEST-AUDIO-001",
+            )
+        )
+
+    photo_sensor = session.exec(
+        select(Sensor).where(
+            Sensor.name == DEFAULT_TEST_PHOTO_SENSOR_NAME,
+            Sensor.sensor_type == "photo",
+        )
+    ).first()
+    if not photo_sensor:
+        session.add(
+            Sensor(
+                name=DEFAULT_TEST_PHOTO_SENSOR_NAME,
+                sensor_type="photo",
+                camera_id=camera.camera_id,
+                lens_id=lens.lens_id,
+                description="Default test camera-lens combination for first-run uploads.",
+                serial_number="TEST-PHOTO-001",
+            )
+        )
+
+    session.commit()
 
 
 def sync_db_sequences(session: Session) -> None:
@@ -81,4 +165,5 @@ def init_db(session: Session) -> None:
         session.add(user)
         session.commit()
 
+    ensure_default_sensors(session)
     sync_db_sequences(session)

@@ -1,9 +1,9 @@
 import { Button as ESButton } from "@/components/ui"
-import { useEffect, useMemo, useState } from "react"
-import { Button, ConfigProvider, Typography, Select, Input, Switch, Progress, Form, DatePicker } from "@/components/ui"
+import { useEffect, useMemo, useState, type ReactNode } from "react"
+import { Button, ConfigProvider, Typography, Select, Input, Switch, Progress, Form, DatePicker, Tooltip } from "@/components/ui"
 import { FormDrawer } from "@/components/ui"
 
-import { AudioLines, CheckCircle2, Upload, RefreshCw } from "lucide-react"
+import { AudioLines, CheckCircle2, Upload, RefreshCw, Info } from "lucide-react"
 import { useAppStore } from "@/store/useAppStore"
 import { useAntdBrandConfig } from "../../hooks/useAntdBrandConfig"
 import { CustomScrollArea } from "@/components/ui"
@@ -14,7 +14,7 @@ import { canParseFilenameDateTime } from "./filenameDatetime"
 import type { LicenseOption } from "../../../../api/endpoints/licenses"
 import type { SensorOption } from "../../../../api/endpoints/sensors"
 import type { UserOption } from "../../../../api/endpoints/users"
-import { MEDIA_ADD_TITLES, filterSensorsForMediaType, formatSensorOptionLabel } from "./mediaForm"
+import { MEDIA_ADD_TITLES, SENSOR_FIELD_HELP_TEXT, filterSensorsForMediaType, formatSensorOptionLabel } from "./mediaForm"
 import { RESAMPLING_RATE_OPTIONS, isValidResamplingRate } from "./resamplingOptions"
 import "./styles/FormDrawer.css"
 import "./styles/UploadAudioDrawer.css"
@@ -121,7 +121,7 @@ export function UploadAudioDrawer({ open, initialFiles = [], siteOptions = [], l
         return Object.keys(nextErrors).length === 0
     }
 
-    const renderRequiredLabel = (label: string) => (
+    const renderRequiredLabel = (label: ReactNode) => (
         <>
             {label}
             <span className="form-drawer-required-suffix">*</span>
@@ -363,7 +363,14 @@ export function UploadAudioDrawer({ open, initialFiles = [], siteOptions = [], l
                                     />
                                 </Form.Item>
                                 <Form.Item
-                                    label={renderRequiredLabel("Sensor")}
+                                    label={renderRequiredLabel(
+                                        <span className="site-form-field-label-with-help">
+                                            Sensor
+                                            <Tooltip title={SENSOR_FIELD_HELP_TEXT}>
+                                                <Info size={14} aria-hidden="true" />
+                                            </Tooltip>
+                                        </span>,
+                                    )}
                                     validateStatus={validationErrors.sensor_id ? "error" : undefined}
                                     help={validationErrors.sensor_id}
                                 >

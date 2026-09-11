@@ -11,7 +11,7 @@ def test_init_db_creates_admin_role_when_missing():
     # First exec: admin_role not found; second exec: user not found
     mock_session.exec.return_value.first.side_effect = [None, MagicMock()]
 
-    with patch("app.core.db.role_repository") as mock_role_repo:
+    with patch("app.core.db.ensure_default_sensors"), patch("app.core.db.role_repository") as mock_role_repo:
         mock_admin_role = MagicMock()
         mock_admin_role.role_id = 99
         mock_role_repo.create.return_value = mock_admin_role
@@ -30,7 +30,7 @@ def test_init_db_reuses_existing_admin_role():
     # First exec: role found; second exec: user found
     mock_session.exec.return_value.first.side_effect = [existing_role, MagicMock()]
 
-    with patch("app.core.db.role_repository") as mock_role_repo:
+    with patch("app.core.db.ensure_default_sensors"), patch("app.core.db.role_repository") as mock_role_repo:
         init_db(mock_session)
 
     mock_role_repo.create.assert_not_called()
@@ -49,9 +49,11 @@ def test_init_db_updates_existing_user1_when_superuser_missing():
     existing_user = MagicMock()
     mock_session.get.return_value = existing_user
 
-    with patch("app.core.db.role_repository"):
-        with patch("app.core.db.get_password_hash", return_value="hashed_pw"):
-            init_db(mock_session)
+    with patch("app.core.db.ensure_default_sensors"), patch("app.core.db.role_repository"), patch(
+        "app.core.db.get_password_hash",
+        return_value="hashed_pw",
+    ):
+        init_db(mock_session)
 
     mock_session.add.assert_called_with(existing_user)
     mock_session.commit.assert_called()
@@ -66,11 +68,14 @@ def test_init_db_updates_existing_superuser_to_configured_password():
 
     mock_session.exec.return_value.first.side_effect = [existing_role, existing_user]
 
-    with patch("app.core.db.role_repository"):
-        with patch("app.core.db.settings.FIRST_SUPERUSER", "admin"):
-            with patch("app.core.db.settings.FIRST_SUPERUSER_PASSWORD", "new-secret"):
-                with patch("app.core.db.get_password_hash", return_value="hashed_pw") as mock_hash:
-                    init_db(mock_session)
+    with patch("app.core.db.ensure_default_sensors"), patch("app.core.db.role_repository"), patch(
+        "app.core.db.settings.FIRST_SUPERUSER",
+        "admin",
+    ), patch("app.core.db.settings.FIRST_SUPERUSER_PASSWORD", "new-secret"), patch(
+        "app.core.db.get_password_hash",
+        return_value="hashed_pw",
+    ) as mock_hash:
+        init_db(mock_session)
 
     mock_hash.assert_called_once_with("new-secret")
     assert existing_user.username == "admin"
@@ -89,7 +94,7 @@ def test_init_db_does_nothing_when_both_missing():
     mock_session.exec.return_value.first.side_effect = [existing_role, None]
     mock_session.get.return_value = None  # no user with id=1
 
-    with patch("app.core.db.role_repository"):
+    with patch("app.core.db.ensure_default_sensors"), patch("app.core.db.role_repository"):
         init_db(mock_session)
 
     mock_session.add.assert_not_called()

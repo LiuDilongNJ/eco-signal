@@ -33,6 +33,9 @@ export const MEDIA_EDIT_TITLES: Record<EditableMediaKind, string> = {
     metadata: "Edit Metadata",
 }
 
+export const SENSOR_FIELD_HELP_TEXT =
+    "Sensors are recorder-microphone or camera-lens combinations. Admins can manage them under settings."
+
 export function resolveEditableMediaKind(mediaType: string | null, isMetadata: boolean): EditableMediaKind {
     if (isMetadata) return "metadata"
     return mediaType === "photo" ? "photo" : "audio"

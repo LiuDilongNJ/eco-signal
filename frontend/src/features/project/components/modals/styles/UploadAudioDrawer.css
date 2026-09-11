@@ -40,12 +40,12 @@
     padding-right: 6px;
 }
 
-/* Align the upload button with the last form control, above Ant Form's bottom margin. */
+/* Align the upload button with the preprocessing switch and expanded helper text. */
 .upload-audio-drawer-upload-action {
     display: flex;
     justify-content: flex-end;
     margin-top: auto;
-    margin-bottom: 24px;
+    margin-bottom: 8px;
 }
 
 /* 仅本抽屉队列滚动条：向内偏移 */
@@ -119,11 +119,11 @@
     border-left: 0;
 }
 
-/* The last Form.Item keeps 24px of layout space; stop the divider at the control edge. */
+/* Keep the divider ending at the aligned upload/pre-processing control edge. */
 .upload-audio-drawer-form-col::before {
     position: absolute;
     top: 0;
-    bottom: 24px;
+    bottom: 8px;
     left: 0;
     border-left: 1px solid var(--border-light);
     content: "";
