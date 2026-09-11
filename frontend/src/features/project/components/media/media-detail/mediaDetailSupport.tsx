@@ -1163,6 +1163,7 @@ export const SPEC_ZOOM_DRAFT_OUT_COOKIE_KEY = "ecoSignal_spec_zoom_percent_draft
 export const SPEC_PXS_COOKIE_KEY = "ecoSignal_spec_px_per_sec"
 export const DEFAULT_SPECTROGRAM_PX_PER_SEC = 15
 export const ANNOT_SAVE_MODE_COOKIE_KEY = "ecoSignal_annot_save_mode"
+export const AUDIO_BANDPASS_COOKIE_KEY = "ecoSignal_audio_bandpass_enabled"
 
 export function parseSpectrogramZoomPercent(raw: string | null | undefined, fallback: number): number {
     const n = raw != null ? Number(raw) : NaN
@@ -1194,6 +1195,13 @@ export function parseAnnotationSaveModeCookie(raw: string | null): AnnotationSav
         return raw as AnnotationSaveMode
     }
     return "save_close"
+}
+
+/** Missing or invalid preferences preserve the legacy default: bandpass enabled. */
+export function parseAudioBandpassCookie(raw: string | null | undefined): boolean {
+    if (raw === "0" || raw === "false") return false
+    if (raw === "1" || raw === "true") return true
+    return true
 }
 
 /** 新建保存后从全量列表中解析刚创建的 annotation_id（创建接口不返回 id） */

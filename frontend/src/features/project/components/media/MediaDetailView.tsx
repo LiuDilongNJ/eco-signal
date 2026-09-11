@@ -250,12 +250,14 @@ import {
     SPEC_PXS_COOKIE_KEY,
     DEFAULT_SPECTROGRAM_PX_PER_SEC,
     ANNOT_SAVE_MODE_COOKIE_KEY,
+    AUDIO_BANDPASS_COOKIE_KEY,
     parseSpectrogramZoomPercent,
     storeSpectrogramZoomPercentCookie,
     type AnnotationSaveMode,
     ANNOTATION_SAVE_MODE_LABELS,
     ANNOTATION_SAVE_MODE_MENU_ITEMS,
     parseAnnotationSaveModeCookie,
+    parseAudioBandpassCookie,
     pickMatchingAnnotationIdFromList,
     getCookieValue,
     setCookieValue,
@@ -355,7 +357,9 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
     /**
      * 频段过滤播放：true = 按当前可见频段请求窄带音频（filter=true）；false = 全频段（filter=false）
      */
-    const [audioBandFilter, setAudioBandFilter] = useState(false)
+    const [audioBandFilter, setAudioBandFilter] = useState(() =>
+        parseAudioBandpassCookie(getCookieValue(AUDIO_BANDPASS_COOKIE_KEY)),
+    )
     /** 声谱图纵轴可见频段（Hz）；与后续频率缩放联动，默认同录音 Nyquist */
     const [specFreqMinHz, setSpecFreqMinHz] = useState(1)
     const [specFreqMaxHz, setSpecFreqMaxHz] = useState(24_000)
@@ -499,7 +503,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
     }, [])
     const [annotationDraft, setAnnotationDraft] = useState<AnnotationPhysBox | null>(null)
     const annotationDraftRef = useRef<AnnotationPhysBox | null>(null)
-    const audioBandFilterRef = useRef(false)
+    const audioBandFilterRef = useRef(audioBandFilter)
     const [annotationDraftOverlayVisible, setAnnotationDraftOverlayVisible] = useState(true)
     const [marqueePx, setMarqueePx] = useState<{ left: number; top: number; width: number; height: number } | null>(
         null,
@@ -3965,7 +3969,6 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
         spectrogramFitPendingMediaIdRef.current = mediaId
         setSpectrogramZoomPercent(0)
         setSpectrogramViewStart(0)
-        setAudioBandFilter(false)
         activeViewportParamsKeyRef.current = null
         activeAudioViewportParamsKeyRef.current = null
         audioWindowStartRef.current = 0
@@ -6595,6 +6598,10 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                                     }
                                     audioBandFilterRef.current = nextAudioBandFilter
                                     setAudioBandFilter(nextAudioBandFilter)
+                                    setCookieValue(
+                                        AUDIO_BANDPASS_COOKIE_KEY,
+                                        nextAudioBandFilter ? "1" : "0",
+                                    )
                                     if (shouldResumeContinuous) {
                                         standardPlayAfterLoadRef.current = null
                                         setContinuousSegmentPlayback(true)
