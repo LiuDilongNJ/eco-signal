@@ -4895,12 +4895,6 @@ input[type=number] {
     box-sizing: border-box;
 }
 
-/* px/s 两位小数等更宽，避免裁切 */
-.zoom-control-wrapper--pxs input[type="number"] {
-    width: 58px;
-    min-width: 58px;
-}
-
 .zoom-control-wrapper:focus-within input[type="number"] {
     color: var(--text-main);
 }

@@ -1,4 +1,4 @@
-import { Button as ESButton, Input as ESInput } from "@/components/ui"
+import { Button as ESButton, Input as ESInput, Tooltip } from "@/components/ui"
 /**
  * MediaDetailView - 统一媒体详情页
  *
@@ -37,7 +37,6 @@ import {
     ChevronsUpDown,
     ZoomIn,
     ZoomOut,
-    StretchHorizontal,
     Play,
     Pause,
     Square,
@@ -131,6 +130,27 @@ function AnnotationZoomIcon({ size = 20, strokeWidth = 2 }: { size?: number; str
             <rect x="1.5" y="1.5" width="21" height="21" rx="2.5" strokeDasharray="4 3" />
             <circle cx="14.25" cy="14.25" r="4.25" />
             <path d="m17.25 17.25 3.25 3.25" />
+        </svg>
+    )
+}
+
+function PixelDensityZoomIcon({ size = 14, strokeWidth = 2.25 }: { size?: number; strokeWidth?: number }) {
+    return (
+        <svg
+            width={size}
+            height={size}
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={strokeWidth}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+        >
+            <circle cx="10.5" cy="10.5" r="6.5" />
+            <path d="m15.25 15.25 4.25 4.25" />
+            <path d="M7.5 10.5h6" />
+            <path d="m11.25 8.25 2.25 2.25-2.25 2.25" />
         </svg>
     )
 }
@@ -5499,6 +5519,12 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
     const displaySite = media.site_name?.trim() || null
     const { windowSec: specWindowSec, viewStartClamped: specViewStart, innerW: specInnerW, offsetX: specOffsetX } =
         spectrogramLayout
+    const spectrogramPlayerWidthPx = Math.round(specInnerW > 0 ? specInnerW : viewportSize.w)
+    const spectrogramPxPerSecTooltip =
+        "Zooms at the cursor with the chosen visualisation density: visible time window (s) = player width ÷ px/s" +
+        (spectrogramPlayerWidthPx > 0
+            ? `. Your current player width is ${spectrogramPlayerWidthPx} pixels.`
+            : "")
     const showSpectrogramLoading = spectrogramLoading || !spectrogramInitialReady
     const showAnnotationTableLoading = annotationListLoading || !annotationListInitialReady
     const playheadViewStart = specViewStart
@@ -5849,24 +5875,25 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                                 }}
                             />
                         ) : (
-                            <div
-                                className="btn-toolbar btn-toolbar--static"
-                                style={{ padding: "0 12px", gap: 6 }}
-                                title="Channel"
-                            >
-                                <Headphones size={14} />
-                                <span
-                                    style={{
-                                        fontSize: "0.85rem",
-                                        fontWeight: 600,
-                                        display: "inline-block",
-                                        width: 64,
-                                        textAlign: "center",
-                                    }}
+                            <Tooltip title="Channel">
+                                <div
+                                    className="btn-toolbar btn-toolbar--static"
+                                    style={{ padding: "0 12px", gap: 6 }}
                                 >
-                                    Mono
-                                </span>
-                            </div>
+                                    <Headphones size={14} />
+                                    <span
+                                        style={{
+                                            fontSize: "0.85rem",
+                                            fontWeight: 600,
+                                            display: "inline-block",
+                                            width: 64,
+                                            textAlign: "center",
+                                        }}
+                                    >
+                                        Mono
+                                    </span>
+                                </div>
+                            </Tooltip>
                         )}
 
                         <StudioCrumbDropdown
@@ -5976,8 +6003,8 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                         <div className="zoom-control-wrapper zoom-control-wrapper--pxs">
                             <MediaViewerToolbarButton
                                 variant="zoom"
-                                label="Apply px/s - visible time window (s) = player width ÷ px/s"
-                                icon={<StretchHorizontal size={14} />}
+                                label={spectrogramPxPerSecTooltip}
+                                icon={<PixelDensityZoomIcon size={20} strokeWidth={2.4} />}
                                 disabled={isSpectrogramBusy}
                                 onClick={applySpectrogramPxPerSecDraft}
                             />
@@ -6001,33 +6028,42 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                         {/* AI Tools */}
                         {authUtils.getToken() && (
                             <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
-                                <ESButton appearance="unstyled"
-                                    type="button"
-                                    className={`data-btn media-studio-action${rightPanel === "ai-models" ? " active" : ""}`}
-                                    title={canRunAiModels ? "Apply AI Models" : "You do not have permission to run AI models"}
-                                    disabled={!canRunAiModels}
-                                    onClick={() => setRightPanel("ai-models")}
-                                >
-                                    <Cpu size={14} /> AI Models
-                                </ESButton>
-                                <ESButton appearance="unstyled"
-                                    type="button"
-                                    className={`data-btn media-studio-action${rightPanel === "acoustic-indices" ? " active" : ""}`}
-                                    title={canRunAcousticAnalysis ? "Acoustic Indices" : "You do not have permission to calculate acoustic indices"}
-                                    disabled={!canRunAcousticAnalysis}
-                                    onClick={() => setRightPanel("acoustic-indices")}
-                                >
-                                    <BarChart2 size={14} /> Acoustic Indices
-                                </ESButton>
-                                <ESButton appearance="unstyled"
-                                    type="button"
-                                    className={`data-btn media-studio-action${rightPanel === "acoustic-analysis" ? " active" : ""}`}
-                                    title={canRunAcousticAnalysis ? "Acoustic Analysis" : "You do not have permission to run acoustic analysis"}
-                                    disabled={!canRunAcousticAnalysis}
-                                    onClick={() => setRightPanel("acoustic-analysis")}
-                                >
-                                    <AudioLines size={14} /> Acoustic Analysis
-                                </ESButton>
+                                <Tooltip title={canRunAiModels ? "Apply AI Models" : "You do not have permission to run AI models"}>
+                                    <span className="media-viewer-toolbar-tooltip-trigger">
+                                        <ESButton appearance="unstyled"
+                                            type="button"
+                                            className={`data-btn media-studio-action${rightPanel === "ai-models" ? " active" : ""}`}
+                                            disabled={!canRunAiModels}
+                                            onClick={() => setRightPanel("ai-models")}
+                                        >
+                                            <Cpu size={14} /> AI Models
+                                        </ESButton>
+                                    </span>
+                                </Tooltip>
+                                <Tooltip title={canRunAcousticAnalysis ? "Acoustic Indices" : "You do not have permission to calculate acoustic indices"}>
+                                    <span className="media-viewer-toolbar-tooltip-trigger">
+                                        <ESButton appearance="unstyled"
+                                            type="button"
+                                            className={`data-btn media-studio-action${rightPanel === "acoustic-indices" ? " active" : ""}`}
+                                            disabled={!canRunAcousticAnalysis}
+                                            onClick={() => setRightPanel("acoustic-indices")}
+                                        >
+                                            <BarChart2 size={14} /> Acoustic Indices
+                                        </ESButton>
+                                    </span>
+                                </Tooltip>
+                                <Tooltip title={canRunAcousticAnalysis ? "Acoustic Analysis" : "You do not have permission to run acoustic analysis"}>
+                                    <span className="media-viewer-toolbar-tooltip-trigger">
+                                        <ESButton appearance="unstyled"
+                                            type="button"
+                                            className={`data-btn media-studio-action${rightPanel === "acoustic-analysis" ? " active" : ""}`}
+                                            disabled={!canRunAcousticAnalysis}
+                                            onClick={() => setRightPanel("acoustic-analysis")}
+                                        >
+                                            <AudioLines size={14} /> Acoustic Analysis
+                                        </ESButton>
+                                    </span>
+                                </Tooltip>
                             </div>
                         )}
                     </div>
@@ -6434,86 +6470,92 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
 
                         {/* Freq/Time range info */}
                         <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 600, color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>
-                            <span title="Visible Time Range">
-                                x (s):{" "}
-                                {totalDuration > 0
-                                    ? `${formatDisplayNumber(specViewStart)} – ${formatDisplayNumber(specVisibleEnd)}`
-                                    : ""}
-                            </span>
+                            <Tooltip title="Visible Time Range">
+                                <span>
+                                    x (s):{" "}
+                                    {totalDuration > 0
+                                        ? `${formatDisplayNumber(specViewStart)} – ${formatDisplayNumber(specVisibleEnd)}`
+                                        : ""}
+                                </span>
+                            </Tooltip>
                             <span style={{ width: 1, height: 12, background: "var(--border-color)" }} />
-                            <span title="Visible Frequency Range">
-                                y (Hz):{" "}
-                                {`${formatDisplayNumber(specFreqMinHz)} – ${formatDisplayNumber(
-                                    specFreqMaxHz,
-                                )}`}
-                            </span>
+                            <Tooltip title="Visible Frequency Range">
+                                <span>
+                                    y (Hz):{" "}
+                                    {`${formatDisplayNumber(specFreqMinHz)} – ${formatDisplayNumber(
+                                        specFreqMaxHz,
+                                    )}`}
+                                </span>
+                            </Tooltip>
                         </div>
 
                         <span style={{ width: 1, height: 12, background: "var(--border-color)", margin: "0 4px" }} />
 
                         {/* Speed control */}
-                        <div style={{ display: "flex", alignItems: "center", gap: 4 }} title="Playback Speed">
-                            <ESInput appearance="unstyled"
-                                type="range"
-                                min={PLAYBACK_RATE_SLIDER_MIN}
-                                max={PLAYBACK_RATE_SLIDER_MAX}
-                                step={0.01}
-                                value={playbackSpeed}
-                                className="studio-speed-slider"
-                                onChange={(e) => {
-                                    const v = Number(e.target.value)
-                                    const nextSpeed = clamp(v, PLAYBACK_RATE_SLIDER_MIN, PLAYBACK_RATE_SLIDER_MAX)
-                                    const continuousEngine = continuousEngineRef.current
-                                    playbackSpeedRef.current = nextSpeed
-                                    setPlaybackSpeed(v)
-                                    if (continuousEngine) {
-                                        const current = continuousEngine.current
-                                        const liveTime = getLivePlaybackTime()
-                                        continuousEngine.playbackRate = nextSpeed
-                                        if (current) {
-                                            const elapsedInSegment = clamp(liveTime - current.start, 0, current.end - current.start)
-                                            continuousEngine.startedAtCtx =
-                                                continuousEngine.ctx.currentTime - elapsedInSegment / nextSpeed
-                                            continuousEngine.currentCtxDuration = Math.max(0.02, current.end - current.start) / nextSpeed
-                                            continuousEngine.scheduledEndCtx =
-                                                continuousEngine.startedAtCtx + continuousEngine.currentCtxDuration
-                                            setPlaybackTime(liveTime)
-                                        }
-                                        try {
-                                            continuousEngine.source?.playbackRate.setValueAtTime(
-                                                nextSpeed,
-                                                continuousEngine.ctx.currentTime,
-                                            )
-                                        } catch {
-                                            try {
-                                                if (continuousEngine.source) continuousEngine.source.playbackRate.value = nextSpeed
-                                            } catch {
-                                                /* ignore */
+                        <Tooltip title="Playback Speed">
+                            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                                <ESInput appearance="unstyled"
+                                    type="range"
+                                    min={PLAYBACK_RATE_SLIDER_MIN}
+                                    max={PLAYBACK_RATE_SLIDER_MAX}
+                                    step={0.01}
+                                    value={playbackSpeed}
+                                    className="studio-speed-slider"
+                                    onChange={(e) => {
+                                        const v = Number(e.target.value)
+                                        const nextSpeed = clamp(v, PLAYBACK_RATE_SLIDER_MIN, PLAYBACK_RATE_SLIDER_MAX)
+                                        const continuousEngine = continuousEngineRef.current
+                                        playbackSpeedRef.current = nextSpeed
+                                        setPlaybackSpeed(v)
+                                        if (continuousEngine) {
+                                            const current = continuousEngine.current
+                                            const liveTime = getLivePlaybackTime()
+                                            continuousEngine.playbackRate = nextSpeed
+                                            if (current) {
+                                                const elapsedInSegment = clamp(liveTime - current.start, 0, current.end - current.start)
+                                                continuousEngine.startedAtCtx =
+                                                    continuousEngine.ctx.currentTime - elapsedInSegment / nextSpeed
+                                                continuousEngine.currentCtxDuration = Math.max(0.02, current.end - current.start) / nextSpeed
+                                                continuousEngine.scheduledEndCtx =
+                                                    continuousEngine.startedAtCtx + continuousEngine.currentCtxDuration
+                                                setPlaybackTime(liveTime)
                                             }
-                                        }
-                                        if (continuousEngine.nextSource) {
                                             try {
-                                                continuousEngine.nextSource.stop()
+                                                continuousEngine.source?.playbackRate.setValueAtTime(
+                                                    nextSpeed,
+                                                    continuousEngine.ctx.currentTime,
+                                                )
                                             } catch {
-                                                /* ignore */
+                                                try {
+                                                    if (continuousEngine.source) continuousEngine.source.playbackRate.value = nextSpeed
+                                                } catch {
+                                                    /* ignore */
+                                                }
                                             }
-                                            continuousEngine.nextSource = null
-                                            continuousEngine.nextStartedAtCtx = null
-                                            continuousEngine.nextScheduledEndCtx = null
-                                            continuousEngine.nextCtxDuration = null
+                                            if (continuousEngine.nextSource) {
+                                                try {
+                                                    continuousEngine.nextSource.stop()
+                                                } catch {
+                                                    /* ignore */
+                                                }
+                                                continuousEngine.nextSource = null
+                                                continuousEngine.nextStartedAtCtx = null
+                                                continuousEngine.nextScheduledEndCtx = null
+                                                continuousEngine.nextCtxDuration = null
+                                            }
+                                            scheduleDecodedContinuousNext(continuousEngine)
                                         }
-                                        scheduleDecodedContinuousNext(continuousEngine)
-                                    }
-                                }}
-                                style={{
-                                    // @ts-ignore
-                                    "--p": `${((playbackSpeed - PLAYBACK_RATE_SLIDER_MIN) / (PLAYBACK_RATE_SLIDER_MAX - PLAYBACK_RATE_SLIDER_MIN)) * 100}%`,
-                                }}
-                            />
-                            <span style={{ fontWeight: 600, color: "var(--text-secondary)", width: 44, textAlign: "right" }}>
-                                {playbackSpeed.toFixed(2)}x
-                            </span>
-                        </div>
+                                    }}
+                                    style={{
+                                        // @ts-ignore
+                                        "--p": `${((playbackSpeed - PLAYBACK_RATE_SLIDER_MIN) / (PLAYBACK_RATE_SLIDER_MAX - PLAYBACK_RATE_SLIDER_MIN)) * 100}%`,
+                                    }}
+                                />
+                                <span style={{ fontWeight: 600, color: "var(--text-secondary)", width: 44, textAlign: "right" }}>
+                                    {playbackSpeed.toFixed(2)}x
+                                </span>
+                            </div>
+                        </Tooltip>
 
                         <span style={{ width: 1, height: 12, background: "var(--border-color)" }} />
 

@@ -1,4 +1,4 @@
-import { Button as ESButton } from "@/components/ui"
+import { Button as ESButton, Tooltip, getTooltipText } from "@/components/ui"
 /**
  * 与顶栏 SearchableDropdown 同构的下拉（无搜索），用于 Audio 详情工具栏等紧凑场景。
  */
@@ -48,37 +48,41 @@ export function StudioCrumbDropdown({
     const selectedItem = items.find((item) => String(item.id) === String(selectedId))
     const displayLabel = selectedItem?.label ?? String(selectedId)
 
+    const button = (
+        <ESButton appearance="unstyled"
+            type="button"
+            className="crumb-btn"
+            aria-label={title}
+            onClick={() => setIsOpen((open) => !open)}
+        >
+            {icon}
+            <div className="crumb-btn-content">
+                <span
+                    className="block-anim"
+                    style={{
+                        ...(labelWidth != null
+                            ? {
+                                  width: labelWidth,
+                                  textAlign: "center",
+                                  display: "inline-block",
+                              }
+                            : {}),
+                        ...(tabularNums ? { fontVariantNumeric: "tabular-nums" } : {}),
+                    }}
+                >
+                    {displayLabel}
+                </span>
+            </div>
+            <ChevronDown size={14} className="crumb-btn-chevron" aria-hidden />
+        </ESButton>
+    )
+
     return (
         <div
             ref={wrapperRef}
             className={`crumb-wrapper crumb-wrapper--studio-toolbar${isOpen ? " active" : ""}`}
         >
-            <ESButton appearance="unstyled"
-                type="button"
-                className="crumb-btn"
-                title={title}
-                onClick={() => setIsOpen((open) => !open)}
-            >
-                {icon}
-                <div className="crumb-btn-content">
-                    <span
-                        className="block-anim"
-                        style={{
-                            ...(labelWidth != null
-                                ? {
-                                      width: labelWidth,
-                                      textAlign: "center",
-                                      display: "inline-block",
-                                  }
-                                : {}),
-                            ...(tabularNums ? { fontVariantNumeric: "tabular-nums" } : {}),
-                        }}
-                    >
-                        {displayLabel}
-                    </span>
-                </div>
-                <ChevronDown size={14} className="crumb-btn-chevron" aria-hidden />
-            </ESButton>
+            {title ? <Tooltip title={getTooltipText(title)}>{button}</Tooltip> : button}
             <div
                 className="crumb-dropdown crumb-dropdown--studio-toolbar"
                 style={dropdownMinWidth != null ? { minWidth: dropdownMinWidth } : undefined}

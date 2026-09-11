@@ -65,7 +65,10 @@ function DataToolbarTooltips({ children }: { children: ReactNode }) {
                 }
 
                 const className = typeof child.props.className === "string" ? child.props.className : ""
-                const isDataAction = className.includes("data-btn") || className.includes("nav-center-btn")
+                const isDataAction =
+                    className.includes("data-btn") ||
+                    className.includes("nav-center-btn") ||
+                    className.includes("data-toolbar-tooltip-trigger")
                 const title = typeof child.props.title === "string" ? child.props.title : undefined
                 if (!isDataAction || !title) return child
 
@@ -1337,6 +1340,16 @@ export function DataPageLayout({
     const actionBlocked = importOnly ? importBlocked : addBlocked
     const addBlockedTooltip = !canAdd ? noPermissionTooltip : addDisabledTooltip
     const importBlockedTooltip = importConfig?.disabled ? importConfig.disabledReason : undefined
+    const addDropdownTooltip = actionBlocked
+        ? importOnly
+            ? importBlockedTooltip
+            : addBlockedTooltip
+        : importOnly
+            ? "Import data"
+            : importConfig
+                ? "Add or import data"
+                : "Add a new record to this table"
+    const addButtonTooltip = addBlocked ? addBlockedTooltip : "Add a new record to this table"
 
     const mergedAddDropdownItems: MenuProps["items"] = []
     if (addDropdownItems) {
@@ -1467,33 +1480,29 @@ export function DataPageLayout({
 
                             {useAddDropdown ? (
                                 ((showAddAction || importOnly) && (
-                                    <Tooltip title={actionBlocked ? (importOnly ? importBlockedTooltip : addBlockedTooltip) : importOnly ? "Import data" : importConfig ? "Add or import data" : "Add a new record to this table"}>
-                                        <span style={{ display: "inline-flex" }}>
-                                            <DropdownMenu
-                                                items={mergedAddDropdownItems}
-                                                trigger={['click']}
-                                                placement="bottomLeft"
-                                                transitionName=""
-                                                disabled={actionBlocked}
-                                                overlayClassName="data-add-dropdown"
-                                            >
-                                                <ESButton appearance="unstyled" type="button" className="data-btn" title={actionBlocked ? (importOnly ? importBlockedTooltip : addBlockedTooltip) : importOnly ? "Import data" : importConfig ? "Add or import data" : "Add a new record to this table"} disabled={actionBlocked}>
-                                                    {importOnly ? <FileUp size={14} /> : <Plus size={14} />} {importOnly ? "Import" : "Add"}
-                                                    <ChevronDown size={14} className="data-btn__dropdown-icon" aria-hidden />
-                                                </ESButton>
-                                            </DropdownMenu>
-                                        </span>
-                                    </Tooltip>
+                                    <span className="data-toolbar-tooltip-trigger" title={addDropdownTooltip}>
+                                        <DropdownMenu
+                                            items={mergedAddDropdownItems}
+                                            trigger={['click']}
+                                            placement="bottomLeft"
+                                            transitionName=""
+                                            disabled={actionBlocked}
+                                            overlayClassName="data-add-dropdown"
+                                        >
+                                            <ESButton appearance="unstyled" type="button" className="data-btn" title={addDropdownTooltip} disabled={actionBlocked}>
+                                                {importOnly ? <FileUp size={14} /> : <Plus size={14} />} {importOnly ? "Import" : "Add"}
+                                                <ChevronDown size={14} className="data-btn__dropdown-icon" aria-hidden />
+                                            </ESButton>
+                                        </DropdownMenu>
+                                    </span>
                                 ))
                             ) : (
                                 !hideAdd && (
-                                    <Tooltip title={addBlocked ? addBlockedTooltip : "Add a new record to this table"}>
-                                        <span style={{ display: "inline-flex" }}>
-                                            <ESButton appearance="unstyled" type="button" className="data-btn" title={addBlocked ? addBlockedTooltip : "Add a new record to this table"} disabled={addBlocked} onClick={() => onAddCustom ? onAddCustom() : setCrudModal({ open: true, mode: "add" })}>
-                                                <Plus size={14} /> Add
-                                            </ESButton>
-                                        </span>
-                                    </Tooltip>
+                                    <span className="data-toolbar-tooltip-trigger" title={addButtonTooltip}>
+                                        <ESButton appearance="unstyled" type="button" className="data-btn" title={addButtonTooltip} disabled={addBlocked} onClick={() => onAddCustom ? onAddCustom() : setCrudModal({ open: true, mode: "add" })}>
+                                            <Plus size={14} /> Add
+                                        </ESButton>
+                                    </span>
                                 )
                             )}
                             {!hideEdit && (

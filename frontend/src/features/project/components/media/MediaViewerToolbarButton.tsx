@@ -1,4 +1,4 @@
-import { Button as ESButton } from "@/components/ui"
+import { Button as ESButton, Tooltip, getTooltipText } from "@/components/ui"
 import type { ButtonHTMLAttributes, ReactNode } from "react"
 
 type MediaViewerToolbarButtonProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, "children" | "title"> & {
@@ -19,16 +19,21 @@ export function MediaViewerToolbarButton({
     const baseClass = variant === "zoom" ? "zoom-control-btn" : "btn-toolbar"
     const classes = [baseClass, active ? "active" : "", className].filter(Boolean).join(" ")
 
-    return (
+    const button = (
         <ESButton appearance="unstyled"
             type="button"
             className={classes}
-            title={label}
             aria-label={label}
             aria-pressed={active}
             {...buttonProps}
         >
             {icon}
         </ESButton>
+    )
+
+    return (
+        <Tooltip title={getTooltipText(label)}>
+            {buttonProps.disabled ? <span className="media-viewer-toolbar-tooltip-trigger">{button}</span> : button}
+        </Tooltip>
     )
 }

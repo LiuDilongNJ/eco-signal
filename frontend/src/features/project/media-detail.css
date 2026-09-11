@@ -1081,6 +1081,7 @@
 
 /* Media workspace control contract: one visual language for every toolbar edge. */
 .content-wrapper--media-detail .player-toolbar-top {
+    --media-control-icon-size: 20px;
     height: var(--media-control-size);
     min-height: var(--media-control-size);
 }
@@ -1135,6 +1136,8 @@
 .content-wrapper--media-detail .media-viewer-toolbar-button svg,
 .content-wrapper--media-detail .studio-table-toolbar-button svg,
 .content-wrapper--media-detail .media-studio-action svg,
+.content-wrapper--media-detail .player-toolbar-top .btn-toolbar svg,
+.content-wrapper--media-detail .player-toolbar-top .zoom-control-btn svg,
 .content-wrapper--media-detail .player-toolbar-top .btn-toolbar--static svg {
     display: block;
     width: var(--media-control-icon-size);
@@ -1145,6 +1148,10 @@
 .content-wrapper--media-detail .media-studio-action {
     padding: 0 var(--es-space-3) !important;
     gap: var(--es-space-2);
+}
+
+.content-wrapper--media-detail .media-viewer-toolbar-tooltip-trigger {
+    display: inline-flex;
 }
 
 .content-wrapper--media-detail .player-toolbar-top .btn-toolbar--static {
