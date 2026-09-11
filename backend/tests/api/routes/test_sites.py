@@ -3735,3 +3735,88 @@ class TestSiteGeoEdgeCases:
         )
         assert r.status_code == 503
         assert "unavailable" in r.json()["message"].lower()
+
+    def test_create_site_administrative_mutual_exclusive_rejection(
+        self, client: TestClient, superuser_token_headers: dict, db: Session
+    ) -> None:
+        """Issue #48: SiteCreate in administrative mode rejects having both GADM and IHO."""
+        collection = create_test_collection(db)
+        r = client.post(
+            f"{settings.API_V1_STR}/sites",
+            headers=superuser_token_headers,
+            json={
+                "name": "Both GADM and IHO Admin Site",
+                "location_method": "administrative",
+                "gadm0_gid": "DFT",
+                "iho_id": 9905,
+                "collection_id": collection.collection_id,
+            },
+        )
+        assert r.status_code == 422
+        assert "Only one of GADM or IHO can be selected for administrative location" in r.text
+
+    def test_create_site_administrative_requires_gadm_or_iho(
+        self, client: TestClient, superuser_token_headers: dict, db: Session
+    ) -> None:
+        """Issue #48: SiteCreate in administrative mode requires at least one of GADM or IHO."""
+        collection = create_test_collection(db)
+        r = client.post(
+            f"{settings.API_V1_STR}/sites",
+            headers=superuser_token_headers,
+            json={
+                "name": "Empty Admin Site",
+                "location_method": "administrative",
+                "collection_id": collection.collection_id,
+            },
+        )
+        assert r.status_code == 422
+        assert "Either GADM or IHO must be selected for administrative location" in r.text
+
+    def test_create_site_administrative_with_iho_only(
+        self, client: TestClient, superuser_token_headers: dict, db: Session
+    ) -> None:
+        """Issue #48: SiteCreate in administrative mode with only IHO succeeds."""
+        collection = create_test_collection(db)
+        db.execute(text("""
+            INSERT INTO iho_sea_area (id, name, geometry) VALUES
+            (9907, 'AdminSeaOnly', ST_Multi(ST_SetSRID(ST_MakeBox2D(ST_Point(70, 10), ST_Point(80, 20)), 4326)))
+            ON CONFLICT (id) DO NOTHING
+        """))
+        db.commit()
+
+        r = client.post(
+            f"{settings.API_V1_STR}/sites",
+            headers=superuser_token_headers,
+            json={
+                "name": "IHO Only Admin Site",
+                "location_method": "administrative",
+                "iho_id": 9907,
+                "collection_id": collection.collection_id,
+            },
+        )
+        assert r.status_code == 201
+        site = db.exec(select(Site).where(Site.name == "IHO Only Admin Site")).first()
+        assert site is not None
+        assert site.iho == "AdminSeaOnly"
+        assert site.gadm0 is None
+        assert site.longitude is None
+        assert site.latitude is None
+
+    def test_update_site_administrative_mutual_exclusive_rejection(
+        self, client: TestClient, superuser_token_headers: dict, db: Session
+    ) -> None:
+        """Issue #48: SiteUpdate in administrative mode rejects having both GADM and IHO."""
+        collection = create_test_collection(db)
+        site = create_test_site(db, collection.collection_id, longitude=10.0, latitude=20.0)
+
+        r = client.patch(
+            f"{settings.API_V1_STR}/sites/{site.site_id}",
+            headers=superuser_token_headers,
+            json={
+                "location_method": "administrative",
+                "gadm0_gid": "DFT",
+                "iho_id": 9905,
+            },
+        )
+        assert r.status_code == 422
+        assert "Only one of GADM or IHO can be selected for administrative location" in r.text

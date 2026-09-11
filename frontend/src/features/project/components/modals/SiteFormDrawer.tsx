@@ -98,6 +98,9 @@ const TOPOGRAPHY_MAX_METERS = 8849
 const SITE_FIELD_HELP: Record<string, string> = {
     topography_m: "Negative or positive values for depth below sea level or altitude above sea level.",
     freshwater_depth_m: "Depth of sampling site within freshwater body.",
+    location_method: "Choose between precise GPS coordinates (XY) or a broad administrative region (GADM for land or IHO for sea).",
+    gadm0_gid: "Terrestrial administrative region (GADM). Mutually exclusive with IHO sea area in broad administrative mode.",
+    iho_id: "Marine sea area (IHO). Mutually exclusive with GADM in broad administrative mode.",
 }
 
 function hasRequiredFieldValue(value: unknown): boolean {
@@ -168,10 +171,13 @@ export function SiteFormDrawer({
         gadm0_gid: "empty", gadm1_gid: "empty", gadm2_gid: "empty", iho_id: "empty",
     })
     const coordinateLookupVersionRef = useRef(0)
+    const lastLookupCoordsRef = useRef<{ lat: number; lng: number } | null>(null)
+    const prevLocationMethodRef = useRef<string | undefined>(undefined)
     const [form] = Form.useForm()
 
     const gadm0FieldVal = Form.useWatch("gadm0_gid", form)
     const gadm1FieldVal = Form.useWatch("gadm1_gid", form)
+    const ihoFieldVal = Form.useWatch("iho_id", form)
     const latitudeWatch = Form.useWatch("latitude", form)
     const longitudeWatch = Form.useWatch("longitude", form)
     const locationMethodWatch = Form.useWatch("location_method", form)
@@ -208,6 +214,16 @@ export function SiteFormDrawer({
     const { options: functionalTypeOptions, loading: functionalTypeLoading } = functionalTypeState
 
     const coordinateMode = locationMethodWatch !== LOCATION_METHOD_ADMINISTRATIVE
+
+    const hasIhoValue = useMemo(() => {
+        if (ihoFieldVal == null || ihoFieldVal === "") return false
+        if (typeof ihoFieldVal === "object" && "value" in ihoFieldVal) {
+            const v = (ihoFieldVal as { value: unknown }).value
+            return v != null && v !== ""
+        }
+        return true
+    }, [ihoFieldVal])
+    const hasGadmValue = Boolean(gadm0ParentGid)
 
     const hasRealm = realmIdWatch != null && realmIdWatch !== "" && !Number.isNaN(Number(realmIdWatch))
     const hasBiome = biomeIdWatch != null && biomeIdWatch !== "" && !Number.isNaN(Number(biomeIdWatch))
@@ -320,29 +336,84 @@ export function SiteFormDrawer({
     }, [form, initialData, mode, open])
 
     useEffect(() => {
-        if (!open || !locationMethodWatch) return
+        if (!open || !locationMethodWatch) {
+            prevLocationMethodRef.current = locationMethodWatch
+            return
+        }
+        if (prevLocationMethodRef.current === locationMethodWatch) return
+        prevLocationMethodRef.current = locationMethodWatch
+
         if (locationMethodWatch === LOCATION_METHOD_ADMINISTRATIVE) {
             form.setFieldsValue({ latitude: undefined, longitude: undefined })
             coordinateLookupVersionRef.current += 1
             locationFieldSourceRef.current = {
                 gadm0_gid: "manual", gadm1_gid: "manual", gadm2_gid: "manual", iho_id: "manual",
             }
+            const curGadm0 = form.getFieldValue("gadm0_gid")
+            const curIho = form.getFieldValue("iho_id")
+            if (gadmWatchToGid(curGadm0) != null && hasRequiredFieldValue(curIho)) {
+                form.setFieldsValue({ iho_id: undefined })
+                ihoState.setCurrentOption(null)
+            }
         } else {
-            form.setFieldsValue({
-                latitude: form.getFieldValue("latitude"),
-                longitude: form.getFieldValue("longitude"),
-            })
+            coordinateLookupVersionRef.current += 1
+            locationFieldSourceRef.current = {
+                gadm0_gid: "auto", gadm1_gid: "auto", gadm2_gid: "auto", iho_id: "auto",
+            }
+            const curLat = form.getFieldValue("latitude")
+            const curLon = form.getFieldValue("longitude")
+            if (!hasCoordinatePair({ latitude: curLat, longitude: curLon })) {
+                form.setFieldsValue({
+                    gadm0_gid: undefined,
+                    gadm1_gid: undefined,
+                    gadm2_gid: undefined,
+                    iho_id: undefined,
+                })
+                gadm0State.setCurrentOption(null)
+                gadm1State.setCurrentOption(null)
+                gadm2State.setCurrentOption(null)
+                ihoState.setCurrentOption(null)
+            }
         }
-    }, [form, locationMethodWatch, open])
+    }, [
+        form,
+        gadm0State.setCurrentOption,
+        gadm1State.setCurrentOption,
+        gadm2State.setCurrentOption,
+        ihoState.setCurrentOption,
+        locationMethodWatch,
+        open,
+    ])
 
     useEffect(() => {
+        if (!open) {
+            lastLookupCoordsRef.current = null
+            return
+        }
+
+        if (locationMethodWatch === LOCATION_METHOD_ADMINISTRATIVE) {
+            lastLookupCoordsRef.current = null
+            return
+        }
+
         const longitude = Number(longitudeWatch)
         const latitude = Number(latitudeWatch)
         if (
             !Number.isFinite(longitude) ||
             !Number.isFinite(latitude) ||
             longitude < -180 || longitude > 180 || latitude < -90 || latitude > 90
-        ) return
+        ) {
+            lastLookupCoordsRef.current = null
+            return
+        }
+
+        if (
+            lastLookupCoordsRef.current &&
+            lastLookupCoordsRef.current.lat === latitude &&
+            lastLookupCoordsRef.current.lng === longitude
+        ) {
+            return
+        }
 
         const version = ++coordinateLookupVersionRef.current
         const timer = window.setTimeout(async () => {
@@ -354,6 +425,8 @@ export function SiteFormDrawer({
                 ) return
                 const matched = response.data
                 if (!matched) return
+
+                lastLookupCoordsRef.current = { lat: latitude, lng: longitude }
 
                 const updates: Record<string, unknown> = {}
                 const applyGadm = (
@@ -372,12 +445,21 @@ export function SiteFormDrawer({
                     if (matched.gadm.gadm0) gadm0State.setCurrentOption(matched.gadm.gadm0)
                     if (matched.gadm.gadm1) gadm1State.setCurrentOption(matched.gadm.gadm1)
                     if (matched.gadm.gadm2) gadm2State.setCurrentOption(matched.gadm.gadm2)
+                } else if (locationMethodWatch === LOCATION_METHOD_COORDINATES) {
+                    updates.gadm0_gid = undefined
+                    updates.gadm1_gid = undefined
+                    updates.gadm2_gid = undefined
+                    locationFieldSourceRef.current.gadm0_gid = "auto"
+                    locationFieldSourceRef.current.gadm1_gid = "auto"
+                    locationFieldSourceRef.current.gadm2_gid = "auto"
+                    gadm0State.setCurrentOption(null)
+                    gadm1State.setCurrentOption(null)
+                    gadm2State.setCurrentOption(null)
                 }
 
                 if (
                     matched.iho.status === "matched" &&
-                    matched.iho.option &&
-                    locationFieldSourceRef.current.iho_id !== "manual"
+                    matched.iho.option
                 ) {
                     updates.iho_id = {
                         value: Number(matched.iho.option.gid),
@@ -388,6 +470,10 @@ export function SiteFormDrawer({
                         gid: matched.iho.option.gid,
                         name: matched.iho.option.name,
                     })
+                } else if (locationMethodWatch === LOCATION_METHOD_COORDINATES) {
+                    updates.iho_id = undefined
+                    locationFieldSourceRef.current.iho_id = "auto"
+                    ihoState.setCurrentOption(null)
                 }
 
                 if (Object.keys(updates).length > 0) form.setFieldsValue(updates)
@@ -546,19 +632,48 @@ export function SiteFormDrawer({
 
     const numberFieldProps = { style: { width: "100%" as const }, controls: false }
 
-    const locationChoiceRule = useMemo((): RuleObject => {
+    const coordChoiceRule = useMemo((): RuleObject => {
         return {
             validator: async () => {
-                const values = form.getFieldsValue(["latitude", "longitude", "gadm0_gid", "iho_id"])
                 const method = form.getFieldValue("location_method")
-                const hasCoords = hasCoordinatePair(values)
+                if (method !== LOCATION_METHOD_COORDINATES) return
+                const values = form.getFieldsValue(["latitude", "longitude"])
+                if (!hasCoordinatePair(values)) {
+                    throw new Error("Please enter Latitude and Longitude")
+                }
+            },
+        }
+    }, [form])
+
+    const adminGadmRule = useMemo((): RuleObject => {
+        return {
+            validator: async () => {
+                const method = form.getFieldValue("location_method")
+                if (method !== LOCATION_METHOD_ADMINISTRATIVE) return
+                const values = form.getFieldsValue(["gadm0_gid", "iho_id"])
                 const hasGadm0 = gadmWatchToGid(values.gadm0_gid) != null
                 const hasIho = hasRequiredFieldValue(values.iho_id)
-                if (method === LOCATION_METHOD_COORDINATES && hasCoords) return
-                if (method === LOCATION_METHOD_ADMINISTRATIVE && (hasGadm0 || hasIho)) return
-                throw new Error(method === LOCATION_METHOD_ADMINISTRATIVE
-                    ? "Please select GADM0 or IHO"
-                    : "Please enter Latitude and Longitude")
+                if (hasGadm0 && hasIho) {
+                    throw new Error("Please select either GADM (terrestrial) or IHO (marine), not both")
+                }
+                if (!hasGadm0 && !hasIho) {
+                    throw new Error("Please select either GADM (terrestrial) or IHO (marine)")
+                }
+            },
+        }
+    }, [form])
+
+    const adminIhoRule = useMemo((): RuleObject => {
+        return {
+            validator: async () => {
+                const method = form.getFieldValue("location_method")
+                if (method !== LOCATION_METHOD_ADMINISTRATIVE) return
+                const values = form.getFieldsValue(["gadm0_gid", "iho_id"])
+                const hasGadm0 = gadmWatchToGid(values.gadm0_gid) != null
+                const hasIho = hasRequiredFieldValue(values.iho_id)
+                if (hasGadm0 && hasIho) {
+                    throw new Error("Please select either GADM (terrestrial) or IHO (marine), not both")
+                }
             },
         }
     }, [form])
@@ -645,14 +760,17 @@ export function SiteFormDrawer({
         } else if (field.key === "latitude") {
             rules.push(latitudePairRule)
             rules.push(latitudeRangeRule)
-            rules.push(locationChoiceRule)
+            rules.push(coordChoiceRule)
         } else if (field.key === "longitude") {
             rules.push(longitudePairRule)
             rules.push(longitudeRangeRule)
         } else if (field.key === "gadm0_gid") {
             rules.push(gadm0HierarchyRule)
+            rules.push(adminGadmRule)
         } else if (field.key === "gadm1_gid" || field.key === "gadm2_gid") {
             rules.push(gadm0HierarchyRule)
+        } else if (field.key === "iho_id") {
+            rules.push(adminIhoRule)
         } else if (field.key === "topography_m") {
             rules.push(topographyRangeRule)
         } else if (field.key === "freshwater_depth_m") {
@@ -703,7 +821,7 @@ export function SiteFormDrawer({
                     options={gadm0SelectOpts}
                     loading={gadm0Loading}
                     allowClear
-                    disabled={coordinateMode}
+                    disabled={coordinateMode || (locationMethodWatch === LOCATION_METHOD_ADMINISTRATIVE && hasIhoValue)}
                     showSearch
                     filterOption={false}
                     onSearch={gadm0State.search}
@@ -718,9 +836,16 @@ export function SiteFormDrawer({
                             id ? gadm0Options.find((option) => option.gid === id) ?? null : null,
                         )
                         if (!isInitializing.current) {
-                            form.setFieldsValue({ gadm1_gid: undefined, gadm2_gid: undefined })
+                            form.setFieldsValue({
+                                gadm1_gid: undefined,
+                                gadm2_gid: undefined,
+                                ...(locationMethodWatch === LOCATION_METHOD_ADMINISTRATIVE ? { iho_id: undefined } : {}),
+                            })
                             gadm1State.reset()
                             gadm2State.reset()
+                            if (locationMethodWatch === LOCATION_METHOD_ADMINISTRATIVE) {
+                                ihoState.setCurrentOption(null)
+                            }
                         }
                     }}
                 />
@@ -733,7 +858,7 @@ export function SiteFormDrawer({
                     labelInValue
                     options={gadm1SelectOpts}
                     loading={gadm1Loading}
-                    disabled={coordinateMode || !gadm0ParentGid}
+                    disabled={coordinateMode || (locationMethodWatch === LOCATION_METHOD_ADMINISTRATIVE && hasIhoValue) || !gadm0ParentGid}
                     allowClear
                     showSearch
                     filterOption={false}
@@ -763,7 +888,7 @@ export function SiteFormDrawer({
                     labelInValue
                     options={gadm2SelectOpts}
                     loading={gadm2Loading}
-                    disabled={coordinateMode || !gadm1ParentGid}
+                    disabled={coordinateMode || (locationMethodWatch === LOCATION_METHOD_ADMINISTRATIVE && hasIhoValue) || !gadm1ParentGid}
                     allowClear
                     showSearch
                     filterOption={false}
@@ -793,6 +918,7 @@ export function SiteFormDrawer({
                     }))}
                     loading={ihoLoading}
                     allowClear
+                    disabled={coordinateMode || (locationMethodWatch === LOCATION_METHOD_ADMINISTRATIVE && hasGadmValue)}
                     showSearch
                     filterOption={false}
                     onSearch={ihoState.search}
@@ -812,6 +938,16 @@ export function SiteFormDrawer({
                                 ? ihoOptions.find((option) => Number(option.gid ?? option.id) === id) ?? null
                                 : null,
                         )
+                        if (!isInitializing.current && locationMethodWatch === LOCATION_METHOD_ADMINISTRATIVE) {
+                            form.setFieldsValue({
+                                gadm0_gid: undefined,
+                                gadm1_gid: undefined,
+                                gadm2_gid: undefined,
+                            })
+                            gadm0State.setCurrentOption(null)
+                            gadm1State.reset()
+                            gadm2State.reset()
+                        }
                     }}
                 />
             )
