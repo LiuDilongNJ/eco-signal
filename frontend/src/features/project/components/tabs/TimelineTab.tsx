@@ -1,4 +1,4 @@
-import { Button as ESButton } from "@/components/ui"
+import { Button as ESButton, Input as ESInput } from "@/components/ui"
 /**
  * TimelineTab - 项目媒体时间线（站点 × 时间 Gantt 风格）
  *
@@ -16,7 +16,7 @@ import {
     type CSSProperties,
 } from "react"
 import { useNavigate } from "react-router-dom"
-import { CalendarRange, ChevronRight, ChevronLeft, Maximize } from "lucide-react"
+import { CalendarRange, ChevronRight, ChevronLeft, Maximize, Search } from "lucide-react"
 import { CustomScrollArea } from "@/components/ui"
 import { EmptyState } from "@/components/ui"
 import { LoadingState } from "@/components/ui"
@@ -353,6 +353,7 @@ export function TimelineTab() {
         collection?.id !== undefined && collection.id !== "" ? Number(collection.id) : NaN
 
     const [data, setData] = useState<CollectionTimelineResponse | null>(null)
+    const [searchQuery, setSearchQuery] = useState("")
     const [mediaTypeFilter, setMediaTypeFilter] = useState<MediaTypeFilter>("all")
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
@@ -442,6 +443,18 @@ export function TimelineTab() {
         }
     }, [projectIdNum, collectionIdNum, mediaTypeFilter])
 
+    const filteredTimelineItems = useMemo(() => {
+        const items = data?.items ?? []
+        if (activeSite) {
+            return items.filter((item) => timelineSiteKey(item) === activeSite)
+        }
+        const query = searchQuery.trim().toLocaleLowerCase()
+        if (!query) return items
+        return items.filter((item) =>
+            item.site_name?.toLocaleLowerCase().includes(query),
+        )
+    }, [activeSite, data?.items, searchQuery])
+
     const { boundsMin, boundsMax, boundsSpan, dataMin, dataMax, dataSpan, siteOrder, bySite, siteNames } = useMemo(() => {
         const empty = {
             boundsMin: 0,
@@ -454,7 +467,7 @@ export function TimelineTab() {
             bySite: new Map<string, CollectionTimelineItem[]>(),
             siteNames: new Map<string, string>(),
         }
-        if (!data?.items?.length || !data.time_range?.min || !data.time_range?.max) {
+        if (!filteredTimelineItems.length || !data?.time_range?.min || !data.time_range.max) {
             return empty
         }
         const t0_raw = parseTimelineDate(data.time_range.min)
@@ -470,7 +483,7 @@ export function TimelineTab() {
 
         const map = new Map<string, CollectionTimelineItem[]>()
         const names = new Map<string, string>()
-        for (const it of data.items) {
+        for (const it of filteredTimelineItems) {
             const key = timelineSiteKey(it)
             if (!map.has(key)) map.set(key, [])
             map.get(key)!.push(it)
@@ -495,7 +508,7 @@ export function TimelineTab() {
             bySite: map,
             siteNames: names,
         }
-    }, [data])
+    }, [data?.time_range?.max, data?.time_range?.min, filteredTimelineItems])
 
     useEffect(() => {
         setViewWindow(null)
@@ -511,7 +524,7 @@ export function TimelineTab() {
 
     useEffect(() => {
         if (loading) return
-        if (error || !data?.items?.length) {
+        if (error || !filteredTimelineItems.length) {
             setRenderPending(false)
             return
         }
@@ -528,7 +541,7 @@ export function TimelineTab() {
             window.cancelAnimationFrame(raf1)
             window.cancelAnimationFrame(raf2)
         }
-    }, [loading, error, data])
+    }, [loading, error, filteredTimelineItems.length])
 
     const vMin = viewWindow?.start ?? boundsMin
     const vMax = viewWindow?.end ?? boundsMax
@@ -629,7 +642,7 @@ export function TimelineTab() {
     const [chartTrackPx, setChartTrackPx] = useState(0)
 
     const timelineGridReady =
-        !loading && !error && Boolean(data?.items?.length) && boundsSpan > 0
+        !loading && !error && filteredTimelineItems.length > 0 && boundsSpan > 0
 
     const wheelZoomRef = useRef({
         vMin,
@@ -902,6 +915,7 @@ export function TimelineTab() {
     )
 
     const toggleSite = useCallback((site: string) => {
+        setSearchQuery("")
         setActiveSite((prev) => {
             const next = prev === site ? null : site
             if (next) {
@@ -1005,10 +1019,16 @@ export function TimelineTab() {
     const activeDetail = detailSiteKey ? detailDataByKey.get(detailSiteKey) : undefined
     const activeDetailItems = useMemo(() => {
         if (!activeDetail?.items?.length) return null
-        return [...activeDetail.items].sort(
+        const query = searchQuery.trim().toLocaleLowerCase()
+        const items = query
+            ? activeDetail.items.filter((item) =>
+                item.name?.toLocaleLowerCase().includes(query),
+            )
+            : activeDetail.items
+        return [...items].sort(
             (a, b) => parseTimelineDate(a.start_date) - parseTimelineDate(b.start_date),
         )
-    }, [activeDetail])
+    }, [activeDetail, searchQuery])
 
     const getSiteItems = useCallback(
         (site: string) => {
@@ -1108,7 +1128,7 @@ export function TimelineTab() {
     const activeCount = activeSite
         ? getSiteItems(activeSite).reduce((sum, it) => sum + (it.item_count ?? 1), 0)
         : 0
-    const overviewCount = data?.items?.reduce((sum, it) => sum + (it.item_count ?? 1), 0)
+    const overviewCount = filteredTimelineItems.reduce((sum, it) => sum + (it.item_count ?? 1), 0)
     const activeSiteAccentVars = activeSite
         ? getRealmAccentVars(getSiteItems(activeSite)[0]?.realm ?? bySite.get(activeSite)?.[0]?.realm)
         : undefined
@@ -1148,6 +1168,17 @@ export function TimelineTab() {
                     ) : null}
                 </div>
                 <div className="media-controls">
+                    <div className="media-search-box">
+                        <Search className="media-search-icon" size={16} />
+                        <ESInput
+                            appearance="unstyled"
+                            className="media-search-input"
+                            type="text"
+                            value={searchQuery}
+                            aria-label={activeSite ? "Search media in this site" : "Search timeline sites"}
+                            onChange={(event) => setSearchQuery(event.target.value)}
+                        />
+                    </div>
                     <ESButton appearance="unstyled" type="button" className="timeline-show-all-btn" title="Fit the timeline to all sites and media" onClick={resetView}>
                         <Maximize size={14} />
                         Show All
@@ -1164,7 +1195,7 @@ export function TimelineTab() {
                     </div>
                 ) : error ? (
                     <div className="acoustic-timeline-error">{error}</div>
-                ) : !data?.items?.length || boundsSpan <= 0 ? (
+                ) : !filteredTimelineItems.length || boundsSpan <= 0 ? (
                     <div className="acoustic-timeline-state">
                         <EmptyState className="acoustic-timeline-state__card" title="No Data" />
                     </div>
