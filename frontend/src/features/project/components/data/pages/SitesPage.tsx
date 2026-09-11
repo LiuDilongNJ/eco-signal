@@ -262,6 +262,17 @@ export function SitesPage() {
             const locationMethod = data.location_method === "administrative" ? "administrative" : "coordinates"
             const coordinateMode = locationMethod === "coordinates"
 
+            const rawGadm0 = pickGadmGid(data.gadm0_gid)
+            const rawGadm1 = pickGadmGid(data.gadm1_gid)
+            const rawGadm2 = pickGadmGid(data.gadm2_gid)
+            const rawIho = pickNum(data.iho_id)
+
+            // For administrative mode, GADM (terrestrial) and IHO (marine) are mutually exclusive.
+            const resolvedGadm0 = coordinateMode ? rawGadm0 : rawGadm0 ? rawGadm0 : undefined
+            const resolvedGadm1 = coordinateMode ? rawGadm1 : rawGadm0 ? rawGadm1 : undefined
+            const resolvedGadm2 = coordinateMode ? rawGadm2 : rawGadm0 ? rawGadm2 : undefined
+            const resolvedIho = coordinateMode ? rawIho : rawGadm0 ? undefined : rawIho
+
             const core: SiteUpdatePayload = {
                 name: String(data.name ?? "").trim(),
                 location_method: locationMethod,
@@ -272,10 +283,10 @@ export function SitesPage() {
                 realm_id: pickNum(data.realm_id),
                 biome_id: pickNum(data.biome_id),
                 functional_type_id: pickNum(data.functional_type_id),
-                iho_id: pickNum(data.iho_id),
-                gadm0_gid: pickGadmGid(data.gadm0_gid),
-                gadm1_gid: pickGadmGid(data.gadm1_gid),
-                gadm2_gid: pickGadmGid(data.gadm2_gid),
+                iho_id: resolvedIho,
+                gadm0_gid: resolvedGadm0,
+                gadm1_gid: resolvedGadm1,
+                gadm2_gid: resolvedGadm2,
             }
 
             if (modalMode === "add") {

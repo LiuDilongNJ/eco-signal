@@ -287,3 +287,15 @@ class TestSiteRepository:
             data=SiteUpdate(gadm0_gid="TST"),
         )
         assert updated.location is None
+
+    def test_validate_geo_inputs_administrative_mutual_exclusive(self):
+        """Administrative sites (no coordinates) cannot have both GADM and IHO."""
+        with pytest.raises(AppValidationError, match="Only one of GADM or IHO"):
+            site_repository._validate_geo_inputs(
+                longitude=None,
+                latitude=None,
+                gadm0_gid="TST",
+                gadm1_gid=None,
+                gadm2_gid=None,
+                iho_id=9001,
+            )

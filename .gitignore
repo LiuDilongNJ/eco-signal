@@ -13,3 +13,5 @@ node_modules/
 migration-reports/
 ecoSound-web
 .deploy/
+.cursor
+AGENTS.md

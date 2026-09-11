@@ -35,15 +35,25 @@ class SiteCreate(SQLModel):
         has_manual = self.longitude is not None and self.latitude is not None
         has_iho = self.iho_id is not None
         has_gadm = self.gadm0_gid is not None and self.gadm0_gid.strip() != ""
-        if not any([has_manual, has_iho, has_gadm]):
-            raise ValueError("At least one of coordinates, gadm0_gid, or iho_id must be provided")
+
         if (self.longitude is None) != (self.latitude is None):
             raise ValueError("longitude and latitude must be provided together")
-        if self.location_method == "coordinates" and not has_manual:
-            raise ValueError("longitude and latitude are required for coordinate-based location")
-        if self.location_method == "administrative" and has_manual:
-            raise ValueError("coordinates must be empty for administrative location")
-        if (self.gadm1_gid or self.gadm2_gid) and (self.gadm0_gid is None or not self.gadm0_gid.strip()):
+
+        if self.location_method == "administrative":
+            if has_manual:
+                raise ValueError("coordinates must be empty for administrative location")
+            if has_gadm and has_iho:
+                raise ValueError("Only one of GADM or IHO can be selected for administrative location")
+            if not (has_gadm or has_iho):
+                raise ValueError("Either GADM or IHO must be selected for administrative location")
+        elif self.location_method == "coordinates":
+            if not has_manual:
+                raise ValueError("longitude and latitude are required for coordinate-based location")
+        else:
+            if not any([has_manual, has_iho, has_gadm]):
+                raise ValueError("At least one of coordinates, gadm0_gid, or iho_id must be provided")
+
+        if (self.gadm1_gid or self.gadm2_gid) and not has_gadm:
             raise ValueError("gadm0_gid is required when gadm1_gid or gadm2_gid is provided")
         return self
 
@@ -69,10 +79,14 @@ class SiteUpdate(SQLModel):
         """Validate optional geo selection combinations for update."""
         has_gadm0 = self.gadm0_gid is not None and self.gadm0_gid.strip() != ""
         has_coords = self.longitude is not None and self.latitude is not None
+        has_iho = self.iho_id is not None
         if self.location_method == "coordinates" and not has_coords:
             raise ValueError("longitude and latitude are required for coordinate-based location")
-        if self.location_method == "administrative" and has_coords:
-            raise ValueError("coordinates must be empty for administrative location")
+        if self.location_method == "administrative":
+            if has_coords:
+                raise ValueError("coordinates must be empty for administrative location")
+            if has_gadm0 and has_iho:
+                raise ValueError("Only one of GADM or IHO can be selected for administrative location")
         if (self.longitude is None) != (self.latitude is None):
             raise ValueError("longitude and latitude must be provided together")
         if (self.gadm1_gid or self.gadm2_gid) and not has_gadm0:

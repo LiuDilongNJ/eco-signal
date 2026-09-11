@@ -116,6 +116,8 @@ class SiteRepository(BaseRepository[Site, SiteCreate, SiteUpdate]):
             raise AppValidationError("gadm0_gid is required when gadm1_gid or gadm2_gid is provided")
         if not any([has_manual, has_iho, has_gadm]):
             raise AppValidationError("At least one of coordinates, GADM, or IHO must be provided")
+        if not has_manual and has_gadm and has_iho:
+            raise AppValidationError("Only one of GADM or IHO can be selected for administrative location")
 
     def _lookup_iho_name_by_id(self, session: Session, iho_id: Optional[int]) -> Optional[str]:
         if iho_id is None:
