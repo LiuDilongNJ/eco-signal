@@ -40,7 +40,6 @@ export function ProjectNavBar() {
         collectionSearchQuery,
         filteredProjects,
         filteredCollections,
-        selectProject,
         selectCollection,
         setProjectSearch,
         setCollectionSearch,
@@ -251,59 +250,40 @@ export function ProjectNavBar() {
         navigate("/dashboard", { replace: true })
     }, [navigate, setActiveTab])
 
-    /** 媒体详情顶栏：切换项目后进入首个集合，并优先保持当前媒体类型。 */
+    /** 媒体详情顶栏：选择项目面包屑时返回该项目的 Media 页。 */
     const handleProjectSelectFromMediaDetail = useCallback(
-        async (id: number | string) => {
+        (id: number | string) => {
             const pid = Number(id)
             if (!Number.isFinite(pid)) return
-            if (String(currentProjectId ?? "") === String(pid)) return
+            const isCurrentProject = String(currentProjectId ?? "") === String(pid)
+
+            setActiveTab("media")
+            setMobileCrumbOpen(false)
+            navigate(`/dashboard/${pid}?tab=media&collection=all`, { replace: true })
+
+            if (isCurrentProject) {
+                selectCollection("")
+                return
+            }
+
             projectSwitchTargetRef.current = String(pid)
             setProjectSwitchLoading(true)
             collectionSwitchTargetRef.current = null
             setCollectionSwitchLoading(false)
-            const preferredMediaType = preferredMediaTypeRef.current
 
             pendingNavCollectionIdRef.current = null
             mediaNavItemsCollectionIdRef.current = null
             setMediaNavItems([])
-
-            navigate(`/dashboard/${pid}`, { replace: true })
-
-            await selectProject(id)
-            const opts = useProjectStore.getState().collectionOptions
-            const concrete = opts.filter((c: { id: unknown }) => String(c.id) !== "")
-            if (concrete.length === 0) {
-                goToDashboardMedia()
-                return
-            }
-            const firstCol = concrete[0] as { id: number | string }
-            selectCollection(firstCol.id)
-            try {
-                const rows = await mediaApi.getMediaOptions({
-                    project_id: pid,
-                    collection_id: Number(firstCol.id),
-                }, true)
-                const target = pickPreferredMedia(buildMediaNavItems(rows), preferredMediaType)
-                if (!target) {
-                    goToDashboardMedia()
-                    return
-                }
-                preferredMediaTypeRef.current = target.mediaType
-                navigate(`/dashboard/${pid}/media/${target.id}`, { replace: true })
-            } catch {
-                goToDashboardMedia()
-            }
         },
-        [currentProjectId, goToDashboardMedia, navigate, selectCollection, selectProject],
+        [currentProjectId, navigate, selectCollection, setActiveTab],
     )
 
-    // 用户手动切换 Collection 后，等待新列表返回，再优先跳到同类型媒体。
+    // 切换到其他 Collection 后，保持播放器语境并优先打开同类型媒体。
     useEffect(() => {
         if (!isMediaDetailRoute || !projectSegmentForNavigate) return
         const pendingCid = pendingNavCollectionIdRef.current
         if (pendingCid == null) return
 
-        // 等列表确实按该 collection 拉回来了，避免竞态
         if (mediaNavItemsCollectionIdRef.current !== pendingCid) return
         if (mediaNavItems.length === 0) {
             pendingNavCollectionIdRef.current = null
@@ -321,8 +301,8 @@ export function ProjectNavBar() {
         if (selectedMediaNavId != null && String(selectedMediaNavId) === String(target.id)) return
         navigate(`/dashboard/${projectSegmentForNavigate}/media/${target.id}`)
     }, [
-        goToDashboardMedia,
         finishCollectionSwitchLoading,
+        goToDashboardMedia,
         isMediaDetailRoute,
         mediaNavItems,
         navigate,
@@ -392,7 +372,7 @@ export function ProjectNavBar() {
                             selectedId={currentProjectId}
                             onSelect={(id) => {
                                 if (isMediaDetailRoute) {
-                                    void handleProjectSelectFromMediaDetail(id)
+                                    handleProjectSelectFromMediaDetail(id)
                                 } else {
                                     const pid = Number(id)
                                     if (!Number.isFinite(pid)) return
@@ -417,11 +397,29 @@ export function ProjectNavBar() {
                             items={collectionItems}
                             selectedId={currentCollectionId}
                             onSelect={(id) => {
-                                if (currentCollectionId != null && String(currentCollectionId) === String(id ?? "")) return
+                                const isCurrentCollection =
+                                    currentCollectionId != null &&
+                                    String(currentCollectionId) === String(id ?? "")
+                                setMobileCrumbOpen(false)
+                                if (isCurrentCollection) {
+                                    if (isMediaDetailRoute && projectSegmentForNavigate) {
+                                        setActiveTab("media")
+                                        const next = new URLSearchParams()
+                                        next.set("tab", "media")
+                                        next.set("collection", String(id))
+                                        navigate(
+                                            {
+                                                pathname: `/dashboard/${projectSegmentForNavigate}`,
+                                                search: next.toString(),
+                                            },
+                                            { replace: true },
+                                        )
+                                    }
+                                    return
+                                }
                                 collectionSwitchTargetRef.current = String(id ?? "")
                                 setCollectionSwitchLoading(true)
                                 selectCollection(id)
-                                setMobileCrumbOpen(false)
                                 if (!isMediaDetailRoute) return
                                 setMediaNavItems([])
                                 mediaNavItemsCollectionIdRef.current = null
