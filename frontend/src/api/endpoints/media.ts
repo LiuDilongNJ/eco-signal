@@ -273,6 +273,8 @@ export type MediaAudioQueryParams = {
     max_freq?: number
     fft_size?: number
     filter?: boolean
+    download?: boolean
+    original?: boolean
     /** 前端 reload token，避免浏览器 disk cache 命中错误频段 */
     reload_key?: number
 }
@@ -372,6 +374,12 @@ export const mediaApi = {
         return apiClient.download(`/v1/media/${mediaId}/audio`, {
             params: { ...(clean ?? {}), project_id: projectId },
             ignoreUnauthorized,
+        })
+    },
+
+    downloadOriginalAudio(mediaId: number, projectId: number) {
+        return apiClient.download(`/v1/media/${mediaId}/audio`, {
+            params: { project_id: projectId, original: true, download: true },
         })
     },
 

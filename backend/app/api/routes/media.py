@@ -545,6 +545,8 @@ def stream_audio(
     channel: Optional[int] = Query(None, description="声道（1=左/2=右，不传则混合/原始） / Channel (1=left, 2=right, None=original)"),
     filter: bool = Query(False, description="是否先按频段过滤音频 / Whether to filter audio by frequency band"),
     fft_size: Optional[int] = Query(None, description="共享详情临时资源 key 的 FFT 参数 / FFT used for shared detail asset key"),
+    download: bool = Query(False, description="作为附件下载 / Download as attachment"),
+    original: bool = Query(False, description="是否获取原始音频原件 / Whether to fetch original audio file"),
 ):
     """
     流式返回音频文件，支持带权限校验、时间裁切、频段带通和声道选择。
@@ -558,6 +560,8 @@ def stream_audio(
     `min_freq`、`max_freq` 和 `filter=true`，并优先使用响应头中的下载文件名。
     / Frontend viewport downloads must send `start_time` and `end_time`; when band filtering is enabled,
     also send `min_freq`, `max_freq`, and `filter=true`, and prefer the server-provided download filename.
+    若需下载完整原始音频文件，可传 `original=true` 与 `download=true`。
+    / To download the complete original audio file, pass `original=true` and `download=true`.
     """
     if fft_size is not None and fft_size not in _SPECTROGRAM_FFT_SIZES:
         raise HTTPException(status_code=422, detail="Invalid FFT size")
@@ -580,6 +584,8 @@ def stream_audio(
                 if fft_size is not None
                 else media_service.resolve_spectrogram_fft_size(session, current_user)
             ),
+            download=download,
+            original=original,
         )
     except Exception as exc:
         if isinstance(exc, HTTPException):
@@ -596,20 +602,22 @@ def stream_audio(
     )
 
 
-@router.get("/{media_id}/content", summary="获取图片原件 / Get Photo Content")
+@router.get("/{media_id}/content", summary="获取媒体原件 / Get Media Content")
 def get_media_content(
     session: SessionDep,
     media_id: int,
     current_user: CurrentUserOptional,
     project_id: int = Query(..., description="项目 ID（必填） / Project ID (required)"),
+    download: bool = Query(False, description="作为附件下载 / Download as attachment"),
 ):
-    """返回经媒体读取权限校验后的图片原件。 / Return a photo after media read access is verified."""
-    media = media_service.get_media(session, project_id, media_id, current_user)
-    if media.media_type != "photo":
-        raise HTTPException(status_code=404, detail="Photo content is not available for this media")
+    """返回经媒体读取权限校验后的媒体原件（图片或音频）。 / Return media content (photo or audio) after read access is verified."""
+    media_service.get_media(session, project_id, media_id, current_user)
     file_path = media_service.get_media_content_path(session, media_id)
     media_type, _ = mimetypes.guess_type(str(file_path))
-    return FileResponse(file_path, media_type=media_type or "application/octet-stream")
+    headers = {
+        "Content-Disposition": build_download_content_disposition(file_path.name)
+    } if download else None
+    return FileResponse(file_path, media_type=media_type or "application/octet-stream", headers=headers)
 
 
 
