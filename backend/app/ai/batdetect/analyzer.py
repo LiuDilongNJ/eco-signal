@@ -61,15 +61,27 @@ class BatDetect2Analyzer:
                 chunk_size=chunk_size,
                 cancellation_token=cancellation_token,
             )
-        if suffix != ".wav":
-            raise ValueError(f"Unsupported batdetect2 audio format: {audio_path.suffix}")
+        if suffix == ".wav":
+            return self._analyze_wav_with_cli(
+                audio_path,
+                detection_threshold=detection_threshold,
+                chunk_size=chunk_size,
+                cancellation_token=cancellation_token,
+            )
 
-        return self._analyze_wav_with_cli(
-            audio_path,
-            detection_threshold=detection_threshold,
-            chunk_size=chunk_size,
-            cancellation_token=cancellation_token,
-        )
+        with tempfile.TemporaryDirectory() as transcode_dir:
+            temp_wav = Path(transcode_dir) / f"{audio_path.stem}.wav"
+            subprocess.run(
+                ["ffmpeg", "-y", "-nostdin", "-i", str(audio_path), "-vn", str(temp_wav)],
+                check=True,
+                capture_output=True,
+            )
+            return self._analyze_wav_with_cli(
+                temp_wav,
+                detection_threshold=detection_threshold,
+                chunk_size=chunk_size,
+                cancellation_token=cancellation_token,
+            )
 
     def _analyze_wav_with_cli(
         self,

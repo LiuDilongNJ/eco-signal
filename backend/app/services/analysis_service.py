@@ -1021,7 +1021,7 @@ class AnalysisService:
         expected = logical_audio_media_path(path_root, media.directory, filename)
         raise FileNotFoundError(
             "No supported analysis audio file found for media "
-            f"{media_id}; expected WAV or FLAC near {expected}"
+            f"{media_id}; expected audio file near {expected}"
         )
 
     async def _enqueue_job(

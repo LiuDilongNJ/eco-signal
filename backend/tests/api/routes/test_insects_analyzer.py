@@ -249,6 +249,22 @@ class TestInsectAnalyzerAnalyze:
                 with tempfile.NamedTemporaryFile(suffix=".wav") as f:
                     analyzer.analyze(Path(f.name))
 
+    @patch("subprocess.run")
+    def test_transcodes_non_wav_flac_to_wav(self, mock_subproc):
+        analyzer = InsectAnalyzer()
+
+        def fake_run(cmd, **kwargs):
+            m = MagicMock()
+            m.returncode = 0
+            return m
+
+        with patch("app.ai.insects.analyzer.run_cancellable_process", side_effect=fake_run):
+            with tempfile.NamedTemporaryFile(suffix=".ogg") as f:
+                detections = analyzer.analyze(Path(f.name))
+        assert mock_subproc.call_count == 1
+        assert "ffmpeg" in mock_subproc.call_args[0][0]
+        assert detections == []
+
 
 class TestInsectAnalyzerParseCsv:
     """Tests for _parse_csv() logic."""

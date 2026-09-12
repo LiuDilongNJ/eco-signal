@@ -94,11 +94,18 @@ class InsectAnalyzer:
             output_dir.mkdir()
 
             suffix = audio_path.suffix.lower().lstrip(".")
-            if suffix not in {"wav", "flac"}:
-                raise ValueError(f"Unsupported insects audio format: {audio_path.suffix}")
-
-            input_file = input_dir / audio_path.name
-            shutil.copy(audio_path, input_file)
+            if suffix in {"wav", "flac"}:
+                input_file = input_dir / audio_path.name
+                shutil.copy(audio_path, input_file)
+                extension_flag = suffix
+            else:
+                input_file = input_dir / f"{audio_path.stem}.wav"
+                subprocess.run(
+                    ["ffmpeg", "-y", "-nostdin", "-i", str(audio_path), "-vn", str(input_file)],
+                    check=True,
+                    capture_output=True,
+                )
+                extension_flag = "wav"
 
             model_spec, env = self._resolve_model_spec()
             cmd = [
@@ -108,8 +115,8 @@ class InsectAnalyzer:
                 "-w", str(window_size),
                 "-s", str(stride_length),
             ]
-            if suffix != "wav":
-                cmd += ["-e", suffix]
+            if extension_flag != "wav":
+                cmd += ["-e", extension_flag]
             cmd += [str(input_dir), str(output_dir)]
 
             logger.info(f"Running: {' '.join(cmd)}")

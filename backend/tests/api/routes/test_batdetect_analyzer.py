@@ -182,3 +182,13 @@ class TestBatDetect2Analyzer:
                 results = analyzer._parse_csv(Path("fake.csv"))
         
         assert results == []
+
+    @patch("subprocess.run")
+    @patch.object(BatDetect2Analyzer, "_analyze_wav_with_cli")
+    def test_analyze_transcodes_non_wav_to_wav(self, mock_cli, mock_subproc):
+        analyzer = BatDetect2Analyzer()
+        mock_cli.return_value = [{"species": "Bat", "confidence": 0.9}]
+        results = analyzer.analyze(Path("test.ogg"))
+        assert mock_subproc.call_count == 1
+        assert "ffmpeg" in mock_subproc.call_args[0][0]
+        assert results == [{"species": "Bat", "confidence": 0.9}]

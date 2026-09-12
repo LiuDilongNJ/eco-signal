@@ -140,6 +140,7 @@ async def test_resampling_preserves_existing_source_md5(
     media_session.exec.side_effect = [
         MagicMock(first=MagicMock(return_value=link)),
         MagicMock(all=MagicMock(return_value=[])),
+        MagicMock(all=MagicMock(return_value=[])),
     ]
     queue_session = MagicMock()
     queue_session.get.return_value = queue
@@ -166,6 +167,69 @@ async def test_resampling_preserves_existing_source_md5(
     assert media.md5_hash == "original-source-md5"
     mock_md5.assert_not_called()
     mock_generate_previews.assert_called_once()
+
+
+@pytest.mark.anyio
+@patch("app.workers.tasks.media.generate_media_previews")
+@patch("app.workers.tasks.media.file_service.resample_stored_audio")
+@patch("app.workers.tasks.media.resolve_existing_audio_media_path")
+@patch("app.workers.tasks.media._mark_batch_queue_running")
+async def test_resampling_removes_out_of_bounds_annotations(
+    _mock_mark_running,
+    mock_resolve_path,
+    mock_resample_audio,
+    mock_generate_previews,
+    tmp_path: Path,
+):
+    source_path = tmp_path / "recording.flac"
+    source_path.write_bytes(b"resampled-audio")
+    media = MagicMock()
+    media.media_type = "audio"
+    media.directory = "dir1"
+    media.filename = "recording.flac"
+    media.audio_setting = MagicMock()
+    media.audio_setting.file_metadata = {}
+    media.audio_setting.sampling_rate_hz = 48000
+    media.audio_setting.duration_s = 1.0
+    link = MagicMock(collection_id=10)
+    queue = MagicMock()
+    queue.warning = None
+
+    ann1 = MagicMock(annotation_id=101, max_y=12000.0)
+    ann2 = MagicMock(annotation_id=102, max_y=9500.0)
+
+    media_session = MagicMock()
+    media_session.get.return_value = media
+    media_session.exec.side_effect = [
+        MagicMock(first=MagicMock(return_value=link)),
+        MagicMock(all=MagicMock(return_value=[ann1, ann2])),
+        MagicMock(all=MagicMock(return_value=[])),
+    ]
+    queue_session = MagicMock()
+    queue_session.get.return_value = queue
+    media_context = MagicMock()
+    media_context.__enter__.return_value = media_session
+    queue_context = MagicMock()
+    queue_context.__enter__.return_value = queue_session
+    mock_resolve_path.return_value = source_path
+    mock_resample_audio.return_value = {
+        "stored": {
+            "sampling_rate_hz": 16000,
+            "bit_depth": 16,
+            "channel_num": 1,
+            "duration_s": 1.0,
+        }
+    }
+
+    with patch("app.workers.tasks.media.Session", side_effect=[media_context, queue_context]):
+        result = await process_audio_resampling(
+            ctx={}, queue_id=5, media_ids=[1], target_sampling_rate_hz=16000,
+        )
+
+    assert result == {"queue_id": 5, "completed": 1, "failed": 0}
+    media_session.delete.assert_any_call(ann1)
+    media_session.delete.assert_any_call(ann2)
+    assert queue.warning is None
 
 
 @pytest.mark.anyio

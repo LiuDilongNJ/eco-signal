@@ -197,9 +197,11 @@ export interface MediaBatchFailedItem {
 }
 
 export interface AudioResamplingJobResponse {
-    queue_id: number
+    queue_id?: number | null
     accepted_media_ids: number[]
     rejected: MediaBatchFailedItem[]
+    affected_annotation_count?: number
+    affected_media_count?: number
 }
 
 export interface MediaPhotoSetting {
@@ -396,9 +398,9 @@ export const mediaApi = {
         })
     },
 
-    createAudioResamplingJob(projectId: number, payload: AudioResamplingJobRequest) {
+    createAudioResamplingJob(projectId: number, payload: AudioResamplingJobRequest, dryRun: boolean = false) {
         return apiClient.post<{ code: number; message: string; data: AudioResamplingJobResponse }>(
-            "/v1/audio-resampling-jobs", payload, { params: { project_id: projectId } },
+            "/v1/audio-resampling-jobs", payload, { params: { project_id: projectId, dry_run: dryRun } },
         )
     },
 
