@@ -29,11 +29,13 @@ export function AddUserDrawer({ open, editId, onClose, onSubmit }: AddUserDrawer
     const isDark = useAppStore((s) => s.effectiveTheme === "dark")
     const drawerTheme = useAntdBrandConfig(isDark)
     const [loadingData, setLoadingData] = useState(false)
+    const [blockCredentialAutofill, setBlockCredentialAutofill] = useState(true)
     const colorValue = Form.useWatch("color", form)
 
     useEffect(() => {
         if (open) {
             form.resetFields()
+            setBlockCredentialAutofill(!editId)
             if (editId) {
                 // Fetch and populate data for edit
                 setLoadingData(true)
@@ -49,6 +51,10 @@ export function AddUserDrawer({ open, editId, onClose, onSubmit }: AddUserDrawer
             }
         }
     }, [open, editId, form])
+
+    const unlockCredentialAutofill = () => {
+        if (blockCredentialAutofill) setBlockCredentialAutofill(false)
+    }
 
     const handleFinish = (values: Record<string, any>) => {
         onSubmit(values)
@@ -107,6 +113,7 @@ export function AddUserDrawer({ open, editId, onClose, onSubmit }: AddUserDrawer
                         initialValues={{ active: true, color: "#FFFFFF" }}
                         className="shared-drawer-form"
                         style={{ padding: "24px" }}
+                        autoComplete="off"
                     >
                         {/* ... (rest of form content) */}
                         <div className="form-drawer-layout">
@@ -122,7 +129,11 @@ export function AddUserDrawer({ open, editId, onClose, onSubmit }: AddUserDrawer
                                                 { min: 3, max: 20, message: "Username must be 3–20 characters" },
                                             ]}
                                         >
-                                            <Input />
+                                            <Input
+                                                autoComplete="off"
+                                                readOnly={blockCredentialAutofill}
+                                                onFocus={unlockCredentialAutofill}
+                                            />
                                         </Form.Item>
 
                                         <Form.Item
@@ -133,7 +144,11 @@ export function AddUserDrawer({ open, editId, onClose, onSubmit }: AddUserDrawer
                                                 { min: 8, max: 128, message: "Password must be 8–128 characters" },
                                             ]}
                                         >
-                                            <Input.Password />
+                                            <Input.Password
+                                                autoComplete="new-password"
+                                                readOnly={blockCredentialAutofill}
+                                                onFocus={unlockCredentialAutofill}
+                                            />
                                         </Form.Item>
 
                                         <Form.Item
@@ -152,7 +167,11 @@ export function AddUserDrawer({ open, editId, onClose, onSubmit }: AddUserDrawer
                                                 }),
                                             ]}
                                         >
-                                            <Input.Password />
+                                            <Input.Password
+                                                autoComplete="new-password"
+                                                readOnly={blockCredentialAutofill}
+                                                onFocus={unlockCredentialAutofill}
+                                            />
                                         </Form.Item>
                                     </>
                                 )}
