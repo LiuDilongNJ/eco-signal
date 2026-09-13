@@ -13,6 +13,8 @@ from pathlib import Path
 from fastapi import HTTPException
 from PIL import Image, ImageSequence, UnidentifiedImageError
 
+from app.core.config import settings
+
 logger = logging.getLogger(__name__)
 
 MAX_FILENAME_BYTES = 255
@@ -35,6 +37,7 @@ VALIDATION_ERROR_MESSAGES = {
     "file_type_mismatch": "file extension does not match the actual content",
     "invalid_file_content": "file content cannot be decoded safely",
     "unsafe_archive": "archive content failed security validation",
+    "file_too_large": "file exceeds maximum allowed size",
 }
 _IMAGE_MIME_TYPES = {
     "png": {"image/png"}, "jpg": {"image/jpeg"}, "jpeg": {"image/jpeg"},
@@ -94,6 +97,8 @@ def _audio_signature(path: Path) -> str | None:
 
 def validate_audio_file(path: Path, filename: str) -> None:
     expected = validate_audio_filename(filename)
+    if path.stat().st_size > settings.MAX_AUDIO_SIZE:
+        raise upload_error("file_too_large")
     detected = _audio_signature(path)
     if detected != expected:
         raise upload_error("file_type_mismatch")

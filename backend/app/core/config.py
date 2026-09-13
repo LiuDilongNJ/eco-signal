@@ -39,6 +39,7 @@ class Settings(BaseSettings):
 
     # File upload size limits (bytes)
     MAX_IMAGE_SIZE: int = 10 * 1024 * 1024       # 10 MB
+    MAX_AUDIO_SIZE: int = 1024 * 1024 * 1024     # 1 GB
     MAX_CHUNK_SIZE: int = 8 * 1024 * 1024         # 8 MB
     SECRET_KEY: str = secrets.token_urlsafe(32)
     # 7 days

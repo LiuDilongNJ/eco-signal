@@ -52,6 +52,40 @@ def test_merge_chunks_streams_in_order(tmp_path):
     assert not chunk_dir.exists()
 
 
+def test_merge_chunks_rejects_oversized_content(tmp_path):
+    service = FileService(str(tmp_path))
+    chunk_dir = service.get_chunk_dir("audio.wav", "batch")
+    chunk_dir.mkdir(parents=True)
+    (chunk_dir / "00000").write_bytes(b"123456")
+    (chunk_dir / "00001").write_bytes(b"789012")
+
+    with pytest.raises(HTTPException) as exc_info:
+        service.merge_chunks("audio.wav", "tmp/merged", "batch", max_size=10)
+
+    assert exc_info.value.status_code == 413
+    assert not (tmp_path / "tmp" / "merged" / "audio.wav").exists()
+
+
+@pytest.mark.anyio
+async def test_save_chunk_rejects_excessive_audio_chunks(tmp_path, monkeypatch):
+    monkeypatch.setattr(settings, "MAX_AUDIO_SIZE", 1024 * 1024)
+    service = FileService(str(tmp_path))
+    upload = UploadFile(file=BytesIO(b"123"), filename="chunk")
+
+    with pytest.raises(HTTPException) as exc_info:
+        await service.save_chunk(
+            upload,
+            "audio.wav",
+            chunk_index=0,
+            total_chunks=2000,
+            batch_id="batch",
+            media_type="audio",
+        )
+
+    assert exc_info.value.status_code == 413
+
+
+
 @pytest.mark.anyio
 async def test_project_picture_upload_restores_existing_file_when_commit_fails(tmp_path, monkeypatch) -> None:
     service = FileService(str(tmp_path))
