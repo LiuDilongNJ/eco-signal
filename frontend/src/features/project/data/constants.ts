@@ -49,6 +49,7 @@ export const AI_MODELS = [
     {
         id: "birdnet",
         name: "BirdNET",
+        version: "2.4",
         desc: "Identify bird species by sound using the BirdNET algorithm.",
         params: [
             { key: "min_conf", label: "Min Confidence", type: "number", default: 0.1 },
@@ -58,9 +59,20 @@ export const AI_MODELS = [
     {
         id: "batdetect2",
         name: "BatDetect2",
+        version: "1.3.0",
         desc: "Detect and classify bat echolocation calls.",
         params: [
             { key: "detection_threshold", label: "Detection Threshold", type: "number", default: 0.5 },
+        ],
+    },
+    {
+        id: "insects",
+        name: "Insects",
+        version: "1.0.0",
+        desc: "This baseline model, utilized in the ECOSoundSet paper, was trained to tag audio files with one or more of 86 species from the Orthoptera and Hemiptera insect orders.",
+        params: [
+            { key: "window_size", label: "Window Size", type: "number", default: 4.0 },
+            { key: "stride_length", label: "Stride Length", type: "number", default: 4.0 },
         ],
     },
 ]

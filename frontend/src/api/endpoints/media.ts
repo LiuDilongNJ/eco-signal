@@ -197,9 +197,11 @@ export interface MediaBatchFailedItem {
 }
 
 export interface AudioResamplingJobResponse {
-    queue_id: number
+    queue_id?: number | null
     accepted_media_ids: number[]
     rejected: MediaBatchFailedItem[]
+    affected_annotation_count?: number
+    affected_media_count?: number
 }
 
 export interface MediaPhotoSetting {
@@ -273,6 +275,8 @@ export type MediaAudioQueryParams = {
     max_freq?: number
     fft_size?: number
     filter?: boolean
+    download?: boolean
+    original?: boolean
     /** 前端 reload token，避免浏览器 disk cache 命中错误频段 */
     reload_key?: number
 }
@@ -375,6 +379,12 @@ export const mediaApi = {
         })
     },
 
+    downloadOriginalAudio(mediaId: number, projectId: number) {
+        return apiClient.download(`/v1/media/${mediaId}/audio`, {
+            params: { project_id: projectId, original: true, download: true },
+        })
+    },
+
     async getAudioMetadata(mediaId: number, projectId: number): Promise<AudioFileMetadata> {
         const response = await apiClient.get<{ code: number; message: string; data: AudioFileMetadata }>(
             `/v1/media/${mediaId}/audio-metadata`, { params: { project_id: projectId } },
@@ -388,9 +398,9 @@ export const mediaApi = {
         })
     },
 
-    createAudioResamplingJob(projectId: number, payload: AudioResamplingJobRequest) {
+    createAudioResamplingJob(projectId: number, payload: AudioResamplingJobRequest, dryRun: boolean = false) {
         return apiClient.post<{ code: number; message: string; data: AudioResamplingJobResponse }>(
-            "/v1/audio-resampling-jobs", payload, { params: { project_id: projectId } },
+            "/v1/audio-resampling-jobs", payload, { params: { project_id: projectId, dry_run: dryRun } },
         )
     },
 

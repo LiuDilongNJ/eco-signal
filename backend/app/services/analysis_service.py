@@ -545,10 +545,19 @@ class AnalysisService:
         chunk_size: float = 2.0,
         cancellation_token: CancellationToken | None = None,
         commit: bool = True,
+        max_duration: float | None = None,
     ) -> dict[str, Any]:
         """
         Analyze audio with batdetect2 and store results.
         """
+        if max_duration is None:
+            media = session.get(Media, media_id)
+            if media:
+                audio_setting = getattr(media, "audio_setting", None) or self._get_audio_setting(session, media)
+                duration_s = getattr(audio_setting, "duration_s", None)
+                if isinstance(duration_s, (int, float)):
+                    max_duration = float(duration_s)
+
         creator_type = f"batdetect2 {self.batdetect.version}"
 
         logger.info(f"Starting batdetect2 analysis for media {media_id}")
@@ -556,6 +565,7 @@ class AnalysisService:
             audio_path,
             detection_threshold=detection_threshold,
             chunk_size=chunk_size,
+            max_duration=max_duration,
             cancellation_token=cancellation_token,
         )
         if cancellation_token is not None:
@@ -1021,7 +1031,7 @@ class AnalysisService:
         expected = logical_audio_media_path(path_root, media.directory, filename)
         raise FileNotFoundError(
             "No supported analysis audio file found for media "
-            f"{media_id}; expected WAV or FLAC near {expected}"
+            f"{media_id}; expected audio file near {expected}"
         )
 
     async def _enqueue_job(
@@ -1143,6 +1153,7 @@ class AnalysisService:
                         merge_enabled=request.merge.is_merged,
                         merge_max_gap=request.merge.max_gap,
                         merge_keep_only=request.merge.keep_merged,
+                        max_duration=media_context.get("duration_s"),
                     )
                     queued.append(resp)
                 except Exception as e:

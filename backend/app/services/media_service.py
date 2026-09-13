@@ -2727,6 +2727,8 @@ def get_audio_stream_payload(
     channel: int | None,
     filter_enabled: bool,
     fft_size: int,
+    download: bool = False,
+    original: bool = False,
 ) -> tuple[Path, str, str | None]:
     """Return a direct file path for both original and processed audio."""
     media = media_repository.get_with_detail_relations(session, media_id)
@@ -2738,13 +2740,17 @@ def get_audio_stream_payload(
         raise HTTPException(status_code=404, detail="Audio media not found on server")
 
     if (
-        start_time is None
-        and end_time is None
-        and min_freq is None
-        and max_freq is None
-        and not filter_enabled
+        original
+        or (
+            start_time is None
+            and end_time is None
+            and min_freq is None
+            and max_freq is None
+            and not filter_enabled
+        )
     ):
-        return audio_path, _guess_audio_mimetype(str(audio_path)), None
+        download_filename = audio_path.name if (download or original) else None
+        return audio_path, _guess_audio_mimetype(str(audio_path)), download_filename
 
     bundle = get_or_create_detail_asset_bundle(
         session,
@@ -2890,11 +2896,18 @@ def get_preview_file_path(session: Session, media_id: int, preview_id: int) -> P
 
 
 def get_media_content_path(session: Session, media_id: int) -> Path:
-    """Resolve an original photo file after the route has completed access checks."""
+    """Resolve an original photo or audio file after the route has completed access checks."""
     media = media_repository.get_with_detail_relations(session, media_id)
     if not media:
         raise HTTPException(status_code=404, detail="Media file not found")
-    if media.media_type != "photo" or not media.filename:
+    if not media.filename:
+        raise HTTPException(status_code=404, detail="Media content is not available for this media")
+    if media.media_type == "audio":
+        path = _get_audio_path_for_media(media)
+        if path is None:
+            raise HTTPException(status_code=404, detail="Audio file not found on server")
+        return path
+    if media.media_type != "photo":
         raise HTTPException(status_code=404, detail="Photo content is not available for this media")
     primary_collection = _get_primary_media_collection(media)
     if not primary_collection:

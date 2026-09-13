@@ -288,12 +288,14 @@ class TestAnalyzeBatdetectWorker:
                     media_id=10,
                     detection_threshold=0.4,
                     chunk_size=5,
+                    max_duration=60.0,
                 )
 
         assert result["status"] == "completed"
         call_kwargs = mock_service.analyze_and_store_batdetect.call_args.kwargs
         assert call_kwargs["detection_threshold"] == 0.4
         assert call_kwargs["chunk_size"] == 5
+        assert call_kwargs["max_duration"] == 60.0
 
     async def test_merge_called_when_enabled(self):
         """Batdetect merge is triggered when merge_enabled=True."""

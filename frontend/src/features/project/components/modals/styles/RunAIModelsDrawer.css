@@ -72,10 +72,32 @@
     min-width: 0;
 }
 
+.ai-model-title-wrap {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    vertical-align: middle;
+}
+
 .ai-model-title {
     font-weight: 700;
     font-size: 14px !important;
     color: var(--text-main);
+}
+
+.ai-model-version-tag {
+    display: inline-flex;
+    align-items: center;
+    padding: 0 6px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 18px;
+    height: 18px;
+    background: var(--brand-tint);
+    color: var(--brand);
+    border: 1px solid var(--brand);
+    letter-spacing: 0.2px;
 }
 
 .ai-model-header .ant-radio-wrapper,

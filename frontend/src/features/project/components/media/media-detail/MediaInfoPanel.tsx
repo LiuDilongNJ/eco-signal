@@ -7,13 +7,15 @@ import {
     ConfigProvider,
     CustomScrollArea,
     Divider,
+    DropdownMenu,
+    type MenuProps,
     Input,
     LoadingState,
     EmptyState,
     Popconfirm,
     Popover,
 } from "@/components/ui"
-import { Download, Info, MapPin, Tag, Trash2 } from "lucide-react"
+import { AudioLines, ChevronDown, Download, Info, MapPin, Tag, Trash2 } from "lucide-react"
 import { authUtils } from "@/utils/auth"
 import { clamp, isLabelSystemProtected } from "./mediaDetailSupport"
 
@@ -61,6 +63,7 @@ export interface MediaInfoDisplayContract {
 
 export interface MediaInfoDownloadsContract {
     onOriginalPhoto: () => void
+    onOriginalAudio?: () => void | Promise<void>
     onViewportAudio: () => void | Promise<void>
     onViewportSpectrogram: () => void | Promise<void>
 }
@@ -406,14 +409,38 @@ export function MediaInfoPanel({
                                         </ESButton>
                                     ) : (
                                         <>
-                                            <ESButton appearance="unstyled"
-                                                type="button"
-                                                className="btn-toolbar studio-download-btn"
-                                                title="Download audio for current viewport"
-                                                onClick={() => void handleDownloadViewportAudio()}
+                                            <DropdownMenu
+                                                items={[
+                                                    ...(downloads.onOriginalAudio ? [{
+                                                        key: "original",
+                                                        label: (
+                                                            <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                                                <AudioLines size={14} />
+                                                                <span>Original Audio</span>
+                                                            </span>
+                                                        ),
+                                                        onClick: () => void downloads.onOriginalAudio?.(),
+                                                    }] : []),
+                                                    {
+                                                        key: "viewport",
+                                                        label: (
+                                                            <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                                                <Download size={14} />
+                                                                <span>Viewport Audio</span>
+                                                            </span>
+                                                        ),
+                                                        onClick: () => void handleDownloadViewportAudio(),
+                                                    },
+                                                ]}
                                             >
-                                                <Download size={14} /> Audio
-                                            </ESButton>
+                                                <ESButton appearance="unstyled"
+                                                    type="button"
+                                                    className="btn-toolbar studio-download-btn"
+                                                    title="Download audio (Original or Viewport selection)"
+                                                >
+                                                    <Download size={14} /> Audio <ChevronDown size={12} style={{ marginLeft: 2 }} />
+                                                </ESButton>
+                                            </DropdownMenu>
                                             <ESButton appearance="unstyled"
                                                 type="button"
                                                 className="btn-toolbar studio-download-btn"

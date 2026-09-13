@@ -32,52 +32,17 @@ from app.services.upload_validation_service import (
 logger = logging.getLogger(__name__)
 _STREAM_CHUNK_SIZE = 1024 * 1024
 
-
-def _as_int(value: object) -> int | None:
-    try:
-        return int(str(value)) if value not in (None, "N/A", "") else None
-    except (TypeError, ValueError):
-        return None
-
-
-def _as_float(value: object) -> float | None:
-    try:
-        return float(str(value)) if value not in (None, "N/A", "") else None
-    except (TypeError, ValueError):
-        return None
-
-
-def _json_tag_value(value: object) -> str | int | float | bool:
-    if isinstance(value, (str, int, float, bool)):
-        return value
-    if isinstance(value, bytes):
-        return f"binary:{len(value)} bytes"
-    return str(value)
-
-
-_NON_CONTENT_AUDIO_TAG_KEYS = {"encoder", "tsse"}
-
-
-def _missing_audio_tag_names(
-    source_tags: dict[str, dict[str, list[str | int | float | bool]]],
-    stored_tags: dict[str, dict[str, list[str | int | float | bool]]],
-) -> list[str]:
-    """Return source tag names whose values are absent after a format conversion."""
-    stored_values = {
-        str(value).casefold()
-        for namespace in stored_tags.values()
-        for values in namespace.values()
-        for value in values
-    }
-    missing: list[str] = []
-    for namespace in source_tags.values():
-        for name, values in namespace.items():
-            if name.casefold() in _NON_CONTENT_AUDIO_TAG_KEYS:
-                continue
-            if any(str(value).casefold() not in stored_values for value in values):
-                missing.append(name)
-    return list(dict.fromkeys(missing))
-
+from app.audio_metadata import (
+    _NON_CONTENT_AUDIO_TAG_KEYS,
+    as_float as _as_float,
+    as_int as _as_int,
+    build_audio_file_metadata,
+    extract_audio_tags as _extract_audio_tags_impl,
+    json_tag_value as _json_tag_value,
+    missing_audio_tag_names as _missing_audio_tag_names,
+    probe_audio as _probe_audio_impl,
+    transcode_to_flac,
+)
 
 # Allowed file types by category
 ALLOWED_EXTENSIONS = {
@@ -113,50 +78,11 @@ class FileService:
 
     def _probe_audio(self, path: Path) -> dict[str, Any]:
         """Read the actual container and stream properties, never trusting its suffix."""
-        command = ["ffprobe", "-v", "error", "-show_format", "-show_streams", "-of", "json", str(path)]
-        try:
-            completed = subprocess.run(command, capture_output=True, text=True, check=True)
-            payload = json.loads(completed.stdout)
-        except FileNotFoundError as exc:
-            raise RuntimeError("ffprobe is not installed") from exc
-        except (subprocess.CalledProcessError, json.JSONDecodeError) as exc:
-            raise RuntimeError("Unable to read audio file format") from exc
-        stream = next((item for item in payload.get("streams", []) if item.get("codec_type") == "audio"), None)
-        if not stream:
-            raise ValueError("Uploaded file does not contain an audio stream")
-        fmt = payload.get("format") or {}
-        container = str(fmt.get("format_name") or "").split(",")[0].lower()
-        return {
-            "container": container,
-            "codec": str(stream.get("codec_name") or "").lower(),
-            "bit_rate_bps": _as_int(stream.get("bit_rate") or fmt.get("bit_rate")),
-            "sampling_rate_hz": _as_int(stream.get("sample_rate")),
-            "bit_depth": _as_int(stream.get("bits_per_raw_sample") or stream.get("bits_per_sample")),
-            "channel_num": _as_int(stream.get("channels")),
-            "duration_s": _as_float(stream.get("duration") or fmt.get("duration")),
-        }
+        return _probe_audio_impl(path)
 
     def _extract_audio_tags(self, path: Path) -> tuple[dict[str, dict[str, list[str | int | float | bool]]], list[str]]:
         """Extract embedded tags and normalize their values for JSON storage."""
-        tags: dict[str, dict[str, list[str | int | float | bool]]] = {
-            "id3v2": {}, "vorbis_comment": {}, "riff_info": {}, "other": {},
-        }
-        warnings: list[str] = []
-        try:
-            audio = mutagen.File(path, easy=False)
-            raw_tags = getattr(audio, "tags", None)
-            if not raw_tags:
-                return {}, warnings
-            tag_class = raw_tags.__class__.__module__.lower()
-            namespace = "id3v2" if "id3" in tag_class else "vorbis_comment" if "vorbis" in tag_class or "flac" in tag_class else "riff_info" if "wave" in tag_class else "other"
-            for key, value in raw_tags.items():
-                values = value if isinstance(value, (list, tuple)) else [value]
-                normalized = [_json_tag_value(item) for item in values]
-                tags[namespace][str(key)] = normalized
-        except Exception as exc:
-            logger.warning("Could not read embedded audio tags from %s: %s", path, exc)
-            warnings.append("Embedded metadata could not be fully read")
-        return {key: value for key, value in tags.items() if value}, warnings
+        return _extract_audio_tags_impl(path)
 
     def prepare_audio_for_storage(
         self,
@@ -214,13 +140,15 @@ class FileService:
                 source_path.replace(target_path)
 
         stored = self._probe_audio(target_path)
-        metadata = {
-            "schema_version": 1,
-            "source": {"filename": source_filename, **source},
-            "stored": {"filename": target_filename, "container": target_container, **stored},
-            "tags": tags,
-            "warnings": warnings,
-        }
+        stored_with_container = {**stored, "container": target_container}
+        metadata = build_audio_file_metadata(
+            source_filename=source_filename,
+            target_filename=target_filename,
+            source_probe=source,
+            stored_probe=stored_with_container,
+            tags=tags,
+            warnings=warnings,
+        )
         if must_convert and tags:
             stored_tags, _ = self._extract_audio_tags(target_path)
             missing_tag_names = _missing_audio_tag_names(tags, stored_tags)
@@ -511,6 +439,11 @@ class FileService:
                 raise HTTPException(status_code=400, detail="unsupported_file_type")
         elif media_type == "audio":
             validate_audio_filename(filename)
+            if total_chunks > (settings.MAX_AUDIO_SIZE // (1024 * 1024)):
+                raise HTTPException(
+                    status_code=413,
+                    detail=f"Audio file exceeds maximum allowed size ({settings.MAX_AUDIO_SIZE // (1024 * 1024 * 1024)} GB)",
+                )
         else:
             validate_photo_filename(filename)
         chunk_dir = self.get_chunk_dir(filename, batch_id)
@@ -536,7 +469,14 @@ class FileService:
             "is_complete": is_complete
         }
     
-    def merge_chunks(self, filename: str, target_dir: str, batch_id: str | None = None) -> Path:
+    def merge_chunks(
+        self,
+        filename: str,
+        target_dir: str,
+        batch_id: str | None = None,
+        *,
+        max_size: int | None = None,
+    ) -> Path:
         """
         Merge all chunks into a single file.
         
@@ -544,6 +484,7 @@ class FileService:
             filename: Original filename
             target_dir: Target directory under base_dir
             batch_id: Optional batch ID for isolation
+            max_size: Optional maximum total file size in bytes
             
         Returns:
             Path to the merged file
@@ -568,10 +509,22 @@ class FileService:
             raise FileNotFoundError(f"No chunks found for {filename}")
         
         # Merge chunks
-        with target_path.open("wb") as output:
-            for chunk_file in chunk_files:
-                with chunk_file.open("rb") as source:
-                    shutil.copyfileobj(source, output, length=_STREAM_CHUNK_SIZE)
+        total_written = 0
+        try:
+            with target_path.open("wb") as output:
+                for chunk_file in chunk_files:
+                    chunk_size = chunk_file.stat().st_size
+                    if max_size is not None and (total_written + chunk_size) > max_size:
+                        raise HTTPException(
+                            status_code=413,
+                            detail=f"File exceeds maximum allowed size ({max_size // (1024 * 1024 * 1024)} GB)",
+                        )
+                    with chunk_file.open("rb") as source:
+                        shutil.copyfileobj(source, output, length=_STREAM_CHUNK_SIZE)
+                    total_written += chunk_size
+        except Exception:
+            target_path.unlink(missing_ok=True)
+            raise
         
         # Cleanup chunk directory
         shutil.rmtree(chunk_dir)
@@ -593,10 +546,12 @@ class FileService:
         media_type: Literal["audio", "photo", "zip"],
     ) -> Path:
         """Merge an upload into quarantine and validate its actual content."""
+        max_size = settings.MAX_AUDIO_SIZE if media_type == "audio" else None
         merged_path = self.merge_chunks(
             filename,
             f"tmp/pending/{user_id}",
             batch_id=batch_id,
+            max_size=max_size,
         )
         try:
             if media_type == "zip":

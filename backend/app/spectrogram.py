@@ -258,6 +258,8 @@ def generate_thumbnail(
     audio_path: str,
     channel_num: int,
     sampling_rate: int,
+    *,
+    duration_s: float | None = None,
 ) -> bytes:
     """Generate the thumbnail spectrogram preview."""
     max_frequency = max(1, int(sampling_rate // 2))
@@ -265,7 +267,7 @@ def generate_thumbnail(
         left_bytes = generate_spectrogram_png(
             audio_path=audio_path,
             start_time=0.0,
-            end_time=None,
+            end_time=duration_s,
             min_freq=_THUMB_MIN_FREQ,
             max_freq=max_frequency,
             fft_size=_THUMB_FFT_SIZE,
@@ -277,7 +279,7 @@ def generate_thumbnail(
         right_bytes = generate_spectrogram_png(
             audio_path=audio_path,
             start_time=0.0,
-            end_time=None,
+            end_time=duration_s,
             min_freq=_THUMB_MIN_FREQ,
             max_freq=max_frequency,
             fft_size=_THUMB_FFT_SIZE,
@@ -298,7 +300,7 @@ def generate_thumbnail(
     raw_bytes = generate_spectrogram_png(
         audio_path=audio_path,
         start_time=0.0,
-        end_time=None,
+        end_time=duration_s,
         min_freq=_THUMB_MIN_FREQ,
         max_freq=max_frequency,
         fft_size=_THUMB_FFT_SIZE,
@@ -316,13 +318,14 @@ def generate_player_spectrogram(
     *,
     channel_num: int = 1,
     fft_size: int = DETAIL_DEFAULT_FFT_SIZE,
+    duration_s: float | None = None,
 ) -> bytes:
     """Generate the upload-time/player static spectrogram preview."""
     render_channel = 1 if channel_num >= 2 else 0
     return generate_spectrogram_png(
         audio_path=audio_path,
         start_time=0.0,
-        end_time=None,
+        end_time=duration_s,
         min_freq=DETAIL_DEFAULT_MIN_FREQ,
         max_freq=None,
         fft_size=fft_size,

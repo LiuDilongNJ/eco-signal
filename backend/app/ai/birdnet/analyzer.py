@@ -1,28 +1,18 @@
-"""BirdNET analyzer backed by the configured BirdNET-Analyzer runtime."""
-import atexit
+"""BirdNET analyzer using in-process Python runtime."""
+
 import csv
-import os
-import subprocess
-import sys
+import logging
 import tempfile
 from pathlib import Path
 from typing import Any
 
-from app.ai.cancellable_process import terminate_process_group
-from app.ai.exceptions import ModelDownloadError
-from app.core.task_cancellation import CancellationToken
+from app.core.task_cancellation import CancellationToken, TaskCancelledError
 
-_ACTIVE_PROCESSES: set[subprocess.Popen[str]] = set()
-def _cleanup_active_processes() -> None:
-    for process in list(_ACTIVE_PROCESSES):
-        terminate_process_group(process)
-
-
-atexit.register(_cleanup_active_processes)
+logger = logging.getLogger(__name__)
 
 
 class BirdNETAnalyzer:
-    """Run BirdNET through a subprocess CLI."""
+    """Run BirdNET through the in-process Python API."""
 
     MODEL_VERSION = "2.4"
 
@@ -67,87 +57,49 @@ class BirdNETAnalyzer:
         top_n: int | None = None,
         cancellation_token: CancellationToken | None = None,
     ) -> list[dict[str, Any]]:
-        """Analyze audio by invoking the configured BirdNET-Analyzer CLI."""
+        """Analyze audio using in-process BirdNET-Analyzer."""
+        if cancellation_token is not None:
+            cancellation_token.raise_if_cancelled()
+
+        try:
+            from birdnet_analyzer import analyze as birdnet_analyze
+        except ImportError as exc:
+            raise RuntimeError("birdnet_analyzer is required to run BirdNET") from exc
+
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
             output_csv = temp_path / f"{audio_path.stem}.BirdNET.results.csv"
-            cmd = [
-                sys.executable,
-                "-m",
-                "birdnet_analyzer.analyze",
-                str(audio_path),
-                "-o",
-                str(temp_path),
-                "--rtype",
-                "csv",
-            ]
 
+            species_file: Path | None = None
             if species_list:
                 species_file = temp_path / "species.txt"
                 species_file.write_text("\n".join(species_list), encoding="utf-8")
-                cmd.extend(["--slist", str(species_file)])
-            else:
-                if lat is not None:
-                    cmd.extend(["--lat", str(lat)])
-                if lon is not None:
-                    cmd.extend(["--lon", str(lon)])
 
-            if week is not None:
-                cmd.extend(["--week", str(week)])
-            cmd.extend(["--sensitivity", str(sensitivity)])
-            cmd.extend(["--min_conf", str(min_confidence)])
-            cmd.extend(["--overlap", str(overlap)])
-            cmd.extend(["--sf_thresh", str(sf_thresh)])
-            cmd.extend(["--locale", locale])
-            if top_n is not None:
-                cmd.extend(["--top_n", str(top_n)])
-
-            process: subprocess.Popen[str] | None = None
-            env = os.environ.copy()
             try:
-                process = subprocess.Popen(
-                    cmd,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    text=True,
-                    start_new_session=True,
-                    env=env,
+                birdnet_analyze(
+                    audio_input=str(audio_path),
+                    output=str(temp_path),
+                    min_conf=min_confidence,
+                    sensitivity=sensitivity,
+                    overlap=overlap,
+                    sf_thresh=sf_thresh,
+                    lat=lat if lat is not None else -1,
+                    lon=lon if lon is not None else -1,
+                    week=week if week is not None else -1,
+                    slist=str(species_file) if species_file else None,
+                    locale=locale,
+                    top_n=top_n,
+                    rtype="csv",
+                    threads=1,
                 )
-                _ACTIVE_PROCESSES.add(process)
-                def cancel_process() -> None:
-                    terminate_process_group(process)
-                if cancellation_token is not None:
-                    cancellation_token.add_callback(cancel_process)
-                try:
-                    stdout, stderr = process.communicate(timeout=3600)
-                    if cancellation_token is not None:
-                        cancellation_token.raise_if_cancelled()
-                finally:
-                    if cancellation_token is not None:
-                        cancellation_token.remove_callback(cancel_process)
-            except subprocess.TimeoutExpired as exc:
-                if process is not None:
-                    terminate_process_group(process)
-                raise ModelDownloadError("BirdNET CLI timed out") from exc
-            except FileNotFoundError as exc:
-                raise RuntimeError("Python is required to run BirdNET CLI") from exc
-            except BaseException:
-                if process is not None:
-                    terminate_process_group(process)
+            except TaskCancelledError:
                 raise
-            finally:
-                if process is not None:
-                    _ACTIVE_PROCESSES.discard(process)
+            except Exception as exc:
+                logger.error(f"BirdNET analysis failed: {exc}")
+                raise RuntimeError(f"BirdNET analysis failed: {exc}") from exc
 
-            if process.returncode != 0:
-                stderr_lower = stderr.lower()
-                if any(word in stderr_lower for word in ("download", "connection", "timeout", "network", "http", "url")):
-                    raise ModelDownloadError(
-                        f"BirdNET model download failed: {stderr}"
-                    )
-                raise RuntimeError(
-                    f"BirdNET CLI failed with exit {process.returncode}: {stderr or stdout}"
-                )
+            if cancellation_token is not None:
+                cancellation_token.raise_if_cancelled()
 
             if not output_csv.exists():
                 return []

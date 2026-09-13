@@ -4,6 +4,8 @@ import { filesApi } from "../../../../../api/endpoints/files"
 import type { QueueFile } from "../../modals/UploadAudioDrawer"
 
 const CHUNK_SIZE = 5 * 1024 * 1024
+export const MAX_AUDIO_SIZE = 1024 * 1024 * 1024 // 1 GB
+export const MAX_PHOTO_SIZE = 10 * 1024 * 1024   // 10 MB
 function createUploadQueueId(): string {
     const cryptoApi = globalThis.crypto
     if (typeof cryptoApi?.randomUUID === "function") {
@@ -109,15 +111,42 @@ export function useMediaUploadQueue(
     const startUploads = useCallback(async (files: File[]) => {
         if (files.length === 0) return
 
-        const newFiles: QueueFile[] = files.map((file) => ({
-            id: createUploadQueueId(),
-            name: file.name,
-            file,
-            status: "pending",
-            progress: 0,
-        }))
+        const maxSize = mediaType === "audio" ? MAX_AUDIO_SIZE : MAX_PHOTO_SIZE
+        const maxLabel = mediaType === "audio" ? "1 GB" : "10 MB"
+
+        let hasOversized = false
+        const newFiles: QueueFile[] = files.map((file) => {
+            if (file.size > maxSize) {
+                hasOversized = true
+                return {
+                    id: createUploadQueueId(),
+                    name: file.name,
+                    file,
+                    status: "error",
+                    errorMessage: `File exceeds maximum allowed size (${maxLabel})`,
+                    progress: 0,
+                }
+            }
+            return {
+                id: createUploadQueueId(),
+                name: file.name,
+                file,
+                status: "pending",
+                progress: 0,
+            }
+        })
+
+        if (hasOversized) {
+            message.warning(`Some files exceed the maximum allowed size (${maxLabel}).`)
+        }
+
         setQueueFiles((previous) => [...previous, ...newFiles])
         setDrawerOpen(true)
+
+        const filesToUpload = newFiles.filter((f) => f.status === "pending")
+        if (filesToUpload.length === 0) {
+            return
+        }
 
         let currentBatchId = batchId
         if (!currentBatchId) {
@@ -140,10 +169,10 @@ export function useMediaUploadQueue(
             }
         }
 
-        for (const queueFile of newFiles) {
+        for (const queueFile of filesToUpload) {
             await uploadFile(queueFile, currentBatchId)
         }
-    }, [batchId, collectionId, uploadFile])
+    }, [batchId, collectionId, mediaType, uploadFile])
 
     const reset = useCallback(() => {
         setDrawerOpen(false)
@@ -156,7 +185,17 @@ export function useMediaUploadQueue(
         batchId,
         drawerOpen,
         startUploads,
-        retryUpload: batchId ? (file: QueueFile) => uploadFile(file, batchId) : undefined,
+        retryUpload: batchId
+            ? (file: QueueFile) => {
+                const maxSize = mediaType === "audio" ? MAX_AUDIO_SIZE : MAX_PHOTO_SIZE
+                const maxLabel = mediaType === "audio" ? "1 GB" : "10 MB"
+                if (file.file.size > maxSize) {
+                    message.warning(`File exceeds maximum allowed size (${maxLabel}).`)
+                    return
+                }
+                return uploadFile(file, batchId)
+            }
+            : undefined,
         reset,
     }
 }

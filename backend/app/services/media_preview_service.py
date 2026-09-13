@@ -113,12 +113,25 @@ def generate_media_previews(
     if media.media_type == "audio":
         channel_num = media.audio_setting.channel_num if media.audio_setting else 1
         sampling_rate = media.audio_setting.sampling_rate_hz if media.audio_setting else 44100
+        duration_s = (
+            float(media.audio_setting.duration_s)
+            if media.audio_setting and media.audio_setting.duration_s is not None
+            else None
+        )
+        thumb_kwargs = {
+            "audio_path": str(source_path),
+            "channel_num": channel_num or 1,
+            "sampling_rate": sampling_rate,
+        }
+        if duration_s is not None:
+            thumb_kwargs["duration_s"] = duration_s
+
         try:
-            thumbnail = thumbnail_generator(
-                audio_path=str(source_path),
-                channel_num=channel_num or 1,
-                sampling_rate=sampling_rate,
-            )
+            try:
+                thumbnail = thumbnail_generator(**thumb_kwargs)
+            except TypeError:
+                thumb_kwargs.pop("duration_s", None)
+                thumbnail = thumbnail_generator(**thumb_kwargs)
             target = source_path.parent / f"{Path(storage_filename).stem}_thumbnail.png"
             created = _write_preview_bytes(target, thumbnail, media, atomic=atomic)
             result.created_paths.append(created)
@@ -126,12 +139,19 @@ def generate_media_previews(
         except Exception as exc:
             result.warnings.append(f"Audio thumbnail generation failed: {exc}")
 
+        player_kwargs = {
+            "channel_num": channel_num or 1,
+            "fft_size": DETAIL_DEFAULT_FFT_SIZE,
+        }
+        if duration_s is not None:
+            player_kwargs["duration_s"] = duration_s
+
         try:
-            player = player_generator(
-                str(source_path),
-                channel_num=channel_num or 1,
-                fft_size=DETAIL_DEFAULT_FFT_SIZE,
-            )
+            try:
+                player = player_generator(str(source_path), **player_kwargs)
+            except TypeError:
+                player_kwargs.pop("duration_s", None)
+                player = player_generator(str(source_path), **player_kwargs)
             target = media_root() / logical_preview_image_path(
                 collection_id,
                 directory,

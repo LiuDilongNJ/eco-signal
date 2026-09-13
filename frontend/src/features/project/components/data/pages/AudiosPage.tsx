@@ -9,7 +9,8 @@ import type { ColumnDef, FormFieldDef } from "../DataPageLayout"
 import { mediaApi } from "../../../../../api/endpoints/media"
 import { useProjectStore } from "../../../stores/useProjectStore"
 import { message } from "@/components/ui"
-import { AudioLines, Link as LinkIcon, Tag as TagIcon, ClipboardList as ClipboardListIcon, Bot as BotIcon, Activity as ActivityIcon, Info, Waves } from "lucide-react"
+import { AudioLines, Link as LinkIcon, Tag as TagIcon, ClipboardList as ClipboardListIcon, Bot as BotIcon, Activity as ActivityIcon, Info, Waves, Download } from "lucide-react"
+import { ConfirmDialog } from "../../modals/ConfirmDialog"
 import { UploadAudioDrawer } from "../../modals/UploadAudioDrawer"
 import { EditMediaDrawer } from "../../modals/EditMediaDrawer"
 import { LinkItemToCollectionsDrawer } from "../../modals/LinkItemToCollectionsDrawer"
@@ -187,6 +188,66 @@ export function AudiosPage() {
         }
     }, [tableState, currentProjectId, currentCollectionId, setLoading])
 
+    const [downloadConfirmOpen, setDownloadConfirmOpen] = useState(false)
+    const [pendingDownloadIds, setPendingDownloadIds] = useState<number[]>([])
+
+    const runDownloadBatch = useCallback(async (ids: number[], projectId: number) => {
+        const hideMsg = message.loading(`Downloading ${ids.length} audio file${ids.length > 1 ? "s" : ""}...`, 0)
+        let succeeded = 0
+        let failed = 0
+        try {
+            for (const [i, id] of ids.entries()) {
+                const row = rows.find((r) => Number(r.media_id) === id)
+                try {
+                    const download = await mediaApi.downloadOriginalAudio(id, projectId)
+                    const fallback = (typeof row?.filename === "string" && row.filename) || `${row?.name || "audio"}.wav`
+                    downloadFile(download, fallback)
+                    succeeded++
+                } catch (err) {
+                    console.error(`Failed to download audio ${id}:`, err)
+                    failed++
+                }
+                if (i < ids.length - 1) {
+                    await new Promise((resolve) => setTimeout(resolve, 250))
+                }
+            }
+            if (failed === 0) {
+                message.success(`Successfully downloaded ${succeeded} audio file${succeeded > 1 ? "s" : ""}`)
+            } else {
+                message.warning(`Downloaded ${succeeded} audio file(s), ${failed} failed`)
+            }
+        } finally {
+            hideMsg()
+        }
+    }, [rows])
+
+    const handleDownloadAudios = useCallback(async (selectedRows: Set<unknown>) => {
+        const selectedIds = selectedMediaIds(selectedRows)
+        if (selectedIds.length === 0) {
+            message.warning("Select audio files to download")
+            return
+        }
+        if (!currentProjectId) {
+            message.warning("Please select a project first")
+            return
+        }
+        const projectId = Number(currentProjectId)
+        const downloadableIds = selectedIds.filter((id) => {
+            const row = rows.find((r) => Number(r.media_id) === id)
+            return row && !isMetadataValue(row.is_metadata)
+        })
+        if (downloadableIds.length === 0) {
+            message.warning("No audio files available for download in selection")
+            return
+        }
+        if (downloadableIds.length > 10) {
+            setPendingDownloadIds(downloadableIds)
+            setDownloadConfirmOpen(true)
+            return
+        }
+        await runDownloadBatch(downloadableIds, projectId)
+    }, [currentProjectId, rows, runDownloadBatch])
+
     const handleView = useCallback((selectedRowKeys: unknown[]) => {
         if (selectedRowKeys.length === 0) {
             message.warning("Please select at least one media item to view")
@@ -320,6 +381,8 @@ export function AudiosPage() {
                     const metadataRow = chosen.length === 1 ? chosen[0] : null
                     const canShowMetadata = Boolean(metadataRow && !isMetadataValue(metadataRow.is_metadata) && metadataRow.metadata_available)
                     const canResample = chosen.length > 0 && chosen.every((row) => !isMetadataValue(row.is_metadata) && rowCan(row, "edit"))
+                    const canDownloadSelection = chosen.length > 0 && chosen.some((row) => !isMetadataValue(row.is_metadata))
+                    const downloadDisabled = selectedRows.size === 0 || audioActionBlockedByMediaType || !canDownloadSelection
                     return (
                     <>
                         <ESButton
@@ -384,6 +447,17 @@ export function AudiosPage() {
                         </ESButton>
                         <ESButton appearance="unstyled" className="data-btn" title={canShowMetadata ? "View audio metadata" : "Select one audio file with metadata"} disabled={!canShowMetadata} onClick={() => setMetadataMediaId(Number(metadataRow?.media_id))}><Info size={14} /> Metadata</ESButton>
                         <ESButton appearance="unstyled" className="data-btn" title={canResample ? "Resample selected recordings" : "Select editable audio files"} disabled={!canResample} onClick={() => setResampleMediaIds(selectedIds)}><Waves size={14} /> Resample</ESButton>
+                        <ESButton
+                            appearance="unstyled"
+                            className="data-btn"
+                            title={downloadDisabled
+                                ? "Select audio files to download"
+                                : "Download original audio for selected records"}
+                            disabled={downloadDisabled}
+                            onClick={() => void handleDownloadAudios(selectedRows)}
+                        >
+                            <Download size={14} /> Download
+                        </ESButton>
                     </>
                     )
                 }}
@@ -542,6 +616,21 @@ export function AudiosPage() {
                 projectId={currentProjectId ? Number(currentProjectId) : null}
                 onClose={() => { setIdxDrawerOpen(false); setIdxMediaIds([]); }}
                 onSuccess={refresh}
+            />
+
+            <ConfirmDialog
+                open={downloadConfirmOpen}
+                onClose={() => setDownloadConfirmOpen(false)}
+                title="Download Audio Files"
+                message={`You have selected ${pendingDownloadIds.length} audio files to download. Continue?`}
+                confirmLabel="Download"
+                cancelLabel="Cancel"
+                onConfirm={() => {
+                    setDownloadConfirmOpen(false)
+                    if (currentProjectId) {
+                        void runDownloadBatch(pendingDownloadIds, Number(currentProjectId))
+                    }
+                }}
             />
         </>
     )

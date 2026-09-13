@@ -3749,6 +3749,85 @@ class TestDetailAudio:
         assert (bundle_dirs[0] / "spectrogram.wav").exists()
         assert (bundle_dirs[0] / "manifest.json").exists()
 
+    def test_stream_audio_original_download(
+        self,
+        client: TestClient,
+        superuser_token_headers: dict,
+        db: Session,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path,
+    ) -> None:
+        creator = db.exec(select(User).where(User.role_id == 1)).first()
+        collection = Collection(name=f"orig_dl_{uuid.uuid4().hex[:6]}", creator_id=creator.user_id)
+        db.add(collection)
+        db.commit()
+        db.refresh(collection)
+        project_id = _ensure_project_for_collection(db, collection.collection_id, creator.user_id)
+
+        monkeypatch.setattr(settings, "MEDIA_ROOT", str(tmp_path))
+        audio_path = tmp_path / "sounds" / str(collection.collection_id) / "35" / "original_track.flac"
+        _write_audio_fixture(audio_path, sample_rate=48_000)
+        media = self._make_audio_media(
+            db,
+            creator_id=creator.user_id,
+            collection_id=collection.collection_id,
+            filename="original_track.flac",
+            directory=35,
+            sample_rate=48_000,
+        )
+
+        resp = client.get(
+            f"{settings.API_V1_STR}/media/{media.media_id}/audio?project_id={project_id}&original=true&download=true",
+            headers=superuser_token_headers,
+        )
+        assert resp.status_code == 200
+        assert resp.headers["content-type"].startswith("audio/flac")
+        self._assert_download_header(
+            resp.headers["content-disposition"],
+            fallback_filename="original_track.flac",
+            encoded_filename="original_track.flac",
+        )
+        assert len(resp.content) > 0
+
+    def test_get_media_content_audio(
+        self,
+        client: TestClient,
+        superuser_token_headers: dict,
+        db: Session,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path,
+    ) -> None:
+        creator = db.exec(select(User).where(User.role_id == 1)).first()
+        collection = Collection(name=f"audio_content_{uuid.uuid4().hex[:6]}", creator_id=creator.user_id)
+        db.add(collection)
+        db.commit()
+        db.refresh(collection)
+        project_id = _ensure_project_for_collection(db, collection.collection_id, creator.user_id)
+
+        monkeypatch.setattr(settings, "MEDIA_ROOT", str(tmp_path))
+        audio_path = tmp_path / "sounds" / str(collection.collection_id) / "36" / "direct_audio.flac"
+        _write_audio_fixture(audio_path, sample_rate=48_000)
+        media = self._make_audio_media(
+            db,
+            creator_id=creator.user_id,
+            collection_id=collection.collection_id,
+            filename="direct_audio.flac",
+            directory=36,
+            sample_rate=48_000,
+        )
+
+        resp = client.get(
+            f"{settings.API_V1_STR}/media/{media.media_id}/content?project_id={project_id}&download=true",
+            headers=superuser_token_headers,
+        )
+        assert resp.status_code == 200
+        self._assert_download_header(
+            resp.headers["content-disposition"],
+            fallback_filename="direct_audio.flac",
+            encoded_filename="direct_audio.flac",
+        )
+        assert len(resp.content) > 0
+
     def test_audio_and_spectrogram_accept_float_frequency_bounds(
         self,
         client: TestClient,

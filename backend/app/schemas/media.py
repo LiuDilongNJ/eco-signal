@@ -59,9 +59,11 @@ class AudioResamplingRejectedItem(SQLModel):
 
 
 class AudioResamplingJobResponse(SQLModel):
-    queue_id: int
+    queue_id: Optional[int] = None
     accepted_media_ids: list[int]
     rejected: list[AudioResamplingRejectedItem] = Field(default_factory=list)
+    affected_annotation_count: int = 0
+    affected_media_count: int = 0
 
 
 class PhotoSettingPublic(SQLModel):

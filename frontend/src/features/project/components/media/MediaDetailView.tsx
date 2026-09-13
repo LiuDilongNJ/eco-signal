@@ -163,6 +163,7 @@ import {
     ConfigProvider,
     DataTable,
     Divider,
+    DropdownMenu,
     DropdownMenuButton,
     Form,
     Input,
@@ -1698,6 +1699,43 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
             message.error("Audio download failed")
         }
     }, [buildDetailViewportParams, currentProjectId, media, mediaId])
+
+    const handleDownloadOriginalAudio = useCallback(async () => {
+        if (!media || currentProjectId == null) return
+        try {
+            const download = await mediaApi.downloadOriginalAudio(mediaId, currentProjectId)
+            const fallback =
+                (typeof media.filename === "string" && media.filename) ||
+                (typeof media.name === "string" && `${media.name}.wav`) ||
+                `audio-${mediaId}.wav`
+            downloadFile(download, fallback)
+        } catch {
+            message.error("Original audio download failed")
+        }
+    }, [currentProjectId, media, mediaId])
+
+    const audioDownloadMenuItems = useMemo<MenuProps["items"]>(() => [
+        {
+            key: "original",
+            label: (
+                <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <AudioLines size={14} />
+                    <span>Original Audio</span>
+                </span>
+            ),
+            onClick: () => void handleDownloadOriginalAudio(),
+        },
+        {
+            key: "viewport",
+            label: (
+                <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <Download size={14} />
+                    <span>Viewport Audio</span>
+                </span>
+            ),
+            onClick: () => void handleDownloadViewportAudio(),
+        },
+    ], [handleDownloadOriginalAudio, handleDownloadViewportAudio])
 
     const handleDownloadViewportSpectrogram = useCallback(async () => {
         if (!media || currentProjectId == null) return
@@ -8172,14 +8210,15 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                                 </ESButton>
                             ) : (
                                 <>
-                                    <ESButton appearance="unstyled"
-                                        type="button"
-                                        className="btn-toolbar studio-download-btn"
-                                        title="Download audio for current viewport"
-                                        onClick={() => void handleDownloadViewportAudio()}
-                                    >
-                                        <Download size={14} /> Audio
-                                    </ESButton>
+                                    <DropdownMenu items={audioDownloadMenuItems}>
+                                        <ESButton appearance="unstyled"
+                                            type="button"
+                                            className="btn-toolbar studio-download-btn"
+                                            title="Download audio (Original or Viewport selection)"
+                                        >
+                                            <Download size={14} /> Audio <ChevronDown size={12} style={{ marginLeft: 2 }} />
+                                        </ESButton>
+                                    </DropdownMenu>
                                     <ESButton appearance="unstyled"
                                         type="button"
                                         className="btn-toolbar studio-download-btn"

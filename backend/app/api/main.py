@@ -19,6 +19,7 @@ from app.api.routes import (
     media,
     menus,
     microphones,
+    models,
     network,
     operation_logs,
     permissions,
@@ -59,6 +60,7 @@ api_router.include_router(recorders.router)
 api_router.include_router(recorders.router_views)
 api_router.include_router(microphones.router)
 api_router.include_router(microphones.router_views)
+api_router.include_router(models.router)
 api_router.include_router(licenses.router)
 api_router.include_router(licenses.router_views)
 api_router.include_router(sites.router)

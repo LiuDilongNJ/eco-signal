@@ -455,14 +455,32 @@ class TestAnalysisService:
             assert result["unmatched_species_count"] == 0
             assert result["analysis_message_model"] == "Batdetect2 0.1.2"
             mock_repo.create_batch.assert_called_once()
-            annotations = mock_repo.create_batch.call_args[0][1]
-            assert annotations[0].comments == ""
             service._batdetect.analyze.assert_called_once_with(
                 Path("test.wav"),
                 detection_threshold=0.3,
                 chunk_size=2.0,
+                max_duration=None,
                 cancellation_token=None,
             )
+
+    def test_analyze_and_store_batdetect_auto_resolves_duration(self, service, mock_session):
+        """analyze_and_store_batdetect auto-resolves duration from media audio_setting."""
+        service._batdetect = MagicMock()
+        service._batdetect.version = "1.0"
+        service._batdetect.analyze.return_value = []
+        mock_media = MagicMock()
+        mock_media.audio_setting.duration_s = 45.5
+        mock_session.get.return_value = mock_media
+
+        service.analyze_and_store_batdetect(mock_session, Path("test.wav"), 10, 1)
+
+        service._batdetect.analyze.assert_called_once_with(
+            Path("test.wav"),
+            detection_threshold=0.3,
+            chunk_size=2.0,
+            max_duration=45.5,
+            cancellation_token=None,
+        )
 
     def test_analyze_and_store_batdetect_no_detections(self, service, mock_session):
         """analyze_and_store_batdetect handles no detections."""

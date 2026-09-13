@@ -124,7 +124,7 @@ def analysis_audio_filename_candidates(filename: str | None) -> list[str]:
     elif suffix == ".flac":
         candidates = [raw, f"{stem}.wav"]
     else:
-        candidates = [f"{stem}.wav", f"{stem}.flac"]
+        candidates = [f"{stem}.wav", f"{stem}.flac", raw]
 
     deduped: list[str] = []
     for item in candidates:
@@ -153,7 +153,7 @@ def resolve_existing_analysis_audio_media_path(
     directory: int | str,
     filename: str | None,
 ) -> Path | None:
-    """Resolve an existing WAV/FLAC path for AI analysis."""
+    """Resolve an existing audio file path for AI analysis."""
     for candidate in analysis_audio_filename_candidates(filename):
         resolved = resolve_existing_media_path(
             logical_audio_media_path(collection_id, directory, candidate)

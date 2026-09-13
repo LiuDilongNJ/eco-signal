@@ -140,3 +140,12 @@ def test_zip_validation_rejects_non_zip(tmp_path: Path) -> None:
 def test_quarantine_paths_are_not_public() -> None:
     assert not is_safe_public_media_request_path("tmp/pending/1/payload.wav")
     assert is_safe_public_media_request_path("projects/logo.png")
+
+
+def test_audio_validation_rejects_oversized_file(tmp_path: Path, monkeypatch) -> None:
+    path = tmp_path / "giant.wav"
+    path.write_bytes(b"RIFF\x00\x00\x00\x00WAVEfmt ")
+    monkeypatch.setattr("app.core.config.settings.MAX_AUDIO_SIZE", 10)
+    with pytest.raises(HTTPException, match="file_too_large"):
+        validate_audio_file(path, path.name)
+

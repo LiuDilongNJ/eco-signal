@@ -15,6 +15,7 @@ from app.repositories.index_log_repository import IndexLogRepository, index_log_
 from app.repositories.index_repository import index_type_repository, IndexTypeRepository
 from app.repositories.label_repository import LabelRepository, label_repository
 from app.repositories.media_repository import MediaRepository, media_repository
+from app.repositories.model_repository import ModelRepository, model_repository
 from app.repositories.permission_repository import PermissionRepository, permission_repository
 from app.repositories.project_repository import ProjectRepository, project_repository
 from app.repositories.queue_repository import QueueRepository, queue_repository
@@ -52,6 +53,8 @@ __all__ = [
     "index_log_repository",
     "IndexTypeRepository",
     "index_type_repository",
+    "ModelRepository",
+    "model_repository",
     "ReviewRepository",
     "review_repository",
     "QueueRepository",

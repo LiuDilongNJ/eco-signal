@@ -234,12 +234,15 @@ services:
       - WORKER_PREFETCH_COUNT=1
       - WORKER_QUEUE=interactive
       - PROMETHEUS_MULTIPROC_DIR=/tmp/prometheus
+      - TORCH_NUM_THREADS=2
+      - OMP_NUM_THREADS=2
     # Using entrypoint.sh with SKIP_PRESTART=true
     command: python -m app.workers.rabbitmq_worker
     volumes:
       - app-media-data:/app/sounds
       - prometheus-metrics:/tmp/prometheus
-    cpus: 1.0
+      - insects-model-data:/models/insects
+    cpus: 2.0
 
   worker-analysis:
     profiles: ["production"]
@@ -276,11 +279,14 @@ services:
       - WORKER_PREFETCH_COUNT=1
       - WORKER_QUEUE=analysis
       - PROMETHEUS_MULTIPROC_DIR=/tmp/prometheus
+      - TORCH_NUM_THREADS=2
+      - OMP_NUM_THREADS=2
     command: python -m app.workers.rabbitmq_worker
     volumes:
       - app-media-data:/app/sounds
       - prometheus-metrics:/tmp/prometheus
-    cpus: 1.0
+      - insects-model-data:/models/insects
+    cpus: 2.0
 
   frontend:
     image: '${DOCKER_IMAGE_FRONTEND?Variable not set}:${TAG-latest}'
@@ -307,3 +313,4 @@ volumes:
   app-media-data:
   geo_db_data:
   prometheus-metrics:
+  insects-model-data:

@@ -100,7 +100,8 @@ def test_audio_filename_candidates_try_recorded_name_before_companions() -> None
 
 
 def test_analysis_audio_candidates_prefer_companion_wav_for_unsupported_filename() -> None:
-    assert analysis_audio_filename_candidates("clip.mp3") == ["clip.wav", "clip.flac"]
+    assert analysis_audio_filename_candidates("clip.mp3") == ["clip.wav", "clip.flac", "clip.mp3"]
+    assert analysis_audio_filename_candidates("clip.ogg") == ["clip.wav", "clip.flac", "clip.ogg"]
 
 
 def test_resolve_existing_analysis_audio_prefers_companion_wav_for_non_wav_db_file(tmp_path, monkeypatch) -> None:
@@ -127,3 +128,15 @@ def test_resolve_existing_analysis_audio_falls_back_to_flac(tmp_path, monkeypatc
     resolved = resolve_existing_analysis_audio_media_path(12, 34, "clip.mp3")
 
     assert resolved == flac_path
+
+
+def test_resolve_existing_analysis_audio_resolves_recorded_format_when_no_companions(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(settings, "MEDIA_ROOT", str(tmp_path))
+    media_dir = tmp_path / "sounds" / "12" / "34"
+    media_dir.mkdir(parents=True)
+    ogg_path = media_dir / "clip.ogg"
+    ogg_path.write_bytes(b"ogg")
+
+    resolved = resolve_existing_analysis_audio_media_path(12, 34, "clip.ogg")
+
+    assert resolved == ogg_path

@@ -268,10 +268,10 @@ export function SitesPage() {
             const rawIho = pickNum(data.iho_id)
 
             // For administrative mode, GADM (terrestrial) and IHO (marine) are mutually exclusive.
-            const resolvedGadm0 = coordinateMode ? rawGadm0 : rawGadm0 ? rawGadm0 : undefined
-            const resolvedGadm1 = coordinateMode ? rawGadm1 : rawGadm0 ? rawGadm1 : undefined
-            const resolvedGadm2 = coordinateMode ? rawGadm2 : rawGadm0 ? rawGadm2 : undefined
-            const resolvedIho = coordinateMode ? rawIho : rawGadm0 ? undefined : rawIho
+            const resolvedGadm0 = coordinateMode ? rawGadm0 : (rawGadm0 || undefined)
+            const resolvedGadm1 = coordinateMode ? rawGadm1 : (rawGadm0 ? rawGadm1 : undefined)
+            const resolvedGadm2 = coordinateMode ? rawGadm2 : (rawGadm0 ? rawGadm2 : undefined)
+            const resolvedIho = coordinateMode ? rawIho : (rawGadm0 ? undefined : rawIho)
 
             const core: SiteUpdatePayload = {
                 name: String(data.name ?? "").trim(),

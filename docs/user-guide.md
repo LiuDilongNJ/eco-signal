@@ -24,6 +24,18 @@ Use collection-scoped work when recording, uploading, annotating, reviewing, or 
 
 Select one or more audio or photo files in the upload drawer, wait until their chunks finish uploading, then save the batch.
 
+### Media specifications and upload limits
+
+- **Audio recordings**:
+  - **Supported formats**: WAV (uncompressed PCM), FLAC, MP3, and OGG.
+  - **Size limit**: Up to **1 GB** per audio file. Files exceeding 1 GB are rejected at selection time to prevent unnecessary network usage.
+  - **Duration & best practices**: There is no hard duration limit (e.g. seconds or hours). However, for smooth interactive spectrogram visualization, playback, and annotation in web browsers, it is recommended to keep individual recording segments between **10 minutes and 1 hour** (devices should ideally be set to segment long continuous recordings into 30-minute or 60-minute files). High-sample-rate ultrasonic recordings (e.g. 192 kHz or 384 kHz bat acoustics) should be kept shorter to avoid excessive client-side browser memory consumption during waveform decoding.
+- **Photos (camera trap & field images)**:
+  - **Supported formats**: JPG, PNG, and TIFF.
+  - **Size & resolution limits**: Up to **10 MB** per image file and a maximum resolution of **80 Megapixels (80 MP)**.
+
+### Upload queue and processing
+
 - Chunk upload creates staging records only; it does not create a Queue item for each file.
 - Saving creates one `upload` Queue item for the accepted batch. Its `total` is the number of submitted files, and `completed` counts only media created successfully.
 - The background job merges files, validates content, detects duplicates, creates media records, and generates previews sequentially.

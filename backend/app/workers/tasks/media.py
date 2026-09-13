@@ -23,7 +23,7 @@ from app.media_paths import (
     primary_media_path,
     resolve_existing_audio_media_path,
 )
-from app.models import FileUpload, Media, AudioSetting, MediaCollection, Queue, PhotoSetting, Preview
+from app.models import Annotation, FileUpload, Media, AudioSetting, MediaCollection, Queue, PhotoSetting, Preview
 from app.services.file_service import file_service
 from app.services.media_preview_service import (
     generate_media_previews,
@@ -650,6 +650,24 @@ async def process_audio_resampling(
                 media.audio_setting.channel_num = stored.get("channel_num")
                 media.audio_setting.duration_s = float(stored.get("duration_s") or media.audio_setting.duration_s)
                 media.size_b = path.stat().st_size
+                target_max_freq = target_sampling_rate_hz / 2.0
+                out_of_bounds_annotations = session.exec(
+                    select(Annotation).where(
+                        Annotation.media_id == media_id,
+                        Annotation.max_y > target_max_freq,
+                    )
+                ).all()
+                if out_of_bounds_annotations:
+                    removed_count = len(out_of_bounds_annotations)
+                    for ann in out_of_bounds_annotations:
+                        session.delete(ann)
+                    max_freq_display = f"{int(target_max_freq)}" if target_max_freq.is_integer() else f"{target_max_freq}"
+                    logger.info(
+                        "Media %s: %s annotation(s) exceeding %s Hz removed due to resampling",
+                        media_id,
+                        removed_count,
+                        max_freq_display,
+                    )
                 for preview in session.exec(select(Preview).where(Preview.media_id == media_id)).all():
                     session.delete(preview)
                 generate_media_previews(
@@ -660,7 +678,6 @@ async def process_audio_resampling(
                 session.add(media)
                 session.commit()
                 completed += 1
-                warnings.extend(updated_metadata.get("warnings") or [])
             except Exception as exc:
                 session.rollback()
                 logger.exception("Resampling failed for media %s", media_id)

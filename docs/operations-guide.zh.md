@@ -98,12 +98,12 @@ sudo ./migrate-data.sh <source-project-dir> [options]
 - `--dry-run`：预演迁移，不写入数据
 - `--skip-db`：跳过数据库迁移
 - `--skip-files`：跳过静态文件迁移
-- `--copy-files`：将来源静态文件复制到 `app-media-data` 卷
+- `--copy-files`：将来源静态文件复制到 `app-media-data` 卷，将 WAV 音频无损压缩转换为 FLAC 格式，并提取内嵌音频元数据入库
 - `--reset-target`：备份目标数据库和媒体、清理业务数据后迁移
 - `--repair-permissions`：在已迁移的目标环境中重新将历史权限修复映射至 `user_scope_role` 访问角色架构
 - `--legacy-app-url <url>`：提供用于识别联邦节点的来源公开地址
 
-脚本会在容器内迁移开始前从宿主机检查来源 MySQL 连通性。新部署目标首次迁移时，预置的 Demo Project、集合和站点要求使用 `--reset-target`。默认直接挂载方式会在数据库处理前验证 `/app/sounds/sounds`、`/app/sounds/images` 和 `/app/sounds/projects`。复制方式会校验已复制的目录、设置 `MEDIA_STORAGE_MODE=managed` 并重建正在运行的媒体服务；之后已有媒体访问和新上传均使用 `app-media-data`，脚本不会自动删除来源目录。
+脚本会在容器内迁移开始前从宿主机检查来源 MySQL 连通性。新部署目标首次迁移时，预置的 Demo Project、集合和站点要求使用 `--reset-target`。默认直接挂载方式会在数据库处理前验证 `/app/sounds/sounds`、`/app/sounds/images` 和 `/app/sounds/projects`，并在数据库迁移后补齐音频元数据。复制方式会自动将 WAV 转为 FLAC、提取元数据、校验已复制的目录、设置 `MEDIA_STORAGE_MODE=managed` 并重建正在运行的媒体服务；之后已有媒体访问和新上传均使用 `app-media-data`，脚本不会自动删除来源目录。
 
 无法自动解析来源公开地址时，传入 `--legacy-app-url <url>` 或设置 `LEGACY_APP_URL`。若没有有效的 `http://` 或 `https://` 候选值，地址解析会在写入前停止。
 
