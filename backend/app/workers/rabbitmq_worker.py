@@ -227,14 +227,15 @@ async def process_message(message: AbstractIncomingMessage, channel: AbstractRob
                 _watch_queue_cancellation(queue_id, cancellation_token)
             )
 
-        audio_duration: float | None = None
-        audio_path = kwargs.get("audio_path")
-        if isinstance(audio_path, str) and Path(audio_path).is_file():
-            try:
-                info = sf.info(audio_path)
-                audio_duration = info.frames / info.samplerate if info.samplerate else None
-            except (OSError, RuntimeError, sf.LibsndfileError):
-                logger.warning("Could not read task audio duration: path=%s", audio_path)
+        audio_duration: float | None = kwargs.get("max_duration") or kwargs.get("recording_duration")
+        if audio_duration is None:
+            audio_path = kwargs.get("audio_path")
+            if isinstance(audio_path, str) and Path(audio_path).is_file():
+                try:
+                    info = sf.info(audio_path)
+                    audio_duration = info.frames / info.samplerate if info.samplerate else None
+                except (OSError, RuntimeError, sf.LibsndfileError):
+                    logger.warning("Could not read task audio duration: path=%s", audio_path)
         started_at = monotonic()
         logger.info(
             "Starting RabbitMQ task: task=%s queue_id=%s audio_duration_seconds=%s",

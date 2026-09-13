@@ -80,9 +80,9 @@ Options are:
 The following limit or select the transfer strategy:
 - `--skip-db`: skip database migration (transfers only files if used alone)
 - `--skip-files`: skip static file migration (transfers only database if used alone)
-- `--copy-files`: copy source static files into the target-managed `app-media-data` volume
+- `--copy-files`: copy source static files into the target-managed `app-media-data` volume, convert WAV files to FLAC lossless compression, and extract embedded audio metadata into the database
 
-The script checks source MySQL connectivity from the host before starting the in-container transfer. When the target is a fresh deployment, its seeded Demo Project, collection, and site require `--reset-target` before the first migration. The default direct-mount strategy verifies `/app/sounds/sounds`, `/app/sounds/images`, and `/app/sounds/projects` before database work. Copy mode verifies the copied trees, sets `MEDIA_STORAGE_MODE=managed`, and recreates running media services. Later access and new uploads then use `app-media-data`; the source directories are not deleted automatically.
+The script checks source MySQL connectivity from the host before starting the in-container transfer. When the target is a fresh deployment, its seeded Demo Project, collection, and site require `--reset-target` before the first migration. The default direct-mount strategy verifies `/app/sounds/sounds`, `/app/sounds/images`, and `/app/sounds/projects` before database work, and backfills audio metadata. Copy mode converts WAVs to FLAC, extracts metadata, verifies the copied trees, sets `MEDIA_STORAGE_MODE=managed`, and recreates running media services. Later access and new uploads then use `app-media-data`; the source directories are not deleted automatically.
 
 If the source public address cannot be detected, pass `--legacy-app-url <url>` or set `LEGACY_APP_URL`. Address resolution stops before writes if no valid `http://` or `https://` candidate exists.
 

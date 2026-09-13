@@ -1,44 +1,18 @@
-"""Unit tests for InsectAnalyzer - insects-base-cnn10-96k-t model wrapper."""
-import csv
-import subprocess
-import tempfile
+"""Unit tests for InsectAnalyzer - insect sound recognition using in-process autrainer."""
+from importlib.metadata import PackageNotFoundError
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from app.ai.insects.analyzer import (
-    HF_MODEL_ID,
     INSECT_MAX_FREQ,
     INSECT_MIN_FREQ,
     SAMPLE_RATE,
     InsectAnalyzer,
 )
+from app.core.task_cancellation import CancellationToken, TaskCancelledError
 
-
-# Helpers
-
-def _write_results_csv(path: Path, rows: list[dict]) -> None:
-    """Write a mock results.csv file for testing parsing."""
-    if not rows:
-        return
-    # Collect all unique field names across all rows
-    all_fields: list[str] = []
-    seen: set[str] = set()
-    for row in rows:
-        for key in row.keys():
-            if key not in seen:
-                all_fields.append(key)
-                seen.add(key)
-    with open(path / "results.csv", "w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=all_fields, extrasaction="ignore")
-        writer.writeheader()
-        writer.writerows(rows)
-
-
-# InsectAnalyzer unit tests
-
-from importlib.metadata import PackageNotFoundError
 
 class TestInsectAnalyzerVersion:
     """Tests for version detection."""
@@ -60,350 +34,251 @@ class TestInsectAnalyzerVersion:
         with patch("app.ai.insects.analyzer.version", return_value="1.0.0") as mock_version:
             analyzer = InsectAnalyzer()
             _ = analyzer.version
-            _ = analyzer.version  # second access should not call version() again
+            _ = analyzer.version
             assert mock_version.call_count == 1
+
+
+class TestInsectAnalyzerResolveModelPath:
+    """Tests for _resolve_model_path."""
+
+    def test_resolve_model_path_finds_valid_directory(self, tmp_path):
+        """Returns the first candidate directory containing model.yaml."""
+        analyzer = InsectAnalyzer()
+        candidate = tmp_path / "model_candidate"
+        candidate.mkdir()
+        (candidate / "model.yaml").write_text("model: test")
+
+        with patch("app.ai.insects.analyzer.CACHED_MODEL_PATHS", [candidate]):
+            resolved = analyzer._resolve_model_path()
+
+        assert resolved == str(candidate)
+
+    def test_resolve_model_path_fallback(self, tmp_path):
+        """Falls back to the first candidate path if none exist with model.yaml."""
+        analyzer = InsectAnalyzer()
+        fallback = tmp_path / "fallback"
+
+        with patch("app.ai.insects.analyzer.CACHED_MODEL_PATHS", [fallback]):
+            resolved = analyzer._resolve_model_path()
+
+        assert resolved == str(fallback)
+
+
+class TestInsectAnalyzerInferenceCaching:
+    """Tests for _get_inference caching."""
+
+    def test_inference_caching(self):
+        """_get_inference caches instances by (model_path, window_size, stride_length, sample_rate)."""
+        analyzer = InsectAnalyzer()
+        mock_inf_cls = MagicMock(side_effect=[MagicMock(), MagicMock()])
+
+        with patch.dict("sys.modules", {"autrainer.serving": MagicMock(Inference=mock_inf_cls)}):
+            inf1 = analyzer._get_inference("/models/insects", 4.0, 4.0, 96000)
+            inf2 = analyzer._get_inference("/models/insects", 4.0, 4.0, 96000)
+            assert inf1 is inf2
+            assert mock_inf_cls.call_count == 1
+
+            # Different window size creates a new instance
+            inf3 = analyzer._get_inference("/models/insects", 2.0, 2.0, 96000)
+            assert inf3 is not inf1
+            assert mock_inf_cls.call_count == 2
+
+
+class TestInsectAnalyzerParsePredictions:
+    """Tests for _parse_predictions logic."""
+
+    def test_parse_predictions_valid(self):
+        """Parses prediction and probability maps into detection dicts."""
+        analyzer = InsectAnalyzer()
+        predictions = {
+            "0.00-4.00": ["Gryllus campestris"],
+            "4.00-8.00": ["Tettigonia viridissima"],
+        }
+        probabilities = {
+            "0.00-4.00": {"Gryllus campestris": 0.88},
+            "4.00-8.00": {"Tettigonia viridissima": 0.76},
+        }
+
+        detections = analyzer._parse_predictions(predictions, probabilities)
+
+        assert len(detections) == 2
+        assert detections[0] == {
+            "start_time": 0.0,
+            "end_time": 4.0,
+            "species": "Gryllus campestris",
+            "confidence": pytest.approx(0.88),
+            "min_freq": INSECT_MIN_FREQ,
+            "max_freq": INSECT_MAX_FREQ,
+        }
+        assert detections[1] == {
+            "start_time": 4.0,
+            "end_time": 8.0,
+            "species": "Tettigonia viridissima",
+            "confidence": pytest.approx(0.76),
+            "min_freq": INSECT_MIN_FREQ,
+            "max_freq": INSECT_MAX_FREQ,
+        }
+
+    def test_skips_majority_offset(self):
+        """Rows with offset='majority' are skipped."""
+        analyzer = InsectAnalyzer()
+        predictions = {
+            "majority": ["Gryllus campestris"],
+            "0.0-4.0": ["Gryllus campestris"],
+        }
+        probabilities = {
+            "majority": {"Gryllus campestris": 0.9},
+            "0.0-4.0": {"Gryllus campestris": 0.9},
+        }
+        detections = analyzer._parse_predictions(predictions, probabilities)
+        assert len(detections) == 1
+        assert detections[0]["start_time"] == 0.0
+
+    def test_skips_empty_species_list(self):
+        """Windows with empty species list produce no detections."""
+        analyzer = InsectAnalyzer()
+        predictions = {"0.0-4.0": []}
+        probabilities = {"0.0-4.0": {}}
+        detections = analyzer._parse_predictions(predictions, probabilities)
+        assert detections == []
+
+    def test_skips_invalid_offset_format(self):
+        """Offsets that cannot be parsed as start-end are safely skipped."""
+        analyzer = InsectAnalyzer()
+        predictions = {"invalid_offset": ["Gryllus campestris"]}
+        probabilities = {"invalid_offset": {"Gryllus campestris": 0.9}}
+        detections = analyzer._parse_predictions(predictions, probabilities)
+        assert detections == []
+
+    def test_skips_negative_start_time(self):
+        """Offsets where start_time < 0 are skipped."""
+        analyzer = InsectAnalyzer()
+        predictions = {"-1.0-3.0": ["Gryllus campestris"]}
+        probabilities = {"-1.0-3.0": {"Gryllus campestris": 0.9}}
+        detections = analyzer._parse_predictions(predictions, probabilities)
+        assert detections == []
+
+    def test_skips_end_time_before_or_equal_to_start(self):
+        """Offsets where end_time <= start_time are skipped."""
+        analyzer = InsectAnalyzer()
+        predictions = {"4.0-2.0": ["Gryllus campestris"], "2.0-2.0": ["Gryllus campestris"]}
+        probabilities = {}
+        detections = analyzer._parse_predictions(predictions, probabilities)
+        assert detections == []
+
+    def test_multiple_species_in_one_window(self):
+        """Windows with multiple predicted species generate distinct detections."""
+        analyzer = InsectAnalyzer()
+        predictions = {"0.0-4.0": ["Species A", "Species B"]}
+        probabilities = {"0.0-4.0": {"Species A": 0.5, "Species B": 0.9}}
+        detections = analyzer._parse_predictions(predictions, probabilities)
+
+        assert len(detections) == 2
+        assert detections[0]["species"] == "Species A"
+        assert detections[0]["confidence"] == 0.5
+        assert detections[1]["species"] == "Species B"
+        assert detections[1]["confidence"] == 0.9
 
 
 class TestInsectAnalyzerAnalyze:
     """Tests for the analyze() method."""
 
-    def _mock_success_run(self, output_dir: Path):
-        """Return a subprocess mock that writes a results.csv in output_dir."""
-        rows = [
-            {
-                "filename": "test.wav",
-                "offset": "0.0-4.0",
-                "prediction": "['Gryllus campestris']",
-                "Gryllus campestris": "0.87",
-            },
-        ]
-        _write_results_csv(output_dir, rows)
-        mock_result = MagicMock()
-        mock_result.returncode = 0
-        return mock_result
-
-    def test_calls_autrainer_with_correct_args(self):
-        """analyze() calls autrainer inference with the correct CLI arguments."""
+    def test_analyze_success(self):
+        """analyze() calls in-process Inference and parses results."""
         analyzer = InsectAnalyzer()
+        mock_inf = MagicMock()
+        mock_inf.predict_file.return_value = (
+            {"0.00-4.00": ["Gryllus campestris"]},
+            {},
+            {"0.00-4.00": {"Gryllus campestris": 0.91}},
+        )
 
-        captured_cmd: list[list] = []
+        with patch.object(analyzer, "_resolve_model_path", return_value="/models/insects"):
+            with patch.object(analyzer, "_get_inference", return_value=mock_inf) as mock_get_inf:
+                detections = analyzer.analyze(
+                    Path("test.wav"),
+                    window_size=4.0,
+                    stride_length=2.0,
+                )
 
-        def fake_run(cmd, **kwargs):
-            captured_cmd.append(cmd)
-            # Create the expected results.csv in output dir
-            output_dir = Path(cmd[-1])
-            rows = [{"filename": "a.wav", "offset": "0.0-4.0", "prediction": "['Gryllus campestris']", "Gryllus campestris": "0.9"}]
-            _write_results_csv(output_dir, rows)
-            m = MagicMock()
-            m.returncode = 0
-            return m
-
-        with patch("app.ai.insects.analyzer.run_cancellable_process", side_effect=fake_run):
-            with tempfile.NamedTemporaryFile(suffix=".wav") as f:
-                analyzer.analyze(Path(f.name), window_size=4.0, stride_length=2.0)
-
-        assert len(captured_cmd) == 1
-        cmd = captured_cmd[0]
-        assert cmd[0] == "autrainer"
-        assert cmd[1] == "inference"
-        assert cmd[2] == HF_MODEL_ID
-        assert "-sr" in cmd
-        assert str(SAMPLE_RATE) in cmd
-        assert "-w" in cmd
-        assert "4.0" in cmd
-        assert "-s" in cmd
-        assert "2.0" in cmd
-        assert "-e" not in cmd
-
-    def test_prefers_cached_model_and_enables_offline_mode(self):
-        """Execution should use a cached local model when available."""
-        analyzer = InsectAnalyzer()
-
-        captured = {}
-
-        def fake_run(cmd, **kwargs):
-            captured["cmd"] = cmd
-            captured["env"] = kwargs.get("env", {})
-            output_dir = Path(cmd[-1])
-            rows = [{"filename": "a.wav", "offset": "0.0-4.0", "prediction": "['Gryllus campestris']", "Gryllus campestris": "0.9"}]
-            _write_results_csv(output_dir, rows)
-            m = MagicMock()
-            m.returncode = 0
-            return m
-
-        with patch("app.ai.insects.analyzer.run_cancellable_process", side_effect=fake_run):
-            with patch.object(analyzer, "_resolve_model_spec", return_value=("/cached/model", {"HF_HUB_OFFLINE": "1"})):
-                with tempfile.NamedTemporaryFile(suffix=".wav") as f:
-                    analyzer.analyze(Path(f.name))
-
-        assert captured["cmd"][2] == "/cached/model"
-        assert captured["env"]["HF_HUB_OFFLINE"] == "1"
-
-    def test_flac_uses_extension_argument(self):
-        """FLAC inputs should keep their extension and pass -e flac to autrainer."""
-        analyzer = InsectAnalyzer()
-        captured_cmd: list[list] = []
-
-        def fake_run(cmd, **kwargs):
-            captured_cmd.append(cmd)
-            input_dir = Path(cmd[-2])
-            assert any(path.suffix == ".flac" for path in input_dir.iterdir())
-            output_dir = Path(cmd[-1])
-            rows = [{"filename": "a.flac", "offset": "0.0-4.0", "prediction": "['Gryllus campestris']", "Gryllus campestris": "0.9"}]
-            _write_results_csv(output_dir, rows)
-            m = MagicMock()
-            m.returncode = 0
-            return m
-
-        with patch("app.ai.insects.analyzer.run_cancellable_process", side_effect=fake_run):
-            with tempfile.NamedTemporaryFile(suffix=".flac") as f:
-                analyzer.analyze(Path(f.name))
-
-        cmd = captured_cmd[0]
-        extension_index = cmd.index("-e")
-        assert cmd[extension_index + 1] == "flac"
-
-    def test_returns_detections_from_csv(self):
-        """analyze() parses results.csv and returns detection dicts."""
-        analyzer = InsectAnalyzer()
-
-        def fake_run(cmd, **kwargs):
-            output_dir = Path(cmd[-1])
-            rows = [
-                {
-                    "filename": "test.wav",
-                    "offset": "0.0-4.0",
-                    "prediction": "['Gryllus campestris']",
-                    "Gryllus campestris": "0.87",
-                },
-                {
-                    "filename": "test.wav",
-                    "offset": "4.0-8.0",
-                    "prediction": "['Tettigonia viridissima']",
-                    "Tettigonia viridissima": "0.72",
-                },
-            ]
-            _write_results_csv(output_dir, rows)
-            m = MagicMock()
-            m.returncode = 0
-            return m
-
-        with patch("app.ai.insects.analyzer.run_cancellable_process", side_effect=fake_run):
-            with tempfile.NamedTemporaryFile(suffix=".wav") as f:
-                detections = analyzer.analyze(Path(f.name))
-
-        assert len(detections) == 2
-        # Sorted by confidence descending
+        mock_get_inf.assert_called_once_with(
+            model_path="/models/insects",
+            window_size=4.0,
+            stride_length=2.0,
+            sample_rate=SAMPLE_RATE,
+        )
+        mock_inf.predict_file.assert_called_once_with("test.wav")
+        assert len(detections) == 1
         assert detections[0]["species"] == "Gryllus campestris"
-        assert detections[0]["confidence"] == pytest.approx(0.87)
-        assert detections[0]["start_time"] == 0.0
-        assert detections[0]["end_time"] == 4.0
-        assert detections[0]["min_freq"] == INSECT_MIN_FREQ
-        assert detections[0]["max_freq"] == INSECT_MAX_FREQ
+        assert detections[0]["confidence"] == pytest.approx(0.91)
 
-    def test_returns_empty_list_when_no_csv(self):
-        """If autrainer produces no results.csv, an empty list is returned."""
+    def test_analyze_handles_none_from_predict_file(self):
+        """Returns empty list when predict_file returns None."""
         analyzer = InsectAnalyzer()
+        mock_inf = MagicMock()
+        mock_inf.predict_file.return_value = None
 
-        def fake_run(cmd, **kwargs):
-            m = MagicMock()
-            m.returncode = 0
-            return m  # No CSV written
-
-        with patch("app.ai.insects.analyzer.run_cancellable_process", side_effect=fake_run):
-            with tempfile.NamedTemporaryFile(suffix=".wav") as f:
-                detections = analyzer.analyze(Path(f.name))
+        with patch.object(analyzer, "_resolve_model_path", return_value="/models/insects"):
+            with patch.object(analyzer, "_get_inference", return_value=mock_inf):
+                detections = analyzer.analyze(Path("empty.ogg"))
 
         assert detections == []
 
-    def test_raises_on_nonzero_returncode(self):
-        """RuntimeError is raised when autrainer exits with non-zero code."""
+    def test_analyze_all_formats_direct(self):
+        """Audio formats (WAV, FLAC, OGG, MP3) are passed directly to predict_file."""
         analyzer = InsectAnalyzer()
+        mock_inf = MagicMock()
+        mock_inf.predict_file.return_value = ({}, {}, {})
 
-        def fake_run(cmd, **kwargs):
-            m = MagicMock()
-            m.returncode = 1
-            m.stderr = "Model download failed"
-            return m
+        with patch.object(analyzer, "_resolve_model_path", return_value="/models/insects"):
+            with patch.object(analyzer, "_get_inference", return_value=mock_inf):
+                for audio_name in ("test.wav", "test.flac", "test.ogg", "test.mp3"):
+                    analyzer.analyze(Path(audio_name))
 
-        with patch("app.ai.insects.analyzer.run_cancellable_process", side_effect=fake_run):
-            from app.ai.exceptions import ModelDownloadError
-            with pytest.raises(ModelDownloadError, match="autrainer model download failed"):
-                with tempfile.NamedTemporaryFile(suffix=".wav") as f:
-                    analyzer.analyze(Path(f.name))
+        assert mock_inf.predict_file.call_count == 4
 
-    def test_raises_when_autrainer_not_installed(self):
-        """RuntimeError is raised when autrainer is not found."""
+    def test_analyze_cancellation_token(self):
+        """Raises TaskCancelledError when cancellation token is cancelled."""
         analyzer = InsectAnalyzer()
-        with patch("app.ai.insects.analyzer.run_cancellable_process", side_effect=FileNotFoundError):
-            with pytest.raises(RuntimeError, match="autrainer is not installed"):
-                with tempfile.NamedTemporaryFile(suffix=".wav") as f:
-                    analyzer.analyze(Path(f.name))
+        token = CancellationToken()
+        token.cancel()
 
-    def test_raises_on_timeout(self):
-        """ModelDownloadError is raised on subprocess timeout."""
-        analyzer = InsectAnalyzer()
-        with patch("app.ai.insects.analyzer.run_cancellable_process", side_effect=subprocess.TimeoutExpired(cmd="autrainer", timeout=600)):
-            from app.ai.exceptions import ModelDownloadError
-            with pytest.raises(ModelDownloadError, match="timed out"):
-                with tempfile.NamedTemporaryFile(suffix=".wav") as f:
-                    analyzer.analyze(Path(f.name))
-
-    @patch("subprocess.run")
-    def test_transcodes_non_wav_flac_to_wav(self, mock_subproc):
-        analyzer = InsectAnalyzer()
-
-        def fake_run(cmd, **kwargs):
-            m = MagicMock()
-            m.returncode = 0
-            return m
-
-        with patch("app.ai.insects.analyzer.run_cancellable_process", side_effect=fake_run):
-            with tempfile.NamedTemporaryFile(suffix=".ogg") as f:
-                detections = analyzer.analyze(Path(f.name))
-        assert mock_subproc.call_count == 1
-        assert "ffmpeg" in mock_subproc.call_args[0][0]
-        assert detections == []
+        with pytest.raises(TaskCancelledError):
+            analyzer.analyze(Path("sample.ogg"), cancellation_token=token)
 
 
-class TestInsectAnalyzerParseCsv:
-    """Tests for _parse_csv() logic."""
+class TestInsectsModelSetup:
+    """Tests for setup_insects_model.py script functions."""
 
-    def _make_analyzer(self) -> InsectAnalyzer:
-        return InsectAnalyzer()
+    def test_check_insects_files_all_present(self, tmp_path):
+        """Returns True when all required model files exist."""
+        from scripts.setup_insects_model import REQUIRED_FILES, check_insects_files
 
-    def test_skips_majority_row(self):
-        """Rows with offset='majority' are skipped."""
-        analyzer = self._make_analyzer()
-        with tempfile.TemporaryDirectory() as tmpdir:
-            path = Path(tmpdir)
-            rows = [
-                {
-                    "filename": "a.wav",
-                    "offset": "0.0-4.0",
-                    "prediction": "['Gryllus campestris']",
-                    "Gryllus campestris": "0.9",
-                },
-                {
-                    "filename": "a.wav",
-                    "offset": "majority",
-                    "prediction": "['Gryllus campestris']",
-                    "Gryllus campestris": "0.9",
-                },
-            ]
-            _write_results_csv(path, rows)
-            results = analyzer._parse_csv(path / "results.csv")
+        for rel_path in REQUIRED_FILES:
+            file_path = tmp_path / rel_path
+            file_path.parent.mkdir(parents=True, exist_ok=True)
+            file_path.write_text("dummy")
 
-        assert len(results) == 1
-        assert results[0]["start_time"] == 0.0
+        assert check_insects_files(tmp_path) is True
 
-    def test_skips_empty_prediction(self):
-        """Rows with prediction='[]' produce no detections."""
-        analyzer = self._make_analyzer()
-        with tempfile.TemporaryDirectory() as tmpdir:
-            path = Path(tmpdir)
-            rows = [
-                {"filename": "a.wav", "offset": "0.0-4.0", "prediction": "[]"},
-            ]
-            _write_results_csv(path, rows)
-            results = analyzer._parse_csv(path / "results.csv")
+    def test_check_insects_files_missing(self, tmp_path):
+        """Returns False when any required file is missing."""
+        from scripts.setup_insects_model import check_insects_files
 
-        assert results == []
+        assert check_insects_files(tmp_path) is False
 
-    def test_skips_invalid_offset(self):
-        """Rows with unparseable offset are skipped."""
-        analyzer = self._make_analyzer()
-        with tempfile.TemporaryDirectory() as tmpdir:
-            path = Path(tmpdir)
-            rows = [
-                {
-                    "filename": "a.wav",
-                    "offset": "bad-offset-format",
-                    "prediction": "['Gryllus campestris']",
-                    "Gryllus campestris": "0.9",
-                },
-            ]
-            _write_results_csv(path, rows)
-            results = analyzer._parse_csv(path / "results.csv")
+    def test_prepare_insects_model_already_ready(self, tmp_path):
+        """When check_model returns True, prepare_insects_model returns False (no download)."""
+        from scripts.setup_insects_model import prepare_insects_model
 
-        assert results == []
+        mock_check = MagicMock(return_value=True)
+        mock_download = MagicMock()
 
-    def test_skips_negative_start_time(self):
-        """Rows where start_time < 0 are skipped."""
-        analyzer = self._make_analyzer()
-        with tempfile.TemporaryDirectory() as tmpdir:
-            path = Path(tmpdir)
-            rows = [
-                {
-                    "filename": "a.wav",
-                    "offset": "-1.0-3.0",
-                    "prediction": "['Gryllus campestris']",
-                    "Gryllus campestris": "0.9",
-                },
-            ]
-            _write_results_csv(path, rows)
-            results = analyzer._parse_csv(path / "results.csv")
+        downloaded = prepare_insects_model(
+            model_dir=tmp_path,
+            check_model=mock_check,
+            download_model=mock_download,
+        )
 
-        assert results == []
-
-    def test_skips_end_before_start(self):
-        """Rows where end_time <= start_time are skipped."""
-        analyzer = self._make_analyzer()
-        with tempfile.TemporaryDirectory() as tmpdir:
-            path = Path(tmpdir)
-            rows = [
-                {
-                    "filename": "a.wav",
-                    "offset": "4.0-2.0",
-                    "prediction": "['Gryllus campestris']",
-                    "Gryllus campestris": "0.9",
-                },
-            ]
-            _write_results_csv(path, rows)
-            results = analyzer._parse_csv(path / "results.csv")
-
-        assert results == []
-
-    def test_multiple_species_in_one_row(self):
-        """A row with multiple predicted species produces multiple detections."""
-        analyzer = self._make_analyzer()
-        with tempfile.TemporaryDirectory() as tmpdir:
-            path = Path(tmpdir)
-            rows = [
-                {
-                    "filename": "a.wav",
-                    "offset": "0.0-4.0",
-                    "prediction": "['Gryllus campestris', 'Tettigonia viridissima']",
-                    "Gryllus campestris": "0.85",
-                    "Tettigonia viridissima": "0.60",
-                },
-            ]
-            _write_results_csv(path, rows)
-            results = analyzer._parse_csv(path / "results.csv")
-
-        assert len(results) == 2
-        species_names = {r["species"] for r in results}
-        assert "Gryllus campestris" in species_names
-        assert "Tettigonia viridissima" in species_names
-
-    def test_results_preserve_source_prediction_order(self):
-        """Results should keep the source row and prediction order."""
-        analyzer = self._make_analyzer()
-        with tempfile.TemporaryDirectory() as tmpdir:
-            path = Path(tmpdir)
-            rows = [
-                {
-                    "filename": "a.wav",
-                    "offset": "0.0-4.0",
-                    "prediction": "['Species A', 'Species B']",
-                    "Species A": "0.50",
-                    "Species B": "0.90",
-                },
-            ]
-            _write_results_csv(path, rows)
-            results = analyzer._parse_csv(path / "results.csv")
-
-        assert results[0]["species"] == "Species A"
-        assert results[0]["confidence"] == 0.5
-        assert results[1]["species"] == "Species B"
-        assert results[1]["confidence"] == 0.9
+        assert downloaded is False
+        mock_download.assert_not_called()

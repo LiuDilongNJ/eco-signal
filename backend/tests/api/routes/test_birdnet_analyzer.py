@@ -1,173 +1,152 @@
-"""Unit tests for the BirdNET analyzer subprocess wrapper."""
-import subprocess
+"""Unit tests for BirdNETAnalyzer using in-process Python runtime."""
 import sys
+import types
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from app.ai.birdnet.analyzer import BirdNETAnalyzer
-from app.ai.exceptions import ModelDownloadError
+from app.core.task_cancellation import CancellationToken, TaskCancelledError
 
 
 class TestBirdNETAnalyzer:
+    """Tests for BirdNETAnalyzer."""
+
     def test_version(self):
         analyzer = BirdNETAnalyzer()
         assert analyzer.version == "2.4"
 
-    def test_official_runtime_exposes_supported_cli_parameters(self):
-        result = subprocess.run(
-            [sys.executable, "-m", "birdnet_analyzer.analyze", "--help"],
-            check=True,
-            capture_output=True,
-            text=True,
-        )
+    def test_analyze_invokes_birdnet_analyzer_and_parses_csv(self):
+        """analyze() calls in-process birdnet_analyze and parses result CSV."""
+        captured_kwargs: dict = {}
 
-        assert "--top_n" in result.stdout
-        assert "--birdnet" not in result.stdout
-
-    @patch("subprocess.Popen")
-    def test_analyze_invokes_official_birdnet_analyzer_and_parses_csv(self, mock_popen):
-        process = MagicMock()
-        process.returncode = 0
-
-        def fake_popen(cmd, **_kwargs):
-            output_dir = Path(cmd[cmd.index("-o") + 1])
-            output_path = output_dir / "test.BirdNET.results.csv"
-            output_path.write_text(
+        def fake_birdnet_analyze(**kwargs):
+            captured_kwargs.update(kwargs)
+            out_dir = Path(kwargs["output"])
+            # The analyzer expects output CSV named {audio_path.stem}.BirdNET.results.csv
+            csv_path = out_dir / "test.BirdNET.results.csv"
+            csv_path.write_text(
                 "Start (s),End (s),Scientific name,Common name,Confidence,File\n"
-                "0.0,3.0,Alpha beta,,0.85,/fake/test.wav\n",
+                "0.0,3.0,Turdus merula,Common Blackbird,0.85,/fake/test.wav\n"
+                "3.0,6.0,Parus major,Great Tit,0.92,/fake/test.wav\n",
                 encoding="utf-8",
             )
-            process.communicate.return_value = ("", "")
-            return process
 
-        mock_popen.side_effect = fake_popen
-        detections = BirdNETAnalyzer().analyze(
-            Path("test.wav"),
-            min_confidence=0.5,
-            overlap=1.0,
-            sensitivity=1.2,
-            sf_thresh=0.05,
-            lat=1.0,
-            lon=2.0,
-            week=12,
-            locale="zh",
-            top_n=3,
-        )
+        birdnet_module = types.ModuleType("birdnet_analyzer")
+        birdnet_module.analyze = fake_birdnet_analyze
 
-        assert detections == [
-            {
-                "start_time": 0.0,
-                "end_time": 3.0,
-                "species": "Alpha beta",
-                "confidence": 0.85,
-            }
-        ]
-        cmd = mock_popen.call_args.args[0]
-        assert cmd[:3] == [sys.executable, "-m", "birdnet_analyzer.analyze"]
-        assert cmd[3] == "test.wav"
-        assert mock_popen.call_args.kwargs["start_new_session"] is True
-        assert "--birdnet" not in cmd
-        assert cmd[cmd.index("--rtype") + 1] == "csv"
-        assert "--fmin" not in cmd
-        assert "--fmax" not in cmd
-        assert cmd[cmd.index("--min_conf") + 1] == "0.5"
-        assert cmd[cmd.index("--overlap") + 1] == "1.0"
-        assert cmd[cmd.index("--sensitivity") + 1] == "1.2"
-        assert cmd[cmd.index("--sf_thresh") + 1] == "0.05"
-        assert cmd[cmd.index("--lat") + 1] == "1.0"
-        assert cmd[cmd.index("--lon") + 1] == "2.0"
-        assert cmd[cmd.index("--week") + 1] == "12"
-        assert cmd[cmd.index("--locale") + 1] == "zh"
-        assert cmd[cmd.index("--top_n") + 1] == "3"
-
-    @patch("subprocess.Popen")
-    def test_species_list_uses_slist_and_skips_coordinates(self, mock_popen):
-        process = MagicMock()
-        process.returncode = 0
-
-        def fake_popen(cmd, **_kwargs):
-            species_path = Path(cmd[cmd.index("--slist") + 1])
-            assert species_path.read_text(encoding="utf-8") == "Alpha beta\nGamma delta"
-            output_dir = Path(cmd[cmd.index("-o") + 1])
-            output_path = output_dir / "test.BirdNET.results.csv"
-            output_path.write_text(
-                "Start (s),End (s),Scientific name,Common name,Confidence,File\n",
-                encoding="utf-8",
+        analyzer = BirdNETAnalyzer()
+        with patch.dict(sys.modules, {"birdnet_analyzer": birdnet_module}):
+            detections = analyzer.analyze(
+                Path("test.wav"),
+                min_confidence=0.5,
+                overlap=1.0,
+                sensitivity=1.2,
+                sf_thresh=0.05,
+                lat=31.23,
+                lon=121.47,
+                week=15,
+                locale="zh",
+                top_n=5,
             )
-            process.communicate.return_value = ("", "")
-            return process
 
-        mock_popen.side_effect = fake_popen
-        detections = BirdNETAnalyzer().analyze(
-            Path("test.wav"),
-            species_list=["Alpha beta", "Gamma delta"],
-            lat=1.0,
-            lon=2.0,
-        )
+        assert captured_kwargs["audio_input"] == "test.wav"
+        assert captured_kwargs["min_conf"] == 0.5
+        assert captured_kwargs["overlap"] == 1.0
+        assert captured_kwargs["sensitivity"] == 1.2
+        assert captured_kwargs["sf_thresh"] == 0.05
+        assert captured_kwargs["lat"] == 31.23
+        assert captured_kwargs["lon"] == 121.47
+        assert captured_kwargs["week"] == 15
+        assert captured_kwargs["locale"] == "zh"
+        assert captured_kwargs["top_n"] == 5
+        assert captured_kwargs["rtype"] == "csv"
+        assert captured_kwargs["threads"] == 1
 
+        assert len(detections) == 2
+        assert detections[0] == {
+            "start_time": 0.0,
+            "end_time": 3.0,
+            "species": "Turdus merula",
+            "confidence": 0.85,
+        }
+        assert detections[1] == {
+            "start_time": 3.0,
+            "end_time": 6.0,
+            "species": "Parus major",
+            "confidence": 0.92,
+        }
+
+    def test_species_list_writes_file_and_passes_slist(self):
+        """When species_list is provided, it is saved to a file and slist is passed."""
+        captured_kwargs: dict = {}
+
+        def fake_birdnet_analyze(**kwargs):
+            captured_kwargs.update(kwargs)
+            slist_path = Path(kwargs["slist"])
+            assert slist_path.read_text(encoding="utf-8") == "Species A\nSpecies B"
+
+        birdnet_module = types.ModuleType("birdnet_analyzer")
+        birdnet_module.analyze = fake_birdnet_analyze
+
+        analyzer = BirdNETAnalyzer()
+        with patch.dict(sys.modules, {"birdnet_analyzer": birdnet_module}):
+            detections = analyzer.analyze(
+                Path("test.wav"),
+                species_list=["Species A", "Species B"],
+            )
+
+        assert captured_kwargs["lat"] == -1
+        assert captured_kwargs["lon"] == -1
+        assert captured_kwargs["slist"] is not None
         assert detections == []
-        cmd = mock_popen.call_args.args[0]
-        assert "--slist" in cmd
-        assert "--lat" not in cmd
-        assert "--lon" not in cmd
 
-    @patch("subprocess.Popen")
-    def test_analyze_passes_flac_path_to_cli(self, mock_popen):
-        """FLAC inputs should be passed directly to the BirdNET CLI."""
-        process = MagicMock()
-        process.returncode = 0
+    def test_analyze_all_formats_direct(self):
+        """FLAC, MP3, OGG, WAV are all passed directly to birdnet_analyzer."""
+        captured_inputs: list[str] = []
 
-        def fake_popen(cmd, **_kwargs):
-            output_dir = Path(cmd[cmd.index("-o") + 1])
-            output_path = output_dir / "test.BirdNET.results.csv"
-            output_path.write_text(
-                "Start (s),End (s),Scientific name,Common name,Confidence,File\n",
-                encoding="utf-8",
-            )
-            process.communicate.return_value = ("", "")
-            return process
+        def fake_birdnet_analyze(**kwargs):
+            captured_inputs.append(kwargs["audio_input"])
 
-        mock_popen.side_effect = fake_popen
+        birdnet_module = types.ModuleType("birdnet_analyzer")
+        birdnet_module.analyze = fake_birdnet_analyze
 
-        BirdNETAnalyzer().analyze(Path("/fake/test.flac"))
+        analyzer = BirdNETAnalyzer()
+        with patch.dict(sys.modules, {"birdnet_analyzer": birdnet_module}):
+            for audio_name in ("song.flac", "song.mp3", "song.ogg", "song.wav"):
+                analyzer.analyze(Path(audio_name))
 
-        cmd = mock_popen.call_args.args[0]
-        assert cmd[3] == "/fake/test.flac"
-        assert "--top_n" not in cmd
+        assert captured_inputs == ["song.flac", "song.mp3", "song.ogg", "song.wav"]
 
-    @patch("subprocess.Popen")
-    def test_cli_download_failure_is_retriable(self, mock_popen):
-        process = MagicMock()
-        process.returncode = 1
-        process.communicate.return_value = ("", "network download timeout")
-        mock_popen.return_value = process
+    def test_analyze_not_installed_raises_runtime_error(self):
+        """Raises RuntimeError if birdnet_analyzer cannot be imported."""
+        analyzer = BirdNETAnalyzer()
+        with patch.dict(sys.modules, {"birdnet_analyzer": None}):
+            with pytest.raises(RuntimeError, match="birdnet_analyzer is required to run BirdNET"):
+                analyzer.analyze(Path("test.wav"))
 
-        with pytest.raises(ModelDownloadError):
-            BirdNETAnalyzer().analyze(Path("test.wav"))
+    def test_analyze_failure_raises_runtime_error(self):
+        """Raises RuntimeError if birdnet_analyze encounters an unhandled exception."""
+        birdnet_module = types.ModuleType("birdnet_analyzer")
+        birdnet_module.analyze = MagicMock(side_effect=ValueError("Invalid audio sample rate"))
 
-    @patch("subprocess.Popen")
-    def test_cli_runtime_failure_raises_runtime_error(self, mock_popen):
-        process = MagicMock()
-        process.returncode = 1
-        process.communicate.return_value = ("", "bad audio")
-        mock_popen.return_value = process
+        analyzer = BirdNETAnalyzer()
+        with patch.dict(sys.modules, {"birdnet_analyzer": birdnet_module}):
+            with pytest.raises(RuntimeError, match="BirdNET analysis failed: Invalid audio sample rate"):
+                analyzer.analyze(Path("test.wav"))
 
-        with pytest.raises(RuntimeError, match="BirdNET CLI failed"):
-            BirdNETAnalyzer().analyze(Path("test.wav"))
+    def test_analyze_cancellation_token(self):
+        """Raises TaskCancelledError when cancellation token is triggered."""
+        analyzer = BirdNETAnalyzer()
+        token = CancellationToken()
+        token.cancel()
 
-    @patch("app.ai.birdnet.analyzer.os.killpg")
-    @patch("subprocess.Popen")
-    def test_cli_timeout_terminates_process_group(self, mock_popen, mock_killpg):
-        process = MagicMock()
-        process.pid = 123
-        process.poll.return_value = None
-        process.communicate.side_effect = subprocess.TimeoutExpired(["python3"], 1)
-        process.wait.return_value = None
-        mock_popen.return_value = process
+        birdnet_module = types.ModuleType("birdnet_analyzer")
+        birdnet_module.analyze = MagicMock()
 
-        with pytest.raises(ModelDownloadError):
-            BirdNETAnalyzer().analyze(Path("test.wav"))
+        with patch.dict(sys.modules, {"birdnet_analyzer": birdnet_module}):
+            with pytest.raises(TaskCancelledError):
+                analyzer.analyze(Path("test.wav"), cancellation_token=token)
 
-        mock_killpg.assert_called()
+        birdnet_module.analyze.assert_not_called()

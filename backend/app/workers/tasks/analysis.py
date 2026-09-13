@@ -254,6 +254,7 @@ async def analyze_batdetect(
         merge_enabled: bool = False,
         merge_max_gap: float = 0.0,
         merge_keep_only: bool = False,
+        max_duration: float | None = None,
 ) -> dict[str, Any]:
     """Batdetect2 analysis task. Executed by ARQ Worker in background."""
     cancellation_token = ctx.get("cancellation_token")
@@ -267,6 +268,7 @@ async def analyze_batdetect(
             chunk_size=chunk_size,
             cancellation_token=cancellation_token,
             commit=False,
+            max_duration=max_duration,
         )
         if cancellation_token is not None:
             cancellation_token.raise_if_cancelled()

@@ -63,6 +63,10 @@ resolve_setting() {
     printf '%s\n' "${configured:-$fallback}"
 }
 
+TARGET_POSTGRES_USER="$(resolve_setting POSTGRES_USER postgres)"
+TARGET_POSTGRES_PASSWORD="$(resolve_setting POSTGRES_PASSWORD)"
+TARGET_POSTGRES_DB="$(resolve_setting POSTGRES_DB ecosignal)"
+
 # Same normalization as deploy.sh so both scripts target the same compose project.
 normalize_project_name() {
     local name
@@ -357,7 +361,7 @@ fi
 backup_target_state() {
     mkdir -p "$BACKUP_ROOT"
     info "Backing up current ecoSignal target state into $BACKUP_ROOT"
-    "${DOCKER_COMPOSE[@]}" exec -T db pg_dump -U "${POSTGRES_USER:-postgres}" "${POSTGRES_DB:-ecosignal}" > "${BACKUP_ROOT}/ecosignal_db.sql"
+    "${DOCKER_COMPOSE[@]}" exec -T db pg_dump -U "$TARGET_POSTGRES_USER" "$TARGET_POSTGRES_DB" > "${BACKUP_ROOT}/ecosignal_db.sql"
 
     local full_volume
     full_volume="${COMPOSE_PROJECT}_app-media-data"
@@ -379,6 +383,7 @@ copy_to_volume() {
     local dest_subdir="$2"
     local full_volume="$3"
     local backend_id backend_image
+    local extra_args=()
 
     if [[ ! -d "$src_dir" ]]; then
         warn "Source directory not found, skipping: $src_dir"
@@ -389,18 +394,44 @@ copy_to_volume() {
     [[ -n "$backend_id" ]] || die "The backend container is not running."
     backend_image=$(docker inspect --format '{{.Config.Image}}' "$backend_id")
 
-    info "Copying $src_dir -> <volume>/$dest_subdir/"
+    if [[ "$dest_subdir" == "sounds" ]]; then
+        info "Migrating and transcoding audio: $src_dir -> <volume>/$dest_subdir/ (WAV -> FLAC, metadata extraction)"
+        extra_args+=(
+            --convert-wav
+            --extract-metadata
+            --resume
+            --db-host "db"
+            --db-port "5432"
+            --db-user "$TARGET_POSTGRES_USER"
+            --db-password "$TARGET_POSTGRES_PASSWORD"
+            --db-name "$TARGET_POSTGRES_DB"
+            --audit-report "/data/migration-audit_${dest_subdir}_${TIMESTAMP}.csv"
+        )
+    else
+        info "Copying $src_dir -> <volume>/$dest_subdir/"
+        extra_args+=(
+            --resume
+        )
+    fi
 
     docker run --rm \
         --entrypoint python \
+        --network "${COMPOSE_PROJECT}_default" \
+        -e POSTGRES_SERVER="db" \
+        -e POSTGRES_PORT="5432" \
+        -e POSTGRES_USER="$TARGET_POSTGRES_USER" \
+        -e POSTGRES_PASSWORD="$TARGET_POSTGRES_PASSWORD" \
+        -e POSTGRES_DB="$TARGET_POSTGRES_DB" \
         -v "$full_volume:/data" \
         -v "$src_dir:/source:ro" \
-        -v "${PROJECT_ROOT}/backend/scripts/copy_media_tree.py:/tool/copy_media_tree.py:ro" \
+        -v "${PROJECT_ROOT}/backend/scripts/copy_media_tree.py:/app/scripts/copy_media_tree.py:ro" \
+        -v "${PROJECT_ROOT}/backend/app/audio_metadata.py:/app/app/audio_metadata.py:ro" \
         "$backend_image" \
-        /tool/copy_media_tree.py \
+        /app/scripts/copy_media_tree.py \
         --source /source \
         --destination "/data/${dest_subdir}" \
-        --label "$dest_subdir"
+        --label "$dest_subdir" \
+        "${extra_args[@]}"
 }
 
 tree_stats() {
@@ -422,10 +453,55 @@ verify_copied_tree() {
 
     source_stats=$(tree_stats "$src_dir:/tree:ro" /tree)
     destination_stats=$(tree_stats "$full_volume:/data" "/data/$dest_subdir")
-    if [[ "$source_stats" != "$destination_stats" ]]; then
-        die "Copied media verification failed for $dest_subdir: source=$source_stats destination=$destination_stats"
+    local src_count src_bytes dst_count dst_bytes
+    src_count=$(echo "$source_stats" | cut -d' ' -f1)
+    src_bytes=$(echo "$source_stats" | cut -d' ' -f2)
+    dst_count=$(echo "$destination_stats" | cut -d' ' -f1)
+    dst_bytes=$(echo "$destination_stats" | cut -d' ' -f2)
+
+    if [[ "$dest_subdir" == "sounds" ]]; then
+        local missing_count
+        missing_count=$(docker run --rm \
+            -v "$src_dir:/source:ro" \
+            -v "$full_volume:/data:ro" \
+            alpine:3 sh -c '
+            missing=0
+            while IFS= read -r f; do
+                [ -n "$f" ] || continue
+                rel="${f#/source/}"
+                case "$rel" in
+                    *.wav)
+                        flac_rel="${rel%.wav}.flac"
+                        if [ ! -f "/data/sounds/$flac_rel" ] && [ ! -f "/data/sounds/$rel" ]; then
+                            missing=$((missing + 1))
+                        fi
+                        ;;
+                    *)
+                        if [ ! -f "/data/sounds/$rel" ]; then
+                            missing=$((missing + 1))
+                        fi
+                        ;;
+                esac
+            done <<EOF
+$(find /source -type f)
+EOF
+            echo "$missing"
+        ')
+        if [[ "$missing_count" -ne 0 ]]; then
+            die "Copied audio verification failed for sounds: $missing_count source files missing in target"
+        fi
+        local saved_bytes=$(( src_bytes - dst_bytes ))
+        local saved_pct=0
+        if [[ "$src_bytes" -gt 0 && "$saved_bytes" -gt 0 ]]; then
+            saved_pct=$(( (saved_bytes * 100) / src_bytes ))
+        fi
+        success "Verified $dest_subdir: $dst_count target files covering all $src_count source files (source: $src_bytes bytes, target FLAC: $dst_bytes bytes, saved ~$saved_pct%)"
+    else
+        if [[ "$source_stats" != "$destination_stats" ]]; then
+            die "Copied media verification failed for $dest_subdir: source=$source_stats destination=$destination_stats"
+        fi
+        success "Verified $dest_subdir: $source_stats (files bytes)"
     fi
-    success "Verified $dest_subdir: $source_stats (files bytes)"
 }
 
 persist_media_storage_mode() {
@@ -520,7 +596,7 @@ prepare_media_access
 
 TARGET_IS_NON_EMPTY=0
 if [[ "$SKIP_DB" == false ]]; then
-    TARGET_IS_NON_EMPTY=$("${DOCKER_COMPOSE[@]}" exec -T db psql -U "${POSTGRES_USER:-postgres}" -d "${POSTGRES_DB:-ecosignal}" -Atc "
+    TARGET_IS_NON_EMPTY=$("${DOCKER_COMPOSE[@]}" exec -T db psql -U "$TARGET_POSTGRES_USER" -d "$TARGET_POSTGRES_DB" -Atc "
         SELECT CASE WHEN EXISTS (
             SELECT 1 FROM (
                 SELECT COUNT(*) AS c FROM project
@@ -631,6 +707,11 @@ elif [[ "$COPY_FILES" == true ]]; then
     success "Static file migration completed and managed media storage is active."
 else
     info "Direct-mount mode enabled (default): no file copy is required because legacy media access was pre-verified before migration."
+    if [[ "$SKIP_FILES" == false && "$DRY_RUN" == false ]]; then
+        info "Extracting and backfilling audio metadata for direct-mount media..."
+        "${DOCKER_COMPOSE[@]}" exec -T backend \
+            python scripts/backfill_audio_file_metadata.py || warn "Direct-mount metadata extraction completed with non-fatal warnings."
+    fi
 fi
 
 echo ""

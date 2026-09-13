@@ -1,5 +1,4 @@
-"""Unit tests for BatDetect2Analyzer."""
-import subprocess
+"""Unit tests for BatDetect2Analyzer using in-process Python API."""
 import sys
 import types
 from importlib.metadata import PackageNotFoundError
@@ -9,6 +8,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from app.ai.batdetect.analyzer import BatDetect2Analyzer
+from app.core.task_cancellation import CancellationToken, TaskCancelledError
 
 
 class TestBatDetect2Analyzer:
@@ -34,83 +34,37 @@ class TestBatDetect2Analyzer:
             _ = analyzer.version
             assert mock_version.call_count == 1
 
-    @patch("shutil.copy")
-    @patch("app.ai.batdetect.analyzer.run_cancellable_process")
-    def test_analyze_success(self, mock_run, mock_copy):
-        """analyze() calls batdetect2 and parses results."""
-        mock_run.return_value = MagicMock(returncode=0)
-        
-        # We need to ensure the CSV file is "created" so _parse_csv can read it
-        detections_csv_content = [
-            ["id", "detection_prob", "start_time", "end_time", "high_freq", "low_freq", "class_name"],
-            ["0", "0.95", "1.5", "2.5", "45000", "25000", "Pipistrellus_pipistrellus"]
-        ]
-        
+    def test_model_caching(self):
+        """Model and parameters are cached in memory across multiple calls."""
         analyzer = BatDetect2Analyzer()
-        
-        # Mocking open to return our CSV content
-        with patch("builtins.open", MagicMock()):
-            with patch("csv.reader", return_value=iter(detections_csv_content)):
-                # Mock Path.exists to return True for our CSV
-                with patch.object(Path, "exists", return_value=True):
-                    detections = analyzer.analyze(Path("test.wav"), detection_threshold=0.5)
-        
-        assert len(detections) == 1
-        assert detections[0]["species"] == "Pipistrellus_pipistrellus"
-        assert detections[0]["confidence"] == 0.95
-        assert detections[0]["start_time"] == 1.5
+        mock_api = types.ModuleType("batdetect2.api")
+        mock_api.load_model = MagicMock(return_value=("fake_model", {"class_names": ["Bat"]}))
 
-    @patch("shutil.copy")
-    @patch("app.ai.batdetect.analyzer.run_cancellable_process")
-    def test_analyze_uses_default_cli_args(self, mock_run, mock_copy):
-        """analyze() uses input, output, and threshold for default options."""
-        mock_run.return_value = MagicMock(returncode=0)
-        
-        analyzer = BatDetect2Analyzer()
-        
-        with patch.object(Path, "exists", return_value=False): # No CSV case
-            detections = analyzer.analyze(Path("test.wav"), detection_threshold=0.4)
-        
-        assert detections == []
-        cmd = mock_run.call_args[0][0]
-        assert cmd[:2] == ["batdetect2", "detect"]
-        assert cmd[-3:] == ["0.4", "--chunk_size", "2.0"]
+        with patch.dict(sys.modules, {"batdetect2.api": mock_api}):
+            model1, params1 = analyzer._get_model()
+            model2, params2 = analyzer._get_model()
 
-    @patch("shutil.copy")
-    @patch("app.ai.batdetect.analyzer.run_cancellable_process")
-    def test_analyze_uses_custom_cli_args_when_provided(self, mock_run, mock_copy):
-        """Custom parameters are passed only when explicitly provided."""
-        mock_run.return_value = MagicMock(returncode=0)
+        assert model1 == "fake_model"
+        assert params1 == {"class_names": ["Bat"]}
+        assert model1 is model2
+        assert params1 is params2
+        assert mock_api.load_model.call_count == 1
 
-        analyzer = BatDetect2Analyzer()
-
-        with patch.object(Path, "exists", return_value=False):
-            detections = analyzer.analyze(
-                Path("test.wav"),
-                detection_threshold=0.4,
-                chunk_size=5,
-            )
-
-        assert detections == []
-        cmd = mock_run.call_args[0][0]
-        assert cmd[-2:] == ["--chunk_size", "5"]
-
-    @patch("app.ai.batdetect.analyzer.run_cancellable_process")
-    def test_analyze_flac_uses_python_api(self, mock_run):
-        """FLAC files should bypass the CLI directory scanner and use process_file."""
+    def test_analyze_success(self):
+        """analyze() calls batdetect2 in-process API and parses detection results."""
         api_module = types.ModuleType("batdetect2.api")
-        api_module.load_model = MagicMock(return_value=("model", {"class_names": ["Bat"]}))
-        api_module.get_config = MagicMock(return_value={"config": True})
+        api_module.load_model = MagicMock(return_value=("model_obj", {"features": 128}))
+        api_module.get_config = MagicMock(return_value={"configured": True})
         api_module.process_file = MagicMock(return_value={
             "pred_dict": {
                 "annotation": [
                     {
-                        "start_time": 1.0,
-                        "end_time": 1.2,
+                        "start_time": 1.5,
+                        "end_time": 2.5,
                         "low_freq": 25000,
                         "high_freq": 45000,
                         "class": "Pipistrellus pipistrellus",
-                        "det_prob": 0.91,
+                        "det_prob": 0.95,
                     }
                 ]
             }
@@ -120,75 +74,123 @@ class TestBatDetect2Analyzer:
 
         analyzer = BatDetect2Analyzer()
         with patch.dict(sys.modules, {"batdetect2": batdetect2_module, "batdetect2.api": api_module}):
-            detections = analyzer.analyze(Path("test.flac"), detection_threshold=0.4, chunk_size=5)
+            detections = analyzer.analyze(
+                Path("test.wav"),
+                detection_threshold=0.5,
+                chunk_size=3.0,
+            )
 
-        mock_run.assert_not_called()
-        api_module.process_file.assert_called_once_with("test.flac", "model", config={"config": True})
-        api_module.get_config.assert_called_once()
-        assert detections == [
-            {
-                "start_time": 1.0,
-                "end_time": 1.2,
-                "min_freq": 25000.0,
-                "max_freq": 45000.0,
-                "species": "Pipistrellus pipistrellus",
-                "confidence": 0.91,
-            }
-        ]
+        api_module.get_config.assert_called_once_with(
+            features=128,
+            time_expansion=1,
+            spec_slices=False,
+            chunk_size=3.0,
+            detection_threshold=0.5,
+            quiet=True,
+        )
+        api_module.process_file.assert_called_once_with(
+            "test.wav",
+            "model_obj",
+            config={"configured": True},
+        )
 
-    @patch("shutil.copy")
-    @patch("app.ai.batdetect.analyzer.run_cancellable_process")
-    def test_analyze_failure(self, mock_run, mock_copy):
-        """analyze() raises RuntimeError if batdetect2 fails."""
-        mock_run.return_value = MagicMock(returncode=1, stderr="Low memory")
-        
+        assert len(detections) == 1
+        assert detections[0]["species"] == "Pipistrellus pipistrellus"
+        assert detections[0]["confidence"] == 0.95
+        assert detections[0]["start_time"] == 1.5
+        assert detections[0]["end_time"] == 2.5
+        assert detections[0]["min_freq"] == 25000.0
+        assert detections[0]["max_freq"] == 45000.0
+
+    def test_analyze_passes_max_duration(self):
+        """analyze() forwards max_duration to batdetect2 get_config."""
+        api_module = types.ModuleType("batdetect2.api")
+        api_module.load_model = MagicMock(return_value=("model_obj", {"features": 64}))
+        api_module.get_config = MagicMock(return_value={"configured": True})
+        api_module.process_file = MagicMock(return_value={"pred_dict": {"annotation": []}})
+        batdetect2_module = types.ModuleType("batdetect2")
+        batdetect2_module.api = api_module
+
         analyzer = BatDetect2Analyzer()
-        with pytest.raises(RuntimeError, match="batdetect2 failed: Low memory"):
-            analyzer.analyze(Path("test.wav"))
+        with patch.dict(sys.modules, {"batdetect2": batdetect2_module, "batdetect2.api": api_module}):
+            detections = analyzer.analyze(
+                Path("test.mp3"),
+                detection_threshold=0.3,
+                chunk_size=2.0,
+                max_duration=101.5,
+            )
 
-    @patch("shutil.copy")
-    @patch("app.ai.batdetect.analyzer.run_cancellable_process")
-    def test_analyze_timeout(self, mock_run, mock_copy):
-        """analyze() raises ModelDownloadError on timeout."""
-        mock_run.side_effect = subprocess.TimeoutExpired(cmd="batdetect2", timeout=300)
-        
-        analyzer = BatDetect2Analyzer()
-        from app.ai.exceptions import ModelDownloadError
-        with pytest.raises(ModelDownloadError, match="batdetect2 timed out"):
-            analyzer.analyze(Path("test.wav"))
+        api_module.get_config.assert_called_once_with(
+            features=64,
+            time_expansion=1,
+            spec_slices=False,
+            chunk_size=2.0,
+            detection_threshold=0.3,
+            quiet=True,
+            max_duration=101.5,
+        )
+        assert detections == []
 
-    @patch("shutil.copy")
-    @patch("app.ai.batdetect.analyzer.run_cancellable_process")
-    def test_analyze_not_installed(self, mock_run, mock_copy):
-        """analyze() raises RuntimeError if batdetect2 is not found."""
-        mock_run.side_effect = FileNotFoundError()
-        
+    def test_analyze_all_audio_formats_direct(self):
+        """All audio formats (WAV, FLAC, OGG, MP3) are analyzed directly without format conversion."""
         analyzer = BatDetect2Analyzer()
-        with pytest.raises(RuntimeError, match="batdetect2 not installed"):
-            analyzer.analyze(Path("test.wav"))
+        api_module = types.ModuleType("batdetect2.api")
+        api_module.load_model = MagicMock(return_value=("model", {}))
+        api_module.get_config = MagicMock(return_value={})
+        api_module.process_file = MagicMock(return_value={"pred_dict": {"annotation": []}})
+        batdetect2_module = types.ModuleType("batdetect2")
+        batdetect2_module.api = api_module
 
-    def test_parse_csv_invalid_row(self):
-        """_parse_csv skips invalid or short rows."""
-        analyzer = BatDetect2Analyzer()
-        
-        csv_content = [
-            ["id", "prob", "start", "end", "high", "low", "class"],
-            ["0", "invalid", "1.5", "2.5", "45000", "25000", "Bat"], # ValueError on float
-            ["1"] # Too short
-        ]
-        
-        with patch("builtins.open", MagicMock()):
-            with patch("csv.reader", return_value=iter(csv_content)):
-                results = analyzer._parse_csv(Path("fake.csv"))
-        
-        assert results == []
+        with patch.dict(sys.modules, {"batdetect2": batdetect2_module, "batdetect2.api": api_module}):
+            for audio_name in ("test.wav", "test.flac", "test.ogg", "test.mp3"):
+                res = analyzer.analyze(Path(audio_name))
+                assert res == []
 
-    @patch("subprocess.run")
-    @patch.object(BatDetect2Analyzer, "_analyze_wav_with_cli")
-    def test_analyze_transcodes_non_wav_to_wav(self, mock_cli, mock_subproc):
+        assert api_module.process_file.call_count == 4
+
+    def test_analyze_not_installed_raises_runtime_error(self):
+        """Raises RuntimeError when batdetect2 is not installed."""
         analyzer = BatDetect2Analyzer()
-        mock_cli.return_value = [{"species": "Bat", "confidence": 0.9}]
-        results = analyzer.analyze(Path("test.ogg"))
-        assert mock_subproc.call_count == 1
-        assert "ffmpeg" in mock_subproc.call_args[0][0]
-        assert results == [{"species": "Bat", "confidence": 0.9}]
+        with patch.dict(sys.modules, {"batdetect2": None, "batdetect2.api": None}):
+            with pytest.raises(RuntimeError, match="batdetect2 not installed"):
+                analyzer.analyze(Path("test.wav"))
+
+    def test_analyze_failure_raises_runtime_error(self):
+        """Raises RuntimeError when process_file raises an exception."""
+        analyzer = BatDetect2Analyzer()
+        api_module = types.ModuleType("batdetect2.api")
+        api_module.load_model = MagicMock(return_value=("model", {}))
+        api_module.get_config = MagicMock(return_value={})
+        api_module.process_file = MagicMock(side_effect=RuntimeError("Corrupt audio stream"))
+        batdetect2_module = types.ModuleType("batdetect2")
+        batdetect2_module.api = api_module
+
+        with patch.dict(sys.modules, {"batdetect2": batdetect2_module, "batdetect2.api": api_module}):
+            with pytest.raises(RuntimeError, match="batdetect2 failed: Corrupt audio stream"):
+                analyzer.analyze(Path("test.wav"))
+
+    def test_analyze_cancellation_token(self):
+        """Raises TaskCancelledError when cancellation token is triggered."""
+        analyzer = BatDetect2Analyzer()
+        token = CancellationToken()
+        token.cancel()
+
+        api_module = types.ModuleType("batdetect2.api")
+        api_module.load_model = MagicMock(return_value=("model", {}))
+        batdetect2_module = types.ModuleType("batdetect2")
+        batdetect2_module.api = api_module
+
+        with patch.dict(sys.modules, {"batdetect2": batdetect2_module, "batdetect2.api": api_module}):
+            with pytest.raises(TaskCancelledError):
+                analyzer.analyze(Path("test.wav"), cancellation_token=token)
+
+    def test_ensure_optimal_torch_threads(self):
+        """_ensure_optimal_torch_threads sets PyTorch threads based on env var."""
+        from app.ai.batdetect.analyzer import _ensure_optimal_torch_threads
+
+        mock_torch = MagicMock()
+        mock_torch.get_num_threads.return_value = 8
+        with patch.dict(sys.modules, {"torch": mock_torch}), patch.dict("os.environ", {"TORCH_NUM_THREADS": "2"}):
+            _ensure_optimal_torch_threads()
+            mock_torch.set_num_threads.assert_called_once_with(2)
+
