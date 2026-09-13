@@ -24,6 +24,7 @@ class MLModel(SQLModel, table=True):
     model_path: Optional[str] = Field(default=None, max_length=255)
     labels_path: Optional[str] = Field(default=None, max_length=255)
     source_url: Optional[str] = Field(default=None, max_length=255)
+    version: Optional[str] = Field(default=None, max_length=50)
     description: Optional[str] = Field(default=None)
     parameter: Optional[Any] = Field(default=None, sa_column=Column(JSON))
 

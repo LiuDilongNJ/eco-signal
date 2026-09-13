@@ -8,6 +8,7 @@ import { ArrowLeft, ExternalLink } from "lucide-react"
 import { useAppStore } from "@/store/useAppStore"
 import { useAntdBrandConfig } from "../../hooks/useAntdBrandConfig"
 import { analysisApi, type BirdNETLocale } from "../../../../api/endpoints/analysis"
+import { modelsApi } from "../../../../api/endpoints/models"
 import type { QueueDetail } from "../../../../api/endpoints/queue"
 import { isAbortError, pollAnalysisQueues, type AnalysisQueuePollSummary } from "./utils/analysisQueuePolling"
 import { buildRunAnalysisPayload } from "./utils/analysisPayload"
@@ -120,6 +121,13 @@ export function RunAIModelsDrawer({
         onClose()
     }
 
+    // Model versions (with default fallbacks)
+    const [modelVersions, setModelVersions] = useState<Record<string, string>>({
+        birdnet: "2.4",
+        batdetect: "1.3.0",
+        insects: "1.0.0",
+    })
+
     useEffect(() => {
         if (open) {
             // Reset to defaults when opened
@@ -139,6 +147,27 @@ export function RunAIModelsDrawer({
             setInsectsStrideLength(4)
             setMergeDuration(0)
             setMergeKeepOnly(false)
+
+            modelsApi.getModels()
+                .then((res) => {
+                    const data = res?.data
+                    if (!Array.isArray(data)) return
+                    const versions: Record<string, string> = {}
+                    for (const m of data) {
+                        const lower = (m.name || "").toLowerCase()
+                        if (lower.includes("birdnet") && m.version) {
+                            versions.birdnet = m.version
+                        } else if (lower.includes("batdetect") && m.version) {
+                            versions.batdetect = m.version
+                        } else if (lower.includes("insect") && m.version) {
+                            versions.insects = m.version
+                        }
+                    }
+                    setModelVersions((prev) => ({ ...prev, ...versions }))
+                })
+                .catch(() => {
+                    // Retain fallback versions
+                })
         } else {
             cancelPolling()
         }
@@ -290,11 +319,21 @@ export function RunAIModelsDrawer({
                     <div className="ai-model-header">
                         {selectionMode === "single" ? (
                             <Radio checked={enableBirdNet} onChange={() => selectAiModel("birdnet")}>
-                                <span className="ai-model-title">BirdNET</span>
+                                <span className="ai-model-title-wrap">
+                                    <span className="ai-model-title">BirdNET</span>
+                                    {modelVersions.birdnet && (
+                                        <span className="ai-model-version-tag">v{modelVersions.birdnet}</span>
+                                    )}
+                                </span>
                             </Radio>
                         ) : (
                             <Checkbox checked={enableBirdNet} onChange={() => selectAiModel("birdnet")}>
-                                <span className="ai-model-title">BirdNET</span>
+                                <span className="ai-model-title-wrap">
+                                    <span className="ai-model-title">BirdNET</span>
+                                    {modelVersions.birdnet && (
+                                        <span className="ai-model-version-tag">v{modelVersions.birdnet}</span>
+                                    )}
+                                </span>
                             </Checkbox>
                         )}
                         <a
@@ -372,11 +411,21 @@ export function RunAIModelsDrawer({
                     <div className="ai-model-header">
                         {selectionMode === "single" ? (
                             <Radio checked={enableBatDetect} onChange={() => selectAiModel("batdetect")}>
-                                <span className="ai-model-title">BatDetect</span>
+                                <span className="ai-model-title-wrap">
+                                    <span className="ai-model-title">BatDetect2</span>
+                                    {modelVersions.batdetect && (
+                                        <span className="ai-model-version-tag">v{modelVersions.batdetect}</span>
+                                    )}
+                                </span>
                             </Radio>
                         ) : (
                             <Checkbox checked={enableBatDetect} onChange={() => selectAiModel("batdetect")}>
-                                <span className="ai-model-title">BatDetect</span>
+                                <span className="ai-model-title-wrap">
+                                    <span className="ai-model-title">BatDetect2</span>
+                                    {modelVersions.batdetect && (
+                                        <span className="ai-model-version-tag">v{modelVersions.batdetect}</span>
+                                    )}
+                                </span>
                             </Checkbox>
                         )}
                         <a
@@ -422,11 +471,21 @@ export function RunAIModelsDrawer({
                     <div className="ai-model-header">
                         {selectionMode === "single" ? (
                             <Radio checked={enableInsects} onChange={() => selectAiModel("insects")}>
-                                <span className="ai-model-title">Insects</span>
+                                <span className="ai-model-title-wrap">
+                                    <span className="ai-model-title">Insects</span>
+                                    {modelVersions.insects && (
+                                        <span className="ai-model-version-tag">v{modelVersions.insects}</span>
+                                    )}
+                                </span>
                             </Radio>
                         ) : (
                             <Checkbox checked={enableInsects} onChange={() => selectAiModel("insects")}>
-                                <span className="ai-model-title">Insects</span>
+                                <span className="ai-model-title-wrap">
+                                    <span className="ai-model-title">Insects</span>
+                                    {modelVersions.insects && (
+                                        <span className="ai-model-version-tag">v{modelVersions.insects}</span>
+                                    )}
+                                </span>
                             </Checkbox>
                         )}
                         <a

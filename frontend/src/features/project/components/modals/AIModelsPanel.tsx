@@ -81,7 +81,10 @@ export function AIModelsPanel({ open, onClose, audioCount }: AIModelsPanelProps)
                                         <Brain size={22} />
                                     </div>
                                     <div className="ai-model-info">
-                                        <span className="ai-model-name">{m.name}</span>
+                                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                            <span className="ai-model-name">{m.name}</span>
+                                            {m.version && <span className="ai-model-version-tag">v{m.version}</span>}
+                                        </div>
                                         <span className="ai-model-desc">{m.desc}</span>
                                     </div>
                                     <ChevronRight size={16} className="ai-model-arrow" />
@@ -99,7 +102,7 @@ export function AIModelsPanel({ open, onClose, audioCount }: AIModelsPanelProps)
 
                             <div className="ai-config-header">
                                 <Brain size={20} />
-                                <h4>{model.name}</h4>
+                                <h4>{model.name} {model.version ? `v${model.version}` : ""}</h4>
                             </div>
                             <p className="ai-config-desc">{model.desc}</p>
 
