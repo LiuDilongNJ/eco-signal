@@ -716,9 +716,10 @@ export function DataPageLayout({
     const [selectedRows, setSelectedRows] = useState<Set<Key>>(new Set())
     const [crudModal, setCrudModal] = useState<{ open: boolean; mode: "add" | "edit" }>({ open: false, mode: "add" })
     const tabularImport = useTabularImport({
-        label: importConfig ? IMPORT_RESOURCE_CONFIGS[importConfig.resourceKey].subject : "data",
+        label: importConfig ? (IMPORT_RESOURCE_CONFIGS[importConfig.resourceKey] as { subject: string }).subject : "data",
         config: importConfig ? IMPORT_RESOURCE_CONFIGS[importConfig.resourceKey] : IMPORT_RESOURCE_CONFIGS.projects,
         variants: importConfig?.variants,
+        canBrowse: !Boolean(importConfig?.disabled),
         submit: (file, dryRun, variant) => {
             if (!importConfig) return Promise.reject(new Error("Import is not configured"))
             const variantFields = importConfig.variants?.find((item) => item.key === variant)?.fields
@@ -1390,6 +1391,15 @@ export function DataPageLayout({
                         },
                     ],
                 })
+            })
+        } else if ((IMPORT_RESOURCE_CONFIGS[importConfig.resourceKey] as { combinedImport?: boolean }).combinedImport) {
+            mergedAddDropdownItems.push({
+                key: "__import_metadata",
+                label: importConfig.importLabel ?? "Metadata",
+                icon: <FileUp size={14} />,
+                disabled: false,
+                title: importConfig.disabled ? importConfig.disabledReason : undefined,
+                onClick: () => tabularImport.showInstructions(),
             })
         } else {
             mergedAddDropdownItems.push({

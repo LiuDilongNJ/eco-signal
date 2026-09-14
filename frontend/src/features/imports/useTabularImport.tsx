@@ -14,10 +14,11 @@ interface UseTabularImportOptions {
     config: ImportResourceConfig
     submit: (file: File, dryRun: boolean, variantKey?: string) => Promise<ImportSubmitResponse>
     onCommitted: () => void
+    canBrowse?: boolean
     variants?: Array<{ key: string; label: string; resourceKey: ImportResourceKey }>
 }
 
-export function useTabularImport({ label, config, submit, onCommitted, variants }: UseTabularImportOptions) {
+export function useTabularImport({ label, config, submit, onCommitted, variants, canBrowse = true }: UseTabularImportOptions) {
     const inputRef = useRef<HTMLInputElement | null>(null)
     const [importing, setImporting] = useState(false)
     const [instructionsOpen, setInstructionsOpen] = useState(false)
@@ -26,7 +27,9 @@ export function useTabularImport({ label, config, submit, onCommitted, variants 
     const [selectedFile, setSelectedFile] = useState<File | null>(null)
     const [activeVariantKey, setActiveVariantKey] = useState<string | null>(null)
     const activeVariant = variants?.find((variant) => variant.key === activeVariantKey)
-    const activeConfig = activeVariant ? IMPORT_RESOURCE_CONFIGS[activeVariant.resourceKey] : config
+    const activeConfig: ImportResourceConfig = activeVariant
+        ? IMPORT_RESOURCE_CONFIGS[activeVariant.resourceKey] as ImportResourceConfig
+        : config
 
     const clearTransientState = () => {
         setSelectedFile(null)
@@ -138,6 +141,12 @@ export function useTabularImport({ label, config, submit, onCommitted, variants 
                         setInstructionsOpen(false)
                         setActiveVariantKey(null)
                     }}
+                    onBrowse={activeConfig.combinedImport ? () => {
+                        setInstructionsOpen(false)
+                        setActiveVariantKey(null)
+                        inputRef.current?.click()
+                    } : undefined}
+                    browseDisabled={!canBrowse}
                 />
             </>
         ),

@@ -49,6 +49,16 @@ describe("import resource templates", () => {
         expect(IMPORT_RESOURCE_CONFIGS.photoMetadata.template).toContain("exposure_ms")
     })
 
+    it("guides metadata imports through one instructions entry", () => {
+        for (const key of ["audioMetadata", "photoMetadata"] as const) {
+            const config = IMPORT_RESOURCE_CONFIGS[key]
+            expect(config.combinedImport).toBe(true)
+            expect(config.instructionsIntro).toContain("metadata only")
+            expect(config.instructionsIntro).toContain("map or the timeline")
+            expect(config.instructionsUploadPrompt).toBe("Select a metadata file to upload to the current collection.")
+        }
+    })
+
     it("provides separate, media-specific annotation templates", () => {
         const audio = IMPORT_RESOURCE_CONFIGS.audioAnnotations
         const photo = IMPORT_RESOURCE_CONFIGS.photoAnnotations

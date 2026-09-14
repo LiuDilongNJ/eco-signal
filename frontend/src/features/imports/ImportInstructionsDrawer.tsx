@@ -15,6 +15,8 @@ interface ImportInstructionsDrawerProps {
     config: ImportResourceConfig
     open: boolean
     onClose: () => void
+    onBrowse?: () => void
+    browseDisabled?: boolean
 }
 
 type TemplateFormat = "csv" | "txt" | "json"
@@ -52,7 +54,7 @@ const TEMPLATE_MIME_TYPES: Record<TemplateFormat, string> = {
     json: "application/json;charset=utf-8",
 }
 
-export function ImportInstructionsDrawer({ config, open, onClose }: ImportInstructionsDrawerProps) {
+export function ImportInstructionsDrawer({ config, open, onClose, onBrowse, browseDisabled = false }: ImportInstructionsDrawerProps) {
     const isDark = useAppStore((state) => state.effectiveTheme === "dark")
 
     const downloadTemplate = (format: TemplateFormat) => {
@@ -76,6 +78,7 @@ export function ImportInstructionsDrawer({ config, open, onClose }: ImportInstru
         >
             <CustomScrollArea variant="fill">
                 <div className="sound-settings-instructions" style={{ padding: SETTINGS_DRAWER_BODY_PADDING }}>
+                    {config.instructionsIntro ? <p>{config.instructionsIntro}</p> : null}
                     <p>{config.subject} data can be uploaded as CSV, delimited TXT, or a JSON object array.</p>
                     <div className="sound-settings-instructions__rules">
                         {config.fields.map((item) => (
@@ -94,6 +97,18 @@ export function ImportInstructionsDrawer({ config, open, onClose }: ImportInstru
                         <Button onClick={() => downloadTemplate("txt")}>Download TXT Template</Button>
                         <Button onClick={() => downloadTemplate("json")}>Download JSON Template</Button>
                     </div>
+                    {config.instructionsUploadPrompt ? <p>{config.instructionsUploadPrompt}</p> : null}
+                    {onBrowse ? (
+                        <Button
+                            type="primary"
+                            disabled={browseDisabled}
+                            title="Select a metadata file to upload"
+                            aria-label="Select a metadata file to upload"
+                            onClick={onBrowse}
+                        >
+                            Select metadata file
+                        </Button>
+                    ) : null}
                 </div>
             </CustomScrollArea>
         </DetailDrawer>

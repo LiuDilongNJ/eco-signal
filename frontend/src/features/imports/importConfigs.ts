@@ -11,6 +11,10 @@ export interface ImportResourceConfig {
     example: Record<string, string | number | boolean | object | null>
     additionalExample: Record<string, string | number | boolean | object | null>
     fields: ImportFieldInstruction[]
+    /** Shows a guided explanation before opening the metadata file picker. */
+    combinedImport?: boolean
+    instructionsIntro?: string
+    instructionsUploadPrompt?: string
 }
 
 export type ImportResourceKey = keyof typeof IMPORT_RESOURCE_CONFIGS
@@ -88,6 +92,9 @@ export const IMPORT_RESOURCE_CONFIGS = {
             field("duty_cycle_recording", "optional integer", "Recording portion of the duty cycle in seconds"),
             field("duty_cycle_period", "optional integer", "Complete duty-cycle period in seconds"),
         ],
+        combinedImport: true,
+        instructionsIntro: "You may upload metadata only (no media files) to construct metadata collections. They allow you to create an inventory of your data to visualise it on the map or the timeline, and to share it with colleagues.",
+        instructionsUploadPrompt: "Select a metadata file to upload to the current collection.",
     },
     photoMetadata: {
         subject: "Photo meta-data",
@@ -102,6 +109,9 @@ export const IMPORT_RESOURCE_CONFIGS = {
             field("aperture", "optional number", "Aperture F value"),
             field("iso", "optional integer", "ISO sensitivity"),
         ],
+        combinedImport: true,
+        instructionsIntro: "You may upload metadata only (no media files) to construct metadata collections. They allow you to create an inventory of your data to visualise it on the map or the timeline, and to share it with colleagues.",
+        instructionsUploadPrompt: "Select a metadata file to upload to the current collection.",
     },
     annotations: {
         subject: "Annotation",
