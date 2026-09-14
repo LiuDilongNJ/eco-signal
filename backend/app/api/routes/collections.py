@@ -18,6 +18,7 @@ from app.enums.collection import CollectionSphere
 from app.models import Project, User
 from app.schemas.collection import (
     CollectionCreate,
+    CollectionCreateResponse,
     CollectionDetail,
     CollectionPublic,
     CollectionTaxonResponse,
@@ -236,7 +237,7 @@ def get_collection(
     return api_success(data=detail)
 
 
-@router.post("", response_model=ApiResponse[None], status_code=201, summary="创建集合 / Create Collection")
+@router.post("", response_model=ApiResponse[CollectionCreateResponse], status_code=201, summary="创建集合 / Create Collection")
 def create_collection(
     session: SessionDep,
     collection_in: CollectionCreate,
@@ -248,8 +249,8 @@ def create_collection(
 
     需要对该项目拥有 project:write 权限。 / Requires project:write permission on the project.
     """
-    collection_service.create_collection(session, collection_in, current_user, project_id=project_id)
-    return api_success()
+    collection = collection_service.create_collection(session, collection_in, current_user, project_id=project_id)
+    return api_success(data=CollectionCreateResponse(collection_id=collection.collection_id))
 
 
 @router.patch(

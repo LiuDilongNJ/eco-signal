@@ -17,6 +17,11 @@ class AnnotationTaskSummary(SQLModel):
     comment: Optional[str] = None
 
 
+class AnnotationCreateResponse(SQLModel):
+    """Schema for annotation creation response data."""
+    annotation_id: int = Field(..., description="ID of the newly created annotation")
+
+
 class AnnotationCreate(SQLModel):
     """Schema for creating a new annotation."""
     project_id: int = Field(gt=0)

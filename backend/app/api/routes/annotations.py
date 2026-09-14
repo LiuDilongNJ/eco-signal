@@ -10,6 +10,7 @@ from app.csv_import import attach_import_metadata, parse_import_upload
 from app.enums import MediaType
 from app.schemas.annotation import (
     AnnotationCreate,
+    AnnotationCreateResponse,
     AnnotationNavigation,
     AnnotationUpdate,
     AnnotationWithReviews,
@@ -359,7 +360,7 @@ def get_annotation_navigation(
 
 @router.post(
     "",
-    response_model=ApiResponse[None],
+    response_model=ApiResponse[AnnotationCreateResponse],
     status_code=201,
     summary="创建标注 / Create an Annotation",
 )
@@ -373,8 +374,8 @@ def create_annotation(
     需要目标媒体所在集合的 annotation:write 权限。
     Requires annotation:write permission on the target media's collection.
     """
-    annotation_service.create_annotation(session, current_user=current_user, data=data)
-    return api_success()
+    annotation = annotation_service.create_annotation(session, current_user=current_user, data=data)
+    return api_success(data=AnnotationCreateResponse(annotation_id=annotation.annotation_id))
 
 
 @router.patch(

@@ -457,7 +457,7 @@ def create_annotation(
     data: AnnotationCreate,
     *,
     commit: bool = True,
-) -> None:
+) -> Annotation:
     """
     Create a new annotation.
     Requires annotation:write on the host media's collection.
@@ -485,7 +485,7 @@ def create_annotation(
         animal_sound_type=payload["animal_sound_type"],
         creation_date=datetime.now(UTC),
     )
-    annotation_repository.create(session, new_annotation, commit=commit)
+    return annotation_repository.create(session, new_annotation, commit=commit)
 
 
 def validate_annotation_create(

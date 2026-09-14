@@ -45,13 +45,13 @@ class TestLabelRoutes:
         assert r.status_code == 200
         payload = r.json()
         assert payload["code"] == 0
-        assert payload["data"] is None
         user = db.exec(select(User).where(User.email == settings.EMAIL_TEST_USER)).one()
         row = db.exec(
             select(Label).where(Label.name == label_name, Label.creator_id == user.user_id)
         ).first()
         assert row is not None
         assert row.type == "private"
+        assert payload["data"]["label_id"] == row.label_id
 
     def test_create_label_success_admin(
         self, client: TestClient, superuser_token_headers: dict, db: Session
@@ -66,10 +66,10 @@ class TestLabelRoutes:
         assert r.status_code == 200
         payload = r.json()
         assert payload["code"] == 0
-        assert payload["data"] is None
         row = db.exec(select(Label).where(Label.name == label_name).order_by(Label.label_id.desc())).first()
         assert row is not None
         assert row.type == "private"
+        assert payload["data"]["label_id"] == row.label_id
 
     def test_create_label_duplicate_name_same_user_returns_400(
         self, client: TestClient, normal_user_token_headers: dict
@@ -534,10 +534,10 @@ class TestLabelRoutes:
             json={"name": del_name},
         )
         assert created.status_code == 200
-        assert created.json()["data"] is None
         user = db.exec(select(User).where(User.email == settings.EMAIL_TEST_USER)).one()
         lbl = db.exec(select(Label).where(Label.name == del_name, Label.creator_id == user.user_id)).one()
         label_id = lbl.label_id
+        assert created.json()["data"]["label_id"] == label_id
 
         r = client.delete(
             f"{settings.API_V1_STR}/labels/{label_id}",
@@ -620,10 +620,10 @@ class TestLabelRoutes:
             json={"name": del_name},
         )
         assert created.status_code == 200
-        assert created.json()["data"] is None
         user = db.exec(select(User).where(User.email == settings.EMAIL_TEST_USER)).one()
         lbl = db.exec(select(Label).where(Label.name == del_name, Label.creator_id == user.user_id)).one()
         label_id = lbl.label_id
+        assert created.json()["data"]["label_id"] == label_id
 
         r = client.delete(
             f"{settings.API_V1_STR}/labels/{label_id}",

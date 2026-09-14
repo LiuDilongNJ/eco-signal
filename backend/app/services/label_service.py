@@ -36,7 +36,7 @@ def get_user_labels(session: Session, user: User | None) -> Sequence[Label]:
     return label_repository.get_accessible_labels(session, user.user_id)
 
 
-def create_label(session: Session, label_in: LabelCreateRequest, user: User) -> None:
+def create_label(session: Session, label_in: LabelCreateRequest, user: User) -> Label:
     """
     Create a new label for the current user.
     """
@@ -54,6 +54,7 @@ def create_label(session: Session, label_in: LabelCreateRequest, user: User) -> 
     session.add(label)
     session.commit()
     session.refresh(label)
+    return label
 
 
 def _validate_label_type(label_type: str) -> None:

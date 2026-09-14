@@ -15,6 +15,12 @@ class CollectionSimple(SQLModel):
     collection_id: int
     name: str
 
+
+class CollectionCreateResponse(SQLModel):
+    """Schema for collection creation response data."""
+    collection_id: int = Field(..., description="ID of the newly created collection")
+
+
 class CollectionCreate(SQLModel):
     """Schema for creating a new collection."""
     name: str = Field(..., max_length=100, description="Collection name")

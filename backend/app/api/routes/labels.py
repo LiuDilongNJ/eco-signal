@@ -4,7 +4,7 @@ from typing import Any
 from fastapi import APIRouter, Query
 
 from app.api.deps import CurrentUser, CurrentUserOptional, SessionDep
-from app.schemas.label import LabelCreateRequest, LabelPublic, MediaSetLabelsRequest
+from app.schemas.label import LabelCreateRequest, LabelCreateResponse, LabelPublic, MediaSetLabelsRequest
 from app.schemas.media import MediaBatchOperationResponse
 from app.schemas.response import ApiResponse, api_success
 from app.services import label_service
@@ -13,7 +13,7 @@ router = APIRouter(prefix="/labels", tags=["标签 / labels"])
 router_media = APIRouter(tags=["标签 / labels"])
 
 
-@router.post("", response_model=ApiResponse[None], summary="创建标签 / Create Label")
+@router.post("", response_model=ApiResponse[LabelCreateResponse], summary="创建标签 / Create Label")
 def create_label(
     session: SessionDep,
     request: LabelCreateRequest,
@@ -23,8 +23,8 @@ def create_label(
     创建一个新的标签。 / Create a new label.
     新建标签默认仅创建者可见。 / Newly created labels are private to the creator by default.
     """
-    label_service.create_label(session, request, current_user)
-    return api_success()
+    label = label_service.create_label(session, request, current_user)
+    return api_success(data=LabelCreateResponse(label_id=label.label_id))
 
 
 @router.get("", response_model=ApiResponse[list[LabelPublic]], summary="获取标签列表 / List Labels")

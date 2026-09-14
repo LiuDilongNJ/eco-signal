@@ -319,6 +319,7 @@ class TestMediaService:
         request = MediaCreate(
             collection_id=setup_data["collection"].collection_id,
             file_upload_ids=[1],
+            media_type="audio",
             creator_id=999999,
             date_from_filename=True,
         )

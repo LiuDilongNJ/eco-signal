@@ -1,7 +1,7 @@
 """Unit tests for media worker tasks."""
 from datetime import datetime
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from sqlmodel import Session
@@ -14,6 +14,7 @@ from app.models import (
     Media,
     MediaCollection,
     PhotoSetting,
+    Queue,
     Role,
     User,
 )
@@ -24,6 +25,7 @@ from app.workers.tasks.media import (
     _resolve_batch_queue_status,
     process_audio_resampling,
     process_media,
+    process_media_batch,
 )
 
 
@@ -1145,3 +1147,52 @@ class TestProcessMediaTask:
         mock_generate_thumbnail.assert_not_called()
         assert not created_media
         mock_mutagen.assert_not_called()
+
+
+@pytest.mark.anyio
+class TestProcessMediaBatch:
+    """Tests for the process_media_batch ARQ task."""
+
+    async def test_process_media_batch_success(self):
+        queue = Queue(queue_id=99, user_id=1, status=QueueStatus.PENDING, total=2, type="upload")
+        upload_1 = FileUpload(file_upload_id=1, status=3, media_id=201, filename="f1.flac", name="f1.flac", path="/p/1", directory=1, uploader_id=1)
+        upload_2 = FileUpload(file_upload_id=2, status=3, media_id=202, filename="f2.flac", name="f2.flac", path="/p/2", directory=1, uploader_id=1)
+
+        mock_session = MagicMock()
+
+        def mock_get(model, pk):
+            if model is Queue and pk == 99:
+                return queue
+            if model is FileUpload:
+                if pk == 1:
+                    return upload_1
+                if pk == 2:
+                    return upload_2
+            return None
+
+        mock_session.get.side_effect = mock_get
+        mock_session.exec.return_value.first.return_value = queue
+
+        with (
+            patch("app.workers.tasks.media.Session", return_value=mock_session),
+            patch("app.workers.tasks.media._mark_batch_queue_running"),
+            patch("app.workers.tasks.media._merge_batch_file", return_value={"status": "ready"}),
+            patch("app.workers.tasks.media.process_media", new_callable=AsyncMock) as mock_process,
+            patch("app.workers.tasks.media._sync_batch_completed"),
+        ):
+            mock_session.__enter__ = MagicMock(return_value=mock_session)
+            mock_session.__exit__ = MagicMock(return_value=False)
+
+            result = await process_media_batch(
+                ctx={},
+                queue_id=99,
+                collection_id=10,
+                items=[
+                    {"file_upload_id": 1},
+                    {"file_upload_id": 2},
+                ],
+            )
+
+        assert result["status"] == "completed"
+        assert result["completed"] == 2
+

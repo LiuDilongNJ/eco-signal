@@ -51,6 +51,11 @@ class LabelCreateRequest(SQLModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class LabelCreateResponse(SQLModel):
+    """Schema for label creation response data."""
+    label_id: int = Field(..., description="ID of the newly created label")
+
+
 class LabelAdminCreateRequest(SQLModel):
     """Request schema for admin label creation."""
 

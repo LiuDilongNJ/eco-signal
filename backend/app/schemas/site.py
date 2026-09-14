@@ -58,6 +58,11 @@ class SiteCreate(SQLModel):
         return self
 
 
+class SiteCreateResponse(SQLModel):
+    """Schema for site creation response data."""
+    site_id: int = Field(..., description="ID of the newly created site")
+
+
 class SiteUpdate(SQLModel):
     """Schema for updating an existing site. All fields are optional."""
     name: Optional[str] = None

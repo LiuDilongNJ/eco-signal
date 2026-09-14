@@ -218,7 +218,7 @@ def create_collection(
     project_id: int,
     *,
     commit: bool = True,
-) -> None:
+) -> Collection:
     """
     Create a new collection and associate it with a project.
     
@@ -247,6 +247,7 @@ def create_collection(
     else:
         session.flush()
     session.refresh(collection)
+    return collection
 
 
 def validate_collection_create(session: Session, collection_in: CollectionCreate, project_id: int) -> None:

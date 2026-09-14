@@ -819,9 +819,9 @@ class TestCollectionCreate:
         assert r.status_code == 201
         json_resp = r.json()
         assert json_resp["code"] == 0
-        assert json_resp["data"] is None
         col = db.exec(select(Collection).where(Collection.name == data["name"])).first()
         assert col is not None
+        assert json_resp["data"]["collection_id"] == col.collection_id
 
         # Verify ProjectCollection association
         pc = db.exec(select(ProjectCollection).where(
@@ -868,8 +868,11 @@ class TestCollectionCreate:
             json=data
         )
         assert r.status_code == 201
+        json_resp = r.json()
+        assert json_resp["code"] == 0
         row = db.exec(select(Collection).where(Collection.name == "Manager's Collection")).first()
         assert row is not None
+        assert json_resp["data"]["collection_id"] == row.collection_id
 
     def test_create_public_collection_in_private_project_fails(
         self, client: TestClient, superuser_token_headers: dict[str, str], db: Session

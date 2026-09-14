@@ -13,6 +13,7 @@ from app.schemas.site import (
     IucnGetOptionsResponse,
     SiteCollectionSyncRequest,
     SiteCreate,
+    SiteCreateResponse,
     SiteLinkOptionsResponse,
     SiteMapGeometryResponse,
     SitePublic,
@@ -206,7 +207,7 @@ def get_project_map_site_geometries(
 
 @router.post(
     "",
-    response_model=ApiResponse[dict],
+    response_model=ApiResponse[SiteCreateResponse],
     status_code=201,
     summary="创建站点 / Create a Site",
 )
@@ -227,8 +228,8 @@ def create_site(
     - 需要目标集合路径的 site:write 权限。
       Requires site:write permission on the target collection path.
     """
-    site_service.create_site(session, data=data, current_user=current_user)
-    return api_success(message="Site created successfully")
+    site = site_service.create_site(session, data=data, current_user=current_user)
+    return api_success(data=SiteCreateResponse(site_id=site.site_id), message="Site created successfully")
 
 
 

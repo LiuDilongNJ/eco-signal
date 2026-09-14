@@ -141,11 +141,11 @@ def test_create_annotation(
     assert response.status_code == 201
     content = response.json()
     assert content["code"] == 0
-    assert content["data"] is None
     ann = db.exec(
         select(Annotation).where(Annotation.media_id == media.media_id).order_by(Annotation.annotation_id.desc())
     ).first()
     assert ann is not None
+    assert content["data"]["annotation_id"] == ann.annotation_id
     assert ann.min_x == 1.0
     assert ann.comments == "Test annotation"
 
@@ -606,11 +606,11 @@ def test_update_annotation(
         headers=superuser_token_headers,
         json={"project_id": project.project_id, "media_id": media.media_id, "sound_id": 1, "min_x": 0.0, "max_x": 2.0, "min_y": 0.0, "max_y": 500.0}
     )
-    assert create_resp.json()["data"] is None
     ann_row = db.exec(
         select(Annotation).where(Annotation.media_id == media.media_id).order_by(Annotation.annotation_id.desc())
     ).first()
     assert ann_row is not None
+    assert create_resp.json()["data"]["annotation_id"] == ann_row.annotation_id
     ann_id = ann_row.annotation_id
 
     update_data = {
@@ -645,10 +645,11 @@ def test_delete_annotation(
         headers=superuser_token_headers,
         json={"project_id": project.project_id, "media_id": media.media_id, "sound_id": 1, "min_x": 0.0, "max_x": 2.0, "min_y": 0.0, "max_y": 500.0}
     )
-    assert create_resp.json()["data"] is None
     ann_row = db.exec(
         select(Annotation).where(Annotation.media_id == media.media_id).order_by(Annotation.annotation_id.desc())
     ).first()
+    assert ann_row is not None
+    assert create_resp.json()["data"]["annotation_id"] == ann_row.annotation_id
     ann_id = ann_row.annotation_id
 
     response = client.delete(
@@ -1052,12 +1053,8 @@ class TestAnnotationFiltersAndSort:
                    "creator_type": "user", **kwargs}
         resp = client.post(f"{settings.API_V1_STR}/annotations", headers=headers, json=payload)
         assert resp.status_code == 201
-        assert resp.json()["data"] is None
-        ann = db.exec(
-            select(Annotation).where(Annotation.media_id == media.media_id).order_by(Annotation.annotation_id.desc())
-        ).first()
-        assert ann is not None
-        return {"annotation_id": ann.annotation_id, "project_id": project.project_id}
+        created_id = resp.json()["data"]["annotation_id"]
+        return {"annotation_id": created_id, "project_id": project.project_id}
 
     def test_filter_by_annotation_id(
         self, client: TestClient, superuser_token_headers: dict[str, str], db: Session

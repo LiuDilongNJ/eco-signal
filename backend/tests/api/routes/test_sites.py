@@ -1666,6 +1666,7 @@ class TestSiteCreate:
         assert "created" in r.json()["message"].lower()
         created_site = db.exec(select(Site).where(Site.name == "New Test Site")).first()
         assert created_site is not None
+        assert r.json()["data"]["site_id"] == created_site.site_id
         site_col_ids = [sc.collection_id for sc in db.exec(select(SiteCollection).where(SiteCollection.site_id == created_site.site_id)).all()]
         assert collection.collection_id in site_col_ids
         assert created_site.creator_id is not None
