@@ -667,7 +667,7 @@ async def create_media(
 
     This function:
     1. For each file_upload_id: validates the record exists and is pending
-    2. Processes photos synchronously and enqueues audio for asynchronous processing
+    2. Enqueues the batch processing queue for asynchronous worker execution
 
     Args:
         session: Database session
@@ -713,7 +713,7 @@ async def create_media(
             return MediaCreateResponse(queued=[], failed=failed)
         _validate_sensor_matches_media_type(
             sensor,
-            request.media_type or MediaType.AUDIO,
+            request.media_type,
         )
 
     if request.site_id and not session.get(Site, request.site_id):

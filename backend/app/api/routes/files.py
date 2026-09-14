@@ -19,11 +19,7 @@ from app.schemas.response import ApiResponse, api_success
 from app.services import permission_service
 from app.services.data_import_service import data_import_service
 from app.services.file_service import file_service
-from app.services.upload_validation_service import (
-    validate_audio_filename,
-    validate_filename,
-    validate_photo_filename,
-)
+from app.services.upload_validation_service import validate_filename
 
 logger = logging.getLogger(__name__)
 
@@ -168,11 +164,6 @@ async def upload_chunk(
                 status_code=409,
                 detail="Offline import batch already has an uploaded bundle",
             )
-    else:
-        if media_type == "photo":
-            validate_photo_filename(filename)
-        else:
-            validate_audio_filename(filename)
 
     result = await file_service.save_chunk(
         file=file,

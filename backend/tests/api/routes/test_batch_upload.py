@@ -137,6 +137,7 @@ def test_chunk_upload_and_media_create_with_batch(
             json={
                 "collection_id": 1,
                 "file_upload_ids": file_upload_ids,
+                "media_type": "audio",
                 "date_from_filename": True,
             },
         )

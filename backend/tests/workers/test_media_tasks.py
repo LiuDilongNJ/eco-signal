@@ -681,7 +681,7 @@ class TestProcessMediaTask:
                 ctx={}, file_upload_id=1, collection_id=10, media_type="photo"
             )
 
-        assert result == {"error": "Photo upload is incomplete"}
+        assert result == {"error": "File upload is incomplete"}
         assert file_upload.status == 4
         mock_session.commit.assert_called_once()
 

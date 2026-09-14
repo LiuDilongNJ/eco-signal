@@ -213,14 +213,11 @@ async def process_media(
             return {"error": "FileUpload not found"}
             
         if not file_upload.path:
-            if media_type == "photo":
-                file_upload.status = 4
-                file_upload.error = "Photo upload is incomplete"
-                session.commit()
-                return {"error": file_upload.error}
-            logger.info(f"FileUpload {file_upload_id} has no path (likely merging). Retrying in 5 seconds...")
-            from app.workers.exceptions import TaskRetryError
-            raise TaskRetryError("FileUpload is still waiting for chunk merge", defer=5)
+            logger.error("FileUpload %s has no file path", file_upload_id)
+            file_upload.status = 4
+            file_upload.error = "File upload is incomplete"
+            session.commit()
+            return {"error": file_upload.error}
 
         try:
             # Update status to processing
@@ -479,6 +476,7 @@ def _merge_batch_file(
             )
         except HTTPException as exc:
             reason = str(exc.detail) if isinstance(exc.detail, str) else "invalid_file_content"
+            logger.warning("Failed to merge uploaded file %s: %s", file_upload_id, reason)
             file_upload.status = 4
             file_upload.error = reason
             session.add(file_upload)

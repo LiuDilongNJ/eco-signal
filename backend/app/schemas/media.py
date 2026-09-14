@@ -107,7 +107,7 @@ class MediaCreate(SQLModel):
     sensor_id: Optional[int] = Field(None, description="Sensor ID (recorder+mic combo)")
     license_id: Optional[int] = Field(None, description="License ID")
     medium: Optional[str] = Field(None, description="Medium: Air or Water")
-    media_type: Optional[MediaType] = Field(None, description="Media type: audio, photo, video")
+    media_type: MediaType = Field(..., description="Media type: audio, photo, video")
     recording_gain_db: Optional[int] = Field(None, description="Recording gain in dB")
     duty_cycle_recording: Optional[int] = Field(None, description="Duty cycle recording duration (seconds)")
     duty_cycle_period: Optional[int] = Field(None, description="Duty cycle period (seconds)")

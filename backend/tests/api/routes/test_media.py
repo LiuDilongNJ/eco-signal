@@ -158,11 +158,23 @@ class TestChunkUpload:
 class TestMediaCreate:
     """Tests for batch media creation endpoint."""
 
+    def test_create_media_missing_media_type_returns_422(
+        self, client: TestClient, superuser_token_headers: dict
+    ) -> None:
+        """media_type is required on POST /media."""
+        r = client.post(
+            f"{settings.API_V1_STR}/media",
+            headers=superuser_token_headers,
+            json={"collection_id": 1, "file_upload_ids": [1], "date_from_filename": True},
+        )
+        assert r.status_code == 422
+        assert "media_type" in str(r.json())
+
     def test_create_media_unauthorized(self, client: TestClient) -> None:
         """Media creation requires authentication."""
         r = client.post(
             f"{settings.API_V1_STR}/media",
-            json={"collection_id": 1, "file_upload_ids": [1]}
+            json={"collection_id": 1, "file_upload_ids": [1], "media_type": "audio"}
         )
         assert r.status_code == 401
 
@@ -173,7 +185,7 @@ class TestMediaCreate:
         r = client.post(
             f"{settings.API_V1_STR}/media",
             headers=superuser_token_headers,
-            json={"collection_id": 99999, "file_upload_ids": [1], "date_from_filename": True}
+            json={"collection_id": 99999, "file_upload_ids": [1], "media_type": "audio", "date_from_filename": True}
         )
         assert r.status_code == 404
 
@@ -184,7 +196,7 @@ class TestMediaCreate:
         r = client.post(
             f"{settings.API_V1_STR}/media",
             headers=superuser_token_headers,
-            json={"collection_id": 1, "file_upload_ids": [999999], "date_from_filename": True}
+            json={"collection_id": 1, "file_upload_ids": [999999], "media_type": "audio", "date_from_filename": True}
         )
         assert r.status_code == 409
         assert "1 file(s) failed to process" in r.json()["message"]
@@ -224,6 +236,7 @@ class TestMediaCreate:
                 json={
                     "collection_id": 1,
                     "file_upload_ids": fids,
+                    "media_type": "audio",
                     "date_from_filename": True,
                 },
             )
@@ -318,6 +331,7 @@ class TestMediaCreate:
                     "collection_id": 1,
                     "filename_prefix": "LEGACY_",
                     "file_upload_ids": [fu.file_upload_id],
+                    "media_type": "audio",
                     "date_from_filename": True,
                 },
             )
@@ -345,6 +359,7 @@ class TestMediaCreate:
                 "collection_id": 1,
                 "filename_prefix": "../bad/",
                 "file_upload_ids": [1],
+                "media_type": "audio",
                 "date_from_filename": True,
             },
         )
@@ -359,6 +374,7 @@ class TestMediaCreate:
             headers=superuser_token_headers,
             json={
                 "collection_id": 1,
+                "media_type": "audio",
                 "files": [{"file_upload_id": 1, "date_from_filename": True}],
             },
         )
@@ -384,7 +400,7 @@ class TestMediaCreate:
         r = client.post(
             f"{settings.API_V1_STR}/media",
             headers=superuser_token_headers,
-            json={"collection_id": 1, "file_upload_ids": [fu.file_upload_id], "date_from_filename": True}
+            json={"collection_id": 1, "file_upload_ids": [fu.file_upload_id], "media_type": "audio", "date_from_filename": True}
         )
         assert r.status_code == 409
         assert "1 file(s) failed to process" in r.json()["message"]
@@ -396,7 +412,7 @@ class TestMediaCreate:
         r = client.post(
             f"{settings.API_V1_STR}/media",
             headers=superuser_token_headers,
-            json={"collection_id": 1, "file_upload_ids": []}
+            json={"collection_id": 1, "file_upload_ids": [], "media_type": "audio"}
         )
         assert r.status_code == 422
 
@@ -419,7 +435,7 @@ class TestMediaCreate:
         r = client.post(
             f"{settings.API_V1_STR}/media",
             headers=superuser_token_headers,
-            json={"collection_id": 1, "file_upload_ids": [fu.file_upload_id], "sensor_id": 999999, "date_from_filename": True}
+            json={"collection_id": 1, "file_upload_ids": [fu.file_upload_id], "media_type": "audio", "sensor_id": 999999, "date_from_filename": True}
         )
         assert r.status_code == 409
         assert "Sensor" in r.json()["message"]
@@ -443,7 +459,7 @@ class TestMediaCreate:
         r = client.post(
             f"{settings.API_V1_STR}/media",
             headers=superuser_token_headers,
-            json={"collection_id": 1, "file_upload_ids": [fu.file_upload_id], "site_id": 999999, "date_from_filename": True}
+            json={"collection_id": 1, "file_upload_ids": [fu.file_upload_id], "media_type": "audio", "site_id": 999999, "date_from_filename": True}
         )
         assert r.status_code == 409
         assert "Site" in r.json()["message"]
@@ -467,7 +483,7 @@ class TestMediaCreate:
         r = client.post(
             f"{settings.API_V1_STR}/media",
             headers=superuser_token_headers,
-            json={"collection_id": 1, "file_upload_ids": [fu.file_upload_id], "license_id": 999999, "date_from_filename": True}
+            json={"collection_id": 1, "file_upload_ids": [fu.file_upload_id], "media_type": "audio", "license_id": 999999, "date_from_filename": True}
         )
         assert r.status_code == 409
         assert "License" in r.json()["message"]
@@ -504,6 +520,7 @@ class TestMediaCreate:
                 json={
                     "collection_id": 1,
                     "file_upload_ids": [fu.file_upload_id],
+                    "media_type": "audio",
                     "note": "queue test",
                     "date_from_filename": True,
                 },
@@ -553,6 +570,7 @@ class TestMediaCreate:
                 json={
                     "collection_id": 1,
                     "file_upload_ids": [fu.file_upload_id],
+                    "media_type": "audio",
                     "date_from_filename": True,
                 },
             )
@@ -598,6 +616,7 @@ class TestMediaCreate:
                 json={
                     "collection_id": 1,
                     "file_upload_ids": [fu.file_upload_id],
+                    "media_type": "audio",
                     "date_from_filename": True,
                 },
             )
@@ -4146,7 +4165,7 @@ class TestMediaRouteScenarios:
         try:
             response = client.post(
                 "/api/v1/media",
-                json={"collection_id": col.collection_id, "file_upload_ids": [1], "date_from_filename": True}
+                json={"collection_id": col.collection_id, "file_upload_ids": [1], "media_type": "audio", "date_from_filename": True}
             )
             assert response.status_code == 403
         finally:

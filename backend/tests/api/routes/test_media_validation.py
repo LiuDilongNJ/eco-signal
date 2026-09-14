@@ -4,12 +4,30 @@ from sqlmodel import Session
 from app.core.config import settings
 
 
+def test_create_media_missing_media_type(
+    client: TestClient, superuser_token_headers: dict[str, str], db: Session
+) -> None:
+    data = {
+        "collection_id": 1,
+        "file_upload_ids": [1],
+        "date_time": "2024-03-10 19:45:53",
+    }
+    response = client.post(
+        f"{settings.API_V1_STR}/media",
+        headers=superuser_token_headers,
+        json=data,
+    )
+    assert response.status_code == 422
+    assert "media_type" in str(response.json())
+
+
 def test_create_media_invalid_date_time_format(
     client: TestClient, superuser_token_headers: dict[str, str], db: Session
 ) -> None:
     data = {
         "collection_id": 1,
         "file_upload_ids": [1],
+        "media_type": "audio",
         "date_time": "2024-03-10T19:45:53",  # ISO format, should fail
     }
     response = client.post(
@@ -30,6 +48,7 @@ def test_create_media_valid_date_time_format(
     data = {
         "collection_id": 1,
         "file_upload_ids": [999999],
+        "media_type": "audio",
         "date_time": "2024-03-10 19:45:53",  # Correct format
     }
     response = client.post(
