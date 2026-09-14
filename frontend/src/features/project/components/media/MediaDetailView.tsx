@@ -6972,9 +6972,8 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                                 theme={antdAppTheme}
                             >
                                 <div className="studio-annotation-card-scroll">
-                                    <div className="studio-annotation-form-only-scroll">
-                                        <CustomScrollArea variant="fill">
-                                            <div>
+                                    <CustomScrollArea variant="fill" className="studio-annotation-form-only-scroll">
+                                        <div>
                                                 <Form
                                                     layout="vertical"
                                                     className="studio-annotation-form studio-annotation-form--antd shared-drawer-form"
@@ -7485,9 +7484,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                                                         </div>
                                                     </div>
                                                 </Form>
-                                            </div>
-                                        </CustomScrollArea>
-                                    </div>
+                                        </div>
                                     {editingAnnotationId != null ? (
                                         <div className="studio-annot-review-module">
                                             <div className="studio-annot-review-head">
@@ -7759,6 +7756,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                                             </div>
                                         </div>
                                     ) : null}
+                                    </CustomScrollArea>
                                 </div>
                             </ConfigProvider>
                         </div>

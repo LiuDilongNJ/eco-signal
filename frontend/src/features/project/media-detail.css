@@ -927,6 +927,7 @@
 
 /* 上：可滚动标注表单；下：REVIEW（编辑时） */
 .studio-annotation-card-scroll {
+    display: flex;
     flex-direction: column;
     flex: 1 1 auto;
     min-height: 0;
@@ -936,9 +937,16 @@
 .studio-annotation-form-only-scroll {
     flex: 1 1 auto;
     min-height: 0;
-    overflow: hidden;
+    height: 100%;
+    width: 100%;
+    min-width: 0;
     display: flex;
     flex-direction: column;
+}
+
+.studio-annotation-form-only-scroll .custom-scroll-area__body {
+    padding-right: 12px;
+    box-sizing: border-box;
 }
 
 [data-theme="dark"] .studio-annotation-card {
