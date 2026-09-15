@@ -97,6 +97,7 @@ export function PhotosPage() {
     const { creatorOptions, currentUserId } = useCreatorOptions(currentProjectId, currentCollectionId)
     const { can } = usePermissions(currentProjectId, currentCollectionId)
     const canWriteMedia = can("media:write")
+    const canReadMedia = can("media:read")
 
     useEffect(() => () => {
         mediaProcessingAbortRef.current?.abort()
@@ -136,6 +137,10 @@ export function PhotosPage() {
     }, [refresh])
 
     const handleView = useCallback((selectedRowKeys: unknown[]) => {
+        if (!canReadMedia) {
+            message.warning("You do not have permission to view media files")
+            return
+        }
         if (!currentProjectId) {
             message.warning("Please select a project first")
             return
@@ -156,7 +161,7 @@ export function PhotosPage() {
             return
         }
         ids.forEach((mediaId) => openMediaDetailTab(Number(currentProjectId), mediaId))
-    }, [currentProjectId, rows])
+    }, [canReadMedia, currentProjectId, rows])
 
     const selectedRowsContainMetadata = useCallback((selectedRows: Set<unknown>) => {
         const selectedIds = new Set(
@@ -319,8 +324,9 @@ export function PhotosPage() {
                 onExportCustom={handleExport}
                 onViewCustom={handleView}
                 viewRequiresSingle={false}
+                hideView={!canReadMedia}
                 isViewDisabled={(selectedRows) =>
-                    selectedRows.size === 0 || selectedRowsContainMetadata(selectedRows)
+                    !canReadMedia || selectedRows.size === 0 || selectedRowsContainMetadata(selectedRows)
                 }
                 addDropdownItems={addDropdownItems}
                 addDisabled={!currentCollectionId || currentCollectionId === "all"}

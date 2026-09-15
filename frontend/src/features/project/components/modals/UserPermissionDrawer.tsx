@@ -1,15 +1,23 @@
-import { Button as ESButton } from "@/components/ui"
 import { useState, useEffect, useMemo, useCallback } from "react"
-import { Button, Switch, message, ConfigProvider, Select, Tooltip, Space } from "@/components/ui"
-import { LoadingState } from "@/components/ui"
-import { FormDrawer } from "@/components/ui"
+import {
+    Button,
+    Button as ESButton,
+    ConfigProvider,
+    CustomScrollArea,
+    FormDrawer,
+    LoadingState,
+    Select,
+    Space,
+    Switch,
+    Tooltip,
+    message,
+} from "@/components/ui"
 
 import { X, AudioLines, MapPin, ScanLine, ClipboardCheck, Check, ChevronDown, ChevronRight, AlertTriangle, Eye, Pencil, User, Users } from "lucide-react"
 import { useAppStore } from "@/store/useAppStore"
 import { useAntdBrandConfig } from "../../hooks/useAntdBrandConfig"
 import { permissionsApi } from "../../../../api/endpoints/permissions"
 import type { AccessRoleCode, AccessRolePublic, CollectionPermissionConfig, ProjectPermissionConfig, UserPermissionConfig } from "../../../../api/endpoints/permissions"
-import { CustomScrollArea } from "@/components/ui"
 import { isSuccessfulDrawerResponse } from "./utils/isSuccessfulDrawerResponse"
 import "./styles/UserPermissionDrawer.css"
 interface UserPermissionDrawerProps {
@@ -23,9 +31,9 @@ interface UserPermissionDrawerProps {
 
 const MODULE_ICONS = [
     { key: "media", icon: AudioLines, label: "Media" },
-    { key: "site", icon: MapPin, label: "Site" },
-    { key: "annotation", icon: ScanLine, label: "Annotation" },
-    { key: "review", icon: ClipboardCheck, label: "Review" },
+    { key: "site", icon: MapPin, label: "Sites" },
+    { key: "annotation", icon: ScanLine, label: "Annotations" },
+    { key: "review", icon: ClipboardCheck, label: "Reviews" },
 ]
 
 type PermissionAction = "none" | "read" | "write"
@@ -36,23 +44,6 @@ export type DetailedPermissionState =
     | "write_own"
     | "read_all_write_own"
     | "write_all"
-
-const MicroEye = () => (
-    <svg
-        width="9"
-        height="7.5"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2.2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        aria-hidden="true"
-    >
-        <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
-        <circle cx="12" cy="12" r="3" fill="currentColor" />
-    </svg>
-)
 
 const MODULE_KEYS = MODULE_ICONS.map(m => m.key)
 
@@ -666,7 +657,8 @@ export function UserPermissionDrawer({ open, userId, userIds, currentUserId, onC
         project: ProjectPermissionConfig,
         collection?: CollectionPermissionConfig,
     ): Set<string> => {
-        if (project.assigned_role !== "custom") {
+        const isNamedProjectRole = project.assigned_role !== null && project.assigned_role !== "custom"
+        if (isNamedProjectRole) {
             return new Set()
         }
         const projectDisplay = getProjectDisplayPermissions(project)
@@ -712,20 +704,31 @@ export function UserPermissionDrawer({ open, userId, userIds, currentUserId, onC
                     const isWrite = detailedState === "write_all" || detailedState === "write_own" || detailedState === "read_all_write_own"
                     const isRead = detailedState === "read_all" || detailedState === "read_own"
                     const isNone = detailedState === "none"
+                    const isDiagonal = detailedState === "read_all_write_own"
 
                     const inherited = inheritedResources.has(m.key)
                     const divergent = divergentResources.has(m.key)
 
-                    const emptyColor = isDark ? "rgba(255,255,255,0.25)" : "rgba(0,0,0,0.2)"
+                    const emptyColor = isDark ? "rgba(255,255,255,0.32)" : "rgba(0,0,0,0.3)"
                     const borderColor = isNone
                         ? (isDark ? "rgba(255,255,255,0.12)" : "var(--border-light)")
                         : "var(--brand)"
-                    const itemColor = isWrite
-                        ? "#fff"
-                        : isRead
+                    const itemColor = isDiagonal
+                        ? "inherit"
+                        : isWrite
+                            ? "#fff"
+                            : isRead
+                                ? "var(--brand)"
+                                : emptyColor
+                    const brandSoft = "color-mix(in srgb, var(--brand, #83cd20) 18%, transparent)"
+                    const brandSoftDiagonal = "color-mix(in srgb, var(--brand, #83cd20) 24%, transparent)"
+                    const itemBackground = isDiagonal
+                        ? `linear-gradient(135deg, ${brandSoftDiagonal} 50%, var(--brand) 50%)`
+                        : isWrite
                             ? "var(--brand)"
-                            : emptyColor
-                    const itemBackground = isWrite ? "var(--brand)" : "transparent"
+                            : isRead
+                                ? brandSoft
+                                : "transparent"
 
                     const stateLabel = getPermissionScopeLabel(detailedState)
                     const tooltipPrefix = divergent ? "[Customized] " : inherited ? "[Inherited] " : ""
@@ -735,7 +738,7 @@ export function UserPermissionDrawer({ open, userId, userIds, currentUserId, onC
                     return (
                         <Tooltip key={m.key} title={fullLabel}>
                             <div
-                                className={`upd-icon-item${isWrite ? " upd-icon-item--write" : ""}${isNone ? " upd-icon-item--none" : ""}${inherited ? " upd-icon-item--inherited" : ""}${divergent ? " upd-icon-item--divergent" : ""}`}
+                                className={`upd-icon-item${isWrite ? " upd-icon-item--write" : ""}${isNone ? " upd-icon-item--none" : ""}${isDiagonal ? " upd-icon-item--diagonal" : ""}${inherited ? " upd-icon-item--inherited" : ""}${divergent ? " upd-icon-item--divergent" : ""}`}
                                 data-state={detailedState}
                                 data-resource={m.key}
                                 aria-label={fullLabel}
@@ -746,7 +749,7 @@ export function UserPermissionDrawer({ open, userId, userIds, currentUserId, onC
                                 style={{
                                     cursor: config?.is_admin || disabled ? "not-allowed" : "pointer",
                                     color: itemColor,
-                                    border: `1px solid ${borderColor}`,
+                                    border: `1.5px solid ${borderColor}`,
                                     background: itemBackground,
                                     opacity: config?.is_admin || disabled ? 0.6 : inherited ? 0.75 : 1,
                                 }}
@@ -757,41 +760,61 @@ export function UserPermissionDrawer({ open, userId, userIds, currentUserId, onC
                                     </span>
                                 )}
 
-                                {/* Top-Left Sight Badge for Read All, Write Own */}
-                                {detailedState === "read_all_write_own" && (
-                                    <span className="upd-icon-badge-tl" aria-label="Sight: Read all">
-                                        <MicroEye />
-                                        <Users size={8} strokeWidth={2.5} aria-hidden="true" />
-                                    </span>
+                                {isNone && (
+                                    <m.icon size={17} strokeWidth={1.8} className="upd-icon-main" aria-hidden="true" />
                                 )}
 
-                                {/* Center Module Icon: ALWAYS preserves module identity */}
-                                <m.icon size={17} strokeWidth={isNone ? 1.8 : 2.2} aria-hidden="true" />
-
-                                {/* Bottom-Right Action & Scope Badge */}
                                 {detailedState === "read_own" && (
-                                    <span className="upd-icon-badge-br" aria-label="Read own">
-                                        <MicroEye />
-                                        <User size={8} strokeWidth={2.5} aria-hidden="true" />
-                                    </span>
+                                    <>
+                                        <Eye size={17} strokeWidth={2.2} className="upd-icon-main" aria-hidden="true" />
+                                        <span className="upd-icon-badge-br" aria-label="Read own">
+                                            <User size={10} strokeWidth={2.5} aria-hidden="true" />
+                                        </span>
+                                    </>
                                 )}
+
                                 {detailedState === "read_all" && (
-                                    <span className="upd-icon-badge-br" aria-label="Read all">
-                                        <MicroEye />
-                                        <Users size={8} strokeWidth={2.5} aria-hidden="true" />
-                                    </span>
+                                    <>
+                                        <Eye size={17} strokeWidth={2.2} className="upd-icon-main" aria-hidden="true" />
+                                        <span className="upd-icon-badge-br" aria-label="Read all">
+                                            <Users size={10} strokeWidth={2.5} aria-hidden="true" />
+                                        </span>
+                                    </>
                                 )}
-                                {(detailedState === "write_own" || detailedState === "read_all_write_own") && (
-                                    <span className="upd-icon-badge-br" aria-label="Write own">
-                                        <Pencil size={8} strokeWidth={2.5} aria-hidden="true" />
-                                        <User size={8} strokeWidth={2.5} aria-hidden="true" />
-                                    </span>
+
+                                {detailedState === "write_own" && (
+                                    <>
+                                        <Pencil size={16} strokeWidth={2.2} className="upd-icon-main" aria-hidden="true" />
+                                        <span className="upd-icon-badge-br" aria-label="Write own">
+                                            <User size={10} strokeWidth={2.5} aria-hidden="true" />
+                                        </span>
+                                    </>
                                 )}
+
                                 {detailedState === "write_all" && (
-                                    <span className="upd-icon-badge-br" aria-label="Write all">
-                                        <Pencil size={8} strokeWidth={2.5} aria-hidden="true" />
-                                        <Users size={8} strokeWidth={2.5} aria-hidden="true" />
-                                    </span>
+                                    <>
+                                        <Pencil size={16} strokeWidth={2.2} className="upd-icon-main" aria-hidden="true" />
+                                        <span className="upd-icon-badge-br" aria-label="Write all">
+                                            <Users size={10} strokeWidth={2.5} aria-hidden="true" />
+                                        </span>
+                                    </>
+                                )}
+
+                                {detailedState === "read_all_write_own" && (
+                                    <>
+                                        <span className="upd-icon-badge-tl" aria-label="Read all">
+                                            <Users size={8} strokeWidth={2.6} aria-hidden="true" />
+                                        </span>
+                                        <span className="upd-icon-eye-tl" aria-hidden="true">
+                                            <Eye size={12} strokeWidth={2.2} />
+                                        </span>
+                                        <span className="upd-icon-pencil-br" aria-hidden="true">
+                                            <Pencil size={11} strokeWidth={2.2} />
+                                        </span>
+                                        <span className="upd-icon-badge-br" aria-label="Write own">
+                                            <User size={8} strokeWidth={2.6} aria-hidden="true" />
+                                        </span>
+                                    </>
                                 )}
                             </div>
                         </Tooltip>
@@ -879,6 +902,20 @@ export function UserPermissionDrawer({ open, userId, userIds, currentUserId, onC
                                 </div>
                             ) : (
                                 <div className="upd-drawer-list-container">
+                                    <div className="upd-list-header">
+                                        <div className="upd-header-project">Project / Collection</div>
+                                        <div className="upd-header-divider-spacer" />
+                                        <div className="upd-header-role">Role</div>
+                                        <div className="upd-header-actions">
+                                            {MODULE_ICONS.map(m => (
+                                                <Tooltip key={m.key} title={m.label}>
+                                                    <span className="upd-header-col-title" aria-label={m.label}>
+                                                        <m.icon size={16} className="upd-header-col-icon" />
+                                                    </span>
+                                                </Tooltip>
+                                            ))}
+                                        </div>
+                                    </div>
                                     {config?.projects.map(project => {
                                         const isProjectNamedRole = project.assigned_role !== null && project.assigned_role !== "custom";
                                         const projectChecked = projectHasStoredAccess(project);

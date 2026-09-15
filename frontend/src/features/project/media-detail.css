@@ -2686,3 +2686,53 @@ a.media-item-row {
 .studio-label-popover-add-row .set-labels-btn-add {
     flex-shrink: 0;
 }
+
+/* Media detail error / access denied state */
+.media-detail-error-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    width: 100%;
+    padding: var(--es-space-6, 32px);
+    background: var(--bg-surface);
+}
+
+.media-detail-error-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    max-width: 440px;
+    width: 100%;
+    padding: var(--es-space-6, 32px) var(--es-space-5, 24px);
+    background: var(--bg-card, var(--bg-surface));
+    border: 1px solid var(--border-default, var(--es-color-border));
+    border-radius: var(--es-radius-lg, 12px);
+    box-shadow: var(--shadow-sm, 0 2px 8px rgba(0, 0, 0, 0.05));
+}
+
+.media-detail-error-icon {
+    color: var(--danger, #ef4444);
+    margin-bottom: var(--es-space-4, 16px);
+}
+
+.media-detail-error-title {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: var(--es-space-2, 8px);
+}
+
+.media-detail-error-message {
+    font-size: 0.875rem;
+    color: var(--text-muted);
+    margin-bottom: var(--es-space-5, 20px);
+    line-height: 1.5;
+}
+
+.media-detail-error-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}

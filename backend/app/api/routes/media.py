@@ -740,10 +740,13 @@ def get_media_navigation(
     media_id: int,
     current_user: CurrentUser,
     collection_id: int = Query(..., description="集合 ID（必传） / Collection ID (required)"),
+    project_id: int | None = Query(default=None, description="项目 ID（选填） / Project ID (optional)"),
 ) -> Any:
     """
     返回同一集合中当前媒体的上一条和下一条（按 media_id 排序）。
     Return prev/next media within the same collection (ordered by media_id).
     """
-    nav = media_service.get_media_navigation(session, media_id, collection_id, current_user)
+    nav = media_service.get_media_navigation(
+        session, media_id, collection_id, current_user, project_id=project_id
+    )
     return api_success(data=nav)

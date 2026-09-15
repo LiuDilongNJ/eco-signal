@@ -442,8 +442,8 @@ describe("UserPermissionDrawer", () => {
         const markers = document.querySelectorAll('[data-state="read_all_write_own"]')
         expect(markers.length).toBeGreaterThanOrEqual(2)
 
-        const sightBadges = screen.getAllByLabelText("Sight: Read all")
-        expect(sightBadges.length).toBeGreaterThanOrEqual(2)
+        const readAllBadges = screen.getAllByLabelText("Read all")
+        expect(readAllBadges.length).toBeGreaterThanOrEqual(2)
     })
 
     it("clears collection divergence when project permission icon is clicked", async () => {
@@ -544,7 +544,7 @@ describe("UserPermissionDrawer", () => {
 
         // 1. Initial State: none
         expect(annotationIcon).toHaveAttribute("data-state", "none")
-        expect(annotationIcon).toHaveAttribute("aria-label", "Annotation: None")
+        expect(annotationIcon).toHaveAttribute("aria-label", "Annotations: None")
 
         // 2. Click -> Read own
         await user.click(annotationIcon)
@@ -628,6 +628,10 @@ describe("UserPermissionDrawer", () => {
         expect(mediaItem).toHaveAttribute("data-state", "read_all")
         expect(siteItem).toHaveAttribute("data-state", "write_all")
         expect(annotItem).toHaveAttribute("data-state", "read_all_write_own")
+        expect(annotItem).toHaveClass("upd-icon-item--diagonal")
+        expect(annotItem?.querySelector(".upd-icon-badge-tl")).not.toBeNull()
+        expect(annotItem?.querySelector(".upd-icon-badge-br")).not.toBeNull()
         expect(reviewItem).toHaveAttribute("data-state", "write_all")
+        expect(document.querySelector(".upd-list-header")).not.toBeNull()
     })
 })

@@ -30,6 +30,14 @@ def get_current_user_menu_items(
             collection_id=collection_id,
         )
     )
+    if not is_admin:
+        public_names = permission_service._public_read_permission_names(
+            session, project_id, collection_id
+        )
+        for pub_name in public_names:
+            if ":" in pub_name:
+                r_type, act = pub_name.split(":", 1)
+                permission_pairs.add((r_type, act))
 
     has_project_write_here = is_admin or permission_service.has_resource_permission(
         session, current_user, "project", "write", project_id=project_id
@@ -53,7 +61,8 @@ def get_current_user_menu_items(
             permission_repo.get_project_collection_ids(session, project_id)
         )
     else:
-        # Any effective collection-scoped permission in this project suffices
+        # Any effective collection-scoped permission in this project suffices,
+        # or any public collection under a public project.
         has_any_accessible_collection = (
             session.exec(
                 select(UserEffectivePermission.collection_id)
@@ -65,6 +74,7 @@ def get_current_user_menu_items(
                 .limit(1)
             ).first()
             is not None
+            or bool(permission_repo.get_public_collection_scopes(session, project_id=project_id))
         )
 
     can_show_collection_scoped_items = has_any_accessible_collection

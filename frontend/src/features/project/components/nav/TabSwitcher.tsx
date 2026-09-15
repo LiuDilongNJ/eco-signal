@@ -4,9 +4,11 @@ import { Button as ESButton, Label } from "@/components/ui"
  */
 
 import { useRef, useEffect, useCallback, useState, useMemo } from "react"
+import { useParams } from "react-router-dom"
 import { TAB_ITEMS } from "../../data/constants"
 import { useTabStore } from "../../stores/useTabStore"
 import { useProjectStore } from "../../stores/useProjectStore"
+import { usePermissions } from "@/hooks/usePermissions"
 import { authUtils } from "@/utils/auth"
 import { LoginModal } from "@/components/ui"
 import { StableText } from "@/components/ui"
@@ -16,8 +18,21 @@ import type { TabName } from "../../types"
 const AUTH_REQUIRED_TABS: TabName[] = ["data"]
 
 export function TabSwitcher() {
+    const { id: projectRouteId, mediaId: mediaRouteId } = useParams<{
+        id?: string
+        mediaId?: string
+    }>()
     const { activeTab, setActiveTab } = useTabStore()
-    const { currentProjectId, currentCollectionId } = useProjectStore()
+    const { currentProjectId: storeProjectId, currentCollectionId } = useProjectStore()
+
+    const currentProjectId = useMemo(() => {
+        const routeId = Number(projectRouteId)
+        if (Number.isFinite(routeId) && routeId > 0) return routeId
+        const storeId = Number(storeProjectId)
+        return Number.isFinite(storeId) && storeId > 0 ? storeId : null
+    }, [projectRouteId, storeProjectId])
+
+    const { can, isLoading } = usePermissions(currentProjectId, currentCollectionId)
     const pillRef = useRef<HTMLDivElement>(null)
     const containerRef = useRef<HTMLDivElement>(null)
     const compactRef = useRef<HTMLDivElement>(null)
@@ -29,15 +44,31 @@ export function TabSwitcher() {
     const pendingTabRef = useRef<TabName | null>(null)
 
     const visibleTabs = useMemo(() => {
-        const tabs = TAB_ITEMS
-
-        // If the active tab is hidden, switch to the first available tab
-        if (!tabs.find((t) => t.key === activeTab)) {
-            setActiveTab(tabs[0]?.key as TabName || "desc")
+        if (isLoading) {
+            return TAB_ITEMS
         }
 
-        return tabs
-    }, [activeTab, setActiveTab])
+        const canReadMedia = can("media:read")
+        const canReadSite = can("site:read")
+
+        return TAB_ITEMS.filter((tab) => {
+            if (tab.key === "media" || tab.key === "timeline") {
+                return canReadMedia
+            }
+            if (tab.key === "map") {
+                return canReadSite
+            }
+            return true
+        })
+    }, [isLoading, can])
+
+    useEffect(() => {
+        if (isLoading) return
+        if (mediaRouteId) return
+        if (!visibleTabs.some((t) => t.key === activeTab)) {
+            setActiveTab((visibleTabs[0]?.key as TabName) || "desc")
+        }
+    }, [isLoading, visibleTabs, activeTab, setActiveTab, mediaRouteId])
 
     const movePill = useCallback((el: HTMLElement) => {
         if (!pillRef.current || !containerRef.current) return

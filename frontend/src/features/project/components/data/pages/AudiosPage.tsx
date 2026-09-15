@@ -124,6 +124,7 @@ export function AudiosPage() {
     const { creatorOptions, currentUserId } = useCreatorOptions(currentProjectId, currentCollectionId)
     const { can } = usePermissions(currentProjectId, currentCollectionId)
     const canWriteMedia = can("media:write")
+    const canReadMedia = can("media:read")
 
     useEffect(() => () => {
         mediaProcessingAbortRef.current?.abort()
@@ -249,6 +250,10 @@ export function AudiosPage() {
     }, [currentProjectId, rows, runDownloadBatch])
 
     const handleView = useCallback((selectedRowKeys: unknown[]) => {
+        if (!canReadMedia) {
+            message.warning("You do not have permission to view media files")
+            return
+        }
         if (selectedRowKeys.length === 0) {
             message.warning("Please select at least one media item to view")
             return
@@ -278,7 +283,7 @@ export function AudiosPage() {
         for (const mediaId of viewableIds) {
             openMediaDetailTab(projectId, mediaId)
         }
-    }, [currentProjectId, rows])
+    }, [canReadMedia, currentProjectId, rows])
 
     const selectedRowsContainMetadata = useCallback((selectedRows: Set<unknown>) => {
         const selectedIds = new Set(
@@ -382,7 +387,7 @@ export function AudiosPage() {
                     const canShowMetadata = Boolean(metadataRow && !isMetadataValue(metadataRow.is_metadata) && metadataRow.metadata_available)
                     const canResample = chosen.length > 0 && chosen.every((row) => !isMetadataValue(row.is_metadata) && rowCan(row, "edit"))
                     const canDownloadSelection = chosen.length > 0 && chosen.some((row) => !isMetadataValue(row.is_metadata))
-                    const downloadDisabled = selectedRows.size === 0 || audioActionBlockedByMediaType || !canDownloadSelection
+                    const downloadDisabled = !canReadMedia || selectedRows.size === 0 || audioActionBlockedByMediaType || !canDownloadSelection
                     return (
                     <>
                         <ESButton
@@ -451,7 +456,9 @@ export function AudiosPage() {
                             appearance="unstyled"
                             className="data-btn"
                             title={downloadDisabled
-                                ? "Select audio files to download"
+                                ? !canReadMedia
+                                    ? "You do not have permission to download audio files"
+                                    : "Select audio files to download"
                                 : "Download original audio for selected records"}
                             disabled={downloadDisabled}
                             onClick={() => void handleDownloadAudios(selectedRows)}
@@ -464,8 +471,9 @@ export function AudiosPage() {
                 onExportCustom={handleExport}
                 onViewCustom={handleView}
                 viewRequiresSingle={false}
+                hideView={!canReadMedia}
                 isViewDisabled={(selectedRows) =>
-                    selectedRows.size === 0 || selectedRowsContainMetadata(selectedRows)
+                    !canReadMedia || selectedRows.size === 0 || selectedRowsContainMetadata(selectedRows)
                 }
                 addDropdownItems={addDropdownItems}
                 addDisabled={!currentCollectionId || currentCollectionId === 'all'}

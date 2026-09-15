@@ -103,11 +103,17 @@ export default function ProjectPage() {
     /** URL → store 的 collection 已 dispatch，等待 currentCollectionId 跟上后再写回 URL */
     const collectionPendingFromUrlRef = useRef<number | "" | null>(null)
 
-    /** 录音详情路径强制 Media Tab */
+    /** 每个 mediaId 首次加载时同步激活 Media Tab */
+    const mediaDetailHydratedRef = useRef<string | null>(null)
     useLayoutEffect(() => {
-        if (!hasMediaDetailInUrl) return
+        if (!hasMediaDetailInUrl) {
+            mediaDetailHydratedRef.current = null
+            return
+        }
+        if (mediaDetailHydratedRef.current === mediaIdParam) return
+        mediaDetailHydratedRef.current = mediaIdParam ?? null
         if (activeTab !== "media") setActiveTab("media")
-    }, [hasMediaDetailInUrl, activeTab, setActiveTab])
+    }, [hasMediaDetailInUrl, mediaIdParam, activeTab, setActiveTab])
 
     /**
      * 仅从 URL 恢复 Tab：在「进入某个 projectId」时做一次（含刷新、面包屑换项目）。
@@ -149,18 +155,19 @@ export default function ProjectPage() {
         collectionHydratedForProjectRef.current[projectIdFromRoute] = true
     }, [projectIdFromRoute, collectionOptions, selectCollection])
 
+    /** 用户离开 Media Tab 时，去掉 URL 中的 /media/:id，保留查询参数 */
     useEffect(() => {
-        if (!mediaIdParam) stripMediaUrlOnceReadyRef.current = false
-    }, [mediaIdParam])
-
-    /** 用户从详情顶栏切换到其他 Tab 时，去掉 URL 中的 /media/:id，保留查询参数 */
-    useEffect(() => {
-        if (!projectRouteId || !mediaIdParam) return
+        if (!projectRouteId || !mediaIdParam) {
+            stripMediaUrlOnceReadyRef.current = false
+            return
+        }
         if (activeTab === "media") {
             stripMediaUrlOnceReadyRef.current = true
             return
         }
         if (!stripMediaUrlOnceReadyRef.current) return
+
+        stripMediaUrlOnceReadyRef.current = false
         const leaveSearch = new URLSearchParams(window.location.search)
         leaveSearch.set("tab", activeTab)
         if (collectionParam) leaveSearch.set("collection", collectionParam)

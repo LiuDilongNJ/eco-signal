@@ -3594,7 +3594,11 @@ def get_media_options(
 
 
 def get_media_navigation(
-    session: Session, media_id: int, collection_id: int, _user: User
+    session: Session,
+    media_id: int,
+    collection_id: int,
+    user: User,
+    project_id: int | None = None,
 ) -> MediaNavigation:
     # Verify the media belongs to the given collection
     mc_check = session.exec(
@@ -3607,6 +3611,29 @@ def get_media_navigation(
         raise HTTPException(
             status_code=404, detail="Media not found in specified collection"
         )
+
+    # Permission check: ensure user has media:read access to this collection
+    if not permission_service.is_admin(user):
+        stmt = select(ProjectCollection.project_id).where(
+            ProjectCollection.collection_id == collection_id
+        )
+        if project_id is not None:
+            stmt = stmt.where(ProjectCollection.project_id == project_id)
+        linked_project_ids = list(session.exec(stmt).all())
+
+        allowed = False
+        for pid in linked_project_ids:
+            if permission_repository.is_public_project_collection(session, pid, collection_id):
+                allowed = True
+                break
+            if permission_service.has_resource_permission(
+                session, user, "media", "read", project_id=pid, collection_id=collection_id
+            ):
+                allowed = True
+                break
+
+        if not allowed:
+            raise HTTPException(status_code=403, detail="Access denied")
 
     # Adjacent rows only; avoids loading the whole collection into memory.
     base = (

@@ -988,6 +988,20 @@ class TestMediaNavigation:
         assert "media_id" in data["prev"]
         assert "name" in data["prev"]
 
+    def test_navigation_unauthorized_for_private_collection(
+        self, client: TestClient, db: Session, normal_user_token_headers: dict
+    ) -> None:
+        """Normal user without media:read on private collection gets 403."""
+        col = _make_collection(db, user_id=1, public_access=False)
+        items = self._make_three_media(db, col, user_id=1)
+        middle = items[1]
+
+        r = client.get(
+            f"{settings.API_V1_STR}/media/{middle.media_id}/navigation-items?collection_id={col.collection_id}",
+            headers=normal_user_token_headers,
+        )
+        assert r.status_code == 403
+
 
 
 class TestPreviewServing:

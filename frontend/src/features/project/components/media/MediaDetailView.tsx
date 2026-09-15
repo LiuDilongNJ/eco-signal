@@ -17,7 +17,7 @@ import {
     type PointerEvent,
     type ReactNode,
 } from "react"
-import { useLocation, useParams } from "react-router-dom"
+import { useLocation, useParams, useNavigate } from "react-router-dom"
 import { message } from "@/components/ui"
 import { downloadFile } from "@/utils/download"
 import { NoDataIcon } from "@/components/ui"
@@ -55,6 +55,8 @@ import {
     Volume2,
     Maximize,
     Share2,
+    ShieldAlert,
+    AlertCircle,
 } from "lucide-react"
 import {
     mediaApi,
@@ -306,6 +308,7 @@ import {
 export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
     const { id: projectRouteId } = useParams<{ id?: string }>()
     const location = useLocation()
+    const navigate = useNavigate()
     const storeProjectId = useProjectStore((s) => s.currentProjectId)
     const currentProjectId = useMemo(() => {
         const routeId = projectRouteId != null && String(projectRouteId).trim() !== "" ? Number(projectRouteId) : NaN
@@ -4473,7 +4476,6 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                 seekSpectrogramToClientXRef.current?.(e.clientX)
                 return
             }
-            if (!canCreateAnnotation) return
             setAnnotationDraftOverlayVisible(true)
             setMarqueePx(null)
             setMarqueeCreating(false)
@@ -4508,7 +4510,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
             setMarqueePx(null)
             setAnnotationDraftHasSize(false)
         },
-        [canCreateAnnotation, clientToViewportLayoutPoint, rightPanel],
+        [clientToViewportLayoutPoint, rightPanel],
     )
 
     const onMarqueePointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
@@ -4557,12 +4559,15 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
             f1,
         )
         if (!interaction.panelOpened) {
-            prepareNewAnnotationDraft()
+            if (canCreateAnnotation) {
+                prepareNewAnnotationDraft()
+            }
             interaction.panelOpened = true
         }
         setAnnotationDraft(phys)
         e.preventDefault()
     }, [
+        canCreateAnnotation,
         clientToViewportLayoutPoint,
         media,
         prepareNewAnnotationDraft,
@@ -4636,14 +4641,14 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                 f0,
                 f1,
             )
-            if (!interaction.panelOpened) {
+            if (!interaction.panelOpened && canCreateAnnotation) {
                 prepareNewAnnotationDraft()
             }
             setAnnotationDraft(phys)
             setMarqueePx(rect)
             setAnnotationDraftHasSize(true)
         },
-        [prepareNewAnnotationDraft, readViewportLayoutSize],
+        [canCreateAnnotation, prepareNewAnnotationDraft, readViewportLayoutSize],
     )
 
     const commitDraftRectPx = useCallback(
@@ -5489,17 +5494,54 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
     }
 
     if (detailError) {
+        const isAccessDenied = /access denied|forbidden|403|unauthorized/i.test(detailError)
         return (
-            <div className="media-detail-loading">
-                <span className="text-muted">{detailError}</span>
+            <div className="media-detail-loading media-detail-error-container">
+                <div className="media-detail-error-card">
+                    <ShieldAlert size={48} className="media-detail-error-icon" />
+                    <h3 className="media-detail-error-title">
+                        {isAccessDenied ? "Access Denied" : "Failed to Load Media"}
+                    </h3>
+                    <p className="media-detail-error-message">
+                        {isAccessDenied
+                            ? "You do not have permission to view this media file."
+                            : detailError}
+                    </p>
+                    <ESButton
+                        appearance="unstyled"
+                        type="button"
+                        className="data-btn primary media-detail-error-btn"
+                        onClick={() => {
+                            navigate(`/dashboard/${currentProjectId ?? ""}?tab=desc`, { replace: true })
+                        }}
+                    >
+                        <ArrowLeft size={16} />
+                        <span>Return to Dashboard</span>
+                    </ESButton>
+                </div>
             </div>
         )
     }
 
     if (!media) {
         return (
-            <div className="media-detail-loading">
-                <span className="text-muted">Media not found.</span>
+            <div className="media-detail-loading media-detail-error-container">
+                <div className="media-detail-error-card">
+                    <AlertCircle size={48} className="media-detail-error-icon" />
+                    <h3 className="media-detail-error-title">Media Not Found</h3>
+                    <p className="media-detail-error-message">The requested media file could not be found.</p>
+                    <ESButton
+                        appearance="unstyled"
+                        type="button"
+                        className="data-btn primary media-detail-error-btn"
+                        onClick={() => {
+                            navigate(`/dashboard/${currentProjectId ?? ""}?tab=desc`, { replace: true })
+                        }}
+                    >
+                        <ArrowLeft size={16} />
+                        <span>Return to Dashboard</span>
+                    </ESButton>
+                </div>
             </div>
         )
     }

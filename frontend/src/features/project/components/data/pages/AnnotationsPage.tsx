@@ -95,6 +95,7 @@ export function AnnotationsPage() {
     const { can } = usePermissions(currentProjectId, currentCollectionId)
     const canWriteAnnotation = can("annotation:write")
     const canImportAnnotations = canWriteAnnotation || can("annotation:write_own")
+    const canReadMedia = can("media:read")
 
     // Assignment drawer state（tag 任务需 annotation_ids；单选行时为当前标注 ID）
     const [assignTasksOpen, setAssignTasksOpen] = useState(false)
@@ -318,6 +319,10 @@ export function AnnotationsPage() {
     }, [tableState, currentProjectId, currentCollectionId])
 
     const handleView = useCallback((selectedRowKeys: unknown[]) => {
+        if (!canReadMedia) {
+            message.warning("You do not have permission to view media files")
+            return
+        }
         if (selectedRowKeys.length === 0) {
             message.warning("Please select at least one annotation to view")
             return
@@ -353,7 +358,7 @@ export function AnnotationsPage() {
         } else if (skippedCount > 0) {
             message.warning(`Skipped ${skippedCount} annotation(s) without associated media`)
         }
-    }, [currentProjectId, rows])
+    }, [canReadMedia, currentProjectId, rows])
 
     return (
         <>
@@ -389,7 +394,7 @@ export function AnnotationsPage() {
                 onExportCustom={handleExport}
                 onViewCustom={handleView}
                 viewRequiresSingle={false}
-                hideView={false}
+                hideView={!canReadMedia}
                 hideAdd={true}
                 canEditRecord={(record) => rowCan(record, "edit")}
                 canDeleteRecord={(record) => rowCan(record, "delete")}
