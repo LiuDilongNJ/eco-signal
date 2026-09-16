@@ -21,6 +21,11 @@ if /I "%~1"=="--force-unlock" (
   set "ARGS=%ARGS% -ForceUnlock"
   goto next
 )
+if /I "%~1"=="--maintenance" (
+  set "ARGS=%ARGS% -Maintenance %~2"
+  shift
+  goto next
+)
 echo Unknown option: %~1 1>&2
 exit /b 2
 

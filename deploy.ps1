@@ -3,7 +3,9 @@ param(
     [switch]$Pull,
     [switch]$GeoDb,
     [switch]$DryRun,
-    [switch]$ForceUnlock
+    [switch]$ForceUnlock,
+    [ValidateSet('on', 'off', 'status')]
+    [string]$Maintenance
 )
 
 $ErrorActionPreference = 'Stop'
@@ -47,6 +49,57 @@ if ($mediaStorageMode -notin @('managed', 'direct-mount')) {
     throw 'MEDIA_STORAGE_MODE must be managed or direct-mount'
 }
 
+$maintenanceDir = 'maintenance'
+$maintenanceFlag = Join-Path $maintenanceDir 'maintenance.flag'
+
+function Enable-Maintenance {
+    New-Item -ItemType Directory -Path $maintenanceDir -Force | Out-Null
+    New-Item -ItemType File -Path $maintenanceFlag -Force | Out-Null
+    if ($httpsEnabled) {
+        & docker network inspect traefik-public *> $null
+        if ($LASTEXITCODE -ne 0) { & docker network create traefik-public | Out-Null }
+        $env:STACK_NAME = $projectName
+        $env:DOMAIN = $domain
+        & docker compose --project-name $projectName -f docker-compose.maintenance.yml up -d
+        if ($LASTEXITCODE -ne 0) { throw 'Unable to start maintenance container' }
+    }
+    Write-Host 'Maintenance mode is now ACTIVE.'
+}
+
+function Disable-Maintenance {
+    if (Test-Path $maintenanceFlag) {
+        Remove-Item -LiteralPath $maintenanceFlag -Force -ErrorAction SilentlyContinue
+    }
+    if ($httpsEnabled) {
+        $env:STACK_NAME = $projectName
+        $env:DOMAIN = $domain
+        & docker compose --project-name $projectName -f docker-compose.maintenance.yml down *> $null
+    }
+    Write-Host 'Maintenance mode is now DISABLED.'
+}
+
+function Get-MaintenanceStatus {
+    $active = Test-Path $maintenanceFlag
+    if ($httpsEnabled) {
+        $running = (& docker compose --project-name $projectName -f docker-compose.maintenance.yml ps --services --filter "status=running" 2>$null)
+        if ($running -match 'maintenance') { $active = $true }
+    }
+    if ($active) {
+        Write-Host 'Maintenance mode: ACTIVE'
+    } else {
+        Write-Host 'Maintenance mode: INACTIVE'
+    }
+}
+
+if ($Maintenance) {
+    switch ($Maintenance) {
+        'on' { Enable-Maintenance }
+        'off' { Disable-Maintenance }
+        'status' { Get-MaintenanceStatus }
+    }
+    return
+}
+
 New-Item -ItemType Directory -Path $stateDir -Force | Out-Null
 if ($ForceUnlock -and (Test-Path $lockDir)) {
     Remove-Item -LiteralPath $lockDir -Recurse -Force
@@ -85,6 +138,10 @@ try {
         if ($LASTEXITCODE -ne 0) { throw 'Unable to start Traefik' }
     }
 
+    Write-Host "[0/5] Enabling maintenance mode for $domain"
+    Enable-Maintenance
+    $script:maintenanceStartedByDeploy = $true
+
     $buildArgs = @('build')
     if ($Pull) { $buildArgs += '--pull' }
     Write-Host "[1/5] Building application images for $domain"
@@ -111,9 +168,21 @@ try {
     Write-Host '[5/5] Starting application services'
     Invoke-Compose @('up', '-d', '--no-build', '--wait', '--remove-orphans', 'backend', 'worker', 'worker-analysis', 'frontend')
 
+    Write-Host "Disabling maintenance mode for $domain"
+    Disable-Maintenance
+    $script:maintenanceStartedByDeploy = $false
+
     Write-Host "Deployment succeeded: $domain"
     Invoke-Compose @('ps')
 } catch {
+    if ($script:maintenanceStartedByDeploy) {
+        Write-Host ""
+        Write-Host "================================================================="
+        Write-Host "Deployment failed or was interrupted! Maintenance mode remains ACTIVE."
+        Write-Host "To disable maintenance mode manually, run:"
+        Write-Host "  .\deploy.ps1 -Maintenance off"
+        Write-Host "================================================================="
+    }
     try { Invoke-Compose @('ps') } catch {}
     try { Invoke-Compose @('logs', '--tail=200', 'backend', 'worker', 'worker-analysis', 'frontend') } catch {}
     throw

@@ -11,14 +11,17 @@ force_unlock=false
 
 usage() {
     cat <<'EOF'
-Usage: ./deploy.sh [--pull] [--geo-db] [--dry-run] [--force-unlock]
+Usage: ./deploy.sh [--pull] [--geo-db] [--dry-run] [--force-unlock] [--maintenance <on|off|status>]
 
-  --pull          Pull newer base images before building.
-  --geo-db        Rebuild the geo_db image explicitly.
-  --dry-run       Validate configuration without changing Docker state.
-  --force-unlock  Remove a verified stale deployment lock before continuing.
+  --pull                  Pull newer base images before building.
+  --geo-db                Rebuild the geo_db image explicitly.
+  --dry-run               Validate configuration without changing Docker state.
+  --force-unlock          Remove a verified stale deployment lock before continuing.
+  --maintenance <action>  Control maintenance mode manually: on, off, status.
 EOF
 }
+
+maintenance_action=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -26,6 +29,18 @@ while [[ $# -gt 0 ]]; do
         --geo-db) build_geo_db=true ;;
         --dry-run) dry_run=true ;;
         --force-unlock) force_unlock=true ;;
+        --maintenance)
+            shift
+            if [[ $# -eq 0 ]]; then
+                echo "--maintenance requires an action: on, off, status" >&2
+                exit 2
+            fi
+            maintenance_action="$1"
+            if [[ "$maintenance_action" != "on" && "$maintenance_action" != "off" && "$maintenance_action" != "status" ]]; then
+                echo "Invalid maintenance action '$maintenance_action'. Must be on, off, or status." >&2
+                exit 2
+            fi
+            ;;
         -h|--help) usage; exit 0 ;;
         *) echo "Unknown option: $1" >&2; usage >&2; exit 2 ;;
     esac
@@ -66,6 +81,53 @@ if [[ "$media_storage_mode" != "managed" && "$media_storage_mode" != "direct-mou
     exit 2
 fi
 
+maintenance_dir="maintenance"
+maintenance_flag="${maintenance_dir}/maintenance.flag"
+
+enable_maintenance() {
+    mkdir -p "$maintenance_dir"
+    touch "$maintenance_flag"
+    if [[ "$https_enabled" == "true" ]]; then
+        docker network inspect traefik-public >/dev/null 2>&1 || docker network create traefik-public
+        STACK_NAME="$project_name" DOMAIN="$domain" docker compose --project-name "$project_name" -f docker-compose.maintenance.yml up -d
+    fi
+    echo "Maintenance mode is now ACTIVE."
+}
+
+disable_maintenance() {
+    rm -f "$maintenance_flag"
+    if [[ "$https_enabled" == "true" ]]; then
+        STACK_NAME="$project_name" DOMAIN="$domain" docker compose --project-name "$project_name" -f docker-compose.maintenance.yml down 2>/dev/null || true
+    fi
+    echo "Maintenance mode is now DISABLED."
+}
+
+check_maintenance_status() {
+    local active=false
+    if [[ -f "$maintenance_flag" ]]; then
+        active=true
+    fi
+    if [[ "$https_enabled" == "true" ]]; then
+        if docker compose --project-name "$project_name" -f docker-compose.maintenance.yml ps --services --filter "status=running" 2>/dev/null | grep -q maintenance; then
+            active=true
+        fi
+    fi
+    if [[ "$active" == true ]]; then
+        echo "Maintenance mode: ACTIVE"
+    else
+        echo "Maintenance mode: INACTIVE"
+    fi
+}
+
+if [[ -n "$maintenance_action" ]]; then
+    case "$maintenance_action" in
+        on) enable_maintenance ;;
+        off) disable_maintenance ;;
+        status) check_maintenance_status ;;
+    esac
+    exit 0
+fi
+
 mkdir -p "$state_dir"
 if [[ "$force_unlock" == true ]]; then
     rm -rf "$lock_dir"
@@ -75,7 +137,21 @@ if ! mkdir "$lock_dir" 2>/dev/null; then
     exit 1
 fi
 printf 'pid=%s\nhost=%s\nstarted_at=%s\n' "$$" "$(hostname)" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "${lock_dir}/owner"
-trap 'rm -rf "$lock_dir"' EXIT INT TERM
+
+maintenance_started_by_deploy=false
+cleanup() {
+    rm -rf "$lock_dir"
+    if [[ "$maintenance_started_by_deploy" == true ]]; then
+        echo "" >&2
+        echo "=================================================================" >&2
+        echo "Deployment failed or was interrupted! Maintenance mode remains ACTIVE." >&2
+        echo "Inspect the logs, fix the issue, and re-run ./deploy.sh." >&2
+        echo "To disable maintenance mode manually, run:" >&2
+        echo "  ./deploy.sh --maintenance off" >&2
+        echo "=================================================================" >&2
+    fi
+}
+trap cleanup EXIT INT TERM
 
 compose=(docker compose --project-name "$project_name" --profile production -f "$compose_file")
 if [[ "$media_storage_mode" == "direct-mount" ]]; then
@@ -109,6 +185,10 @@ if [[ "$https_enabled" == "true" ]]; then
     docker compose --project-name ecosignal-traefik -f docker-compose.traefik.yml up -d
 fi
 
+echo "[0/5] Enabling maintenance mode for ${domain}"
+enable_maintenance
+maintenance_started_by_deploy=true
+
 build_services() {
     if [[ "$pull" == true ]]; then
         run_compose build --pull "$@"
@@ -140,6 +220,10 @@ if ! run_compose up -d --no-build --wait --remove-orphans backend worker worker-
     run_compose logs --tail=200 backend worker worker-analysis frontend >&2 || true
     exit 1
 fi
+
+echo "Disabling maintenance mode for ${domain}"
+disable_maintenance
+maintenance_started_by_deploy=false
 
 echo "Deployment succeeded: ${domain}"
 run_compose ps

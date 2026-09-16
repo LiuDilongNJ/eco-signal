@@ -2629,6 +2629,7 @@ class TestMediaGet:
             "channel_num": 1,
             "duration_s": 66.0,
             "metadata_available": False,
+            "codec": None,
         }
 
 

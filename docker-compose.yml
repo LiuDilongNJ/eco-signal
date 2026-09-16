@@ -306,6 +306,7 @@ services:
       - "${FRONTEND_PORT:-80}:80"
     volumes:
       - app-media-data:/usr/share/nginx/media:ro
+      - ./maintenance:/usr/share/nginx/maintenance:ro
 volumes:
   app-db-data:
   redis-data:

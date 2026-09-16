@@ -5,19 +5,19 @@
 - Sentry：错误跟踪
 - Prometheus 兼容指标：由后端暴露
 
-EcoSignal 默认不依赖 Prometheus 或 Grafana 启动。后端只负责通过 `GET /metrics` 暴露指标；Prometheus 和 Grafana 可以部署在本机、其他服务器，或已有的监控平台中。
+ecoSignal 默认不依赖 Prometheus 或 Grafana 启动。后端只负责通过 `GET /metrics` 暴露指标；Prometheus 和 Grafana 可以部署在本机、其他服务器，或已有的监控平台中。
 
 ## 架构说明
 
-- EcoSignal API 通过 `GET /metrics` 输出 Prometheus 文本格式指标。
-- Prometheus 通过 HTTP 主动抓取 EcoSignal。
+- ecoSignal API 通过 `GET /metrics` 输出 Prometheus 文本格式指标。
+- Prometheus 通过 HTTP 主动抓取 ecoSignal。
 - Grafana 连接 Prometheus 数据源。
-- EcoSignal 运行时不会主动调用 Prometheus 或 Grafana。
+- ecoSignal 运行时不会主动调用 Prometheus 或 Grafana。
 
 推荐生产形态：
 
 ```text
-EcoSignal backend /metrics  <--scrape--  Prometheus  <--query--  Grafana
+ecoSignal backend /metrics  <--scrape--  Prometheus  <--query--  Grafana
 ```
 
 ## Sentry

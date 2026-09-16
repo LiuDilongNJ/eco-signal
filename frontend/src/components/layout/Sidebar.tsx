@@ -34,7 +34,7 @@ export function Sidebar() {
             <div className="flex h-16 items-center justify-between border-b border-sidebar-border px-4">
                 {!sidebarCollapsed && (
                     <span className="text-lg font-bold text-sidebar-foreground">
-                        EcoSignal
+                        ecoSignal
                     </span>
                 )}
                 <IconButton

@@ -5,19 +5,19 @@ This project includes:
 - Sentry for error tracking
 - Prometheus-compatible metrics exposed by the backend
 
-EcoSignal does not require Prometheus or Grafana to run. The backend only exposes metrics at `GET /metrics`; Prometheus and Grafana can run on the same host, another machine, or an existing observability platform.
+ecoSignal does not require Prometheus or Grafana to run. The backend only exposes metrics at `GET /metrics`; Prometheus and Grafana can run on the same host, another machine, or an existing observability platform.
 
 ## Architecture
 
-- EcoSignal API exports Prometheus text metrics at `GET /metrics`.
-- Prometheus scrapes EcoSignal over HTTP.
+- ecoSignal API exports Prometheus text metrics at `GET /metrics`.
+- Prometheus scrapes ecoSignal over HTTP.
 - Grafana connects to Prometheus as a data source.
-- EcoSignal does not call Prometheus or Grafana at runtime.
+- ecoSignal does not call Prometheus or Grafana at runtime.
 
 Recommended production shape:
 
 ```text
-EcoSignal backend /metrics  <--scrape--  Prometheus  <--query--  Grafana
+ecoSignal backend /metrics  <--scrape--  Prometheus  <--query--  Grafana
 ```
 
 ## Sentry

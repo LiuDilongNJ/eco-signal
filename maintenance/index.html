@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>System Maintenance - ecoSignal</title>
+    <style>
+        :root {
+            --bg-page: #f8fafc;
+            --bg-card: #ffffff;
+            --border-color: #e2e8f0;
+            --text-primary: #0f172a;
+            --text-secondary: #475569;
+            --text-muted: #94a3b8;
+            --brand-color: #059669;
+            --brand-light: #ecfdf5;
+            --brand-border: #a7f3d0;
+            --shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
+            --btn-bg: #059669;
+            --btn-hover: #047857;
+            --btn-text: #ffffff;
+            --progress-bg: #e2e8f0;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg-page: #0b1120;
+                --bg-card: #1e293b;
+                --border-color: #334155;
+                --text-primary: #f8fafc;
+                --text-secondary: #cbd5e1;
+                --text-muted: #64748b;
+                --brand-color: #10b981;
+                --brand-light: rgba(16, 185, 129, 0.12);
+                --brand-border: rgba(16, 185, 129, 0.3);
+                --shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.3);
+                --btn-bg: #10b981;
+                --btn-hover: #059669;
+                --btn-text: #ffffff;
+                --progress-bg: #334155;
+            }
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: var(--bg-page);
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+
+        .container {
+            max-width: 540px;
+            width: 100%;
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 40px 32px;
+            box-shadow: var(--shadow);
+            text-align: center;
+            animation: fadeIn 0.4s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(12px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 14px;
+            border-radius: 9999px;
+            background: var(--brand-light);
+            border: 1px solid var(--brand-border);
+            color: var(--brand-color);
+            font-size: 13px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            letter-spacing: 0.02em;
+        }
+
+        .pulse-dot {
+            width: 8px;
+            height: 8px;
+            background-color: var(--brand-color);
+            border-radius: 50%;
+            display: inline-block;
+            box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+            animation: pulse 1.8s infinite;
+        }
+
+        @keyframes pulse {
+            0% {
+                transform: scale(0.95);
+                box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+            }
+            70% {
+                transform: scale(1);
+                box-shadow: 0 0 0 8px rgba(16, 185, 129, 0);
+            }
+            100% {
+                transform: scale(0.95);
+                box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+            }
+        }
+
+        h1 {
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 12px;
+            color: var(--text-primary);
+            line-height: 1.3;
+        }
+
+        .description {
+            font-size: 15px;
+            line-height: 1.6;
+            color: var(--text-secondary);
+            margin-bottom: 28px;
+        }
+
+        .progress-box {
+            background: var(--bg-page);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 16px;
+            margin-bottom: 24px;
+        }
+
+        .progress-bar-bg {
+            width: 100%;
+            height: 6px;
+            background: var(--progress-bg);
+            border-radius: 3px;
+            overflow: hidden;
+            margin-bottom: 10px;
+        }
+
+        .progress-bar-fill {
+            height: 100%;
+            width: 0%;
+            background: var(--brand-color);
+            border-radius: 3px;
+            transition: width 1s linear;
+        }
+
+        .status-text {
+            display: flex;
+            justify-content: space-between;
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+
+        .status-text span {
+            font-variant-numeric: tabular-nums;
+        }
+
+        .action-wrap {
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 10px 24px;
+            font-size: 14px;
+            font-weight: 600;
+            border-radius: 8px;
+            border: none;
+            cursor: pointer;
+            background: var(--btn-bg);
+            color: var(--btn-text);
+            transition: background-color 0.2s, transform 0.1s;
+            text-decoration: none;
+        }
+
+        .btn:hover {
+            background: var(--btn-hover);
+        }
+
+        .btn:active {
+            transform: scale(0.98);
+        }
+
+        .btn svg {
+            width: 16px;
+            height: 16px;
+        }
+
+        .footer {
+            margin-top: 24px;
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="status-badge">
+            <span class="pulse-dot"></span>
+            <span>SYSTEM UPDATE IN PROGRESS</span>
+        </div>
+
+        <h1>Platform Under Maintenance</h1>
+        <p class="description">
+            ecoSignal is currently applying system updates and database optimizations. Service will be restored momentarily.
+        </p>
+
+        <div class="progress-box">
+            <div class="progress-bar-bg">
+                <div class="progress-bar-fill" id="progressFill"></div>
+            </div>
+            <div class="status-text">
+                <span id="pollStatus">Checking service availability...</span>
+                <span>Auto-retry in <strong id="countdown">10</strong>s</span>
+            </div>
+        </div>
+
+        <div class="action-wrap">
+            <button class="btn" id="refreshBtn" onclick="checkAndRefresh(true)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="23 4 23 10 17 10"></polyline>
+                    <polyline points="1 20 1 14 7 14"></polyline>
+                    <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                </svg>
+                <span>Check Now</span>
+            </button>
+        </div>
+
+        <div class="footer">
+            ecoSignal Bioacoustic Monitoring Platform
+        </div>
+    </div>
+
+    <script>
+        const INTERVAL_SECONDS = 10;
+        let remainingSeconds = INTERVAL_SECONDS;
+        const countdownEl = document.getElementById('countdown');
+        const progressFillEl = document.getElementById('progressFill');
+        const pollStatusEl = document.getElementById('pollStatus');
+        const refreshBtn = document.getElementById('refreshBtn');
+
+        function updateProgress() {
+            const percent = ((INTERVAL_SECONDS - remainingSeconds) / INTERVAL_SECONDS) * 100;
+            progressFillEl.style.width = percent + '%';
+            countdownEl.textContent = remainingSeconds;
+        }
+
+        async function checkAndRefresh(manual = false) {
+            if (manual) {
+                refreshBtn.disabled = true;
+                pollStatusEl.textContent = 'Checking status...';
+            }
+
+            try {
+                const probeUrl = window.location.pathname.startsWith('/api') 
+                    ? '/api/v1/health'
+                    : window.location.href;
+
+                const response = await fetch(probeUrl, {
+                    method: 'GET',
+                    cache: 'no-store',
+                    headers: { 'X-Requested-With': 'ecoSignal-Probe' }
+                });
+
+                if (response.status === 200) {
+                    pollStatusEl.textContent = 'Service restored! Reloading...';
+                    progressFillEl.style.width = '100%';
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 800);
+                    return;
+                }
+            } catch (err) {
+                // Ignore transient network errors during restart
+            } finally {
+                if (manual) {
+                    setTimeout(() => {
+                        refreshBtn.disabled = false;
+                        pollStatusEl.textContent = 'Service still updating...';
+                    }, 600);
+                }
+            }
+
+            remainingSeconds = INTERVAL_SECONDS;
+            updateProgress();
+        }
+
+        setInterval(() => {
+            remainingSeconds--;
+            if (remainingSeconds <= 0) {
+                checkAndRefresh(false);
+            } else {
+                updateProgress();
+            }
+        }, 1000);
+
+        updateProgress();
+    </script>
+</body>
+</html>

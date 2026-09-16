@@ -166,7 +166,7 @@ export default function PrivacyPolicyPage() {
                                 <div>Last Updated: October 28, 2024</div>
                             </div>
                             <h3>Introduction</h3>
-                            <p>This Privacy Policy describes how we may collect, share, and use the information you provide to us, or we otherwise collect, when you use any EcoSignal website that link to this Privacy Policy. We are responsible for providing the Services to you and are the controller of personal data processed under this Privacy Policy.</p>
+                            <p>This Privacy Policy describes how we may collect, share, and use the information you provide to us, or we otherwise collect, when you use any ecoSignal website that link to this Privacy Policy. We are responsible for providing the Services to you and are the controller of personal data processed under this Privacy Policy.</p>
                         <h3>Information We Collect</h3>
                         <p>We collect information on and through our Services. The specific types of information we collect vary depending on the nature of our relationship with you and how you choose to interact with us, but may include personal data. Generally speaking, we collect information in two main ways: A) when you provide it to us, B) automatically when you use the Services.</p>
                         <p className="privacy-policy-lead">A. Information You Provide</p>

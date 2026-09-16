@@ -232,12 +232,37 @@ export async function bootstrapSessionFromRefreshCookie(): Promise<void> {
     }
 }
 
+let isHandlingMaintenance = false
+
+export function checkMaintenanceAndReload(response: Response, data?: unknown): void {
+    if (response.status === 503) {
+        const errorData = data && typeof data === "object" ? (data as Record<string, unknown>) : undefined
+        if (errorData?.error === "system_maintenance" || errorData?.status === 503) {
+            if (!isHandlingMaintenance && typeof window !== "undefined" && window.location) {
+                isHandlingMaintenance = true
+                const now = Date.now()
+                try {
+                    const lastReload = Number(sessionStorage.getItem("last_maintenance_reload") || "0")
+                    if (now - lastReload < 5000) {
+                        return
+                    }
+                    sessionStorage.setItem("last_maintenance_reload", String(now))
+                } catch {
+                    // Ignore storage access restrictions
+                }
+                window.location.reload()
+            }
+        }
+    }
+}
+
 function handleUnauthorizedAndThrow(
     response: Response,
     endpoint: string,
     data: unknown,
     ignoreUnauthorized?: boolean
 ): never {
+    checkMaintenanceAndReload(response, data)
     if (response.status === 401 || response.status === 403) {
         if (response.status === 401 && isIdleTimeoutResponse(response) && !ignoreUnauthorized) {
             dispatchLoginRequired("idle_timeout")
@@ -310,6 +335,7 @@ async function request<T>(
 
     if (!response.ok) {
         const data = await response.json().catch(() => null)
+        checkMaintenanceAndReload(response, data)
         if (alreadyHandledUnauthorized) {
             throw new ApiError(response.status, response.statusText, data)
         }
@@ -373,6 +399,7 @@ async function requestBlob(
 
     if (!response.ok) {
         const data = await response.json().catch(() => null)
+        checkMaintenanceAndReload(response, data)
         if (alreadyHandledUnauthorized) {
             throw new ApiError(response.status, response.statusText, data)
         }

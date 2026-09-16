@@ -20,7 +20,7 @@ export function Header() {
             {/* 左侧：面包屑或标题 */}
             <div>
                 <h2 className="text-lg font-semibold text-foreground">
-                    EcoSignal Management Platform
+                    ecoSignal Management Platform
                 </h2>
             </div>
 
