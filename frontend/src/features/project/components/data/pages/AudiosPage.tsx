@@ -492,6 +492,9 @@ export function AudiosPage() {
                     .filter((row) => resampleMediaIds.includes(Number(row.media_id)))
                     .map((row) => Number(row.sampling_rate_hz))
                     .filter(Number.isFinite))}
+                selectedAudioCodecs={rows
+                    .filter((row) => resampleMediaIds.includes(Number(row.media_id)))
+                    .map((row) => row.audio_setting?.codec)}
                 onClose={() => setResampleMediaIds([])}
                 onSubmitted={(queueId) => { void refreshAfterMediaProcessing(queueId) }}
             />

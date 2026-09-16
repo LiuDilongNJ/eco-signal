@@ -105,6 +105,7 @@ logger = logging.getLogger(__name__)
 def _audio_setting_public(audio_setting: AudioSetting | None) -> AudioSettingPublic | None:
     if audio_setting is None:
         return None
+    stored_metadata = (audio_setting.file_metadata or {}).get("stored") or {}
     return AudioSettingPublic(
         recording_gain_db=audio_setting.recording_gain_db,
         sampling_rate_hz=audio_setting.sampling_rate_hz,
@@ -112,6 +113,7 @@ def _audio_setting_public(audio_setting: AudioSetting | None) -> AudioSettingPub
         channel_num=audio_setting.channel_num,
         duration_s=audio_setting.duration_s,
         metadata_available=audio_setting.file_metadata is not None,
+        codec=stored_metadata.get("codec"),
     )
 
 

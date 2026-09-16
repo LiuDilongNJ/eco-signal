@@ -10,6 +10,7 @@ from app.models.project import ProjectCollection
 from app.models.taxon import SoundClassification, Taxon
 from app.models.user import User
 from app.repositories import annotation_repository
+from app.repositories.annotation_repository import ResamplingAnnotationImpact
 from app.repositories.media_repository import media_repository
 from app.repositories.permission_repository import permission_repository
 from app.repositories.task_repository import task_repository
@@ -61,7 +62,17 @@ def _validate_annotation_bounds(session: Session, media_id: int, min_x: float, m
     if min_x < 0 or min_y < 0 or max_x <= min_x or max_y <= min_y:
         raise HTTPException(status_code=422, detail="Annotation bounds must form a non-empty rectangle")
     media = session.get(Media, media_id)
-    if not media or media.media_type != "photo":
+    if not media:
+        return
+    if media.media_type == "audio":
+        sampling_rate_hz = media.audio_setting.sampling_rate_hz if media.audio_setting else None
+        if sampling_rate_hz and max_y > sampling_rate_hz / 2.0:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Annotation frequency bounds exceed the audio maximum frequency of {sampling_rate_hz / 2.0:g} Hz",
+            )
+        return
+    if media.media_type != "photo":
         return
     from PIL import Image
 
@@ -82,6 +93,33 @@ def _validate_annotation_bounds(session: Session, media_id: int, min_x: float, m
         raise HTTPException(status_code=422, detail="Photo source is unreadable") from exc
     if max_x > width or max_y > height:
         raise HTTPException(status_code=422, detail="Annotation bounds exceed the photo dimensions")
+
+
+def get_resampling_annotation_impact(
+    session: Session,
+    media_ids: list[int],
+    target_sampling_rate_hz: int,
+) -> ResamplingAnnotationImpact:
+    """Preview annotation changes for a target audio sampling rate."""
+    return annotation_repository.get_resampling_impact(
+        session,
+        media_ids,
+        target_sampling_rate_hz / 2.0,
+    )
+
+
+def apply_resampling_annotation_ceiling(
+    session: Session,
+    media_id: int,
+    target_sampling_rate_hz: int,
+) -> ResamplingAnnotationImpact:
+    """Apply the target audio frequency ceiling without committing the transaction."""
+    return annotation_repository.apply_resampling_frequency_ceiling(
+        session,
+        media_id,
+        target_sampling_rate_hz / 2.0,
+    )
+
 
 _ANNOTATION_EXPORT_COLUMNS = [
     CsvColumn("annotation_id"), CsvColumn("uuid"),

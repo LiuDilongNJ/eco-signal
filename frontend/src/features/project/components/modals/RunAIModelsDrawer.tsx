@@ -570,6 +570,8 @@ export function RunAIModelsDrawer({
         </Space>
     )
 
+    const drawerFooter = <div className="ai-models-footer">{actions}</div>
+
     const completionModal = (
         <Modal
             open={completionSummary !== null}
@@ -656,13 +658,14 @@ export function RunAIModelsDrawer({
         <ConfigProvider theme={themeCfg}>
             <>
                 <FormDrawer
+                    rootClassName="ai-models-drawer"
                     maskClosable={false}
                     closable={false}
                     title={<div style={{ fontWeight: 600, fontSize: 18, color: 'var(--text-main)' }}>Run AI Models</div>}
                     placement="right"
                     open={open}
                     onClose={handleClose}
-                    extra={actions}
+                    footer={drawerFooter}
                     styles={{
                         wrapper: { width: 480 },
                         body: { padding: 0, overflow: "hidden" },

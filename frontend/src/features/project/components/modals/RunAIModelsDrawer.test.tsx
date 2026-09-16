@@ -82,5 +82,9 @@ describe("RunAIModelsDrawer", () => {
             expect(screen.getByText("v1.3.0")).toBeInTheDocument()
             expect(screen.getByText("v1.0.0")).toBeInTheDocument()
         })
+
+        const drawer = document.querySelector(".ai-models-drawer")
+        expect(drawer?.querySelector(".ant-drawer-footer")).not.toBeNull()
+        expect(drawer?.querySelector(".ant-drawer-header .ant-drawer-extra")).toBeNull()
     })
 })

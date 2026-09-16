@@ -2,16 +2,21 @@
 
 from fastapi import APIRouter, Query
 from fastapi.responses import JSONResponse
-from sqlmodel import col, func, select
+from sqlmodel import select
 
 from app.api.deps import CurrentUser, SessionDep, TaskPublisherDep
-from app.models import Annotation, Media, MediaCollection, ProjectCollection
+from app.models import Media, MediaCollection, ProjectCollection
 from app.schemas.media import (
+    AudioResamplingAnnotationImpact,
     AudioResamplingJobRequest,
     AudioResamplingJobResponse,
     AudioResamplingRejectedItem,
 )
-from app.services import authorization_service, media_service
+from app.services import annotation_service, authorization_service, media_service
+from app.services.file_service import (
+    is_target_sampling_rate_supported,
+    unsupported_target_sampling_rate_message,
+)
 from app.services.authorization_policy import AuthorizationAction
 
 router = APIRouter(prefix="/audio-resampling-jobs", tags=["音频重采样 / audio resampling"])
@@ -58,28 +63,35 @@ async def create_audio_resampling_job(
                 message="Target sampling rate must not exceed the current sampling rate",
             ))
             continue
+        stored_metadata = (media.audio_setting.file_metadata or {}).get("stored") or {}
+        codec = stored_metadata.get("codec")
+        if not is_target_sampling_rate_supported(codec, request.target_sampling_rate_hz):
+            rejected.append(AudioResamplingRejectedItem(
+                media_id=media_id,
+                status_code=422,
+                message=unsupported_target_sampling_rate_message(codec),
+            ))
+            continue
         accepted.append(media_id)
 
-    target_max_freq = request.target_sampling_rate_hz / 2.0
-    affected_ann_count = 0
-    affected_media_count = 0
-    if accepted:
-        affected_ann_count = session.exec(
-            select(func.count(Annotation.annotation_id))
-            .where(col(Annotation.media_id).in_(accepted), Annotation.max_y > target_max_freq)
-        ).one() or 0
-        affected_media_count = session.exec(
-            select(func.count(func.distinct(Annotation.media_id)))
-            .where(col(Annotation.media_id).in_(accepted), Annotation.max_y > target_max_freq)
-        ).one() or 0
+    impact = annotation_service.get_resampling_annotation_impact(
+        session,
+        accepted,
+        request.target_sampling_rate_hz,
+    )
+    annotation_impact = AudioResamplingAnnotationImpact(
+        max_frequency_hz=impact.max_frequency_hz,
+        removed_annotation_count=impact.removed_annotation_count,
+        clipped_annotation_count=impact.clipped_annotation_count,
+        affected_media_count=impact.affected_media_count,
+    )
 
     if dry_run:
         response = AudioResamplingJobResponse(
             queue_id=None,
             accepted_media_ids=accepted,
             rejected=rejected,
-            affected_annotation_count=affected_ann_count,
-            affected_media_count=affected_media_count,
+            annotation_impact=annotation_impact,
         )
         return JSONResponse(status_code=200, content={
             "code": 200,
@@ -94,8 +106,7 @@ async def create_audio_resampling_job(
                 "queue_id": None,
                 "accepted_media_ids": [],
                 "rejected": [item.model_dump() for item in rejected],
-                "affected_annotation_count": 0,
-                "affected_media_count": 0,
+                "annotation_impact": annotation_impact.model_dump(),
             },
         })
     result = await media_service.create_audio_resampling_job(
@@ -105,10 +116,8 @@ async def create_audio_resampling_job(
         queue_id=result.queue_id,
         accepted_media_ids=accepted,
         rejected=rejected,
-        affected_annotation_count=affected_ann_count,
-        affected_media_count=affected_media_count,
+        annotation_impact=annotation_impact,
     )
     return JSONResponse(status_code=202, content={
         "code": 202, "message": "Audio resampling job created", "data": response.model_dump(),
     })
-

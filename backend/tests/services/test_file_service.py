@@ -1,10 +1,89 @@
+import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
 from fastapi import HTTPException
 
-from app.services.file_service import FileService, _missing_audio_tag_names
+from app.services.file_service import (
+    FileService,
+    _missing_audio_tag_names,
+    is_target_sampling_rate_supported,
+)
+
+
+@pytest.mark.parametrize(
+    ("codec", "rate", "expected"),
+    [
+        ("opus", 24000, True),
+        ("opus", 44100, False),
+        ("mp3", 44100, True),
+        ("mp3", 88200, False),
+        ("vorbis", 200000, True),
+        ("vorbis", 200001, False),
+        ("flac", 384000, True),
+        ("pcm_s16le", 384000, True),
+    ],
+)
+def test_target_sampling_rate_support_matches_encoder_capabilities(
+    codec: str,
+    rate: int,
+    expected: bool,
+) -> None:
+    assert is_target_sampling_rate_supported(codec, rate) is expected
+
+
+@pytest.mark.parametrize(
+    ("filename", "encoder", "expected_codec"),
+    [
+        ("sample.wav", "pcm_s16le", "pcm_s16le"),
+        ("sample.flac", "flac", "flac"),
+        ("sample.mp3", "libmp3lame", "mp3"),
+        ("sample-vorbis.ogg", "libvorbis", "vorbis"),
+        ("sample-opus.ogg", "libopus", "opus"),
+    ],
+)
+def test_resample_stored_audio_preserves_supported_codec(
+    tmp_path: Path,
+    filename: str,
+    encoder: str,
+    expected_codec: str,
+) -> None:
+    source_path = tmp_path / filename
+    subprocess.run(
+        [
+            "ffmpeg",
+            "-y",
+            "-nostdin",
+            "-f",
+            "lavfi",
+            "-i",
+            "sine=frequency=1000:sample_rate=48000:duration=0.25",
+            "-c:a",
+            encoder,
+            str(source_path),
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    service = FileService(base_dir=str(tmp_path))
+
+    metadata = service.resample_stored_audio(
+        source_path,
+        target_sampling_rate_hz=16000,
+        file_metadata={"source": {"filename": filename}},
+    )
+
+    assert source_path.is_file()
+    assert metadata["stored"]["sampling_rate_hz"] == 16000
+    assert metadata["stored"]["codec"] == expected_codec
+    probed_rate = service._probe_audio(source_path)["sampling_rate_hz"]
+    if expected_codec == "opus":
+        assert probed_rate == 48000
+        assert metadata["stored"]["codec_sampling_rate_hz"] == 48000
+    else:
+        assert probed_rate == 16000
 
 
 def test_missing_audio_tag_names_matches_values_across_tag_namespaces() -> None:

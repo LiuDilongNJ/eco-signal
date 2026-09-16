@@ -258,6 +258,7 @@ class MediaRepository(BaseRepository[Media, dict, MediaUpdate]):
                     AudioSetting.bit_depth,
                     AudioSetting.channel_num,
                     AudioSetting.recording_gain_db,
+                    AudioSetting.file_metadata,
                 )
             )
             query = query.options(
@@ -367,6 +368,7 @@ class MediaRepository(BaseRepository[Media, dict, MediaUpdate]):
                     AudioSetting.bit_depth,
                     AudioSetting.channel_num,
                     AudioSetting.recording_gain_db,
+                    AudioSetting.file_metadata,
                 )
             )
             query = query.options(selectinload(Media.photo_setting))

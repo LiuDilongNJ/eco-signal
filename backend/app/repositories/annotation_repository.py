@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
@@ -80,6 +81,16 @@ _SORT_FIELDS: dict[str, Any] = {
     "creator_name":   User.name,
     "creation_date":  Annotation.creation_date,
 }
+
+
+@dataclass(frozen=True)
+class ResamplingAnnotationImpact:
+    """Annotation changes required by an audio frequency ceiling."""
+
+    max_frequency_hz: float
+    removed_annotation_count: int = 0
+    clipped_annotation_count: int = 0
+    affected_media_count: int = 0
 
 
 def _taxon_name_clause(raw_value: str):
@@ -249,6 +260,78 @@ class AnnotationRepository(BaseRepository[Annotation, Any, Any]):
         else:
             session.flush()
         return count
+
+    def get_resampling_impact(
+        self,
+        session: Session,
+        media_ids: list[int],
+        max_frequency_hz: float,
+    ) -> ResamplingAnnotationImpact:
+        """Summarize annotations removed or clipped by a frequency ceiling."""
+        unique_media_ids = list(dict.fromkeys(media_ids))
+        if not unique_media_ids:
+            return ResamplingAnnotationImpact(max_frequency_hz=max_frequency_hz)
+
+        media_filter = Annotation.media_id.in_(unique_media_ids)
+        removed_filter = sa.and_(
+            Annotation.min_y >= max_frequency_hz,
+            Annotation.max_y > max_frequency_hz,
+        )
+        clipped_filter = sa.and_(
+            Annotation.min_y < max_frequency_hz,
+            Annotation.max_y > max_frequency_hz,
+        )
+        removed_count = session.exec(
+            select(func.count(Annotation.annotation_id)).where(media_filter, removed_filter)
+        ).one() or 0
+        clipped_count = session.exec(
+            select(func.count(Annotation.annotation_id)).where(media_filter, clipped_filter)
+        ).one() or 0
+        affected_media_count = session.exec(
+            select(func.count(func.distinct(Annotation.media_id))).where(
+                media_filter,
+                Annotation.max_y > max_frequency_hz,
+            )
+        ).one() or 0
+        return ResamplingAnnotationImpact(
+            max_frequency_hz=max_frequency_hz,
+            removed_annotation_count=int(removed_count),
+            clipped_annotation_count=int(clipped_count),
+            affected_media_count=int(affected_media_count),
+        )
+
+    def apply_resampling_frequency_ceiling(
+        self,
+        session: Session,
+        media_id: int,
+        max_frequency_hz: float,
+    ) -> ResamplingAnnotationImpact:
+        """Delete fully out-of-range annotations and clip overlapping annotations."""
+        annotations = session.exec(
+            select(Annotation)
+            .where(
+                Annotation.media_id == media_id,
+                Annotation.max_y > max_frequency_hz,
+            )
+            .with_for_update()
+        ).all()
+        removed_count = 0
+        clipped_count = 0
+        for annotation in annotations:
+            if annotation.min_y >= max_frequency_hz:
+                session.delete(annotation)
+                removed_count += 1
+            else:
+                annotation.max_y = max_frequency_hz
+                session.add(annotation)
+                clipped_count += 1
+
+        return ResamplingAnnotationImpact(
+            max_frequency_hz=max_frequency_hz,
+            removed_annotation_count=removed_count,
+            clipped_annotation_count=clipped_count,
+            affected_media_count=1 if annotations else 0,
+        )
 
     def _build_media_scope_exists(
         self,

@@ -174,6 +174,7 @@ export interface MediaAudioSetting {
     channel_num?: number
     duration_s?: number
     metadata_available?: boolean
+    codec?: string | null
 }
 
 export interface AudioFileMetadata {
@@ -196,12 +197,18 @@ export interface MediaBatchFailedItem {
     message: string
 }
 
+export interface AudioResamplingAnnotationImpact {
+    max_frequency_hz: number
+    removed_annotation_count: number
+    clipped_annotation_count: number
+    affected_media_count: number
+}
+
 export interface AudioResamplingJobResponse {
     queue_id?: number | null
     accepted_media_ids: number[]
     rejected: MediaBatchFailedItem[]
-    affected_annotation_count?: number
-    affected_media_count?: number
+    annotation_impact: AudioResamplingAnnotationImpact
 }
 
 export interface MediaPhotoSetting {

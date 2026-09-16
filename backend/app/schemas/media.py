@@ -33,6 +33,7 @@ class AudioSettingPublic(SQLModel):
     channel_num: Optional[int] = None
     duration_s: float
     metadata_available: bool = False
+    codec: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -58,12 +59,18 @@ class AudioResamplingRejectedItem(SQLModel):
     message: str
 
 
+class AudioResamplingAnnotationImpact(SQLModel):
+    max_frequency_hz: float
+    removed_annotation_count: int = 0
+    clipped_annotation_count: int = 0
+    affected_media_count: int = 0
+
+
 class AudioResamplingJobResponse(SQLModel):
     queue_id: Optional[int] = None
     accepted_media_ids: list[int]
     rejected: list[AudioResamplingRejectedItem] = Field(default_factory=list)
-    affected_annotation_count: int = 0
-    affected_media_count: int = 0
+    annotation_impact: AudioResamplingAnnotationImpact
 
 
 class PhotoSettingPublic(SQLModel):

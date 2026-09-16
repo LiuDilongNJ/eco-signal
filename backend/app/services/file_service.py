@@ -31,6 +31,34 @@ from app.services.upload_validation_service import (
 
 logger = logging.getLogger(__name__)
 _STREAM_CHUNK_SIZE = 1024 * 1024
+_CODEC_SUPPORTED_SAMPLING_RATES = {
+    "mp3": frozenset({8000, 11025, 12000, 16000, 22050, 24000, 32000, 44100, 48000}),
+    "opus": frozenset({8000, 12000, 16000, 24000, 48000}),
+}
+_CODEC_MAX_SAMPLING_RATES = {"vorbis": 200000}
+
+
+def is_target_sampling_rate_supported(codec: str | None, target_sampling_rate_hz: int) -> bool:
+    """Return whether an encoder can produce the requested sample rate."""
+    normalized_codec = codec.lower() if isinstance(codec, str) else None
+    supported_rates = _CODEC_SUPPORTED_SAMPLING_RATES.get(normalized_codec)
+    if supported_rates is not None:
+        return target_sampling_rate_hz in supported_rates
+    max_rate = _CODEC_MAX_SAMPLING_RATES.get(normalized_codec)
+    return max_rate is None or target_sampling_rate_hz <= max_rate
+
+
+def unsupported_target_sampling_rate_message(codec: str | None) -> str:
+    """Build a user-facing message for an unsupported encoder rate."""
+    normalized_codec = codec.lower() if isinstance(codec, str) else "audio"
+    supported_rates = _CODEC_SUPPORTED_SAMPLING_RATES.get(normalized_codec)
+    if supported_rates is not None:
+        rate_list = ", ".join(str(rate) for rate in sorted(supported_rates))
+        return f"{normalized_codec.upper()} audio only supports target sampling rates: {rate_list} Hz"
+    max_rate = _CODEC_MAX_SAMPLING_RATES.get(normalized_codec)
+    if max_rate is not None:
+        return f"{normalized_codec.capitalize()} audio supports target sampling rates up to {max_rate} Hz"
+    return "Target sampling rate is not supported by the audio codec"
 
 from app.audio_metadata import (
     _NON_CONTENT_AUDIO_TAG_KEYS,
@@ -175,19 +203,37 @@ class FileService:
             updated.setdefault("warnings", []).append("Resampling skipped because the target rate already matches the stored file")
             return updated
         codec = current["codec"]
-        encoder = {"flac": "flac", "mp3": "libmp3lame", "vorbis": "libvorbis", "opus": "libopus"}.get(codec)
+        if not is_target_sampling_rate_supported(codec, target_sampling_rate_hz):
+            raise ValueError(unsupported_target_sampling_rate_message(codec))
+        encoder = {
+            "flac": "flac",
+            "mp3": "libmp3lame",
+            "vorbis": "libvorbis",
+            "opus": "libopus",
+        }.get(codec)
+        if codec and codec.startswith("pcm_"):
+            encoder = codec
         if not encoder:
             raise ValueError(f"Unsupported audio codec: {codec or 'unknown'}")
         temporary_path = source_path.with_name(f".{source_path.stem}.resampling{source_path.suffix}")
         command = [
             "ffmpeg", "-y", "-nostdin", "-i", str(source_path), "-map", "0:a:0",
             "-vn", "-sn", "-dn", "-map_metadata", "0", "-ar", str(target_sampling_rate_hz),
-            "-c:a", encoder, str(temporary_path),
+            "-c:a", encoder,
         ]
+        if codec == "opus":
+            command.extend(["-cutoff", f"{target_sampling_rate_hz / 2.0:g}"])
+        command.append(str(temporary_path))
         try:
             subprocess.run(command, capture_output=True, text=True, check=True)
             stored = self._probe_audio(temporary_path)
-            if stored["sampling_rate_hz"] != target_sampling_rate_hz:
+            if codec == "opus" and stored["sampling_rate_hz"] == 48000:
+                # Opus always exposes a 48 kHz decoder clock. Keep it separately
+                # while recording the effective rate enforced by input resampling
+                # and the encoder cutoff.
+                stored["codec_sampling_rate_hz"] = stored["sampling_rate_hz"]
+                stored["sampling_rate_hz"] = target_sampling_rate_hz
+            elif stored["sampling_rate_hz"] != target_sampling_rate_hz:
                 raise RuntimeError("Converted file has an unexpected sampling rate")
             temporary_path.replace(source_path)
         except Exception:

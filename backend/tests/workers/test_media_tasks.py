@@ -18,6 +18,7 @@ from app.models import (
     Role,
     User,
 )
+from app.repositories.annotation_repository import ResamplingAnnotationImpact
 from app.workers.tasks.media import (
     _batch_file_failure_message,
     _find_duplicate_media,
@@ -110,6 +111,7 @@ def test_find_duplicate_media_scoped_to_collection(db: Session):
 @pytest.mark.anyio
 @patch("app.workers.tasks.media._md5_file", side_effect=AssertionError("MD5 must remain the source hash"))
 @patch("app.workers.tasks.media.generate_media_previews")
+@patch("app.workers.tasks.media.annotation_service.apply_resampling_annotation_ceiling")
 @patch("app.workers.tasks.media.file_service.resample_stored_audio")
 @patch("app.workers.tasks.media.resolve_existing_audio_media_path")
 @patch("app.workers.tasks.media._mark_batch_queue_running")
@@ -117,6 +119,7 @@ async def test_resampling_preserves_existing_source_md5(
     _mock_mark_running,
     mock_resolve_path,
     mock_resample_audio,
+    mock_apply_annotation_ceiling,
     mock_generate_previews,
     mock_md5,
     tmp_path: Path,
@@ -159,6 +162,7 @@ async def test_resampling_preserves_existing_source_md5(
             "duration_s": 1.0,
         }
     }
+    mock_apply_annotation_ceiling.return_value = ResamplingAnnotationImpact(max_frequency_hz=12000.0)
 
     with patch("app.workers.tasks.media.Session", side_effect=[media_context, queue_context]):
         result = await process_audio_resampling(
@@ -173,14 +177,16 @@ async def test_resampling_preserves_existing_source_md5(
 
 @pytest.mark.anyio
 @patch("app.workers.tasks.media.generate_media_previews")
+@patch("app.workers.tasks.media.annotation_service.apply_resampling_annotation_ceiling")
 @patch("app.workers.tasks.media.file_service.resample_stored_audio")
 @patch("app.workers.tasks.media.resolve_existing_audio_media_path")
 @patch("app.workers.tasks.media._mark_batch_queue_running")
-async def test_resampling_removes_out_of_bounds_annotations(
+async def test_resampling_adjusts_out_of_bounds_annotations(
     _mock_mark_running,
     mock_resolve_path,
     mock_resample_audio,
-    mock_generate_previews,
+    mock_apply_annotation_ceiling,
+    _mock_generate_previews,
     tmp_path: Path,
 ):
     source_path = tmp_path / "recording.flac"
@@ -197,14 +203,10 @@ async def test_resampling_removes_out_of_bounds_annotations(
     queue = MagicMock()
     queue.warning = None
 
-    ann1 = MagicMock(annotation_id=101, max_y=12000.0)
-    ann2 = MagicMock(annotation_id=102, max_y=9500.0)
-
     media_session = MagicMock()
     media_session.get.return_value = media
     media_session.exec.side_effect = [
         MagicMock(first=MagicMock(return_value=link)),
-        MagicMock(all=MagicMock(return_value=[ann1, ann2])),
         MagicMock(all=MagicMock(return_value=[])),
     ]
     queue_session = MagicMock()
@@ -222,6 +224,12 @@ async def test_resampling_removes_out_of_bounds_annotations(
             "duration_s": 1.0,
         }
     }
+    mock_apply_annotation_ceiling.return_value = ResamplingAnnotationImpact(
+        max_frequency_hz=8000.0,
+        removed_annotation_count=1,
+        clipped_annotation_count=1,
+        affected_media_count=1,
+    )
 
     with patch("app.workers.tasks.media.Session", side_effect=[media_context, queue_context]):
         result = await process_audio_resampling(
@@ -229,9 +237,85 @@ async def test_resampling_removes_out_of_bounds_annotations(
         )
 
     assert result == {"queue_id": 5, "completed": 1, "failed": 0}
-    media_session.delete.assert_any_call(ann1)
-    media_session.delete.assert_any_call(ann2)
-    assert queue.warning is None
+    mock_apply_annotation_ceiling.assert_called_once_with(media_session, 1, 16000)
+    assert queue.warning == "Media 1: removed 1 annotation(s) and capped 1 annotation(s) at 8000 Hz"
+    assert queue.status == QueueStatus.WARNING
+
+
+@pytest.mark.anyio
+@patch("app.workers.tasks.media.generate_media_previews")
+@patch("app.workers.tasks.media.annotation_service.apply_resampling_annotation_ceiling")
+@patch("app.workers.tasks.media.file_service.resample_stored_audio")
+@patch("app.workers.tasks.media.resolve_existing_audio_media_path")
+@patch("app.workers.tasks.media._mark_batch_queue_running")
+async def test_resampling_file_failure_does_not_adjust_annotations_or_stop_batch(
+    _mock_mark_running,
+    mock_resolve_path,
+    mock_resample_audio,
+    mock_apply_annotation_ceiling,
+    _mock_generate_previews,
+    tmp_path: Path,
+):
+    failed_path = tmp_path / "failed.flac"
+    successful_path = tmp_path / "successful.flac"
+    failed_path.write_bytes(b"failed-source")
+    successful_path.write_bytes(b"resampled-audio")
+
+    failed_media = MagicMock(
+        media_type="audio",
+        directory="dir1",
+        filename="failed.flac",
+        audio_setting=MagicMock(file_metadata={}, sampling_rate_hz=48000, duration_s=1.0),
+    )
+    successful_media = MagicMock(
+        media_type="audio",
+        directory="dir2",
+        filename="successful.flac",
+        audio_setting=MagicMock(file_metadata={}, sampling_rate_hz=48000, duration_s=1.0),
+    )
+    link = MagicMock(collection_id=10)
+    failed_session = MagicMock()
+    failed_session.get.return_value = failed_media
+    failed_session.exec.return_value.first.return_value = link
+    successful_session = MagicMock()
+    successful_session.get.return_value = successful_media
+    successful_session.exec.side_effect = [
+        MagicMock(first=MagicMock(return_value=link)),
+        MagicMock(all=MagicMock(return_value=[])),
+    ]
+    queue = MagicMock(warning=None)
+    queue_session = MagicMock()
+    queue_session.get.return_value = queue
+
+    contexts = []
+    for session in (failed_session, successful_session, queue_session):
+        context = MagicMock()
+        context.__enter__.return_value = session
+        contexts.append(context)
+
+    mock_resolve_path.side_effect = [failed_path, successful_path]
+    mock_resample_audio.side_effect = [
+        RuntimeError("conversion failed"),
+        {
+            "stored": {
+                "sampling_rate_hz": 16000,
+                "bit_depth": 16,
+                "channel_num": 1,
+                "duration_s": 1.0,
+            }
+        },
+    ]
+    mock_apply_annotation_ceiling.return_value = ResamplingAnnotationImpact(max_frequency_hz=8000)
+
+    with patch("app.workers.tasks.media.Session", side_effect=contexts):
+        result = await process_audio_resampling(
+            ctx={}, queue_id=5, media_ids=[1, 2], target_sampling_rate_hz=16000,
+        )
+
+    assert result == {"queue_id": 5, "completed": 1, "failed": 1}
+    failed_session.rollback.assert_called_once()
+    mock_apply_annotation_ceiling.assert_called_once_with(successful_session, 2, 16000)
+    assert "Media 1: conversion failed" in queue.error
 
 
 @pytest.mark.anyio
@@ -1195,4 +1279,3 @@ class TestProcessMediaBatch:
 
         assert result["status"] == "completed"
         assert result["completed"] == 2
-

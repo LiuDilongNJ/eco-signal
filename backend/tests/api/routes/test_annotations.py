@@ -3,16 +3,18 @@ Tests for Annotations API endpoints.
 """
 import csv
 import datetime
+import json
 
 import jwt as pyjwt
+import pytest
 from fastapi.testclient import TestClient
 from sqlmodel import Session, select
 
 from app.core.config import settings
-from app.models import Permission, UserPermission, Role
+from app.models import Permission, Role, UserPermission
 from app.models.annotation import Annotation
 from app.models.collection import Collection
-from app.models.media import Media, MediaCollection, PhotoSetting
+from app.models.media import AudioSetting, Media, MediaCollection, PhotoSetting
 from app.models.project import Project, ProjectCollection
 from app.models.taxon import SoundClassification
 from app.models.user import User
@@ -77,7 +79,19 @@ def create_test_media(
     db.commit()
     db.refresh(col)
 
+    audio_setting_id = None
     photo_setting_id = None
+    if media_type == "audio" and not is_metadata:
+        audio_setting = AudioSetting(
+            sampling_rate_hz=16000,
+            bit_depth=16,
+            channel_num=1,
+            duration_s=5.0,
+        )
+        db.add(audio_setting)
+        db.commit()
+        db.refresh(audio_setting)
+        audio_setting_id = audio_setting.audio_setting_id
     if media_type == "photo":
         photo_setting = PhotoSetting()
         db.add(photo_setting)
@@ -90,6 +104,7 @@ def create_test_media(
         uploader_id=1,
         media_type=media_type,
         is_metadata=is_metadata,
+        audio_setting_id=audio_setting_id,
         photo_setting_id=photo_setting_id,
         date_time=datetime.datetime.now(datetime.UTC),
     )
@@ -148,6 +163,94 @@ def test_create_annotation(
     assert content["data"]["annotation_id"] == ann.annotation_id
     assert ann.min_x == 1.0
     assert ann.comments == "Test annotation"
+
+
+def test_audio_annotation_rejects_frequency_above_nyquist(
+    client: TestClient, superuser_token_headers: dict[str, str], db: Session
+) -> None:
+    media, _col, project = create_test_media(db, media_type="audio", is_metadata=False)
+    payload = {
+        "project_id": project.project_id,
+        "media_id": media.media_id,
+        "sound_id": 1,
+        "min_x": 0,
+        "max_x": 1,
+        "min_y": 7000,
+        "max_y": 8000,
+    }
+
+    boundary_response = client.post(
+        f"{settings.API_V1_STR}/annotations",
+        headers=superuser_token_headers,
+        json=payload,
+    )
+    assert boundary_response.status_code == 201
+
+    above_response = client.post(
+        f"{settings.API_V1_STR}/annotations",
+        headers=superuser_token_headers,
+        json={**payload, "min_x": 1, "max_x": 2, "max_y": 8000.5},
+    )
+    assert above_response.status_code == 422
+    assert "maximum frequency of 8000 Hz" in above_response.json()["message"]
+
+    annotation_id = boundary_response.json()["data"]["annotation_id"]
+    update_response = client.patch(
+        f"{settings.API_V1_STR}/annotations/{annotation_id}",
+        headers=superuser_token_headers,
+        params={"project_id": project.project_id},
+        json={"max_y": 8001},
+    )
+    assert update_response.status_code == 422
+    assert "maximum frequency of 8000 Hz" in update_response.json()["message"]
+
+
+@pytest.mark.parametrize("source_format", ["csv", "json"])
+def test_import_audio_annotations_reports_frequency_above_nyquist(
+    client: TestClient,
+    superuser_token_headers: dict[str, str],
+    db: Session,
+    source_format: str,
+) -> None:
+    media, col, project = create_test_media(db, media_type="audio", is_metadata=False)
+    if source_format == "json":
+        content = json.dumps([{
+            "media_id": media.media_id,
+            "min_x": 0,
+            "max_x": 1,
+            "min_y": 7000,
+            "max_y": 9000,
+            "sound_id": 1,
+            "reference": False,
+            "comments": "Above Nyquist",
+            "creator_type": "user",
+        }])
+        filename = "audio_annotations.json"
+        content_type = "application/json"
+    else:
+        content = (
+            "media_id,min_x,max_x,min_y,max_y,sound_id,reference,comments,creator_type\n"
+            f"{media.media_id},0,1,7000,9000,1,false,Above Nyquist,user\n"
+        )
+        filename = "audio_annotations.csv"
+        content_type = "text/csv"
+
+    response = client.post(
+        f"{settings.API_V1_STR}/annotations/imports",
+        headers=superuser_token_headers,
+        data={
+            "project_id": str(project.project_id),
+            "collection_id": str(col.collection_id),
+            "media_type": "audio",
+            "dry_run": "true",
+        },
+        files={"file": (filename, content, content_type)},
+    )
+
+    assert response.status_code == 200
+    report = response.json()["data"]
+    assert report["failed"] == 1
+    assert "maximum frequency of 8000 Hz" in report["rows"][0]["reason"]
 
 
 def test_create_annotation_for_photo_media(

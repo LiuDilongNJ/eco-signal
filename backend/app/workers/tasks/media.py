@@ -13,8 +13,8 @@ from PIL import Image, UnidentifiedImageError
 from sqlmodel import Session, select
 
 from app.core.db import engine
-from app.enums import QueueStatus
 from app.core.task_cancellation import CancellationToken
+from app.enums import QueueStatus
 from app.media_paths import (
     logical_audio_media_path,
     logical_photo_media_path,
@@ -23,7 +23,16 @@ from app.media_paths import (
     primary_media_path,
     resolve_existing_audio_media_path,
 )
-from app.models import Annotation, FileUpload, Media, AudioSetting, MediaCollection, Queue, PhotoSetting, Preview
+from app.models import (
+    AudioSetting,
+    FileUpload,
+    Media,
+    MediaCollection,
+    PhotoSetting,
+    Preview,
+    Queue,
+)
+from app.services import annotation_service
 from app.services.file_service import file_service
 from app.services.media_preview_service import (
     generate_media_previews,
@@ -648,23 +657,18 @@ async def process_audio_resampling(
                 media.audio_setting.channel_num = stored.get("channel_num")
                 media.audio_setting.duration_s = float(stored.get("duration_s") or media.audio_setting.duration_s)
                 media.size_b = path.stat().st_size
-                target_max_freq = target_sampling_rate_hz / 2.0
-                out_of_bounds_annotations = session.exec(
-                    select(Annotation).where(
-                        Annotation.media_id == media_id,
-                        Annotation.max_y > target_max_freq,
-                    )
-                ).all()
-                if out_of_bounds_annotations:
-                    removed_count = len(out_of_bounds_annotations)
-                    for ann in out_of_bounds_annotations:
-                        session.delete(ann)
-                    max_freq_display = f"{int(target_max_freq)}" if target_max_freq.is_integer() else f"{target_max_freq}"
-                    logger.info(
-                        "Media %s: %s annotation(s) exceeding %s Hz removed due to resampling",
-                        media_id,
-                        removed_count,
-                        max_freq_display,
+                annotation_impact = annotation_service.apply_resampling_annotation_ceiling(
+                    session,
+                    media_id,
+                    target_sampling_rate_hz,
+                )
+                max_freq_display = f"{annotation_impact.max_frequency_hz:g}"
+                adjustment_warning = None
+                if annotation_impact.affected_media_count:
+                    adjustment_warning = (
+                        f"Media {media_id}: removed {annotation_impact.removed_annotation_count} annotation(s) "
+                        f"and capped {annotation_impact.clipped_annotation_count} annotation(s) at "
+                        f"{max_freq_display} Hz"
                     )
                 for preview in session.exec(select(Preview).where(Preview.media_id == media_id)).all():
                     session.delete(preview)
@@ -675,6 +679,17 @@ async def process_audio_resampling(
                 )
                 session.add(media)
                 session.commit()
+                if adjustment_warning:
+                    warnings.append(adjustment_warning)
+                    logger.info(
+                        "Audio resampling annotations adjusted",
+                        extra={
+                            "media_id": media_id,
+                            "max_frequency_hz": annotation_impact.max_frequency_hz,
+                            "removed_annotation_count": annotation_impact.removed_annotation_count,
+                            "clipped_annotation_count": annotation_impact.clipped_annotation_count,
+                        },
+                    )
                 completed += 1
             except Exception as exc:
                 session.rollback()
