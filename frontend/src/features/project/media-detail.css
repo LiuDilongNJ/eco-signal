@@ -19,6 +19,38 @@
     position: relative;
 }
 
+/*
+ * On very wide viewports, the spectrogram's default 3:1 aspect ratio can
+ * consume nearly all available height. Reserve a stable share for the
+ * annotation table while it is visible.
+ */
+@media (min-aspect-ratio: 2 / 1) {
+    .content-wrapper--media-detail
+        .studio-main-section:not(.studio-main-section--table-hidden)
+        > .player-section:not(.photo-player-section) {
+        flex: 0 1 55%;
+        min-height: 0;
+        max-height: 55%;
+    }
+
+    .content-wrapper--media-detail
+        .studio-main-section:not(.studio-main-section--table-hidden)
+        > .player-section:not(.photo-player-section)
+        > .player-middle {
+        flex: 1 1 auto;
+        min-height: 0;
+    }
+
+    .content-wrapper--media-detail
+        .studio-main-section:not(.studio-main-section--table-hidden)
+        > .player-section:not(.photo-player-section)
+        .spectrogram-viewport {
+        height: 100%;
+        min-height: 0;
+        aspect-ratio: auto;
+    }
+}
+
 .studio-assign-task-body {
     padding: var(--es-space-3) 14px;
 }
