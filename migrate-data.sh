@@ -74,13 +74,6 @@ normalize_project_name() {
     printf '%s\n' "${name:-ecosignal}"
 }
 
-# docker compose cp cannot overwrite scripts the dev override bind-mounts individually
-# (e.g. setup_insects_model.py), so tar around them instead of failing the whole sync.
-sync_backend_scripts() {
-    tar -C "${PROJECT_ROOT}/backend/scripts" --exclude='setup_insects_model.py' -cf - . \
-        | "${DOCKER_COMPOSE[@]}" exec -T backend tar -xf - -C /app/scripts
-}
-
 compose_display_command() {
     printf '%q ' "${DOCKER_COMPOSE[@]}"
 }
@@ -300,7 +293,7 @@ if [[ "$REPAIR_NETWORK_FEDERATION" == true ]]; then
     info "Repairing migrated federation settings only..."
     REPAIR_ARGS=(--repair-network-federation)
     [[ "$DRY_RUN" == true ]] && REPAIR_ARGS+=(--dry-run)
-    sync_backend_scripts
+    "${DOCKER_COMPOSE[@]}" cp "${PROJECT_ROOT}/backend/scripts/." backend:/app/scripts/
     "${DOCKER_COMPOSE[@]}" exec -T \
         -e LEGACY_APP_URL="$LEGACY_APP_URL_VALUE" \
         -e LEGACY_HOST_URL="$LEGACY_HOST_URL_VALUE" \
@@ -352,7 +345,7 @@ if [[ "$REPAIR_PERMISSIONS" == true ]]; then
     info "Repairing / re-migrating permissions into user_scope_role..."
     REPAIR_ARGS=(--repair-permissions)
     [[ "$DRY_RUN" == true ]] && REPAIR_ARGS+=(--dry-run)
-    sync_backend_scripts
+    "${DOCKER_COMPOSE[@]}" cp "${PROJECT_ROOT}/backend/scripts/." backend:/app/scripts/
     "${DOCKER_COMPOSE[@]}" exec -T \
         -e MYSQL_HOST="host.docker.internal" \
         -e MYSQL_PORT="$MYSQL_PORT" \
@@ -644,7 +637,7 @@ else
     [[ "$RESET_TARGET" == true ]] && DB_MIGRATE_ARGS+=(--reset-target)
 
     info "Syncing latest migration scripts into backend container..."
-    sync_backend_scripts
+    "${DOCKER_COMPOSE[@]}" cp "${PROJECT_ROOT}/backend/scripts/." backend:/app/scripts/
 
     MIGRATION_EXIT=0
     if "${DOCKER_COMPOSE[@]}" exec -T \
