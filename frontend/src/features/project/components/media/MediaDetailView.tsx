@@ -51,7 +51,6 @@ import {
     BarChart2,
     AudioLines,
     ArrowLeft,
-    Search,
     Volume2,
     Maximize,
     Share2,
@@ -71,6 +70,12 @@ import {
     viewportParamsKey,
     type MediaViewportParams,
 } from "./mediaViewportParams"
+import {
+    AnnotationNavAutoZoomIcon,
+    AnnotationNextIcon,
+    AnnotationPrevIcon,
+    AnnotationZoomIcon,
+} from "./annotationToolbarIcons"
 import { apiClient } from "../../../../api/client"
 import { getApiData } from "../../../../api/utils"
 import {
@@ -114,26 +119,6 @@ function updateMessageSuccess(key: string, content: string) {
 
 function updateMessageError(key: string, content: string) {
     message.open({ type: "error", content, key, duration: 2 })
-}
-
-function AnnotationZoomIcon({ size = 20, strokeWidth = 2 }: { size?: number; strokeWidth?: number }) {
-    return (
-        <svg
-            width={size}
-            height={size}
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth={strokeWidth}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden="true"
-        >
-            <rect x="1.5" y="1.5" width="21" height="21" rx="2.5" strokeDasharray="4 3" />
-            <circle cx="14.25" cy="14.25" r="4.25" />
-            <path d="m17.25 17.25 3.25 3.25" />
-        </svg>
-    )
 }
 
 function PixelDensityZoomIcon({ size = 14, strokeWidth = 2.25 }: { size?: number; strokeWidth?: number }) {
@@ -6472,14 +6457,14 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                             <MediaViewerToolbarButton
                                 className="btn-toolbar"
                                 label="Previous annotation"
-                                icon={<ChevronLeft size={20} strokeWidth={2} />}
+                                icon={<AnnotationPrevIcon size={20} strokeWidth={2} />}
                                 disabled={editingAnnotationId == null}
                                 onClick={() => goToAdjacentAnnotation(-1)}
                             />
                             <MediaViewerToolbarButton
                                 className="btn-toolbar"
                                 label="Next annotation"
-                                icon={<ChevronRight size={20} strokeWidth={2} />}
+                                icon={<AnnotationNextIcon size={20} strokeWidth={2} />}
                                 disabled={editingAnnotationId == null}
                                 onClick={() => goToAdjacentAnnotation(1)}
                             />
@@ -6491,7 +6476,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                                         ? "On: Previous/Next also zooms the spectrogram to each annotation. Click to jump only."
                                         : "Off: Previous/Next only switches the annotation. Click to also auto-zoom the spectrogram."
                                 }
-                                icon={<Search size={20} strokeWidth={2} />}
+                                icon={<AnnotationNavAutoZoomIcon size={20} strokeWidth={2} />}
                                 onClick={() => setNavAutoZoomToAnnotation((v) => !v)}
                             />
                             <MediaViewerToolbarButton

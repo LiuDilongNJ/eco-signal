@@ -14,13 +14,10 @@ import {
     type ReactNode,
 } from "react"
 import {
-    ChevronLeft,
-    ChevronRight,
     ClipboardList,
     Eye,
     EyeOff,
     Maximize,
-    Search,
     ZoomIn,
     ZoomOut,
 } from "lucide-react"
@@ -28,6 +25,12 @@ import { mediaApi, type RecordingDetail } from "../../../../api/endpoints/media"
 import type { AnnotationPublic } from "../../../../api/endpoints/annotations"
 import { COOKIE_RETENTION_DAYS, isFunctionalCookiesAllowed } from "../../../home/cookieConsent"
 import { MediaViewerToolbarButton } from "./MediaViewerToolbarButton"
+import {
+    AnnotationNavAutoZoomIcon,
+    AnnotationNextIcon,
+    AnnotationPrevIcon,
+    AnnotationZoomIcon,
+} from "./annotationToolbarIcons"
 import {
     getMediaAnnotationPresentation,
     mediaAnnotationClassName,
@@ -43,26 +46,6 @@ export type PhotoAnnotationBox = {
 export type PhotoZoomRequest = {
     nonce: number
     box: PhotoAnnotationBox
-}
-
-function AnnotationZoomIcon({ size = 20, strokeWidth = 2 }: { size?: number; strokeWidth?: number }) {
-    return (
-        <svg
-            width={size}
-            height={size}
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth={strokeWidth}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden="true"
-        >
-            <rect x="1.5" y="1.5" width="21" height="21" rx="2.5" strokeDasharray="4 3" />
-            <circle cx="14.25" cy="14.25" r="4.25" />
-            <path d="m17.25 17.25 3.25 3.25" />
-        </svg>
-    )
 }
 
 type Point = { x: number; y: number }
@@ -859,14 +842,14 @@ export function PhotoImageViewer({
                     <MediaViewerToolbarButton
                         className="btn-toolbar"
                         label="Previous annotation"
-                        icon={<ChevronLeft size={20} strokeWidth={2} />}
+                        icon={<AnnotationPrevIcon size={20} strokeWidth={2} />}
                         disabled={!canNavigateAnnotation}
                         onClick={onPreviousAnnotation}
                     />
                     <MediaViewerToolbarButton
                         className="btn-toolbar"
                         label="Next annotation"
-                        icon={<ChevronRight size={20} strokeWidth={2} />}
+                        icon={<AnnotationNextIcon size={20} strokeWidth={2} />}
                         disabled={!canNavigateAnnotation}
                         onClick={onNextAnnotation}
                     />
@@ -878,7 +861,7 @@ export function PhotoImageViewer({
                                 ? "On: Previous/Next also zooms the viewer to each annotation. Click to jump only."
                                 : "Off: Previous/Next only switches the annotation. Click to also auto-zoom the viewer."
                         }
-                        icon={<Search size={20} strokeWidth={2} />}
+                        icon={<AnnotationNavAutoZoomIcon size={20} strokeWidth={2} />}
                         onClick={onToggleNavAutoZoomToAnnotation}
                     />
                     <MediaViewerToolbarButton

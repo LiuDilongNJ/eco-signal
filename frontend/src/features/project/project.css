@@ -4773,7 +4773,8 @@ input[type=number] {
 
 .studio-label-tag.active,
 .player-toolbar-bottom .btn-toolbar.active,
-.player-toolbar-top .btn-toolbar.active {
+.player-toolbar-top .btn-toolbar.active,
+.spectrogram-annot-side-toolbar .btn-toolbar.active {
     background: var(--brand) !important;
     color: white !important;
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15) !important;
@@ -4781,7 +4782,8 @@ input[type=number] {
 
 .studio-label-tag.active svg,
 .player-toolbar-bottom .btn-toolbar.active svg,
-.player-toolbar-top .btn-toolbar.active svg {
+.player-toolbar-top .btn-toolbar.active svg,
+.spectrogram-annot-side-toolbar .btn-toolbar.active svg {
     color: white !important;
 }
 

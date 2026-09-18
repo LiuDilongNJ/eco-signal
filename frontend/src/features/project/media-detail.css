@@ -1254,6 +1254,7 @@
 .content-wrapper--media-detail .media-studio-action.active:not(:disabled),
 .content-wrapper--media-detail .player-toolbar-top .btn-toolbar.active,
 .content-wrapper--media-detail .player-toolbar-bottom .btn-toolbar.active,
+.content-wrapper--media-detail .spectrogram-annot-side-toolbar .btn-toolbar.active,
 .content-wrapper--media-detail .studio-label-tag.active {
     border-color: transparent !important;
     background: var(--media-control-selected-bg) !important;
