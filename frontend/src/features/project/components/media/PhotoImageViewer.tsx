@@ -1,4 +1,5 @@
 import {
+    Button as ESButton,
     Input as ESInput,
     LoadingState,
     message,
@@ -18,8 +19,8 @@ import {
     Eye,
     EyeOff,
     Maximize,
-    ZoomIn,
-    ZoomOut,
+    Plus,
+    Minus,
 } from "lucide-react"
 import { mediaApi, type RecordingDetail } from "../../../../api/endpoints/media"
 import type { AnnotationPublic } from "../../../../api/endpoints/annotations"
@@ -100,8 +101,7 @@ type PhotoImageViewerProps = {
 const MIN_SCALE = 0.1
 const MAX_SCALE = 8
 const PHOTO_DRAFT_MIN_DRAG_PX = 12
-const PHOTO_ZOOM_DRAFT_IN_COOKIE_KEY = "ecoSignal_photo_zoom_percent_draft_in"
-const PHOTO_ZOOM_DRAFT_OUT_COOKIE_KEY = "ecoSignal_photo_zoom_percent_draft_out"
+const PHOTO_ZOOM_LEVEL_COOKIE_KEY = "ecoSignal_photo_zoom_level_percent"
 const DRAFT_RESIZE_HANDLES: DraftResizeHandle[] = ["nw", "n", "ne", "w", "e", "sw", "s", "se"]
 
 function getCookieValue(name: string): string | null {
@@ -125,9 +125,10 @@ function setCookieValue(name: string, value: string, days = COOKIE_RETENTION_DAY
     document.cookie = `${encodeURIComponent(name)}=${encodeURIComponent(value)}; expires=${d.toUTCString()}; path=/; samesite=lax`
 }
 
-function parsePhotoZoomDraft(raw: string | null): string {
+function readPhotoZoomLevelPercent(): string {
+    const raw = getCookieValue(PHOTO_ZOOM_LEVEL_COOKIE_KEY)
     const n = raw != null ? Number(raw) : NaN
-    return Number.isFinite(n) ? String(clamp(Math.round(n), 0, 100)) : "50"
+    return Number.isFinite(n) ? String(clamp(Math.round(n), 10, 800)) : "100"
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -256,11 +257,8 @@ export function PhotoImageViewer({
     const [loading, setLoading] = useState(true)
     const [scale, setScale] = useState(1)
     const [scaleY, setScaleY] = useState(1)
-    const [photoZoomDraftIn, setPhotoZoomDraftIn] = useState(() =>
-        parsePhotoZoomDraft(getCookieValue(PHOTO_ZOOM_DRAFT_IN_COOKIE_KEY)),
-    )
-    const [photoZoomDraftOut, setPhotoZoomDraftOut] = useState(() =>
-        parsePhotoZoomDraft(getCookieValue(PHOTO_ZOOM_DRAFT_OUT_COOKIE_KEY)),
+    const [photoZoomDraftPercent, setPhotoZoomDraftPercent] = useState(() =>
+        readPhotoZoomLevelPercent(),
     )
     const [offset, setOffset] = useState({ x: 0, y: 0 })
     const scaleRef = useRef(1)
@@ -321,6 +319,8 @@ export function PhotoImageViewer({
                 y: (stage.clientHeight - imageSize.height * nextScale) / 2,
             },
         })
+        setPhotoZoomDraftPercent("100")
+        setCookieValue(PHOTO_ZOOM_LEVEL_COOKIE_KEY, "100")
     }, [applyViewportState, imageSize.height, imageSize.width])
 
     const applyUniformScaleMultiplier = useCallback((multiplier: number) => {
@@ -347,11 +347,15 @@ export function PhotoImageViewer({
     }, [applyViewportState])
 
     const applyPhotoZoomByPercent = useCallback((pctRaw: string, dir: "in" | "out") => {
-        const pct = Number(pctRaw)
-        if (!Number.isFinite(pct)) return
-        const p = clamp(pct, 0, 100) / 100
-        if (p <= 0) return
-        applyUniformScaleMultiplier(dir === "in" ? 1 + p : 1 - p)
+        const currentPercent = Number(pctRaw)
+        if (!Number.isFinite(currentPercent)) return
+        const targetPercent = clamp(currentPercent + (dir === "in" ? 10 : -10), 10, 800)
+        if (targetPercent === currentPercent) return
+        const scaleFactor = targetPercent / currentPercent
+        applyUniformScaleMultiplier(scaleFactor)
+        const nextDisplay = String(targetPercent)
+        setPhotoZoomDraftPercent(nextDisplay)
+        setCookieValue(PHOTO_ZOOM_LEVEL_COOKIE_KEY, nextDisplay)
     }, [applyUniformScaleMultiplier])
 
     const zoomToBox = useCallback((box: PhotoAnnotationBox | null) => {
@@ -623,48 +627,40 @@ export function PhotoImageViewer({
                 />
                 <span className="toolbar-divider" />
                 <div className="zoom-control-wrapper">
-                    <MediaViewerToolbarButton
-                        variant="zoom"
-                        label="Zoom In (Shift + wheel)"
-                        icon={<ZoomIn size={14} />}
-                        onClick={() => applyPhotoZoomByPercent(photoZoomDraftIn, "in")}
-                    />
                     <ESInput appearance="unstyled"
                         type="number"
-                        min={0}
-                        max={100}
+                        min={10}
+                        max={800}
                         step={10}
-                        aria-label="Photo zoom percentage"
-                        value={photoZoomDraftIn}
+                        aria-label="Zoom percentage"
+                        value={photoZoomDraftPercent}
                         onChange={(event) => {
                             const v = event.target.value
-                            setPhotoZoomDraftIn(v)
-                            setCookieValue(PHOTO_ZOOM_DRAFT_IN_COOKIE_KEY, v)
+                            setPhotoZoomDraftPercent(v)
+                            setCookieValue(PHOTO_ZOOM_LEVEL_COOKIE_KEY, v)
                         }}
                     />
-                    <span>%</span>
-                </div>
-                <div className="zoom-control-wrapper">
+                    <span className="zoom-control-unit">%</span>
                     <MediaViewerToolbarButton
                         variant="zoom"
                         label="Zoom Out (Shift + wheel)"
-                        icon={<ZoomOut size={14} />}
-                        onClick={() => applyPhotoZoomByPercent(photoZoomDraftOut, "out")}
+                        icon={<Minus size={16} />}
+                        onClick={() => applyPhotoZoomByPercent(photoZoomDraftPercent, "out")}
                     />
-                    <ESInput appearance="unstyled"
-                        type="number"
-                        min={0}
-                        max={100}
-                        step={10}
-                        aria-label="Photo zoom percentage"
-                        value={photoZoomDraftOut}
-                        onChange={(event) => {
-                            const v = event.target.value
-                            setPhotoZoomDraftOut(v)
-                            setCookieValue(PHOTO_ZOOM_DRAFT_OUT_COOKIE_KEY, v)
-                        }}
+                    <MediaViewerToolbarButton
+                        variant="zoom"
+                        label="Zoom In (Shift + wheel)"
+                        icon={<Plus size={16} />}
+                        onClick={() => applyPhotoZoomByPercent(photoZoomDraftPercent, "in")}
                     />
-                    <span>%</span>
+                    <ESButton
+                        appearance="unstyled"
+                        type="button"
+                        className="zoom-control-reset-btn"
+                        onClick={fitToViewport}
+                    >
+                        Reset
+                    </ESButton>
                 </div>
                 <div style={{ flex: 1 }} />
                 {toolbarActions}

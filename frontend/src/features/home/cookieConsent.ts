@@ -10,10 +10,14 @@ export type CookiePreferences = {
 
 export const FUNCTIONAL_COOKIE_NAMES = [
     "ecoSignal_spec_zoom_percent",
+    "ecoSignal_spec_zoom_level_percent",
+    "ecoSignal_spec_zoom_percent_draft",
     "ecoSignal_spec_zoom_percent_draft_in",
     "ecoSignal_spec_zoom_percent_draft_out",
+    "ecoSignal_photo_zoom_percent_draft",
     "ecoSignal_photo_zoom_percent_draft_in",
     "ecoSignal_photo_zoom_percent_draft_out",
+    "ecoSignal_photo_zoom_level_percent",
     "ecoSignal_spec_px_per_sec",
     "ecoSignal_annot_save_mode",
 ] as const

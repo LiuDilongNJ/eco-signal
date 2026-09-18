@@ -1168,7 +1168,11 @@ export interface MediaDetailViewProps {
 }
 
 export const SPEC_ZOOM_COOKIE_KEY = "ecoSignal_spec_zoom_percent"
+/** #142：用户可理解的当前显示比例，100% 为打开播放器时的基准视图 */
+export const SPEC_ZOOM_LEVEL_COOKIE_KEY = "ecoSignal_spec_zoom_level_percent"
+/** @deprecated 兼容旧 cookie 读取 */
 export const SPEC_ZOOM_DRAFT_IN_COOKIE_KEY = "ecoSignal_spec_zoom_percent_draft_in"
+/** @deprecated 兼容旧 cookie 读取 */
 export const SPEC_ZOOM_DRAFT_OUT_COOKIE_KEY = "ecoSignal_spec_zoom_percent_draft_out"
 export const SPEC_PXS_COOKIE_KEY = "ecoSignal_spec_px_per_sec"
 export const DEFAULT_SPECTROGRAM_PX_PER_SEC = 15

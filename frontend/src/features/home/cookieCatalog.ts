@@ -56,28 +56,16 @@ export const COOKIE_CATALOG: CookieCatalogEntry[] = [
         description: "Remembers the audio spectrogram zoom percentage",
     },
     {
-        name: "ecoSignal_spec_zoom_percent_draft_in",
+        name: "ecoSignal_spec_zoom_level_percent",
         duration: COOKIE_RETENTION,
         category: "Functional Cookies",
-        description: "Remembers the audio spectrogram zoom-in input value",
+        description: "Remembers the audio spectrogram display scale percentage",
     },
     {
-        name: "ecoSignal_spec_zoom_percent_draft_out",
+        name: "ecoSignal_photo_zoom_level_percent",
         duration: COOKIE_RETENTION,
         category: "Functional Cookies",
-        description: "Remembers the audio spectrogram zoom-out input value",
-    },
-    {
-        name: "ecoSignal_photo_zoom_percent_draft_in",
-        duration: COOKIE_RETENTION,
-        category: "Functional Cookies",
-        description: "Remembers the photo viewer zoom-in input value",
-    },
-    {
-        name: "ecoSignal_photo_zoom_percent_draft_out",
-        duration: COOKIE_RETENTION,
-        category: "Functional Cookies",
-        description: "Remembers the photo viewer zoom-out input value",
+        description: "Remembers the photo viewer display scale percentage",
     },
     {
         name: "ecoSignal_spec_px_per_sec",

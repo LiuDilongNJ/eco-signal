@@ -14,6 +14,7 @@ export function MediaViewerToolbarButton({
     active,
     variant = "toolbar",
     className = "",
+    onClick,
     ...buttonProps
 }: MediaViewerToolbarButtonProps) {
     const baseClass = variant === "zoom" ? "zoom-control-btn" : "btn-toolbar"
@@ -25,6 +26,13 @@ export function MediaViewerToolbarButton({
             className={classes}
             aria-label={label}
             aria-pressed={active}
+            onClick={(event) => {
+                onClick?.(event)
+                // 避免点击后残留 focus 导致控件被 focus 样式撑开
+                if (variant === "zoom") {
+                    event.currentTarget.blur()
+                }
+            }}
             {...buttonProps}
         >
             {icon}
@@ -32,8 +40,12 @@ export function MediaViewerToolbarButton({
     )
 
     return (
-        <Tooltip title={getTooltipText(label)}>
-            {buttonProps.disabled ? <span className="media-viewer-toolbar-tooltip-trigger">{button}</span> : button}
+        <Tooltip title={getTooltipText(label)} mouseEnterDelay={0.5}>
+            {buttonProps.disabled || variant === "zoom" ? (
+                <span className="media-viewer-toolbar-tooltip-trigger">{button}</span>
+            ) : (
+                button
+            )}
         </Tooltip>
     )
 }
