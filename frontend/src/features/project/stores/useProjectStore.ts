@@ -22,6 +22,7 @@ interface ProjectOptionItem {
     id: number | string
     name: string
     can_manage?: boolean
+    role?: string | null
 }
 
 interface ProjectState {
@@ -231,6 +232,7 @@ export const useProjectStore = create<ProjectState>()((set, get) => ({
                     id: opt.project_id ?? opt.id ?? idx,
                     name: opt.name,
                     can_manage: opt.can_manage,
+                    role: opt.role,
                 }))
 
                 set({ projects: mappedProjects })

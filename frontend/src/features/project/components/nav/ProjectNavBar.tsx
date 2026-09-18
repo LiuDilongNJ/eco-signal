@@ -119,31 +119,43 @@ export function ProjectNavBar() {
         }
     }, [meFetchGen])
 
-    const proj = currentProjectFn()
-    const isProjectManagerContext = !!proj?.can_manage && !meIsAdmin
+    const formatRoleTag = (role?: string | null, canManage?: boolean) => {
+        if (role && role.toLowerCase() !== "custom") {
+            const r = role.trim()
+            return r.charAt(0).toUpperCase() + r.slice(1).toLowerCase()
+        }
+        if (canManage) return "Manager"
+        return undefined
+    }
 
     const suppressProjectRowTags = meIsAdmin
-    const suppressCollectionRowTags = meIsAdmin || isProjectManagerContext
+    const suppressCollectionRowTags = meIsAdmin
 
     const projectRoleBanner = meIsAdmin ? "Administrator" : null
-    const collectionRoleBanner = meIsAdmin
-        ? "Administrator"
-        : isProjectManagerContext
-          ? "Project manager"
-          : null
+    const collectionRoleBanner = meIsAdmin ? "Administrator" : null
 
-    const projectItems = filteredProjects().map((p: any) => ({
-        id: p.id,
-        label: p.name,
-        tag: !suppressProjectRowTags && p.can_manage ? "MANAGER" : undefined,
-    }))
+    const projectItems = filteredProjects().map((p: any) => {
+        const isCustom = p.role?.toLowerCase() === "custom"
+        const displayRole = isCustom ? undefined : p.role
+        return {
+            id: p.id,
+            label: p.name,
+            tag: !suppressProjectRowTags ? formatRoleTag(displayRole, p.can_manage) : undefined,
+            tagVariant: displayRole || (p.can_manage ? "manager" : undefined),
+        }
+    })
     const collectionItems = filteredCollections()
         .filter((c: any) => !(isMediaDetailRoute && c.id === ""))
-        .map((c: any) => ({
-            id: c.id,
-            label: c.name,
-            tag: !suppressCollectionRowTags && c.can_manage ? "MANAGER" : undefined,
-        }))
+        .map((c: any) => {
+            const isCustom = c.role?.toLowerCase() === "custom"
+            const displayRole = isCustom ? undefined : c.role
+            return {
+                id: c.id,
+                label: c.name,
+                tag: !suppressCollectionRowTags ? formatRoleTag(displayRole, c.can_manage) : undefined,
+                tagVariant: displayRole || (c.can_manage ? "manager" : undefined),
+            }
+        })
     
     const hasCollections = collectionOptions.length > 1
 

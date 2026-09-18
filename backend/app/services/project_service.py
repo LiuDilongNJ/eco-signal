@@ -9,7 +9,15 @@ logger = logging.getLogger(__name__)
 
 from app.csv_export import CsvColumn, export_columns_csv
 from app.media_paths import build_media_public_url, logical_project_media_path
-from app.models import Collection, Project, ProjectContributor, User, UserPermission
+from app.models import (
+    Collection,
+    Project,
+    ProjectContributor,
+    Role,
+    User,
+    UserPermission,
+    UserScopeRole,
+)
 from app.models.project import ProjectCollection
 from app.models.site import SiteProject
 from app.repositories import permission_repository, project_repository
@@ -348,7 +356,9 @@ def get_project_options(session: Session, user: User | None, name: str | None = 
     - Regular users: see public + accessible projects, can_manage based on write permission
     - Admins: see all projects, can_manage always True
     """
-    def _get_simple_options(*, can_manage: bool, public_active_only: bool) -> list[dict]:
+    def _get_simple_options(
+        *, can_manage: bool, public_active_only: bool, role: str | None = None
+    ) -> list[dict]:
         stmt = select(Project.project_id, Project.name)
         if public_active_only:
             stmt = stmt.where(Project.public == True, Project.active == True)
@@ -357,15 +367,20 @@ def get_project_options(session: Session, user: User | None, name: str | None = 
         stmt = stmt.order_by(Project.name)
         results = session.exec(stmt).all()
         return [
-            {"project_id": project_id, "name": project_name, "can_manage": can_manage}
+            {
+                "project_id": project_id,
+                "name": project_name,
+                "can_manage": can_manage,
+                "role": role,
+            }
             for project_id, project_name in results
         ]
 
     if user is None:
-        return _get_simple_options(can_manage=False, public_active_only=True)
+        return _get_simple_options(can_manage=False, public_active_only=True, role=None)
 
     if permission_service.is_admin(user):
-        return _get_simple_options(can_manage=True, public_active_only=False)
+        return _get_simple_options(can_manage=True, public_active_only=False, role="admin")
 
     # Regular user: public + accessible projects (repository already unions both)
     projects = project_repository.get_accessible_projects(
@@ -404,6 +419,17 @@ def get_project_options(session: Session, user: User | None, name: str | None = 
         for pid, cid in rows:
             project_collection_map.setdefault(pid, set()).add(cid)
 
+    # Fetch project-scoped access roles for the current user
+    role_stmt = (
+        select(UserScopeRole.project_id, Role.code)
+        .join(Role, Role.role_id == UserScopeRole.role_id)
+        .where(
+            UserScopeRole.user_id == user.user_id,
+            UserScopeRole.collection_id.is_(None),
+        )
+    )
+    user_project_roles = dict(session.exec(role_stmt).all())
+
     def _can_manage(p: Project) -> bool:
         """
         Check if user can manage the project.
@@ -417,14 +443,21 @@ def get_project_options(session: Session, user: User | None, name: str | None = 
             project_collection_map.get(p.project_id, set()) & write_collection_ids
         )
 
-    return [
-        {
+    options = []
+    for p in projects:
+        can_manage = _can_manage(p)
+        role = user_project_roles.get(p.project_id)
+        if role == "custom":
+            role = None
+        if not role and can_manage:
+            role = "manager"
+        options.append({
             "project_id": p.project_id,
             "name": p.name,
-            "can_manage": _can_manage(p),
-        }
-        for p in projects
-    ]
+            "can_manage": can_manage,
+            "role": role,
+        })
+    return options
 
 
 def get_active_project_cards(

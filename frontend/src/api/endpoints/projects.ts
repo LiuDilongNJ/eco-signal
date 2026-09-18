@@ -23,8 +23,11 @@ export interface ProjectPublic {
 }
 
 export interface ProjectOption {
-    id: number
+    id?: number
+    project_id?: number
     name: string
+    can_manage?: boolean
+    role?: string | null
 }
 
 export interface PageInfo {

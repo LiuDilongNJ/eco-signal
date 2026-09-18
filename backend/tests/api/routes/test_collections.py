@@ -10,12 +10,14 @@ from sqlmodel import Session, select
 from app.core.config import settings
 from app.models import (
     Collection,
-    Project,
-    Permission,
-    UserPermission,
-    ProjectCollection,
-    CollectionTaxon,
     CollectionContributor,
+    CollectionTaxon,
+    Permission,
+    Project,
+    ProjectCollection,
+    Role,
+    UserPermission,
+    UserScopeRole,
 )
 from app.repositories import user_repository
 from app.schemas import UserCreate
@@ -1449,7 +1451,9 @@ class TestCollectionOptions:
             assert "collection_id" in opt
             assert "name" in opt
             assert "can_manage" in opt
+            assert "role" in opt
             assert opt["can_manage"] is True
+            assert opt["role"] == "admin"
     
     def test_get_options_as_normal_user(
         self, client: TestClient, normal_user_token_headers: dict[str, str], db: Session
@@ -1470,11 +1474,12 @@ class TestCollectionOptions:
         for opt in options:
             if opt["name"] == "Public Option Collection":
                 assert opt["can_manage"] is False
+                assert opt["role"] is None
     
     def test_get_options_with_write_permission(
         self, client: TestClient, db: Session
     ) -> None:
-        """User with collection:write permission gets can_manage=True for that collection."""
+        """User with collection:write permission gets can_manage=True and role='manager' for that collection."""
 
         # 1. Create a user
         email = "option_writer@example.com"
@@ -1517,10 +1522,118 @@ class TestCollectionOptions:
         
         assert manageable_opt is not None
         assert manageable_opt["can_manage"] is True
+        assert manageable_opt["role"] == "manager"
         
         assert read_only_opt is not None
         assert read_only_opt["can_manage"] is False
-    
+        assert read_only_opt["role"] is None
+
+    def test_get_options_with_assigned_role_and_inheritance(
+        self, client: TestClient, db: Session
+    ) -> None:
+        """Test collection explicit role overrides inherited project role."""
+        # 1. Create a user
+        email = "role_inherit_user@example.com"
+        password = "testpassword123"
+        user_in = UserCreate(
+            username="roleinherituser",
+            name="Role Inherit User",
+            email=email,
+            password=password,
+        )
+        user = user_repository.create(session=db, obj_in=user_in)
+
+        # 2. Create collections and project
+        col_explicit = create_test_collection(db, name="Explicit Role Collection", public_access=True)
+        col_inherited = create_test_collection(db, name="Inherited Role Collection", public_access=True)
+        project = link_collection_to_project(db, col_explicit)
+        db.add(ProjectCollection(project_id=project.project_id, collection_id=col_inherited.collection_id))
+        db.commit()
+
+        # 3. Find roles
+        reviewer_role = db.exec(select(Role).where(Role.code == "reviewer")).first()
+        annotator_role = db.exec(select(Role).where(Role.code == "annotator")).first()
+        assert reviewer_role is not None
+        assert annotator_role is not None
+
+        # 4. Project-level role: reviewer
+        proj_scope_role = UserScopeRole(
+            user_id=user.user_id,
+            project_id=project.project_id,
+            role_id=reviewer_role.role_id,
+            collection_id=None,
+        )
+        # Collection-level role: annotator on col_explicit
+        col_scope_role = UserScopeRole(
+            user_id=user.user_id,
+            project_id=project.project_id,
+            role_id=annotator_role.role_id,
+            collection_id=col_explicit.collection_id,
+        )
+        db.add(proj_scope_role)
+        db.add(col_scope_role)
+        db.commit()
+
+        # 5. Fetch options with project_id
+        headers = user_authentication_headers(client=client, username="roleinherituser", password=password)
+        r = client.get(
+            f"{settings.API_V1_STR}/collection-options",
+            params={"project_id": project.project_id},
+            headers=headers,
+        )
+        assert r.status_code == 200
+        options = r.json()["data"]
+
+        opt_explicit = next((o for o in options if o["collection_id"] == col_explicit.collection_id), None)
+        opt_inherited = next((o for o in options if o["collection_id"] == col_inherited.collection_id), None)
+
+        assert opt_explicit is not None
+        assert opt_explicit["role"] == "annotator"
+
+        assert opt_inherited is not None
+        assert opt_inherited["role"] == "reviewer"
+
+    def test_get_options_with_custom_role_returns_none(
+        self, client: TestClient, db: Session
+    ) -> None:
+        """Custom role assignment on collection is not a display role, so role must be None."""
+        email = "custom_role_user@example.com"
+        password = "testpassword123"
+        user_in = UserCreate(
+            username="customroleuser",
+            name="Custom Role User",
+            email=email,
+            password=password,
+        )
+        user = user_repository.create(session=db, obj_in=user_in)
+
+        col = create_test_collection(db, name="Custom Role Collection", public_access=True)
+        project = link_collection_to_project(db, col)
+
+        custom_role = db.exec(select(Role).where(Role.code == "custom")).first()
+        assert custom_role is not None
+
+        col_scope_role = UserScopeRole(
+            user_id=user.user_id,
+            project_id=project.project_id,
+            role_id=custom_role.role_id,
+            collection_id=col.collection_id,
+        )
+        db.add(col_scope_role)
+        db.commit()
+
+        headers = user_authentication_headers(client=client, username="customroleuser", password=password)
+        r = client.get(
+            f"{settings.API_V1_STR}/collection-options",
+            params={"project_id": project.project_id},
+            headers=headers,
+        )
+        assert r.status_code == 200
+        options = r.json()["data"]
+        matched = next((o for o in options if o["collection_id"] == col.collection_id), None)
+        assert matched is not None
+        assert matched["role"] is None
+
     def test_get_options_unauthenticated(
         self, client: TestClient
     ) -> None:

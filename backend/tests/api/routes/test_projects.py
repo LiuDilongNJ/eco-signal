@@ -20,11 +20,13 @@ from app.models import (
     Project,
     ProjectCollection,
     ProjectContributor,
+    Role,
     Site,
     SiteCollection,
     SiteProject,
     User,
     UserPermission,
+    UserScopeRole,
 )
 from app.models.media import AudioSetting, Media, MediaCollection, PhotoSetting
 from app.services.file_service import file_service
@@ -1764,12 +1766,14 @@ class TestProjectOptions:
         assert isinstance(options, list)
         assert len(options) >= 2
         
-        # Verify structure and can_manage flag
+        # Verify structure, can_manage flag, and role
         for opt in options:
             assert "project_id" in opt
             assert "name" in opt
             assert "can_manage" in opt
+            assert "role" in opt
             assert opt["can_manage"] is True  # Admin has write permission on all projects
+            assert opt["role"] == "admin"
 
 
     def test_get_options_as_normal_user_no_permission(
@@ -1787,14 +1791,16 @@ class TestProjectOptions:
         assert json_resp["code"] == 0
         options = json_resp["data"]
         assert isinstance(options, list)
-        # Verify can_manage field exists on every option
+        # Verify can_manage and role field exists on every option
         for opt in options:
             assert "can_manage" in opt
-        # Without any write permission, all can_manage must be False
+            assert "role" in opt
+        # Without any write permission, all can_manage must be False and role None for public projects
         matched = [o for o in options if o["name"] == "No Perm Option Project"]
         assert len(matched) >= 1
         for opt in matched:
             assert opt["can_manage"] is False
+            assert opt["role"] is None
 
     def test_get_options_with_write_permission(
         self, client: TestClient, normal_user_token_headers: dict[str, str], db: Session
@@ -1853,11 +1859,83 @@ class TestProjectOptions:
         matched = [o for o in options if o["project_id"] == project.project_id]
         assert len(matched) == 1
         assert matched[0]["can_manage"] is True
+        assert matched[0]["role"] == "manager"
+
+    def test_get_options_with_assigned_role(
+        self, client: TestClient, normal_user_token_headers: dict[str, str], db: Session
+    ) -> None:
+        """Normal user with assigned UserScopeRole gets that role code."""
+        project = create_test_project(db, name="Assigned Role Option Project", public=True)
+        normal_user = db.exec(
+            sql_select(User).where(User.role_id != 1)
+        ).first()
+        assert normal_user is not None
+
+        # Find annotator role
+        annotator_role = db.exec(
+            sql_select(Role).where(Role.code == "annotator")
+        ).first()
+        assert annotator_role is not None
+
+        scope_role = UserScopeRole(
+            user_id=normal_user.user_id,
+            project_id=project.project_id,
+            role_id=annotator_role.role_id,
+            collection_id=None,
+        )
+        db.add(scope_role)
+        db.commit()
+
+        r = client.get(
+            f"{settings.API_V1_STR}/project-options",
+            headers=normal_user_token_headers,
+        )
+        assert r.status_code == 200
+        options = r.json()["data"]
+        matched = [o for o in options if o["project_id"] == project.project_id]
+        assert len(matched) == 1
+        assert matched[0]["role"] == "annotator"
+        assert matched[0]["can_manage"] is False
+
+    def test_get_options_with_custom_role_returns_none(
+        self, client: TestClient, normal_user_token_headers: dict[str, str], db: Session
+    ) -> None:
+        """Custom role assignment is an internal placeholder, not a display role, so role must be None."""
+        project = create_test_project(db, name="Custom Role Option Project", public=True)
+        normal_user = db.exec(
+            sql_select(User).where(User.role_id != 1)
+        ).first()
+        assert normal_user is not None
+
+        custom_role = db.exec(
+            sql_select(Role).where(Role.code == "custom")
+        ).first()
+        assert custom_role is not None
+
+        scope_role = UserScopeRole(
+            user_id=normal_user.user_id,
+            project_id=project.project_id,
+            role_id=custom_role.role_id,
+            collection_id=None,
+        )
+        db.add(scope_role)
+        db.commit()
+
+        r = client.get(
+            f"{settings.API_V1_STR}/project-options",
+            headers=normal_user_token_headers,
+        )
+        assert r.status_code == 200
+        options = r.json()["data"]
+        matched = [o for o in options if o["project_id"] == project.project_id]
+        assert len(matched) == 1
+        assert matched[0]["role"] is None
+        assert matched[0]["can_manage"] is False
 
     def test_get_options_unauthenticated(
         self, client: TestClient, db: Session
     ) -> None:
-        """Unauthenticated users can access project options and get public projects with can_manage=False."""
+        """Unauthenticated users can access project options and get public projects with can_manage=False and role=None."""
         create_test_project(db, name="Public For Anon", public=True)
 
         r = client.get(f"{settings.API_V1_STR}/project-options")
@@ -1866,10 +1944,12 @@ class TestProjectOptions:
         assert json_resp["code"] == 0
         options = json_resp["data"]
         assert isinstance(options, list)
-        # All returned projects must have can_manage=False for anonymous users
+        # All returned projects must have can_manage=False and role=None for anonymous users
         for opt in options:
             assert "can_manage" in opt
+            assert "role" in opt
             assert opt["can_manage"] is False
+            assert opt["role"] is None
 
     def test_get_options_orders_by_name_for_all_user_types(
         self,

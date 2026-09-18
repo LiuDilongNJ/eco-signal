@@ -12,9 +12,11 @@ from app.models import (
     MediaCollection,
     Project,
     ProjectCollection,
+    Role,
     SiteCollection,
     User,
     UserPermission,
+    UserScopeRole,
 )
 from app.repositories import collection_repository, permission_repository
 from app.schemas.collection import (
@@ -404,7 +406,16 @@ def get_collection_options(
         rows = collection_repository.get_accessible_collection_options(
             session, None, project_id=project_id, public_access=True, name=name
         )
-        return [{"collection_id": r[0], "name": r[1], "sphere": r[2], "can_manage": False} for r in rows]
+        return [
+            {
+                "collection_id": r[0],
+                "name": r[1],
+                "sphere": r[2],
+                "can_manage": False,
+                "role": None,
+            }
+            for r in rows
+        ]
 
     # Authenticated users handling
     if permission_service.is_admin(user):
@@ -423,7 +434,16 @@ def get_collection_options(
             
         stmt = stmt.order_by(Collection.name)
         results = session.exec(stmt).all()
-        return [{"collection_id": r[0], "name": r[1], "sphere": r[2], "can_manage": True} for r in results]
+        return [
+            {
+                "collection_id": r[0],
+                "name": r[1],
+                "sphere": r[2],
+                "can_manage": True,
+                "role": "admin",
+            }
+            for r in results
+        ]
     else:
         # Regular user sees accessible collections (columns only)
         rows = collection_repository.get_accessible_collection_options(
@@ -432,15 +452,60 @@ def get_collection_options(
 
         # Get all collection IDs the user has write access to
         manageable_collection_ids = set(permission_repository.get_accessible_collection_ids(
-            session, user.user_id, action="write"
+            session, user.user_id, action="write", project_id=project_id
         ))
+
+        # Check project role if project_id is provided (for role inheritance)
+        project_role = None
+        if project_id is not None:
+            proj_stmt = (
+                select(Role.code)
+                .join(UserScopeRole, UserScopeRole.role_id == Role.role_id)
+                .where(
+                    UserScopeRole.user_id == user.user_id,
+                    UserScopeRole.project_id == project_id,
+                    UserScopeRole.collection_id.is_(None),
+                )
+            )
+            project_role = session.exec(proj_stmt).first()
+            if project_role == "custom":
+                project_role = None
+            if not project_role:
+                if permission_repository.has_project_permission(
+                    session, user.user_id, project_id, "project", "write"
+                ):
+                    project_role = "manager"
+
+        # Check explicit collection roles
+        col_stmt = (
+            select(UserScopeRole.collection_id, Role.code)
+            .join(Role, Role.role_id == UserScopeRole.role_id)
+            .where(
+                UserScopeRole.user_id == user.user_id,
+                UserScopeRole.collection_id.is_not(None),
+            )
+        )
+        if project_id is not None:
+            col_stmt = col_stmt.where(UserScopeRole.project_id == project_id)
+        collection_roles = dict(session.exec(col_stmt).all())
+
+        def _get_collection_role(cid: int) -> str | None:
+            role = collection_roles.get(cid)
+            if role == "custom":
+                role = None
+            if not role and project_role:
+                role = project_role
+            if not role and cid in manageable_collection_ids:
+                role = "manager"
+            return role
 
         return [
             {
                 "collection_id": r[0],
                 "name": r[1],
                 "sphere": r[2],
-                "can_manage": r[0] in manageable_collection_ids
+                "can_manage": r[0] in manageable_collection_ids,
+                "role": _get_collection_role(r[0]),
             }
             for r in rows
         ]
