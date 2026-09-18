@@ -14,7 +14,7 @@ import { canParseFilenameDateTime } from "./filenameDatetime"
 import type { LicenseOption } from "../../../../api/endpoints/licenses"
 import type { SensorOption } from "../../../../api/endpoints/sensors"
 import type { UserOption } from "../../../../api/endpoints/users"
-import { MEDIA_ADD_TITLES, SENSOR_FIELD_HELP_TEXT, GAIN_FIELD_HELP_TEXT, LICENSE_CHOOSER_URL, filterSensorsForMediaType, formatSensorOptionLabel } from "./mediaForm"
+import { MEDIA_ADD_TITLES, SENSOR_FIELD_HELP_TEXT, GAIN_FIELD_HELP_TEXT, SOUND_NAME_PREFIX_HELP_TEXT, LICENSE_CHOOSER_URL, filterSensorsForMediaType, formatSensorOptionLabel } from "./mediaForm"
 import { RESAMPLING_RATE_OPTIONS, isValidResamplingRate } from "./resamplingOptions"
 import "./styles/FormDrawer.css"
 import "./styles/UploadAudioDrawer.css"
@@ -450,7 +450,16 @@ export function UploadAudioDrawer({ open, initialFiles = [], siteOptions = [], l
                                 <Form.Item label="Note">
                                     <Input onChange={e => setFormData(p => ({ ...p, note: e.target.value }))} />
                                 </Form.Item>
-                                <Form.Item label="Sound Name Prefix">
+                                <Form.Item
+                                    label={
+                                        <span className="site-form-field-label-with-help">
+                                            Sound Name Prefix
+                                            <Tooltip title={SOUND_NAME_PREFIX_HELP_TEXT}>
+                                                <Info size={14} aria-hidden="true" />
+                                            </Tooltip>
+                                        </span>
+                                    }
+                                >
                                     <Input onChange={e => setFormData(p => ({ ...p, sound_name_prefix: e.target.value }))} />
                                 </Form.Item>
                                 <Form.Item label="Creator">

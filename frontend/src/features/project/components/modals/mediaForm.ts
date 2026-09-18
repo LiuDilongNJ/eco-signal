@@ -39,6 +39,9 @@ export const SENSOR_FIELD_HELP_TEXT =
 export const GAIN_FIELD_HELP_TEXT =
     "Analog amplification of the recorded audio signal, applied by the recorder. Required to derive dB SPL"
 
+export const SOUND_NAME_PREFIX_HELP_TEXT =
+    "Add some custom text at the beginning of the uploaded media names"
+
 export const LICENSE_CHOOSER_URL = "https://creativecommons.org/chooser/"
 
 export function resolveEditableMediaKind(mediaType: string | null, isMetadata: boolean): EditableMediaKind {
