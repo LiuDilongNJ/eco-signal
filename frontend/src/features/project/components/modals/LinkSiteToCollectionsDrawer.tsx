@@ -1,8 +1,8 @@
 /**
  * LinkSiteToCollectionsDrawer - 将站点关联到「项目」和/或「具体集合」。
- * - 勾选项目：该项目下现有及**未来新增**的集合均可使用该站点（存 site_project）。
- * - 仅勾选集合：只关联到选中的集合；即便勾满当前全部集合，**不含**项目级关联时，新项目内新建集合不会自动获得该站点。
- * 两种勾选互不影响。
+ * - 勾选项目：同时勾选该项目下全部集合；项目级关联（site_project）覆盖未来新建集合。
+ * - 勾选/取消集合：若某项目下全部集合已勾选则勾选项目；若取消任一集合则取消项目勾选。
+ * - 取消项目：同时取消该项目下全部集合勾选。
  */
 
 import { useEffect, useState } from "react"
@@ -24,6 +24,32 @@ interface ProjectTreeItem {
     id: number
     name: string
     collections: { id: number; name: string }[]
+}
+
+function syncProjectCollectionSelection(
+    tree: ProjectTreeItem[],
+    collectionIds: number[],
+    projectIds: number[],
+): { collectionIds: number[]; projectIds: number[] } {
+    const collectionSet = new Set(collectionIds)
+    const projectSet = new Set(projectIds)
+
+    for (const project of tree) {
+        if (project.id <= 0 || project.collections.length === 0) continue
+        const collectionIdList = project.collections.map((c) => c.id)
+        if (projectSet.has(project.id)) {
+            for (const id of collectionIdList) collectionSet.add(id)
+            continue
+        }
+        if (collectionIdList.every((id) => collectionSet.has(id))) {
+            projectSet.add(project.id)
+        }
+    }
+
+    return {
+        collectionIds: Array.from(collectionSet),
+        projectIds: Array.from(projectSet),
+    }
 }
 
 interface LinkSiteToCollectionsDrawerProps {
@@ -83,14 +109,12 @@ export function LinkSiteToCollectionsDrawer({
 
             if (r.code === 0 || r.code === 200) {
                 const data = r.data || {}
-                
-                const initialCollectionIds = isBatch ? [] : (data.selected_collection_ids || [])
-                const initialProjectIds = isBatch ? [] : (data.selected_project_ids || [])
-                setSelectedCollectionIds(initialCollectionIds)
-                setSelectedProjectIds(initialProjectIds)
+
+                const rawCollectionIds = isBatch ? [] : (data.selected_collection_ids || [])
+                const rawProjectIds = isBatch ? [] : (data.selected_project_ids || [])
 
                 const newTreeData: ProjectTreeItem[] = []
-                
+
                 // Determine where options are (nested or flat)
                 const options = data.options || data
 
@@ -127,14 +151,21 @@ export function LinkSiteToCollectionsDrawer({
                     })
                 }
 
+                const synced = syncProjectCollectionSelection(
+                    newTreeData,
+                    rawCollectionIds,
+                    rawProjectIds,
+                )
                 setTreeData(newTreeData)
+                setSelectedCollectionIds(synced.collectionIds)
+                setSelectedProjectIds(synced.projectIds)
 
                 // Only expand items that have something selected
                 const keysToExpand = newTreeData
                     .filter((p) => {
-                        const isProjChecked = p.id > 0 && initialProjectIds.includes(p.id)
+                        const isProjChecked = p.id > 0 && synced.projectIds.includes(p.id)
                         const hasSelectedCol = p.collections.some((c) =>
-                            initialCollectionIds.includes(c.id),
+                            synced.collectionIds.includes(c.id),
                         )
                         return (!isBatch && isProjChecked) || hasSelectedCol
                     })
@@ -153,18 +184,49 @@ export function LinkSiteToCollectionsDrawer({
     }
 
     const toggleCollection = (id: number) => {
-        setSelectedCollectionIds((prev) =>
-            prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id],
+        const parentProject = treeData.find(
+            (p) => p.id > 0 && p.collections.some((c) => c.id === id),
         )
+        const nextCollections = selectedCollectionIds.includes(id)
+            ? selectedCollectionIds.filter((i) => i !== id)
+            : [...selectedCollectionIds, id]
+        setSelectedCollectionIds(nextCollections)
+
+        if (!parentProject) return
+        const allChecked = parentProject.collections.every((c) => nextCollections.includes(c.id))
+        setSelectedProjectIds((prevProjects) => {
+            if (allChecked) {
+                return prevProjects.includes(parentProject.id)
+                    ? prevProjects
+                    : [...prevProjects, parentProject.id]
+            }
+            return prevProjects.filter((i) => i !== parentProject.id)
+        })
     }
 
     const toggleProject = (projectNumericId: number) => {
         if (projectNumericId < 0) return
+        const project = treeData.find((p) => p.id === projectNumericId)
+        if (!project) return
+        const collectionIds = project.collections.map((c) => c.id)
+        const willCheck = !selectedProjectIds.includes(projectNumericId)
+
         setSelectedProjectIds((prev) =>
-            prev.includes(projectNumericId)
-                ? prev.filter((i) => i !== projectNumericId)
-                : [...prev, projectNumericId],
+            willCheck ? [...prev, projectNumericId] : prev.filter((i) => i !== projectNumericId),
         )
+        setSelectedCollectionIds((prev) => {
+            if (willCheck) {
+                const next = new Set(prev)
+                for (const id of collectionIds) next.add(id)
+                return Array.from(next)
+            }
+            return prev.filter((id) => !collectionIds.includes(id))
+        })
+        if (willCheck) {
+            setActiveKeys((prev) =>
+                prev.includes(projectNumericId) ? prev : [...prev, projectNumericId],
+            )
+        }
     }
 
     const handleSave = async () => {
