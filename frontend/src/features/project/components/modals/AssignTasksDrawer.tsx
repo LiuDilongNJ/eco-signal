@@ -269,10 +269,9 @@ export function AssignTasksDrawer({ open, mediaId, mediaIds, projectId, annotati
                                         const isChecked = selectedIds.has(user.user_id)
                                         return (
                                             <div className="assign-tasks-item" key={user.user_id} style={{ 
-                                                padding: '16px', 
+                                                padding: '12px 16px', 
                                                 borderBottom: index < assignableUsers.length - 1 ? `1px dashed ${isDark ? 'var(--border-color)' : 'var(--border-color)'}` : 'none',
                                                 background: isChecked ? (isDark ? 'var(--bg-capsule)' : 'var(--bg-surface-secondary)') : 'transparent',
-                                                height: '50px'
                                             }}>
                                                 <Checkbox
                                                     checked={isChecked}
@@ -283,14 +282,13 @@ export function AssignTasksDrawer({ open, mediaId, mediaIds, projectId, annotati
                                                 </Checkbox>
                                                 
                                                 {isChecked && (
-                                                    <div style={{paddingLeft: '24px' }}>
+                                                    <div className="assign-tasks-note">
                                                         <Input 
                                                             value={comments[user.user_id] || ''}
                                                             onChange={(e) => handleCommentChange(user.user_id, e.target.value)}
-                                                            style={{ 
-                                                                borderRadius: '6px',
-                                                                borderColor: 'var(--brand)'
-                                                            }}
+                                                            placeholder="Notes"
+                                                            maxLength={1000}
+                                                            aria-label={`Notes for ${user.name || user.username}`}
                                                         />
                                                     </div>
                                                 )}

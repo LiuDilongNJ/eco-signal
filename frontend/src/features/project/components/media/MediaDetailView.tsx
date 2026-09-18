@@ -718,6 +718,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
     const [assignableLoading, setAssignableLoading] = useState(false)
     const [assignSubmitPending, setAssignSubmitPending] = useState(false)
     const [assignSelectedUserIds, setAssignSelectedUserIds] = useState<number[]>([])
+    const [assignComments, setAssignComments] = useState<Record<number, string>>({})
     /** 打开「分配任务」时快照的 annotation id，避免侧栏打开后表格重渲染清空 rowSelection 导致提交时误用全量 */
     const assignTaskAnnotationIdsRef = useRef<number[]>([])
 
@@ -2305,6 +2306,8 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
 
     const closeAssignTaskPanel = useCallback(() => {
         assignTaskAnnotationIdsRef.current = []
+        setAssignSelectedUserIds([])
+        setAssignComments({})
         setRightPanel("info")
     }, [])
 
@@ -2338,10 +2341,12 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
             const users = await tasksApi.listAssignableUsers(currentProjectId, mediaId, true)
             setAssignableUsers(users)
             setAssignSelectedUserIds(users.filter((u) => u.task_count > 0).map((u) => u.user_id))
+            setAssignComments({})
         } catch (e: unknown) {
             message.error(e instanceof Error ? e.message : "Failed to load assignable users")
             setAssignableUsers([])
             setAssignSelectedUserIds([])
+            setAssignComments({})
         } finally {
             setAssignableLoading(false)
         }
@@ -2352,6 +2357,10 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
             if (checked) return prev.includes(userId) ? prev : [...prev, userId]
             return prev.filter((id) => id !== userId)
         })
+    }, [])
+
+    const handleAssignCommentChange = useCallback((userId: number, value: string) => {
+        setAssignComments((prev) => ({ ...prev, [userId]: value }))
     }, [])
 
     const submitAssignTask = useCallback(async () => {
@@ -2371,7 +2380,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                 annotation_ids,
                 assignments: assignSelectedUserIds.map((user_id) => ({
                     user_id,
-                    comment: "",
+                    comment: assignComments[user_id]?.trim() || "",
                 })),
             })
             message.success("Tasks assigned.")
@@ -2383,7 +2392,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
         } finally {
             setAssignSubmitPending(false)
         }
-    }, [assignSelectedUserIds, closeAssignTaskPanel, currentProjectId, mediaId])
+    }, [assignComments, assignSelectedUserIds, closeAssignTaskPanel, currentProjectId, mediaId])
 
     const handleDeleteSelectedAnnotations = useCallback(async () => {
         if (selectedAnnotationKeys.length === 0) {
@@ -7900,7 +7909,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                                                             return (
                                                                 <div
                                                                     key={user.user_id}
-                                                                    className="assign-tasks-item"
+                                                                    className={`assign-tasks-item${isChecked ? " is-selected" : ""}`}
                                                                     style={{
                                                                         borderBottom:
                                                                             index < assignableUsers.length - 1
@@ -7930,6 +7939,22 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                                                                     >
                                                                         {user.name?.trim() || user.username}
                                                                     </Checkbox>
+                                                                    {isChecked ? (
+                                                                        <div className="assign-tasks-note">
+                                                                            <Input
+                                                                                value={assignComments[user.user_id] || ""}
+                                                                                onChange={(e) =>
+                                                                                    handleAssignCommentChange(
+                                                                                        user.user_id,
+                                                                                        e.target.value,
+                                                                                    )
+                                                                                }
+                                                                                placeholder="Notes"
+                                                                                maxLength={1000}
+                                                                                aria-label={`Notes for ${user.name?.trim() || user.username}`}
+                                                                            />
+                                                                        </div>
+                                                                    ) : null}
                                                                 </div>
                                                             )
                                                         })

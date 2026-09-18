@@ -6,6 +6,7 @@ import {
     Checkbox,
     ConfigProvider,
     CustomScrollArea,
+    Input,
     LoadingState,
     EmptyState,
 } from "@/components/ui"
@@ -16,10 +17,12 @@ type ThemeContract = ComponentProps<typeof ConfigProvider>["theme"]
 export interface AssignTasksSelectionContract {
     users: AssignableUserPublic[]
     selectedUserIds: number[]
+    comments: Record<number, string>
     annotationCount: number
     loading: boolean
     submitting: boolean
     onToggleUser: (userId: number, checked: boolean) => void
+    onCommentChange: (userId: number, value: string) => void
 }
 
 export interface AssignTasksPanelProps {
@@ -33,10 +36,12 @@ export function AssignTasksPanel({ theme, selection, onClose, onSubmit }: Assign
     const {
         users,
         selectedUserIds,
+        comments,
         annotationCount,
         loading,
         submitting,
         onToggleUser,
+        onCommentChange,
     } = selection
 
     return (
@@ -84,6 +89,19 @@ export function AssignTasksPanel({ theme, selection, onClose, onSubmit }: Assign
                                                         >
                                                             {user.name?.trim() || user.username}
                                                         </Checkbox>
+                                                        {checked ? (
+                                                            <div className="assign-tasks-note">
+                                                                <Input
+                                                                    value={comments[user.user_id] || ""}
+                                                                    onChange={(event) =>
+                                                                        onCommentChange(user.user_id, event.target.value)
+                                                                    }
+                                                                    placeholder="Notes"
+                                                                    maxLength={1000}
+                                                                    aria-label={`Notes for ${user.name?.trim() || user.username}`}
+                                                                />
+                                                            </div>
+                                                        ) : null}
                                                     </div>
                                                 )
                                             })

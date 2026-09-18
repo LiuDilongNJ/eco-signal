@@ -48,6 +48,9 @@
     border-bottom: 1px dashed var(--border-color);
     display: flex;
     align-items: center;
+    gap: 12px;
+    min-height: 50px;
+    box-sizing: border-box;
 }
 :root[data-theme="dark"] .assign-tasks-item {
     border-bottom-color: var(--border-color);
@@ -56,10 +59,34 @@
     border-bottom: none;
 }
 .assign-tasks-item .ant-checkbox-wrapper {
+    display: inline-flex !important;
+    align-items: center;
+    flex: 0 0 152px;
+    width: 152px;
+    max-width: 152px;
+    min-width: 152px;
+    margin-inline-end: 0 !important;
     font-size: 14px;
     font-weight: 600;
     color: var(--text-secondary);
+    overflow: hidden;
+}
+.assign-tasks-item .ant-checkbox-wrapper > span:not(.ant-checkbox) {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.assign-tasks-note {
+    flex: 1 1 auto;
+    min-width: 0;
     width: 100%;
+}
+.assign-tasks-note .ant-input {
+    width: 100%;
+    border-radius: 6px;
+    border-color: var(--brand);
 }
 
 .assign-tasks-empty {
