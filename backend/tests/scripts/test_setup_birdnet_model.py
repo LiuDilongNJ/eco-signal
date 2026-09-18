@@ -93,7 +93,7 @@ def test_main_returns_nonzero_when_model_preparation_fails() -> None:
 
 
 def test_model_setup_lock_serializes_processes(tmp_path: Path) -> None:
-    context = multiprocessing.get_context("fork")
+    context = multiprocessing.get_context("spawn")
     events = context.Queue()
     processes = [
         context.Process(target=_record_lock_interval, args=(str(tmp_path), events))
