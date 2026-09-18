@@ -68,15 +68,31 @@
 .app-modal-close-btn {
     width: 32px;
     height: 32px;
+    min-width: 32px;
+    padding: 0 !important;
     border-radius: 999px;
     border: none;
     background: var(--bg-surface-secondary);
     color: var(--text-secondary);
-    display: flex;
+    display: inline-flex !important;
     align-items: center;
     justify-content: center;
+    line-height: 0 !important;
     cursor: pointer;
     transition: all 0.2s;
+}
+
+.app-modal-close-btn .ant-btn-icon,
+.app-modal-close-btn .anticon {
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    line-height: 0 !important;
+    margin: 0 !important;
+}
+
+.app-modal-close-btn svg {
+    display: block;
 }
 
 .app-modal-close-btn:hover {

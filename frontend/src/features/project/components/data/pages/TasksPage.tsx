@@ -60,7 +60,10 @@ function isAnnotationTaskRow(row: RowData): boolean {
 }
 
 function openTaskViewTab(projectId: number, mediaId: number, taskId: number, annotationId?: number) {
-    const query = annotationId != null ? `?annotation_id=${encodeURIComponent(String(annotationId))}` : ""
+    const params = new URLSearchParams()
+    if (annotationId != null) params.set("annotation_id", String(annotationId))
+    params.set("task_mode", "1")
+    const query = `?${params.toString()}`
     window.open(
         `/dashboard/${projectId}/media/${mediaId}${query}`,
         `eco-task-view-${taskId}`,

@@ -247,6 +247,23 @@
 
 .es-dialog__close.ant-btn {
   position: static;
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  padding: 0 !important;
+  line-height: 0 !important;
+}
+
+.es-dialog__close.ant-btn .ant-btn-icon {
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  line-height: 0 !important;
+  margin: 0 !important;
+}
+
+.es-dialog__close.ant-btn svg {
+  display: block;
 }
 
 .es-drawer .ant-drawer-content,

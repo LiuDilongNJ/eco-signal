@@ -179,6 +179,7 @@ import {
     normalizeUserColorHex,
 } from "./mediaAnnotationPresentation"
 import { ConfirmDialog } from "../modals/ConfirmDialog"
+import { TaskModeTipModal, shouldOpenTaskModeTip } from "../modals/TaskModeTipModal"
 import { CustomScrollArea } from "@/components/ui"
 import { LoadingState } from "@/components/ui"
 import { authUtils } from "@/utils/auth"
@@ -306,6 +307,12 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
         if (raw == null || raw.trim() === "") return null
         const parsed = Number(raw)
         return Number.isFinite(parsed) && parsed > 0 ? Math.trunc(parsed) : null
+    }, [location.search])
+    const routeTaskMode = useMemo(() => {
+        const raw = new URLSearchParams(location.search).get("task_mode")
+        if (raw == null) return false
+        const normalized = raw.trim().toLowerCase()
+        return normalized === "1" || normalized === "true" || normalized === "yes"
     }, [location.search])
 
     const isDark = useAppStore((s) => s.effectiveTheme === "dark")
@@ -654,6 +661,8 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
     const [navOnlyTaskTagged, setNavOnlyTaskTagged] = useState(false)
     /** 上一条/下一条时是否自动将声谱图缩放到目标标注时间范围 */
     const [navAutoZoomToAnnotation, setNavAutoZoomToAnnotation] = useState(false)
+    const [taskModeTipOpen, setTaskModeTipOpen] = useState(false)
+    const taskModeTipShownKeyRef = useRef("")
     const [formIndividualNum, setFormIndividualNum] = useState(1)
     const [formReference, setFormReference] = useState("")
     const [formComments, setFormComments] = useState("")
@@ -3074,6 +3083,16 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
         routeAutoOpenedAnnotationKeyRef.current = key
         void openAnnotationEditorById(routeAnnotationId, { autoZoom: true, seek: true })
     }, [currentProjectId, loading, mediaId, openAnnotationEditorById, routeAnnotationId])
+
+    useEffect(() => {
+        if (!routeTaskMode) return
+        setNavOnlyTaskTagged(true)
+        if (loading || detailError || !media) return
+        const tipKey = `${mediaId}:${routeAnnotationId ?? "none"}:task-tip`
+        if (taskModeTipShownKeyRef.current === tipKey) return
+        taskModeTipShownKeyRef.current = tipKey
+        if (shouldOpenTaskModeTip()) setTaskModeTipOpen(true)
+    }, [detailError, loading, media, mediaId, routeAnnotationId, routeTaskMode])
 
     const stopContinuousPlayback = useCallback((opts?: { keepToggle?: boolean }) => {
         const engine = continuousEngineRef.current
@@ -8274,6 +8293,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
             variant="danger"
             onConfirm={() => void handleDeleteSelectedAnnotations()}
         />
+        <TaskModeTipModal open={taskModeTipOpen} onClose={() => setTaskModeTipOpen(false)} />
         <ConfirmDialog
             open={annotationExportConfirmOpen}
             onClose={() => {

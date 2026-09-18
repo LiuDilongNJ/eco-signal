@@ -20,6 +20,7 @@ export const FUNCTIONAL_COOKIE_NAMES = [
 
 export const FUNCTIONAL_LOCAL_STORAGE_KEYS = [
     "eco-app-store",
+    "ecoSignal_task_mode_tip_dismissed",
 ] as const
 
 const COOKIE_PREFERENCES_CHANGE_EVENT = "eco-cookie-preferences-change"
