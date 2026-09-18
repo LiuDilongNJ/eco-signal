@@ -79,10 +79,9 @@ def get_project_cards(
     name: Optional[str] = Query(default=None, description="通过名称搜索 / Search in name"),
 ) -> Any:
     """
-    获取项目卡片列表（返回全部 active=true，按 project_id 升序）。 / Get project cards (all active=true, ordered by project_id asc).
+    获取项目卡片列表（返回活跃且公开的项目，按 project_id 升序）。 / Get project cards (all active and public, ordered by project_id asc).
 
-    权限不用于过滤列表，统一返回全部 active 项目。 / Permission does not filter the list; all active projects are returned.
-    权限信息通过 can_access 字段表达，用于前端控制跳转。 / Permission is exposed via can_access for frontend navigation control.
+    仅展示公开项目，私有项目仅在控制台中管理。 / Only public projects are displayed; private projects are managed within the dashboard.
     """
     data = project_service.get_active_project_cards(session, current_user, name)
     return api_success(data=data)

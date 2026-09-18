@@ -112,6 +112,8 @@ filterwarnings = [
     "ignore:PySoundFile failed. Trying audioread instead.:UserWarning",
     # Ignore Pydantic v1 compatibility warnings
     "ignore::pydantic.warnings.PydanticDeprecatedSince20",
+    # Ignore Python 3.12 multi-threaded fork deprecation warning in tests
+    "ignore:This process .* is multi-threaded, use of fork.*:DeprecationWarning",
     # Do not hide SQLAlchemy warnings; fail fast to prevent query issues
     "error::sqlalchemy.exc.SAWarning",
 ]

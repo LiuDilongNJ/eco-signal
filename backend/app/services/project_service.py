@@ -432,7 +432,7 @@ def get_active_project_cards(
     user: User | None,
     name: str | None = None,
 ) -> list[ProjectCardPublic]:
-    """Get active projects for card-style list display."""
+    """Get active public projects for card-style list display."""
     is_admin = bool(user and permission_service.is_admin(user))
     accessible_ids: set[int] = set()
     if user and not is_admin:

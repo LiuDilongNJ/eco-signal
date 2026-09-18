@@ -436,7 +436,7 @@ class TestProjectCards:
     def test_get_project_cards_anonymous_all_active_sorted(
         self, client: TestClient, db: Session
     ) -> None:
-        """Anonymous users should get all active projects sorted by id asc."""
+        """Anonymous users should get active public projects sorted by id asc, excluding private projects."""
         private_active = create_test_project(db, name="Private Active Card", public=False, active=True)
         public_inactive = create_test_project(db, name="Public Inactive Card", public=True, active=False)
         public_active_b = create_test_project(
@@ -467,13 +467,11 @@ class TestProjectCards:
         returned_ids = [item["project_id"] for item in data]
         assert public_active_a.project_id in returned_ids
         assert public_active_b.project_id in returned_ids
-        assert private_active.project_id in returned_ids
+        assert private_active.project_id not in returned_ids
         assert public_inactive.project_id not in returned_ids
         assert returned_ids == sorted(returned_ids)
-
-        private_card = next(item for item in data if item["project_id"] == private_active.project_id)
-        assert private_card["can_access"] is False
-        assert private_card["url"] == ""
+        assert all(item["public"] is True for item in data)
+        assert all(item["can_access"] is True for item in data)
 
     def test_get_project_cards_support_name_search_and_picture_fields(
         self, client: TestClient, db: Session
@@ -519,10 +517,10 @@ class TestProjectCards:
         assert "active" not in card
         assert "status" not in card
 
-    def test_get_project_cards_normal_user_private_without_access_has_empty_url(
+    def test_get_project_cards_excludes_private_projects_for_authenticated_users(
         self, client: TestClient, normal_user_token_headers: dict[str, str], db: Session
     ) -> None:
-        """Normal users see all active projects; inaccessible private projects have empty url."""
+        """Authenticated users only see public active projects in card directory."""
         private_active = create_test_project(db, name="Normal User Private Active", public=False, active=True)
         public_active = create_test_project(db, name="Normal User Public Active", public=True, active=True)
 
@@ -533,18 +531,18 @@ class TestProjectCards:
         assert r.status_code == 200
         data = r.json()["data"]
 
-        private_card = next(item for item in data if item["project_id"] == private_active.project_id)
-        public_card = next(item for item in data if item["project_id"] == public_active.project_id)
+        returned_ids = [item["project_id"] for item in data]
+        assert private_active.project_id not in returned_ids
+        assert public_active.project_id in returned_ids
 
-        assert private_card["can_access"] is False
-        assert private_card["url"] == ""
+        public_card = next(item for item in data if item["project_id"] == public_active.project_id)
         assert public_card["can_access"] is True
         assert public_card["url"] != ""
 
-    def test_get_project_cards_admin_all_active_can_access_true(
+    def test_get_project_cards_admin_active_public_only(
         self, client: TestClient, superuser_token_headers: dict[str, str], db: Session
     ) -> None:
-        """Admin should see all active projects and can_access should be true."""
+        """Admin should only see active public projects in card directory; private projects stay in dashboard."""
         private_active = create_test_project(db, name="Admin Private Active", public=False, active=True)
         public_active = create_test_project(db, name="Admin Public Active", public=True, active=True)
         inactive_project = create_test_project(db, name="Admin Inactive", public=True, active=False)
@@ -556,7 +554,7 @@ class TestProjectCards:
         assert r.status_code == 200
         data = r.json()["data"]
         returned_ids = [item["project_id"] for item in data]
-        assert private_active.project_id in returned_ids
+        assert private_active.project_id not in returned_ids
         assert public_active.project_id in returned_ids
         assert inactive_project.project_id not in returned_ids
         assert all(item["can_access"] is True for item in data)

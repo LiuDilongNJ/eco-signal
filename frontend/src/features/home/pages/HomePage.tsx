@@ -1,5 +1,5 @@
 import { Button as ESButton, EmptyState, Input as ESInput } from "@/components/ui"
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Swiper, SwiperSlide } from 'swiper/react';
 import { Mousewheel, EffectFade } from 'swiper/modules';
@@ -19,6 +19,7 @@ import 'leaflet/dist/leaflet.css';
 import '../styles/HomePage.css';
 import { authUtils, logoutAndRedirectToIndex } from '@/utils/auth';
 import { LoginModal } from '@/components/ui';
+import { projectsApi } from '@/api/endpoints/projects';
 import type { NetworkNodePublic } from '@/api/endpoints/network';
 import { NAV_BAR_ICON_SIZE } from '@/features/project/components/nav/navBarIconSize';
 import { CustomScrollArea } from '@/components/ui';
@@ -321,21 +322,43 @@ export default function HomePage() {
         return () => document.removeEventListener('click', handleClickOutside);
     }, []);
 
+    const loadCards = useCallback(async () => {
+        try {
+            const res = await projectsApi.getProjectCards();
+            if ((res.code === 0 || res.code === 200) && res.data && res.data.length > 0) {
+                setProjectData(res.data);
+                // generate slideBgImages based on the fetched data length
+                const imgs = res.data.map((p: any) => {
+                    return p.image_url || p.cover_url || p.picture_url || HOME_PAGE_BG;
+                }) as string[];
+                setSlideBgImages(imgs);
+            } else {
+                setProjectData([]);
+                setSlideBgImages([]);
+            }
+        } catch (err) {
+            console.error("Failed to fetch project cards API:", err);
+            setProjectData([]);
+            setSlideBgImages([]);
+        }
+    }, []);
+
     useEffect(() => {
         const syncAuth = () => {
-            const token = authUtils.getToken()
-            const user = authUtils.getUser()
-            setLoggedInUser(token && user ? user : null)
-            if (!token || !user) setShowUserMenu(false)
-        }
+            const token = authUtils.getToken();
+            const user = authUtils.getUser();
+            setLoggedInUser(token && user ? user : null);
+            if (!token || !user) setShowUserMenu(false);
+            void loadCards();
+        };
 
-        window.addEventListener("eco-auth-change", syncAuth)
-        window.addEventListener("storage", syncAuth)
+        window.addEventListener("eco-auth-change", syncAuth);
+        window.addEventListener("storage", syncAuth);
         return () => {
-            window.removeEventListener("eco-auth-change", syncAuth)
-            window.removeEventListener("storage", syncAuth)
-        }
-    }, [])
+            window.removeEventListener("eco-auth-change", syncAuth);
+            window.removeEventListener("storage", syncAuth);
+        };
+    }, [loadCards]);
 
     useEffect(() => {
         if (activePage === 2) {
@@ -349,29 +372,8 @@ export default function HomePage() {
     }, [activePage]);
 
     useEffect(() => {
-        const loadCards = async () => {
-            try {
-                const { projectsApi } = await import('../../../api/endpoints/projects');
-                const res = await projectsApi.getProjectCards();
-                if ((res.code === 0 || res.code === 200) && res.data && res.data.length > 0) {
-                    setProjectData(res.data);
-                    // generate slideBgImages based on the fetched data length
-                    const imgs = res.data.map((p: any) => {
-                        return p.image_url || p.cover_url || p.picture_url || HOME_PAGE_BG;
-                    }) as string[];
-                    setSlideBgImages(imgs);
-                } else {
-                    setProjectData([]);
-                    setSlideBgImages([]);
-                }
-            } catch (err) {
-                console.error("Failed to fetch project cards API:", err);
-                setProjectData([]);
-                setSlideBgImages([]);
-            }
-        };
-        loadCards();
-    }, []);
+        void loadCards();
+    }, [loadCards]);
 
     /** 从 Dashboard 返回首页时，恢复当前选中的项目卡片 */
     useEffect(() => {
@@ -675,7 +677,10 @@ export default function HomePage() {
             <LoginModal
                 isOpen={showLogin}
                 onClose={() => setShowLogin(false)}
-                onSuccess={(username) => setLoggedInUser(username)}
+                onSuccess={(username) => {
+                    setLoggedInUser(username);
+                    void loadCards();
+                }}
             />
 
             {/* Vertical Main Swiper */}

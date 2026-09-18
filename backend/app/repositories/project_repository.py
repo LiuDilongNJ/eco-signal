@@ -267,7 +267,7 @@ class ProjectRepository(BaseRepository[Project, ProjectCreate, ProjectUpdate]):
         *,
         name: str | None = None,
     ) -> Sequence[Project]:
-        """Get all active projects for card display with required relations preloaded."""
+        """Get all active and public projects for card display with required relations preloaded."""
         statement = (
             select(Project)
             .options(
@@ -285,7 +285,7 @@ class ProjectRepository(BaseRepository[Project, ProjectCreate, ProjectUpdate]):
                 selectinload(Project.creator),
                 selectinload(Project.contributors).selectinload(ProjectContributor.user),
             )
-            .where(Project.active == True)
+            .where(Project.active == True, Project.public == True)
         )
 
         if name:
