@@ -5149,7 +5149,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
         soundClassifications.length,
     ])
 
-    const handleReviewSubmit = useCallback(async () => {
+    const handleReviewSubmit = useCallback(async (statusIdOverride?: number) => {
         if (!canCreateReview) {
             message.error("You do not have permission to review annotations.")
             return
@@ -5169,6 +5169,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
             message.error("Sign in to submit a review.")
             return
         }
+        const statusId = statusIdOverride ?? reviewStatusId
         const noteTrim = reviewNote.trim()
         let taxonPayload: number | null = null
         if (reviewTaxonId != null && reviewTaxonId > 0) {
@@ -5180,16 +5181,16 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                 if (tid > 0) taxonPayload = tid
             }
         }
-        if (reviewStatusRequiresTaxon(reviewStatusId) && taxonPayload == null) {
+        if (reviewStatusRequiresTaxon(statusId) && taxonPayload == null) {
             setReviewTaxonError("Taxon is required for Revise.")
             return
         }
-        if (reviewStatusDisablesTaxon(reviewStatusId)) {
+        if (reviewStatusDisablesTaxon(statusId)) {
             taxonPayload = null
         }
         setReviewTaxonError(null)
         const body = {
-            annotation_review_status_id: reviewStatusId,
+            annotation_review_status_id: statusId,
             taxon_id: taxonPayload,
             note: noteTrim ? noteTrim.slice(0, 200) : null,
         }
@@ -5264,6 +5265,21 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
         currentProjectId,
         canCreateReview,
     ])
+
+    /** #165：Accept / Reject / Uncertain 立即保存；Revise 需选物种后再 Submit */
+    const handleReviewStatusClick = useCallback(
+        (statusId: number) => {
+            if (!canCreateReview || reviewSubmitPending) return
+            setReviewStatusId(statusId)
+            setReviewTaxonError(null)
+            if (statusId === REVIEW_STATUS_IDS.corrected) {
+                seedReviewTaxonForReviseFromAnnotation()
+                return
+            }
+            void handleReviewSubmit(statusId)
+        },
+        [canCreateReview, handleReviewSubmit, reviewSubmitPending, seedReviewTaxonForReviseFromAnnotation],
+    )
 
     useEffect(() => {
         if (loading || !media || rightPanel !== "new-annotation" || !annotationDraft) return
@@ -7684,14 +7700,8 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                                                                             ? " studio-annot-review-status-btn--selected"
                                                                             : ""
                                                                             }`}
-                                                                        disabled={!canCreateReview}
-                                                                        onClick={() => {
-                                                                            setReviewStatusId(s.id)
-                                                                            setReviewTaxonError(null)
-                                                                            if (s.id === REVIEW_STATUS_IDS.corrected) {
-                                                                                seedReviewTaxonForReviseFromAnnotation()
-                                                                            }
-                                                                        }}
+                                                                        disabled={!canCreateReview || reviewSubmitPending}
+                                                                        onClick={() => handleReviewStatusClick(s.id)}
                                                                     >
                                                                         {s.label}
                                                                     </ESButton>
@@ -7702,9 +7712,10 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                                                                 layout="vertical"
                                                                 requiredMark={false}
                                                                 className="studio-review-form shared-drawer-form"
-                                                                disabled={!canCreateReview}
+                                                                disabled={!canCreateReview || reviewSubmitPending}
                                                             >
                                                                 {reviewStatusRequiresTaxon(reviewStatusId) ? (
+                                                                    <>
                                                                     <Form.Item
                                                                         label="Taxon"
                                                                         required
@@ -7791,7 +7802,6 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                                                                             }}
                                                                         />
                                                                     </Form.Item>
-                                                                ) : null}
 
                                                                 <Form.Item label="Note" className="studio-annot-form-item">
                                                                     <Input
@@ -7811,6 +7821,8 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                                                                         {myAnnotationReviewRow ? "Update" : "Submit"}
                                                                     </Button>
                                                                 </div>
+                                                                    </>
+                                                                ) : null}
                                                             </Form>
                                                         </div>
                                                     )}
