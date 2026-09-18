@@ -1312,6 +1312,33 @@
     transform: none !important;
 }
 
+.content-wrapper--media-detail .spectrogram-annot-side-toolbar .btn-toolbar {
+    width: var(--media-control-size) !important;
+    min-width: var(--media-control-size) !important;
+    height: var(--media-control-size) !important;
+    min-height: var(--media-control-size) !important;
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: var(--media-control-radius) !important;
+    background: var(--es-color-bg-surface) !important;
+    color: var(--es-color-text-secondary) !important;
+    box-shadow: none !important;
+}
+
+.content-wrapper--media-detail .spectrogram-annot-side-toolbar .btn-toolbar svg {
+    display: block;
+    width: var(--media-control-icon-size);
+    height: var(--media-control-icon-size);
+    color: inherit !important;
+}
+
+.content-wrapper--media-detail .spectrogram-annot-side-toolbar .btn-toolbar:hover:not(:disabled) {
+    border-color: transparent !important;
+    background: var(--es-color-brand) !important;
+    color: var(--es-color-text-inverse) !important;
+    box-shadow: none !important;
+}
+
 .content-wrapper--media-detail .media-viewer-toolbar-button.is-active,
 .content-wrapper--media-detail .media-viewer-toolbar-button.active,
 .content-wrapper--media-detail .studio-table-toolbar-button.is-active,
@@ -1319,11 +1346,21 @@
 .content-wrapper--media-detail .player-toolbar-top .btn-toolbar.active,
 .content-wrapper--media-detail .player-toolbar-bottom .btn-toolbar.active,
 .content-wrapper--media-detail .spectrogram-annot-side-toolbar .btn-toolbar.active,
+.content-wrapper--media-detail .spectrogram-annot-side-toolbar .btn-toolbar.is-active,
+.content-wrapper--media-detail .spectrogram-annot-side-toolbar .btn-toolbar[data-active="true"],
+.content-wrapper--media-detail .spectrogram-annot-side-toolbar .btn-toolbar[aria-pressed="true"],
 .content-wrapper--media-detail .studio-label-tag.active {
     border-color: transparent !important;
     background: var(--media-control-selected-bg) !important;
     color: var(--es-color-text-inverse) !important;
     box-shadow: none !important;
+}
+
+.content-wrapper--media-detail .spectrogram-annot-side-toolbar .btn-toolbar.active svg,
+.content-wrapper--media-detail .spectrogram-annot-side-toolbar .btn-toolbar.is-active svg,
+.content-wrapper--media-detail .spectrogram-annot-side-toolbar .btn-toolbar[data-active="true"] svg,
+.content-wrapper--media-detail .spectrogram-annot-side-toolbar .btn-toolbar[aria-pressed="true"] svg {
+    color: var(--es-color-text-inverse) !important;
 }
 
 .content-wrapper--media-detail .media-viewer-toolbar-button.danger:hover:not(:disabled),

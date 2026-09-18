@@ -854,8 +854,8 @@ export function PhotoImageViewer({
                         active={navAutoZoomToAnnotation}
                         label={
                             navAutoZoomToAnnotation
-                                ? "On: Previous/Next also zooms the viewer to each annotation. Click to jump only."
-                                : "Off: Previous/Next only switches the annotation. Click to also auto-zoom the viewer."
+                                ? "Annotation zoom ON. When ON, Previous/Next zoom and select annotations. When OFF, they only select annotations."
+                                : "Annotation zoom OFF. When ON, Previous/Next zoom and select annotations. When OFF, they only select annotations."
                         }
                         icon={<AnnotationNavAutoZoomIcon size={20} strokeWidth={2} />}
                         onClick={onToggleNavAutoZoomToAnnotation}
@@ -863,7 +863,11 @@ export function PhotoImageViewer({
                     <MediaViewerToolbarButton
                         className="btn-toolbar"
                         active={navOnlyTaskTagged}
-                        label="When on: Previous/Next only among annotations that show the Task pill."
+                        label={
+                            navOnlyTaskTagged
+                                ? "Task toggle ON. When ON, Previous/Next navigate to annotations you are tasked to review (even in other media). When OFF, they go to adjacent annotations."
+                                : "Task toggle OFF. When ON, Previous/Next navigate to annotations you are tasked to review (even in other media). When OFF, they go to adjacent annotations."
+                        }
                         icon={<ClipboardList size={20} strokeWidth={2} />}
                         onClick={onToggleNavOnlyTaskTagged}
                     />

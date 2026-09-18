@@ -18,20 +18,19 @@ export function MediaViewerToolbarButton({
     ...buttonProps
 }: MediaViewerToolbarButtonProps) {
     const baseClass = variant === "zoom" ? "zoom-control-btn" : "btn-toolbar"
-    const classes = [baseClass, active ? "active" : "", className].filter(Boolean).join(" ")
+    const classes = [baseClass, active ? "active is-active" : "", className].filter(Boolean).join(" ")
 
     const button = (
         <ESButton appearance="unstyled"
             type="button"
             className={classes}
             aria-label={label}
-            aria-pressed={active}
+            aria-pressed={typeof active === "boolean" ? active : undefined}
+            data-active={active ? "true" : undefined}
             onClick={(event) => {
                 onClick?.(event)
                 // 避免点击后残留 focus 导致控件被 focus 样式撑开
-                if (variant === "zoom") {
-                    event.currentTarget.blur()
-                }
+                event.currentTarget.blur()
             }}
             {...buttonProps}
         >

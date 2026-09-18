@@ -6538,8 +6538,8 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                                 active={navAutoZoomToAnnotation}
                                 label={
                                     navAutoZoomToAnnotation
-                                        ? "On: Previous/Next also zooms the spectrogram to each annotation. Click to jump only."
-                                        : "Off: Previous/Next only switches the annotation. Click to also auto-zoom the spectrogram."
+                                        ? "Annotation zoom ON. When ON, Previous/Next zoom and select annotations. When OFF, they only select annotations."
+                                        : "Annotation zoom OFF. When ON, Previous/Next zoom and select annotations. When OFF, they only select annotations."
                                 }
                                 icon={<AnnotationNavAutoZoomIcon size={20} strokeWidth={2} />}
                                 onClick={() => setNavAutoZoomToAnnotation((v) => !v)}
@@ -6547,7 +6547,11 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                             <MediaViewerToolbarButton
                                 className="btn-toolbar"
                                 active={navOnlyTaskTagged}
-                                label="When on: Previous/Next only among annotations that show the Task pill (API returned a task assignment on that row). If the current row has no Task pill, jumps to the next/previous Task by ID."
+                                label={
+                                    navOnlyTaskTagged
+                                        ? "Task toggle ON. When ON, Previous/Next navigate to annotations you are tasked to review (even in other media). When OFF, they go to adjacent annotations."
+                                        : "Task toggle OFF. When ON, Previous/Next navigate to annotations you are tasked to review (even in other media). When OFF, they go to adjacent annotations."
+                                }
                                 icon={<ClipboardList size={20} strokeWidth={2} />}
                                 onClick={() => setNavOnlyTaskTagged((v) => !v)}
                             />
