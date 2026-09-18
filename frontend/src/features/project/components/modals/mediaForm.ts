@@ -36,6 +36,11 @@ export const MEDIA_EDIT_TITLES: Record<EditableMediaKind, string> = {
 export const SENSOR_FIELD_HELP_TEXT =
     "Sensors are recorder-microphone or camera-lens combinations. Admins can manage them under settings."
 
+export const GAIN_FIELD_HELP_TEXT =
+    "Analog amplification of the recorded audio signal, applied by the recorder. Required to derive dB SPL"
+
+export const LICENSE_CHOOSER_URL = "https://creativecommons.org/chooser/"
+
 export function resolveEditableMediaKind(mediaType: string | null, isMetadata: boolean): EditableMediaKind {
     if (isMetadata) return "metadata"
     return mediaType === "photo" ? "photo" : "audio"

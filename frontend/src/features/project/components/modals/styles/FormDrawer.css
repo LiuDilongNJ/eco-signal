@@ -330,6 +330,22 @@
     flex: 0 0 auto;
 }
 
+.site-form-field-label-with-help .form-drawer-label-external-link {
+    display: inline-flex;
+    align-items: center;
+    color: var(--brand);
+    line-height: 0;
+}
+
+.site-form-field-label-with-help .form-drawer-label-external-link svg {
+    color: currentColor;
+    cursor: pointer;
+}
+
+.site-form-field-label-with-help .form-drawer-label-external-link:hover {
+    color: var(--brand-hover, var(--brand));
+}
+
 .form-drawer-side-col {
     flex: 1;
     min-width: 0;

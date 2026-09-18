@@ -1,7 +1,7 @@
 import { Button as ESButton } from "@/components/ui"
 import { useEffect, useMemo, useState } from "react"
 import { Button, ConfigProvider, DatePicker, Form, Input, message, Progress, Select, Switch, Tooltip, Typography } from "@/components/ui"
-import { CheckCircle2, Image as ImageIcon, RefreshCw, Upload as UploadIcon, Info } from "lucide-react"
+import { CheckCircle2, Image as ImageIcon, RefreshCw, Upload as UploadIcon, Info, ExternalLink } from "lucide-react"
 import { FormDrawer } from "@/components/ui"
 import { CustomScrollArea } from "@/components/ui"
 import { EmptyState } from "@/components/ui"
@@ -23,6 +23,7 @@ import {
     MEDIA_ADD_TITLES,
     MEDIA_EDIT_TITLES,
     SENSOR_FIELD_HELP_TEXT,
+    LICENSE_CHOOSER_URL,
 } from "./mediaForm"
 import dayjs from "dayjs"
 import { canParseFilenameDateTime } from "./filenameDatetime"
@@ -303,7 +304,24 @@ export function PhotoMediaDrawer(props: PhotoMediaDrawerProps) {
                     allowClear
                 />
             </Form.Item>
-            <Form.Item name="license_id" label={<StableText>License</StableText>}>
+            <Form.Item
+                name="license_id"
+                label={
+                    <span className="site-form-field-label-with-help">
+                        <StableText>License</StableText>
+                        <a
+                            href={LICENSE_CHOOSER_URL}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="form-drawer-label-external-link"
+                            title="Creative Commons license chooser"
+                            aria-label="Open Creative Commons license chooser"
+                        >
+                            <ExternalLink size={14} aria-hidden="true" />
+                        </a>
+                    </span>
+                }
+            >
                 <Select
                     showSearch
                     optionFilterProp="label"

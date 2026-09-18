@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo } from "react"
-import { Button, Form, Input, Select, DatePicker, message, ConfigProvider } from "@/components/ui"
+import { Button, Form, Input, Select, DatePicker, message, ConfigProvider, Tooltip } from "@/components/ui"
 import { FormDrawer } from "@/components/ui"
 import { renderRequiredMark } from "@/components/ui"
+import { Info, ExternalLink } from "lucide-react"
 
 import { CustomScrollArea } from "@/components/ui"
 import { StableText } from "@/components/ui"
@@ -19,6 +20,8 @@ import {
     buildMediaUpdatePayload,
     filterSensorsForMediaType,
     formatSensorOptionLabel,
+    GAIN_FIELD_HELP_TEXT,
+    LICENSE_CHOOSER_URL,
     MEDIA_EDIT_TITLES,
     resolveEditableMediaKind,
 } from "./mediaForm"
@@ -278,7 +281,14 @@ export function EditMediaDrawer({
                                 {isAudioMedia ? (
                                     <Form.Item
                                         name="recording_gain_db"
-                                        label={<StableText>Gain (dB)</StableText>}
+                                        label={
+                                            <span className="site-form-field-label-with-help">
+                                                <StableText>Gain (dB)</StableText>
+                                                <Tooltip title={GAIN_FIELD_HELP_TEXT}>
+                                                    <Info size={14} aria-hidden="true" />
+                                                </Tooltip>
+                                            </span>
+                                        }
                                         rules={[{ required: true, message: "Please enter Gain (dB)" }]}
                                     >
                                         <Input type="number" />
@@ -311,7 +321,18 @@ export function EditMediaDrawer({
                                             <Input type="number" />
                                         </Form.Item>
 
-                                        <Form.Item name="recording_gain_db" label={<StableText>Gain (dB)</StableText>} required={false}>
+                                        <Form.Item
+                                            name="recording_gain_db"
+                                            label={
+                                                <span className="site-form-field-label-with-help">
+                                                    <StableText>Gain (dB)</StableText>
+                                                    <Tooltip title={GAIN_FIELD_HELP_TEXT}>
+                                                        <Info size={14} aria-hidden="true" />
+                                                    </Tooltip>
+                                                </span>
+                                            }
+                                            required={false}
+                                        >
                                             <Input type="number" />
                                         </Form.Item>
 
@@ -325,7 +346,24 @@ export function EditMediaDrawer({
                                     </>
                                 ) : null}
 
-                                <Form.Item name="license_id" label={<StableText>License</StableText>}>
+                                <Form.Item
+                                    name="license_id"
+                                    label={
+                                        <span className="site-form-field-label-with-help">
+                                            <StableText>License</StableText>
+                                            <a
+                                                href={LICENSE_CHOOSER_URL}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="form-drawer-label-external-link"
+                                                title="Creative Commons license chooser"
+                                                aria-label="Open Creative Commons license chooser"
+                                            >
+                                                <ExternalLink size={14} aria-hidden="true" />
+                                            </a>
+                                        </span>
+                                    }
+                                >
                                     <Select
                                         className="form-drawer-select"
                                         classNames={{ popup: { root: selectPopupClassName } }}

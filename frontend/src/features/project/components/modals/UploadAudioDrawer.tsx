@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react"
 import { Button, ConfigProvider, Typography, Select, Input, Switch, Progress, Form, DatePicker, Tooltip } from "@/components/ui"
 import { FormDrawer } from "@/components/ui"
 
-import { AudioLines, CheckCircle2, Upload, RefreshCw, Info } from "lucide-react"
+import { AudioLines, CheckCircle2, Upload, RefreshCw, Info, ExternalLink } from "lucide-react"
 import { useAppStore } from "@/store/useAppStore"
 import { useAntdBrandConfig } from "../../hooks/useAntdBrandConfig"
 import { CustomScrollArea } from "@/components/ui"
@@ -14,7 +14,7 @@ import { canParseFilenameDateTime } from "./filenameDatetime"
 import type { LicenseOption } from "../../../../api/endpoints/licenses"
 import type { SensorOption } from "../../../../api/endpoints/sensors"
 import type { UserOption } from "../../../../api/endpoints/users"
-import { MEDIA_ADD_TITLES, SENSOR_FIELD_HELP_TEXT, filterSensorsForMediaType, formatSensorOptionLabel } from "./mediaForm"
+import { MEDIA_ADD_TITLES, SENSOR_FIELD_HELP_TEXT, GAIN_FIELD_HELP_TEXT, LICENSE_CHOOSER_URL, filterSensorsForMediaType, formatSensorOptionLabel } from "./mediaForm"
 import { RESAMPLING_RATE_OPTIONS, isValidResamplingRate } from "./resamplingOptions"
 import "./styles/FormDrawer.css"
 import "./styles/UploadAudioDrawer.css"
@@ -397,7 +397,23 @@ export function UploadAudioDrawer({ open, initialFiles = [], siteOptions = [], l
                                         onChange={v => setFormData(p => ({ ...p, medium: v }))}
                                     />
                                 </Form.Item>
-                                <Form.Item label="License">
+                                <Form.Item
+                                    label={
+                                        <span className="site-form-field-label-with-help">
+                                            License
+                                            <a
+                                                href={LICENSE_CHOOSER_URL}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="form-drawer-label-external-link"
+                                                title="Creative Commons license chooser"
+                                                aria-label="Open Creative Commons license chooser"
+                                            >
+                                                <ExternalLink size={14} aria-hidden="true" />
+                                            </a>
+                                        </span>
+                                    }
+                                >
                                     <Select
                                         showSearch
                                         optionFilterProp="label"
@@ -409,7 +425,14 @@ export function UploadAudioDrawer({ open, initialFiles = [], siteOptions = [], l
                                     />
                                 </Form.Item>
                                 <Form.Item
-                                    label={renderRequiredLabel("Gain (dB)")}
+                                    label={renderRequiredLabel(
+                                        <span className="site-form-field-label-with-help">
+                                            Gain (dB)
+                                            <Tooltip title={GAIN_FIELD_HELP_TEXT}>
+                                                <Info size={14} aria-hidden="true" />
+                                            </Tooltip>
+                                        </span>,
+                                    )}
                                     validateStatus={validationErrors.gain ? "error" : undefined}
                                     help={validationErrors.gain}
                                 >
