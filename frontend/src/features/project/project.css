@@ -4583,7 +4583,6 @@ input[type=number] {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    text-transform: uppercase;
 }
 
 .crumb-btn-content,
@@ -4620,9 +4619,26 @@ input[type=number] {
     white-space: nowrap;
 }
 
-.crumb-tag-manage {
+.crumb-tag-manage,
+.crumb-tag-manager,
+.crumb-tag-admin {
     background-color: var(--brand);
+    color: var(--text-invert, white);
+}
+
+.crumb-tag-reviewer {
+    background-color: #8b5cf6;
     color: white;
+}
+
+.crumb-tag-annotator {
+    background-color: #10b981;
+    color: white;
+}
+
+.crumb-tag-viewer {
+    background-color: var(--bg-hover, #64748b);
+    color: var(--text-muted, white);
 }
 
 /* Studio toolbar：与顶栏 crumb 下拉同构，高度对齐 player-toolbar */

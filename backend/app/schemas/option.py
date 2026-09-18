@@ -8,6 +8,7 @@ class ProjectOption(SQLModel):
     project_id: int
     name: str
     can_manage: bool = False  # Whether the current user has admin/write permission on this project
+    role: Optional[str] = None  # User's access role: admin, manager, reviewer, annotator, viewer, custom
 
 
 class CollectionOption(SQLModel):
@@ -16,4 +17,5 @@ class CollectionOption(SQLModel):
     name: str
     sphere: Optional[str] = None
     can_manage: bool = False  # Whether the current user has admin/write permission on this collection
+    role: Optional[str] = None  # User's access role: admin, manager, reviewer, annotator, viewer, custom
 

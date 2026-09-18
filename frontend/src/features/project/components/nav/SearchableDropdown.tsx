@@ -15,6 +15,7 @@ interface DropdownItem {
     id: number | string
     label: string
     tag?: string
+    tagVariant?: string
 }
 
 interface SearchableDropdownProps {
@@ -127,7 +128,9 @@ export function SearchableDropdown({
                                     <div className="crumb-item-content">
                                         <StableText className="crumb-item-label">{item.label}</StableText>
                                         {item.tag && (
-                                            <StableText className="crumb-tag crumb-tag-manage">{item.tag}</StableText>
+                                            <StableText className={`crumb-tag crumb-tag-${(item.tagVariant || item.tag).toLowerCase()}`}>
+                                                {item.tag}
+                                            </StableText>
                                         )}
                                     </div>
                                     {isSelected && (

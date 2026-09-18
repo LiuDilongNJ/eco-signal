@@ -24,6 +24,15 @@ export interface CollectionPublic {
     [key: string]: any;
 }
 
+export interface CollectionOption {
+    collection_id?: number
+    id?: number
+    name: string
+    sphere?: string | null
+    can_manage?: boolean
+    role?: string | null
+}
+
 export interface GetCollectionsParams {
     page?: number;
     page_size?: number;
