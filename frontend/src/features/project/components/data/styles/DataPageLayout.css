@@ -359,12 +359,41 @@
 }
 
 .dpl-th-title {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
     flex: 1 1 auto;
     min-width: 0;
     line-height: 24px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+.dpl-th-label-tooltip {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.dpl-uuid-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    width: 18px;
+    height: 18px;
+    padding: 0;
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+
+.dpl-uuid-toggle:hover {
+    color: var(--brand);
+    background: var(--brand-tint, color-mix(in srgb, var(--brand) 12%, transparent));
 }
 
 .th-filter {

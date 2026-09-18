@@ -11,6 +11,7 @@ import { LinkCollectionsDrawer } from "../../modals/LinkCollectionsDrawer"
 import { projectsApi } from "../../../../../api/endpoints/projects"
 import { filesApi } from "../../../../../api/endpoints/files"
 import type { ColumnDef, FormFieldDef, RowData, TableState } from "../DataPageLayout"
+import { createUuidColumn } from "../uuidColumn"
 import { FolderKanban, Link2 } from "lucide-react"
 import { message } from "@/components/ui"
 import { useProjectStore } from "../../../stores/useProjectStore"
@@ -23,7 +24,7 @@ import { rowCan, selectionCan } from "../rowCapabilities"
 
 const COLUMNS: ColumnDef[] = [
     { key: "project_id", label: "ID", type: "number", width: "120px", sortable: true, filterable: true },
-    { key: "uuid", label: "UUID", type: "text", width: "300px", sortable: true, filterable: true },
+    createUuidColumn(),
     { key: "name", label: "Name", type: "text", width: "140px", sortable: true, filterable: true },
     { key: "url", label: "URL", type: "text", width: "240px", sortable: true, filterable: true },
     { key: "doi", label: "DOI", type: "text", width: "140px", sortable: true, filterable: true },

@@ -6,6 +6,7 @@ import { Button as ESButton } from "@/components/ui"
 import { useState, useCallback } from "react"
 import { DataPageLayout } from "../DataPageLayout"
 import type { ColumnDef, FormFieldDef, RowData, TableState } from "../DataPageLayout"
+import { createUuidColumn } from "../uuidColumn"
 import { message } from "@/components/ui"
 import { annotationsApi } from "../../../../../api/endpoints/annotations"
 import { useProjectStore } from "../../../stores/useProjectStore"
@@ -19,7 +20,7 @@ import { rowCan, selectionCan } from "../rowCapabilities"
 
 const COLUMNS: ColumnDef[] = [
     { key: "annotation_id", label: "ID", type: "number", width: "80px", sortable: true, filterable: true },
-    { key: "uuid", label: "UUID", type: "text", width: "300px", sortable: true, filterable: true },
+    createUuidColumn(),
     { key: "media_name", label: "Media Name", type: "text", width: "180px", sortable: true, filterable: true },
     { key: "media_type", label: "Media Type", type: "text", width: "150px", sortable: true, filterable: true },
     { key: "object_type", label: "Object Type", type: "text", width: "130px", sortable: true, filterable: true },

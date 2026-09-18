@@ -484,7 +484,7 @@ export function computeMagnifierLayoutForAnnotation(
 /** 与 audio.html 标注表列一致；列 key 即数据表字段名，与后端 list order_by / 筛选参数对齐（不设 width，由内容与表头撑开） */
 export const STUDIO_ANNOTATION_COLUMNS: ColumnDef[] = [
     { key: "annotation_id", label: "ID", type: "number", sortable: true, filterable: true, width: 150 },
-    { key: "uuid", label: "UUID", type: "text", sortable: true, filterable: true, width: 320 },
+    { key: "uuid", label: "UUID", type: "text", sortable: true, filterable: true, width: 108, ellipsis: true },
     { key: "min_x", label: "Min X (s)", type: "number", sortable: true, filterable: true, filterType: "numberRange", width: 280 },
     { key: "max_x", label: "Max X (s)", type: "number", sortable: true, filterable: true, filterType: "numberRange", width: 280 },
     { key: "min_y", label: "Min Y (Hz)", type: "number", sortable: true, filterable: true, filterType: "numberRange", width: 280 },
@@ -506,7 +506,7 @@ export const STUDIO_ANNOTATION_COLUMNS: ColumnDef[] = [
 /** Photo annotations use object classification fields instead of audio soundscape fields. */
 export const PHOTO_STUDIO_ANNOTATION_COLUMNS: ColumnDef[] = [
     { key: "annotation_id", label: "ID", type: "number", sortable: true, filterable: true, width: 150 },
-    { key: "uuid", label: "UUID", type: "text", sortable: true, filterable: true, width: 320 },
+    { key: "uuid", label: "UUID", type: "text", sortable: true, filterable: true, width: 108, ellipsis: true },
     { key: "min_x", label: "Min X (px)", type: "number", sortable: true, filterable: true, filterType: "numberRange", width: 280 },
     { key: "max_x", label: "Max X (px)", type: "number", sortable: true, filterable: true, filterType: "numberRange", width: 280 },
     { key: "min_y", label: "Min Y (px)", type: "number", sortable: true, filterable: true, filterType: "numberRange", width: 280 },

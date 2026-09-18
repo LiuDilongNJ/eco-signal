@@ -6,6 +6,7 @@ import { Button as ESButton } from "@/components/ui"
 import { useState, useCallback, useMemo, useEffect, useRef } from "react"
 import { DataPageLayout } from "../DataPageLayout"
 import type { ColumnDef, FormFieldDef, RowData, TableState } from "../DataPageLayout"
+import { createUuidColumn } from "../uuidColumn"
 import { FileArchive, Library, PackageOpen } from "lucide-react"
 import { collectionsApi } from "../../../../../api/endpoints/collections"
 import { AddCollectionDrawer } from "../../modals/AddCollectionDrawer"
@@ -44,7 +45,7 @@ function renderTaxonPills(_value: unknown, record: RowData) {
 
 const COLUMNS: ColumnDef[] = [
     { key: "collection_id", label: "ID", type: "number", width: "120px", sortable: true, filterable: true },
-    { key: "uuid", label: "UUID", type: "text", width: "300px", sortable: true, filterable: true },
+    createUuidColumn(),
     { key: "name", label: "Name", type: "text", width: "200px", sortable: true, filterable: true },
     { key: "sphere", label: "Sphere", type: "text", width: "140px", sortable: true, filterable: true },
     { key: "project_url", label: "External project URL", type: "text", width: "240px", sortable: true, filterable: true },

@@ -6,6 +6,7 @@ import { Button as ESButton } from "@/components/ui"
 import { useState, useCallback } from "react"
 import { DataPageLayout } from "../DataPageLayout"
 import type { ColumnDef, FormFieldDef, RowData, TableState } from "../DataPageLayout"
+import { createUuidColumn } from "../uuidColumn"
 import { message } from "@/components/ui"
 import { sitesApi, type SiteCreatePayload, type SiteUpdatePayload } from "../../../../../api/endpoints/sites"
 import { useProjectStore } from "../../../stores/useProjectStore"
@@ -19,7 +20,7 @@ import { rowCan, selectionCan } from "../rowCapabilities"
 
 const COLUMNS: ColumnDef[] = [
     { key: "site_id", label: "ID", type: "number", width: "80px", sortable: true, filterable: true },
-    { key: "uuid", label: "UUID", type: "text", width: "300px", sortable: true, filterable: true },
+    createUuidColumn(),
     { key: "name", label: "Name", type: "text", width: "160px", sortable: true, filterable: true },
     { key: "latitude", label: "Latitude", type: "number", width: "150px", sortable: true, filterable: true, filterType: "numberRange" },
     { key: "longitude", label: "Longitude", type: "number", width: "150px", sortable: true, filterable: true, filterType: "numberRange" },

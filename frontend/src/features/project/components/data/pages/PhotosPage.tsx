@@ -7,6 +7,7 @@ import { downloadFile } from "@/utils/download"
 import { useProjectStore } from "../../../stores/useProjectStore"
 import { DataPageLayout } from "../DataPageLayout"
 import type { ColumnDef, FormFieldDef } from "../DataPageLayout"
+import { createUuidColumn } from "../uuidColumn"
 import { PhotoMediaDrawer } from "../../modals/UploadPhotoDrawer"
 import { LinkItemToCollectionsDrawer } from "../../modals/LinkItemToCollectionsDrawer"
 import { SetLabelsDrawer } from "../../modals/SetLabelsDrawer"
@@ -26,7 +27,7 @@ import { rowCan, selectionCan } from "../rowCapabilities"
 
 const COLUMNS: ColumnDef[] = [
     { key: "media_id", label: "ID", type: "number", width: "80px", sortable: true, filterable: true },
-    { key: "uuid", label: "UUID", type: "text", width: "300px", sortable: true, filterable: true },
+    createUuidColumn(),
     {
         key: "media_type",
         label: "Media Type",

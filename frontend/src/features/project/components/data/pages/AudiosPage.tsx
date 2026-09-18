@@ -6,6 +6,7 @@ import { Input as ESInput, Button as ESButton, DropdownMenu, message } from "@/c
 import { useState, useCallback, useRef, useEffect } from "react"
 import { DataPageLayout } from "../DataPageLayout"
 import type { ColumnDef, FormFieldDef } from "../DataPageLayout"
+import { createUuidColumn } from "../uuidColumn"
 import { mediaApi } from "../../../../../api/endpoints/media"
 import { useProjectStore } from "../../../stores/useProjectStore"
 import {
@@ -55,7 +56,7 @@ function isMetadataValue(value: unknown): boolean {
 
 const COLUMNS: ColumnDef[] = [
     { key: "media_id", label: "ID", type: "number", width: "80px", sortable: true, filterable: true },
-    { key: "uuid", label: "UUID", type: "text", width: "300px", sortable: true, filterable: true },
+    createUuidColumn(),
     {
         key: "media_type",
         label: "Media Type",

@@ -27,6 +27,8 @@ import {
     ChevronsUpDown,
     ChevronUp,
     ChevronDown,
+    ChevronLeft,
+    ChevronRight,
 } from "lucide-react"
 import { CrudFormModal } from "../modals/CrudFormModal"
 import { AIModelsPanel } from "../modals/AIModelsPanel"
@@ -38,6 +40,12 @@ import { useTabularImport } from "@/features/imports/useTabularImport"
 import { useProjectStore } from "../../stores/useProjectStore"
 import { Checkbox, Combobox, ConfigProvider, DataTable, DatePicker, DropdownMenu, getTooltipText, Input, RowActions, TableToolbar, Tooltip, theme as antdTheme } from "@/components/ui"
 import type { ThemeConfig } from "@/components/ui"
+import {
+    UUID_COLUMN_WIDTH_COLLAPSED,
+    UUID_COLUMN_WIDTH_EXPANDED,
+    readUuidColumnExpanded,
+    writeUuidColumnExpanded,
+} from "./uuidColumn"
 import type { CapabilityValues } from "@/api/capabilities"
 import type { MenuProps } from "@/components/ui"
 import { INTERNAL_COL_DEFINE } from "@/components/ui"
@@ -480,6 +488,15 @@ export function DataPageLayout({
     const currentCollectionId = useProjectStore((s) => s.currentCollectionId)
     const [brandPrimary, setBrandPrimary] = useState("var(--brand)")
     const [importRefreshToken, setImportRefreshToken] = useState(0)
+    const [uuidColumnExpanded, setUuidColumnExpanded] = useState(readUuidColumnExpanded)
+
+    const toggleUuidColumnExpanded = useCallback(() => {
+        setUuidColumnExpanded((prev) => {
+            const next = !prev
+            writeUuidColumnExpanded(next)
+            return next
+        })
+    }, [])
 
     useLayoutEffect(() => {
         const raw = getComputedStyle(document.documentElement).getPropertyValue("--brand").trim()
@@ -941,8 +958,12 @@ export function DataPageLayout({
         }
 
         const dataColumns = columns.map((col) => {
-            const resolvedMaxWidth = resolveColumnMaxWidth(col.width, col.maxWidth)
-            const colWidth = resolveAntdColumnWidth(col.width)
+            const isUuidColumn = col.key === "uuid"
+            const uuidWidth = uuidColumnExpanded ? UUID_COLUMN_WIDTH_EXPANDED : UUID_COLUMN_WIDTH_COLLAPSED
+            const effectiveWidth = isUuidColumn ? uuidWidth : col.width
+            const effectiveMaxWidth = isUuidColumn ? uuidWidth : col.maxWidth
+            const resolvedMaxWidth = resolveColumnMaxWidth(effectiveWidth, effectiveMaxWidth)
+            const colWidth = resolveAntdColumnWidth(effectiveWidth)
             const shouldEllipsis = col.ellipsis ?? col.type !== "actions"
             return {
                 key: col.key,
@@ -967,6 +988,26 @@ export function DataPageLayout({
                                         <span className="dpl-th-label-tooltip">{col.label}</span>
                                     </Tooltip>
                                 ) : col.label}
+                                {isUuidColumn ? (
+                                    <ESButton
+                                        appearance="unstyled"
+                                        type="button"
+                                        className="dpl-uuid-toggle"
+                                        title={uuidColumnExpanded ? "Collapse UUID column" : "Expand UUID column"}
+                                        aria-label={uuidColumnExpanded ? "Collapse UUID column" : "Expand UUID column"}
+                                        aria-pressed={uuidColumnExpanded}
+                                        onClick={(event) => {
+                                            event.stopPropagation()
+                                            toggleUuidColumnExpanded()
+                                        }}
+                                    >
+                                        {uuidColumnExpanded ? (
+                                            <ChevronLeft size={14} strokeWidth={2.25} aria-hidden />
+                                        ) : (
+                                            <ChevronRight size={14} strokeWidth={2.25} aria-hidden />
+                                        )}
+                                    </ESButton>
+                                ) : null}
                             </div>
                             {col.sortable && (
                                 <div className={`dpl-th-sort-icon ${sortKey === col.key ? 'active' : ''}`}>
@@ -1186,15 +1227,22 @@ export function DataPageLayout({
         getRecordKey,
         toggleRowSelected,
         toggleSelectAllVisible,
+        uuidColumnExpanded,
+        toggleUuidColumnExpanded,
     ]);
 
     const tableColumnWidthsPx = useMemo(() => {
         const fallbackW = 180
         return [
             SELECTION_COL_W,
-            ...columns.map((col) => resolveColumnWidthPx(col.width) ?? fallbackW),
+            ...columns.map((col) => {
+                if (col.key === "uuid") {
+                    return uuidColumnExpanded ? UUID_COLUMN_WIDTH_EXPANDED : UUID_COLUMN_WIDTH_COLLAPSED
+                }
+                return resolveColumnWidthPx(col.width) ?? fallbackW
+            }),
         ]
-    }, [columns])
+    }, [columns, uuidColumnExpanded])
 
     const definedColumnsTotal = useMemo(
         () => tableColumnWidthsPx.reduce((sum, w) => sum + w, 0),
