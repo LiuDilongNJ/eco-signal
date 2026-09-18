@@ -1,4 +1,4 @@
-import { Input as ESInput, Button as ESButton } from "@/components/ui"
+import { Input as ESInput, Button as ESButton, DropdownMenu, message } from "@/components/ui"
 /**
  * AudiosPage - Audios 数据页面
  */
@@ -8,8 +8,19 @@ import { DataPageLayout } from "../DataPageLayout"
 import type { ColumnDef, FormFieldDef } from "../DataPageLayout"
 import { mediaApi } from "../../../../../api/endpoints/media"
 import { useProjectStore } from "../../../stores/useProjectStore"
-import { message } from "@/components/ui"
-import { AudioLines, Link as LinkIcon, Tag as TagIcon, ClipboardList as ClipboardListIcon, Bot as BotIcon, Activity as ActivityIcon, Info, Waves, Download } from "lucide-react"
+import {
+    AudioLines,
+    Link as LinkIcon,
+    Tag as TagIcon,
+    ClipboardList as ClipboardListIcon,
+    Bot as BotIcon,
+    Activity as ActivityIcon,
+    Info,
+    Waves,
+    Download,
+    ChevronDown,
+    BarChart2,
+} from "lucide-react"
 import { ConfirmDialog } from "../../modals/ConfirmDialog"
 import { UploadAudioDrawer } from "../../modals/UploadAudioDrawer"
 import { EditMediaDrawer } from "../../modals/EditMediaDrawer"
@@ -430,26 +441,77 @@ export function AudiosPage() {
                         }}>
                             <ClipboardListIcon size={14} /> Assignment
                         </ESButton>
-                        <ESButton appearance="unstyled" className="data-btn" title={!canRunAiModelsSelection ? "You do not have permission to run AI models" : audioActionBlockedByMediaType ? "AI models are available for audio files only" : "Run an AI model on the selected audio files"} disabled={!canRunAiModelsSelection || audioActionDisabled} onClick={() => {
-                            if (audioActionBlockedByMediaType) {
-                                message.warning("AI models are available for audio files only.")
-                                return
-                            }
-                            setRunAIMediaIds(selectedIds)
-                            setRunAIDrawerOpen(true)
-                        }}>
-                            <BotIcon size={14} /> AI models
-                        </ESButton>
-                        <ESButton appearance="unstyled" className="data-btn" title={!canRunAcousticAnalysisSelection ? "You do not have permission to calculate acoustic indices" : audioActionBlockedByMediaType ? "Acoustic indices are available for audio files only" : "Calculate acoustic indices for the selected audio files"} disabled={!canRunAcousticAnalysisSelection || audioActionDisabled} onClick={() => {
-                            if (audioActionBlockedByMediaType) {
-                                message.warning("Acoustic indices are available for audio files only.")
-                                return
-                            }
-                            setIdxMediaIds(selectedIds)
-                            setIdxDrawerOpen(true)
-                        }}>
-                            <ActivityIcon size={14} /> Acoustic Indices
-                        </ESButton>
+                        {(() => {
+                            const analysisDisabled =
+                                selectedRows.size === 0 ||
+                                audioActionBlockedByMediaType ||
+                                (!canRunAiModelsSelection && !canRunAcousticAnalysisSelection)
+                            const analysisTitle = analysisDisabled
+                                ? !canRunAiModelsSelection && !canRunAcousticAnalysisSelection
+                                    ? "You do not have permission to run analysis tools"
+                                    : audioActionBlockedByMediaType
+                                        ? "Analysis tools are available for audio files only"
+                                        : "Select audio files to run analysis tools"
+                                : "Analysis tools"
+                            return (
+                                <span className="data-toolbar-tooltip-trigger" title={analysisTitle}>
+                                    <DropdownMenu
+                                        disabled={analysisDisabled}
+                                        items={[
+                                            {
+                                                key: "ai-models",
+                                                icon: <BotIcon size={14} />,
+                                                label: "AI models",
+                                                disabled: !canRunAiModelsSelection || audioActionDisabled,
+                                                title: !canRunAiModelsSelection
+                                                    ? "You do not have permission to run AI models"
+                                                    : audioActionBlockedByMediaType
+                                                        ? "AI models are available for audio files only"
+                                                        : "Run an AI model on the selected audio files",
+                                                onClick: () => {
+                                                    if (audioActionBlockedByMediaType) {
+                                                        message.warning("AI models are available for audio files only.")
+                                                        return
+                                                    }
+                                                    setRunAIMediaIds(selectedIds)
+                                                    setRunAIDrawerOpen(true)
+                                                },
+                                            },
+                                            {
+                                                key: "acoustic-indices",
+                                                icon: <ActivityIcon size={14} />,
+                                                label: "Acoustic Indices",
+                                                disabled: !canRunAcousticAnalysisSelection || audioActionDisabled,
+                                                title: !canRunAcousticAnalysisSelection
+                                                    ? "You do not have permission to calculate acoustic indices"
+                                                    : audioActionBlockedByMediaType
+                                                        ? "Acoustic indices are available for audio files only"
+                                                        : "Calculate acoustic indices for the selected audio files",
+                                                onClick: () => {
+                                                    if (audioActionBlockedByMediaType) {
+                                                        message.warning("Acoustic indices are available for audio files only.")
+                                                        return
+                                                    }
+                                                    setIdxMediaIds(selectedIds)
+                                                    setIdxDrawerOpen(true)
+                                                },
+                                            },
+                                        ]}
+                                    >
+                                        <ESButton
+                                            appearance="unstyled"
+                                            type="button"
+                                            className="data-btn"
+                                            title={analysisTitle}
+                                            disabled={analysisDisabled}
+                                        >
+                                            <BarChart2 size={14} /> Analysis
+                                            <ChevronDown size={14} className="data-btn__dropdown-icon" aria-hidden />
+                                        </ESButton>
+                                    </DropdownMenu>
+                                </span>
+                            )
+                        })()}
                         <ESButton appearance="unstyled" className="data-btn" title={canShowMetadata ? "View audio metadata" : "Select one audio file with metadata"} disabled={!canShowMetadata} onClick={() => setMetadataMediaId(Number(metadataRow?.media_id))}><Info size={14} /> Metadata</ESButton>
                         <ESButton appearance="unstyled" className="data-btn" title={canResample ? "Resample selected recordings" : "Select editable audio files"} disabled={!canResample} onClick={() => setResampleMediaIds(selectedIds)}><Waves size={14} /> Resample</ESButton>
                         <ESButton

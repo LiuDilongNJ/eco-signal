@@ -1736,6 +1736,44 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
         },
     ], [handleDownloadOriginalAudio, handleDownloadViewportAudio])
 
+    /** #145：分析工具合并为单一下拉 */
+    const analysisMenuItems = useMemo<MenuProps["items"]>(() => [
+        {
+            key: "ai-models",
+            icon: <Cpu size={14} />,
+            label: "AI Models",
+            disabled: !canRunAiModels,
+            title: canRunAiModels ? "Apply AI Models" : "You do not have permission to run AI models",
+            onClick: () => setRightPanel("ai-models"),
+        },
+        {
+            key: "acoustic-indices",
+            icon: <BarChart2 size={14} />,
+            label: "Acoustic Indices",
+            disabled: !canRunAcousticAnalysis,
+            title: canRunAcousticAnalysis
+                ? "Acoustic Indices"
+                : "You do not have permission to calculate acoustic indices",
+            onClick: () => setRightPanel("acoustic-indices"),
+        },
+        {
+            key: "acoustic-analysis",
+            icon: <AudioLines size={14} />,
+            label: "Acoustic Analysis",
+            disabled: !canRunAcousticAnalysis,
+            title: canRunAcousticAnalysis
+                ? "Acoustic Analysis"
+                : "You do not have permission to run acoustic analysis",
+            onClick: () => setRightPanel("acoustic-analysis"),
+        },
+    ], [canRunAcousticAnalysis, canRunAiModels])
+
+    const analysisToolsActive =
+        rightPanel === "ai-models" ||
+        rightPanel === "acoustic-indices" ||
+        rightPanel === "acoustic-analysis"
+    const canOpenAnyAnalysisTool = canRunAiModels || canRunAcousticAnalysis
+
     const handleDownloadViewportSpectrogram = useCallback(async () => {
         if (!media || currentProjectId == null) return
         const viewport = buildDetailViewportParams()
@@ -6136,46 +6174,32 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
 
                         <div style={{ flex: 1 }} />
 
-                        {/* AI Tools */}
+                        {/* Analysis tools (#145): single dropdown */}
                         {authUtils.getToken() && (
-                            <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
-                                <Tooltip title={canRunAiModels ? "Apply AI Models" : "You do not have permission to run AI models"}>
-                                    <span className="media-viewer-toolbar-tooltip-trigger">
-                                        <ESButton appearance="unstyled"
+                            <Tooltip
+                                title={
+                                    canOpenAnyAnalysisTool
+                                        ? "Analysis tools"
+                                        : "You do not have permission to run analysis tools"
+                                }
+                            >
+                                <span className="media-viewer-toolbar-tooltip-trigger">
+                                    <DropdownMenu
+                                        items={analysisMenuItems}
+                                        disabled={!canOpenAnyAnalysisTool}
+                                    >
+                                        <ESButton
+                                            appearance="unstyled"
                                             type="button"
-                                            className={`data-btn media-studio-action${rightPanel === "ai-models" ? " active" : ""}`}
-                                            disabled={!canRunAiModels}
-                                            onClick={() => setRightPanel("ai-models")}
+                                            className={`data-btn media-studio-action${analysisToolsActive ? " active" : ""}`}
+                                            disabled={!canOpenAnyAnalysisTool}
                                         >
-                                            <Cpu size={14} /> AI Models
+                                            <BarChart2 size={14} /> Analysis
+                                            <ChevronDown size={12} className="data-btn__dropdown-icon" aria-hidden />
                                         </ESButton>
-                                    </span>
-                                </Tooltip>
-                                <Tooltip title={canRunAcousticAnalysis ? "Acoustic Indices" : "You do not have permission to calculate acoustic indices"}>
-                                    <span className="media-viewer-toolbar-tooltip-trigger">
-                                        <ESButton appearance="unstyled"
-                                            type="button"
-                                            className={`data-btn media-studio-action${rightPanel === "acoustic-indices" ? " active" : ""}`}
-                                            disabled={!canRunAcousticAnalysis}
-                                            onClick={() => setRightPanel("acoustic-indices")}
-                                        >
-                                            <BarChart2 size={14} /> Acoustic Indices
-                                        </ESButton>
-                                    </span>
-                                </Tooltip>
-                                <Tooltip title={canRunAcousticAnalysis ? "Acoustic Analysis" : "You do not have permission to run acoustic analysis"}>
-                                    <span className="media-viewer-toolbar-tooltip-trigger">
-                                        <ESButton appearance="unstyled"
-                                            type="button"
-                                            className={`data-btn media-studio-action${rightPanel === "acoustic-analysis" ? " active" : ""}`}
-                                            disabled={!canRunAcousticAnalysis}
-                                            onClick={() => setRightPanel("acoustic-analysis")}
-                                        >
-                                            <AudioLines size={14} /> Acoustic Analysis
-                                        </ESButton>
-                                    </span>
-                                </Tooltip>
-                            </div>
+                                    </DropdownMenu>
+                                </span>
+                            </Tooltip>
                         )}
                     </div>
 
