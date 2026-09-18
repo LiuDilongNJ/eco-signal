@@ -233,10 +233,11 @@ export function AddProjectDrawer({ open, editId, onClose, onSubmit }: AddProject
 
                                 <Form.Item
                                     name="url"
-                                    label="URL"
-                                    rules={[httpUrlRule("URL")]}
+                                    label="External project URL"
+                                    tooltip="link to an external project website for further contextual info"
+                                    rules={[httpUrlRule("External project URL")]}
                                 >
-                                    <Input type="text" inputMode="url" autoComplete="off" />
+                                    <Input type="url" inputMode="url" autoComplete="off" />
                                 </Form.Item>
 
                                 <Form.Item name="doi" label="DOI">

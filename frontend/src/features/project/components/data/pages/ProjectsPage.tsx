@@ -26,7 +26,7 @@ const COLUMNS: ColumnDef[] = [
     { key: "project_id", label: "ID", type: "number", width: "120px", sortable: true, filterable: true },
     createUuidColumn(),
     { key: "name", label: "Name", type: "text", width: "140px", sortable: true, filterable: true },
-    { key: "url", label: "URL", type: "text", width: "240px", sortable: true, filterable: true },
+    { key: "url", label: "External project URL", type: "text", width: "240px", sortable: true, filterable: true, tooltip: "link to an external project website for further contextual info" },
     { key: "doi", label: "DOI", type: "text", width: "140px", sortable: true, filterable: true },
     { key: "creator_name", label: "Creator", type: "text", width: "140px", sortable: true, filterable: true },
     { key: "creation_date", label: "Created", type: "date", width: "240px", sortable: true, filterable: true, filterType: "dateRange" },
@@ -36,7 +36,7 @@ const COLUMNS: ColumnDef[] = [
 
 const FORM_FIELDS: FormFieldDef[] = [
     { key: "name", label: "Name", type: "text", required: true },
-    { key: "url", label: "URL", type: "text" },
+    { key: "url", label: "External project URL", type: "text" },
     { key: "doi", label: "DOI", type: "text" },
     { key: "creator_name", label: "Creator", type: "text" },
     { key: "created", label: "Created", type: "date" },
