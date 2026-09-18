@@ -34,6 +34,7 @@ class ReviewRead(SQLModel):
     creation_date: datetime
     
     # Joined fields
+    media_id: Optional[int] = None
     media_name: Optional[str] = None
     media_type: str
     reviewer_name: str

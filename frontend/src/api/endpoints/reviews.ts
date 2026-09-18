@@ -10,6 +10,7 @@ export interface AnnotationReviewRead {
     taxon_id?: number | null
     note?: string | null
     creation_date: string
+    media_id?: number | null
     media_name?: string | null
     media_type?: string | null
     reviewer_name: string

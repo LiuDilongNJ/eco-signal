@@ -44,6 +44,14 @@ const DEFAULT_STATUS_OPTIONS = [
     { label: "Uncertain", value: 4 },
 ]
 
+function openAnnotationViewTab(projectId: number, mediaId: number, annotationId: number) {
+    window.open(
+        `/dashboard/${projectId}/media/${mediaId}?annotation_id=${encodeURIComponent(String(annotationId))}`,
+        `eco-annotation-view-${annotationId}`,
+        "noopener,noreferrer",
+    )
+}
+
 function applyReviewFilters(params: ReviewsListParams, filters: Record<string, unknown>) {
     Object.entries(filters).forEach(([k, v]) => {
         if (v === "" || v === null || v === undefined) return
@@ -86,6 +94,7 @@ export function ReviewsPage() {
     const { can } = usePermissions(currentProjectId, currentCollectionId)
     const canWriteReview = can("review:write")
     const canImportReviews = canWriteReview || can("review:write_own")
+    const canReadMedia = can("media:read")
 
     const fetchTableData = useCallback(
         async (state: TableState) => {
@@ -128,6 +137,7 @@ export function ReviewsPage() {
                     return {
                         ...r,
                         id,
+                        media_id: r.media_id != null ? Number(r.media_id) : null,
                         media_name: r.media_name ?? "",
                         media_type: r.media_type ?? "",
                         note: r.note ?? "",
@@ -271,6 +281,53 @@ export function ReviewsPage() {
         }
     }, [tableState, currentProjectId, currentCollectionId])
 
+    const handleView = useCallback((selectedRowKeys: unknown[]) => {
+        if (!canReadMedia) {
+            message.warning("You do not have permission to view media files")
+            return
+        }
+        if (selectedRowKeys.length === 0) {
+            message.warning("Please select at least one review to view")
+            return
+        }
+        if (!currentProjectId) {
+            message.warning("Please select a project first")
+            return
+        }
+        const projectId = Number(currentProjectId)
+        const openedAnnotationIds = new Set<number>()
+        let openedCount = 0
+        let skippedCount = 0
+
+        for (const key of selectedRowKeys) {
+            const row = rows.find((r) => r.id === key)
+            const annotationId = row?.annotation_id != null ? Number(row.annotation_id) : NaN
+            const mediaId = row?.media_id != null ? Number(row.media_id) : NaN
+            if (
+                !row ||
+                !Number.isFinite(annotationId) ||
+                annotationId <= 0 ||
+                !Number.isFinite(mediaId) ||
+                mediaId <= 0
+            ) {
+                skippedCount += 1
+                continue
+            }
+            if (openedAnnotationIds.has(annotationId)) {
+                continue
+            }
+            openedAnnotationIds.add(annotationId)
+            openAnnotationViewTab(projectId, mediaId, annotationId)
+            openedCount += 1
+        }
+
+        if (openedCount === 0) {
+            message.warning("No viewable review selected")
+        } else if (skippedCount > 0) {
+            message.warning(`Skipped ${skippedCount} review(s) without associated media`)
+        }
+    }, [canReadMedia, currentProjectId, rows])
+
     return (
         <>
             <DataPageLayout
@@ -299,7 +356,9 @@ export function ReviewsPage() {
                 onEditCustom={handleEdit}
                 onDeleteCustom={handleDelete}
                 onExportCustom={handleExport}
-                hideView={true}
+                onViewCustom={handleView}
+                viewRequiresSingle={false}
+                hideView={!canReadMedia}
                 hideAdd={true}
                 canEditRecord={(record) => rowCan(record, "edit")}
                 canDeleteRecord={(record) => rowCan(record, "delete")}

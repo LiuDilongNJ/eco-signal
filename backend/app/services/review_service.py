@@ -94,8 +94,10 @@ def list_reviews(
     authz = authorization_service.evaluator(session, user, project_id)
     data = []
     for item in items:
-        linked_ids = media_collections.get(annotation_media.get(item["annotation_id"]), set())
+        media_id = annotation_media.get(item["annotation_id"])
+        linked_ids = media_collections.get(media_id, set()) if media_id is not None else set()
         payload = dict(item)
+        payload["media_id"] = media_id
         payload["capabilities"] = authz.review_capabilities(
             linked_ids, reviewer_id=item["reviewer_id"]
         )
