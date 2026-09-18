@@ -773,6 +773,15 @@ export function normalizeAnnotationReviews(raw: unknown): AnnotationReviewRead[]
         if (!item || typeof item !== "object") continue
         const r = item as Record<string, unknown>
         if (r.annotation_id == null || r.reviewer_id == null) continue
+        const capsRaw = r.capabilities
+        let capabilities: AnnotationReviewRead["capabilities"]
+        if (capsRaw && typeof capsRaw === "object") {
+            const c = capsRaw as Record<string, unknown>
+            capabilities = {
+                edit: c.edit === true,
+                delete: c.delete === true,
+            }
+        }
         out.push({
             annotation_id: Number(r.annotation_id),
             reviewer_id: Number(r.reviewer_id),
@@ -784,6 +793,7 @@ export function normalizeAnnotationReviews(raw: unknown): AnnotationReviewRead[]
             status_name: String(r.status_name ?? ""),
             taxon_name: r.taxon_name != null ? String(r.taxon_name) : null,
             media_name: r.media_name != null ? String(r.media_name) : null,
+            ...(capabilities != null ? { capabilities } : {}),
         })
     }
     return out

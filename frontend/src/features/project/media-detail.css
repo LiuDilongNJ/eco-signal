@@ -1901,6 +1901,13 @@
     color: var(--es-color-text-muted);
 }
 
+.studio-annot-review-head-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
 .studio-annot-review-edit-btn.ant-btn-primary {
     background: var(--es-color-brand) !important;
     border-color: var(--es-color-brand) !important;

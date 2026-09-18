@@ -547,6 +547,8 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
     const [annotationDraftHasSize, setAnnotationDraftHasSize] = useState(false)
     const [deleteAnnotationsConfirmOpen, setDeleteAnnotationsConfirmOpen] = useState(false)
     const [deleteEditingAnnotationConfirmOpen, setDeleteEditingAnnotationConfirmOpen] = useState(false)
+    const [deleteReviewConfirmOpen, setDeleteReviewConfirmOpen] = useState(false)
+    const [pendingDeleteReview, setPendingDeleteReview] = useState<AnnotationReviewRead | null>(null)
     const [annotationExportConfirmOpen, setAnnotationExportConfirmOpen] = useState(false)
     const [annotationExportConfirmCount, setAnnotationExportConfirmCount] = useState(0)
     const annotationExportActionRef = useRef<(() => Promise<void>) | null>(null)
@@ -769,7 +771,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
     const annotationPanelActiveRef = useRef(false)
     annotationPanelActiveRef.current = rightPanel === "new-annotation"
 
-    /** 有历史记录时：false 仅展示列表 + Edit（图2）；true 展示右侧表单（图1/图3） */
+    /** 有历史记录时：false 仅展示列表 + Edit/Delete；true 展示右侧表单 */
     const [reviewPanelExpanded, setReviewPanelExpanded] = useState(true)
     const [reviewStatusId, setReviewStatusId] = useState<number>(REVIEW_STATUS_IDS.accepted)
     const [reviewNote, setReviewNote] = useState("")
@@ -2648,9 +2650,11 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
             setReviewEditLoading(false)
         }
     }, [
+        currentProjectId,
         editingAnnotationReviews,
         initReviewFormFromReviews,
         meUserId,
+        projectRouteId,
         reviewContextAnnotationId,
     ])
 
@@ -2698,16 +2702,23 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
             )
             if (reviewerId === meUserId) {
                 initReviewFormFromReviews([], null)
+                setReviewPanelExpanded(true)
             }
-            setReviewPanelExpanded((expanded) => expanded && reviewerId !== meUserId)
             setAnnotationListTick((n) => n + 1)
             updateMessageSuccess(loadingId, "Review deleted.")
+            setDeleteReviewConfirmOpen(false)
+            setPendingDeleteReview(null)
         } catch (e: unknown) {
             updateMessageError(loadingId, e instanceof Error ? e.message : "Delete failed")
         } finally {
             closeLoadingMessage(loadingId)
         }
     }, [currentProjectId, editingAnnotationReviews, initReviewFormFromReviews, meUserId])
+
+    const requestDeleteReview = useCallback((review: AnnotationReviewRead) => {
+        setPendingDeleteReview(review)
+        setDeleteReviewConfirmOpen(true)
+    }, [])
 
     const sortedEditingAnnotationReviews = useMemo(() => {
         return [...editingAnnotationReviews].sort((a, b) =>
@@ -7535,16 +7546,20 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                                         <div className="studio-annot-review-module">
                                             <div className="studio-annot-review-head">
                                                 <span className="studio-annot-review-title">REVIEW</span>
-                                                {sortedEditingAnnotationReviews.length > 0 && !reviewPanelExpanded && canCreateReview ? (
-                                                    <Button
-                                                        type="primary"
-                                                        className="studio-annot-review-edit-btn"
-                                                        loading={reviewEditLoading}
-                                                        onClick={() => void handleReviewEditClick()}
-                                                    >
-                                                        Edit
-                                                    </Button>
-                                                ) : null}
+                                                <div className="studio-annot-review-head-actions">
+                                                    {sortedEditingAnnotationReviews.length > 0 &&
+                                                    !reviewPanelExpanded &&
+                                                    canCreateReview ? (
+                                                        <Button
+                                                            type="primary"
+                                                            className="studio-annot-review-edit-btn"
+                                                            loading={reviewEditLoading}
+                                                            onClick={() => void handleReviewEditClick()}
+                                                        >
+                                                            Edit
+                                                        </Button>
+                                                    ) : null}
+                                                </div>
                                             </div>
                                             <div
                                                 className={
@@ -7591,7 +7606,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                                                                                         className="studio-annot-review-delete-btn"
                                                                                         title="Delete review"
                                                                                         aria-label="Delete review"
-                                                                                        onClick={() => void handleDeleteReview(r)}
+                                                                                        onClick={() => requestDeleteReview(r)}
                                                                                     >
                                                                                         <Trash2 size={14} />
                                                                                     </ESButton>
@@ -8319,6 +8334,22 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
             cancelLabel="Cancel"
             variant="danger"
             onConfirm={() => void handleDeleteEditingAnnotation()}
+        />
+        <ConfirmDialog
+            open={deleteReviewConfirmOpen}
+            onClose={() => {
+                setDeleteReviewConfirmOpen(false)
+                setPendingDeleteReview(null)
+            }}
+            title="Delete Review"
+            message="Are you sure you want to delete this review? This action cannot be undone."
+            confirmLabel="Delete"
+            cancelLabel="Cancel"
+            variant="danger"
+            onConfirm={() => {
+                if (pendingDeleteReview == null) return
+                void handleDeleteReview(pendingDeleteReview)
+            }}
         />
         </>
     )
