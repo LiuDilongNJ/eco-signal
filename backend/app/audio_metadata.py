@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import hashlib
+import io
 import json
 import logging
 import os
@@ -12,6 +13,8 @@ from typing import Any
 
 try:
     import mutagen
+    import mutagen.id3
+    import mutagen.wave
 except ImportError:
     mutagen = None  # type: ignore[assignment]
 
@@ -123,32 +126,132 @@ def probe_audio(path: Path) -> dict[str, Any]:
     }
 
 
+def _extract_riff_info(path: Path) -> dict[str, list[str | int | float | bool]]:
+    """Extract standard RIFF LIST INFO tags from a WAV container."""
+    if mutagen is None or getattr(mutagen, "wave", None) is None:
+        return {}
+    tags: dict[str, list[str | int | float | bool]] = {}
+    try:
+        with path.open("rb") as handle:
+            wave_file = mutagen.wave._WaveFile(handle)
+            root = getattr(wave_file, "root", None)
+            if not root or not hasattr(root, "subchunks"):
+                return {}
+            for chunk in root.subchunks():
+                if getattr(chunk, "id", None) == "LIST" and getattr(chunk, "name", None) == "INFO":
+                    subchunks = chunk.subchunks() if hasattr(chunk, "subchunks") else []
+                    for sub in subchunks:
+                        sub_id = getattr(sub, "id", None)
+                        if not sub_id:
+                            continue
+                        handle.seek(sub.data_offset)
+                        raw = handle.read(sub.data_size)
+                        val = raw.split(b"\x00")[0].decode("utf-8", errors="replace").strip()
+                        if val:
+                            tags[str(sub_id)] = [val]
+    except Exception as exc:
+        logger.debug("Failed to extract RIFF INFO from %s: %s", path, exc)
+    return tags
+
+
+def _extract_wav_id3(path: Path) -> dict[str, list[str | int | float | bool]]:
+    """Extract embedded ID3 tags from a WAV container, guarding against EOF errors."""
+    if mutagen is None or getattr(mutagen, "wave", None) is None or getattr(mutagen, "id3", None) is None:
+        return {}
+    tags: dict[str, list[str | int | float | bool]] = {}
+    try:
+        with path.open("rb") as handle:
+            wave_file = mutagen.wave._WaveFile(handle)
+            root = getattr(wave_file, "root", None)
+            if not root or not hasattr(root, "subchunks"):
+                return {}
+            for chunk in root.subchunks():
+                if str(getattr(chunk, "id", "")).lower() == "id3":
+                    handle.seek(chunk.data_offset)
+                    raw_data = handle.read(chunk.data_size)
+                    # Add safety zero-padding to prevent Mutagen ID3v2.4 extended header EOF read bug
+                    audio = mutagen.id3.ID3(io.BytesIO(raw_data + b"\x00" * 1024))
+                    for key, value in audio.items():
+                        values = value if isinstance(value, (list, tuple)) else [value]
+                        tags[str(key)] = [json_tag_value(item) for item in values]
+    except Exception as exc:
+        logger.debug("Failed to extract WAV ID3 from %s: %s", path, exc)
+    return tags
+
+
+def _extract_tags_ffprobe(path: Path) -> dict[str, list[str | int | float | bool]]:
+    """Extract format tags via ffprobe as a reliable fallback."""
+    command = [
+        "ffprobe", "-v", "error",
+        "-show_entries", "format_tags",
+        "-of", "json", str(path),
+    ]
+    try:
+        completed = subprocess.run(command, capture_output=True, text=True, check=True)
+        payload = json.loads(completed.stdout)
+        raw_tags = payload.get("format", {}).get("tags")
+        if isinstance(raw_tags, dict):
+            extracted: dict[str, list[str | int | float | bool]] = {}
+            for key, val in raw_tags.items():
+                values = val if isinstance(val, (list, tuple)) else [val]
+                extracted[str(key)] = [json_tag_value(item) for item in values]
+            return extracted
+    except Exception as exc:
+        logger.debug("ffprobe tag extraction failed for %s: %s", path, exc)
+    return {}
+
+
 def extract_audio_tags(path: Path) -> tuple[dict[str, dict[str, list[str | int | float | bool]]], list[str]]:
     tags: dict[str, dict[str, list[str | int | float | bool]]] = {
         "id3v2": {}, "vorbis_comment": {}, "riff_info": {}, "other": {},
     }
     warnings: list[str] = []
-    if mutagen is None:
-        return {}, ["mutagen is not installed; embedded tags not extracted"]
-    try:
-        audio = mutagen.File(path, easy=False)
-        raw_tags = getattr(audio, "tags", None)
-        if not raw_tags:
-            return {}, warnings
-        tag_class = raw_tags.__class__.__module__.lower()
-        namespace = (
-            "id3v2" if "id3" in tag_class
-            else "vorbis_comment" if ("vorbis" in tag_class or "flac" in tag_class)
-            else "riff_info" if "wave" in tag_class
-            else "other"
-        )
-        for key, value in raw_tags.items():
-            values = value if isinstance(value, (list, tuple)) else [value]
-            normalized = [json_tag_value(item) for item in values]
-            tags[namespace][str(key)] = normalized
-    except Exception as exc:
-        logger.warning("Could not read embedded audio tags from %s: %s", path, exc)
-        warnings.append(f"Embedded metadata could not be fully read: {exc}")
+    is_wav = path.suffix.lower() in {".wav", ".wave"}
+    read_error: str | None = None
+
+    if is_wav and mutagen is not None:
+        riff_tags = _extract_riff_info(path)
+        if riff_tags:
+            tags["riff_info"].update(riff_tags)
+        id3_tags = _extract_wav_id3(path)
+        if id3_tags:
+            tags["id3v2"].update(id3_tags)
+
+    # If not a WAV or if specialized WAV extractors found no tags, try standard Mutagen
+    if mutagen is not None and (not is_wav or (not tags["riff_info"] and not tags["id3v2"])):
+        try:
+            audio = mutagen.File(path, easy=False)
+            raw_tags = getattr(audio, "tags", None)
+            if raw_tags:
+                tag_class = raw_tags.__class__.__module__.lower()
+                namespace = (
+                    "id3v2" if "id3" in tag_class
+                    else "vorbis_comment" if ("vorbis" in tag_class or "flac" in tag_class)
+                    else "riff_info" if "wave" in tag_class
+                    else "other"
+                )
+                for key, value in raw_tags.items():
+                    values = value if isinstance(value, (list, tuple)) else [value]
+                    normalized = [json_tag_value(item) for item in values]
+                    tags[namespace][str(key)] = normalized
+        except Exception as exc:
+            err_msg = str(exc).strip() or exc.__class__.__name__
+            read_error = err_msg
+            logger.warning("Could not read embedded audio tags from %s via mutagen: %s", path, err_msg)
+
+    has_tags = any(bool(v) for v in tags.values())
+    if not has_tags:
+        ffprobe_tags = _extract_tags_ffprobe(path)
+        if ffprobe_tags:
+            target_namespace = "riff_info" if is_wav else "other"
+            tags[target_namespace].update(ffprobe_tags)
+            has_tags = True
+
+    if not has_tags and read_error:
+        warnings.append(f"Embedded metadata could not be fully read: {read_error}")
+    elif mutagen is None and not has_tags:
+        warnings.append("mutagen is not installed; embedded tags not extracted")
+
     return {key: val for key, val in tags.items() if val}, warnings
 
 
