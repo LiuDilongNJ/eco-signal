@@ -19,10 +19,10 @@ CURRENT_USER_MENU_URL = f"{settings.API_V1_STR}/current-user/menu-items"
 EXPECTED_MENU_ORDER = [
     "Projects",
     "Collections",
+    "Sites",
     "Users",
     "Audios",
     "Photos",
-    "Sites",
     "Annotations",
     "Reviews",
     "Tasks",

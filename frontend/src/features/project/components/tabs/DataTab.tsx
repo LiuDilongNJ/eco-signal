@@ -6,7 +6,7 @@ import { Button as ESButton } from "@/components/ui"
  * 每个左侧菜单项对应独立的页面组件，可单独编辑。
  */
 
-import { useState, useLayoutEffect, useRef, useEffect, useDeferredValue } from "react"
+import { useState, useLayoutEffect, useRef, useEffect, useDeferredValue, useMemo } from "react"
 import { useSearchParams } from "react-router-dom"
 import {
     FolderKanban,
@@ -21,6 +21,9 @@ import {
     ScrollText,
     AudioLines,
     Image,
+    Images,
+    ChevronDown,
+    ChevronRight,
 } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 import { useProjectStore } from "../../stores/useProjectStore"
@@ -46,6 +49,19 @@ interface NavItem {
     label: string
     icon: LucideIcon
     component: React.ComponentType
+}
+
+interface NavGroup {
+    key: string
+    label: string
+    icon: LucideIcon
+    children: NavItem[]
+}
+
+type NavNode = NavItem | NavGroup
+
+function isNavGroup(node: NavNode): node is NavGroup {
+    return "children" in node
 }
 
 /** 菜单项图标映射 */
@@ -78,6 +94,94 @@ const COMPONENT_MAP: Record<string, React.ComponentType> = {
     "index-log": IndexLogsPage,
 }
 
+const MEDIA_GROUP_CHILD_KEYS = ["audio", "photo"] as const
+const ANNOTATION_GROUP_CHILD_KEYS = ["annotation", "review", "task"] as const
+
+const GROUP_EXPANDED_STORAGE_PREFIX = "eco-signal.data-nav.group-expanded."
+
+function readGroupExpanded(groupKey: string, fallback: boolean): boolean {
+    try {
+        const raw = sessionStorage.getItem(`${GROUP_EXPANDED_STORAGE_PREFIX}${groupKey}`)
+        if (raw === "1") return true
+        if (raw === "0") return false
+    } catch {
+        // ignore
+    }
+    return fallback
+}
+
+function writeGroupExpanded(groupKey: string, expanded: boolean) {
+    try {
+        sessionStorage.setItem(`${GROUP_EXPANDED_STORAGE_PREFIX}${groupKey}`, expanded ? "1" : "0")
+    } catch {
+        // ignore
+    }
+}
+
+/**
+ * Build hierarchical nav: Media (Audios/Photos) and Annotations (Annotations/Reviews/Tasks).
+ * Group parents are labels only — they do not open a page (unlike Settings → Sensors).
+ */
+function buildNavTree(items: NavItem[]): NavNode[] {
+    const byKey = new Map(items.map((item) => [item.key, item]))
+    const used = new Set<string>()
+    const result: NavNode[] = []
+
+    const takeGroup = (groupKey: string, label: string, icon: LucideIcon, childKeys: readonly string[]) => {
+        const children = childKeys
+            .map((key) => byKey.get(key))
+            .filter((item): item is NavItem => item != null)
+        if (children.length === 0) return
+        for (const child of children) used.add(child.key)
+        if (children.length === 1) {
+            result.push(children[0]!)
+            return
+        }
+        result.push({ key: groupKey, label, icon, children })
+    }
+
+    const topLevelOrder = [
+        "project",
+        "collection",
+        "site",
+        "user",
+        "media",
+        "annotation-group",
+        "index-log",
+        "queue",
+    ] as const
+
+    for (const slot of topLevelOrder) {
+        if (slot === "media") {
+            takeGroup("media", "Media", Images, MEDIA_GROUP_CHILD_KEYS)
+            continue
+        }
+        if (slot === "annotation-group") {
+            takeGroup("annotation-group", "Annotations", ScanLine, ANNOTATION_GROUP_CHILD_KEYS)
+            continue
+        }
+        const item = byKey.get(slot)
+        if (!item) continue
+        used.add(item.key)
+        result.push(item)
+    }
+
+    for (const item of items) {
+        if (!used.has(item.key)) result.push(item)
+    }
+
+    return result
+}
+
+function flattenNavLeaves(nodes: NavNode[]): NavItem[] {
+    const leaves: NavItem[] = []
+    for (const node of nodes) {
+        if (isNavGroup(node)) leaves.push(...node.children)
+        else leaves.push(node)
+    }
+    return leaves
+}
+
 /** menu-items 会话级缓存：命中时立即渲染菜单并后台刷新，避免每次进入 Data 区域白屏 */
 const menuItemsCache = new Map<string, NavItem[]>()
 
@@ -100,9 +204,13 @@ export function DataTab() {
     const deferredActiveKey = useDeferredValue(activeKey)
     const [menuReady, setMenuReady] = useState(false)
     const [refreshCounter, setRefreshCounter] = useState(0)
+    const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({})
     const resizeRafRef = useRef<number | null>(null)
     const resizeRafNestedRef = useRef<number | null>(null)
     const didInitRef = useRef(false)
+
+    const navTree = useMemo(() => buildNavTree(navItems), [navItems])
+    const leafItems = useMemo(() => flattenNavLeaves(navTree), [navTree])
 
     useEffect(() => {
         const nameToKey: Record<string, string> = {
@@ -197,11 +305,11 @@ export function DataTab() {
     useEffect(() => {
         if (!menuReady) return
 
-        const visibleKeys = new Set(navItems.map((item) => item.key))
+        const visibleKeys = new Set(leafItems.map((item) => item.key))
         const urlKey = dataNavFromUrl && visibleKeys.has(dataNavFromUrl) ? dataNavFromUrl : null
         const targetKey =
             dataTabTargetNavKey && visibleKeys.has(dataTabTargetNavKey) ? dataTabTargetNavKey : null
-        const nextKey = urlKey ?? targetKey ?? navItems[0]?.key ?? null
+        const nextKey = urlKey ?? targetKey ?? leafItems[0]?.key ?? null
 
         setActiveKey((prev) => (prev === nextKey ? prev : nextKey))
 
@@ -222,13 +330,36 @@ export function DataTab() {
         }
     }, [
         menuReady,
-        navItems,
+        leafItems,
         dataNavFromUrl,
         dataTabTargetNavKey,
         clearDataTabTargetNavKey,
         searchParams,
         setSearchParams,
     ])
+
+    useEffect(() => {
+        setExpandedGroups((prev) => {
+            const next = { ...prev }
+            let changed = false
+            for (const node of navTree) {
+                if (!isNavGroup(node)) continue
+                if (next[node.key] !== undefined) continue
+                next[node.key] = readGroupExpanded(node.key, true)
+                changed = true
+            }
+            // Keep groups with the active child expanded
+            for (const node of navTree) {
+                if (!isNavGroup(node)) continue
+                if (node.children.some((child) => child.key === activeKey) && next[node.key] !== true) {
+                    next[node.key] = true
+                    writeGroupExpanded(node.key, true)
+                    changed = true
+                }
+            }
+            return changed ? next : prev
+        })
+    }, [navTree, activeKey])
 
     useLayoutEffect(() => {
         if (!activeKey) return
@@ -247,6 +378,14 @@ export function DataTab() {
             next.set("dataNav", key)
             setSearchParams(next, { replace: true })
         }
+    }
+
+    const toggleGroup = (groupKey: string) => {
+        setExpandedGroups((prev) => {
+            const nextExpanded = !(prev[groupKey] ?? true)
+            writeGroupExpanded(groupKey, nextExpanded)
+            return { ...prev, [groupKey]: nextExpanded }
+        })
     }
 
     useLayoutEffect(() => {
@@ -276,12 +415,28 @@ export function DataTab() {
 
     if (!project) return null
     if (!menuReady) return <div className="data-layout" />
-    if (navItems.length === 0 || !activeKey) return <div className="data-layout" />
+    if (leafItems.length === 0 || !activeKey) return <div className="data-layout" />
 
     // activeKey 不在可见菜单内时回退到第一项，保证右侧始终有页面渲染
-    const effectiveKey = navItems.some((item) => item.key === activeKey) ? activeKey : navItems[0]?.key ?? activeKey
+    const effectiveKey = leafItems.some((item) => item.key === activeKey) ? activeKey : leafItems[0]?.key ?? activeKey
     // 页面内容用延迟后的 key：切换瞬间旧页保持可见，新页在后续渲染中挂载
-    const pageKey = navItems.some((item) => item.key === deferredActiveKey) ? deferredActiveKey : effectiveKey
+    const pageKey = leafItems.some((item) => item.key === deferredActiveKey) ? deferredActiveKey : effectiveKey
+
+    const renderLeafButton = (item: NavItem, className = "") => {
+        const Icon = item.icon
+        return (
+            <ESButton
+                appearance="unstyled"
+                key={item.key}
+                className={`data-nav-item ${className} ${effectiveKey === item.key ? "active" : ""}`.trim()}
+                title={`Open the ${item.label.toLowerCase()} data table`}
+                onClick={() => handleNavClick(item.key)}
+            >
+                <Icon size={16} />
+                <span>{item.label}</span>
+            </ESButton>
+        )
+    }
 
     return (
         <div className="data-layout">
@@ -291,26 +446,54 @@ export function DataTab() {
                     <span className="data-nav-title"><Database size={18} className="data-nav-title__icon" /> Tables</span>
                 </div>
                 <div className="data-nav-list">
-                    {navItems.map((item) => {
-                        const Icon = item.icon
+                    {navTree.map((node) => {
+                        if (!isNavGroup(node)) {
+                            return renderLeafButton(node)
+                        }
+
+                        const GroupIcon = node.icon
+                        const expanded = expandedGroups[node.key] ?? true
+                        const childActive = node.children.some((child) => child.key === effectiveKey)
+
                         return (
-                            <ESButton appearance="unstyled"
-                                key={item.key}
-                                className={`data-nav-item ${effectiveKey === item.key ? "active" : ""}`}
-                                title={`Open the ${item.label.toLowerCase()} data table`}
-                                onClick={() => handleNavClick(item.key)}
+                            <div
+                                className={`data-nav-group${childActive ? " data-nav-group--child-active" : ""}`}
+                                key={node.key}
                             >
-                                <Icon size={16} />
-                                <span>{item.label}</span>
-                                {/* <span className="data-count-badge">{item.count}</span> */}
-                            </ESButton>
+                                <div className="data-nav-group-header">
+                                    <button
+                                        type="button"
+                                        className="data-nav-group-label"
+                                        aria-expanded={expanded}
+                                        title={`${expanded ? "Collapse" : "Expand"} ${node.label}`}
+                                        onClick={() => toggleGroup(node.key)}
+                                    >
+                                        <GroupIcon size={16} aria-hidden />
+                                        <span>{node.label}</span>
+                                        <span className="data-nav-group-chevron" aria-hidden>
+                                            {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                                        </span>
+                                    </button>
+                                </div>
+                                {expanded ? (
+                                    <div
+                                        className="data-nav-group-children"
+                                        role="group"
+                                        aria-label={node.label}
+                                    >
+                                        {node.children.map((child) =>
+                                            renderLeafButton(child, "data-nav-child"),
+                                        )}
+                                    </div>
+                                ) : null}
+                            </div>
                         )
                     })}
                 </div>
             </div>
 
             {/* 右侧内容 - 切换或点击列表时挂载并请求最新数据 */}
-            {navItems
+            {leafItems
                 .filter((item) => item.key === pageKey)
                 .map((item) => {
                     const PageComponent = item.component
