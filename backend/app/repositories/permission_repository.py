@@ -1,7 +1,7 @@
 from typing import Any
 
 from sqlalchemy import and_, or_
-from sqlmodel import Session, select
+from sqlmodel import Session, delete, select
 
 from app.models.collection import Collection
 from app.models.effective_permission import UserEffectivePermission
@@ -645,12 +645,18 @@ class PermissionRepository(BaseRepository[UserPermission, Any, Any]):
         """Delete all project-local collection permissions under one project."""
         if not collection_ids:
             return
-        stmt = select(UserPermission).where(
-            UserPermission.project_id == project_id,
-            UserPermission.collection_id.in_(collection_ids),
+        session.exec(
+            delete(UserScopeRole).where(
+                UserScopeRole.project_id == project_id,
+                UserScopeRole.collection_id.in_(collection_ids),
+            )
         )
-        for row in session.exec(stmt).all():
-            session.delete(row)
+        session.exec(
+            delete(UserPermission).where(
+                UserPermission.project_id == project_id,
+                UserPermission.collection_id.in_(collection_ids),
+            )
+        )
 
 
 # Singleton instance

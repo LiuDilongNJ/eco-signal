@@ -282,6 +282,7 @@ def delete_project(session: Session, project_id: int, user: User) -> ApiResponse
         raise HTTPException(status_code=403, detail="Only admins can delete projects")
 
     # Delete dependency rows in FK-safe order.
+    session.exec(delete(UserScopeRole).where(UserScopeRole.project_id == project_id))
     session.exec(delete(UserPermission).where(UserPermission.project_id == project_id))
     session.exec(delete(ProjectCollection).where(ProjectCollection.project_id == project_id))
     session.exec(delete(SiteProject).where(SiteProject.project_id == project_id))
