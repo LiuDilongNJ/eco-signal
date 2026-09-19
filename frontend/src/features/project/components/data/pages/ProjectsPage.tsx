@@ -183,6 +183,19 @@ export function ProjectsPage() {
                 if (tableState) {
                     handleTableChange(tableState)
                 }
+                if (!isEdit) {
+                    const projectId = Number(res.data.project_id)
+                    if (Number.isFinite(projectId)) {
+                        setProjectSearch("")
+                        upsertProjectOption({
+                            id: projectId,
+                            name: String(values.name ?? ""),
+                        })
+                        setActiveTab("data")
+                        void selectProject(projectId)
+                        navigate(`/dashboard/${projectId}?tab=data`)
+                    }
+                }
             } else {
                 message.error(res.message || `Failed to ${isEdit ? 'update' : 'create'} project`)
             }
@@ -192,7 +205,17 @@ export function ProjectsPage() {
         } finally {
             setLoading(false)
         }
-    }, [tableState, handleTableChange, editProjectId, fetchProjectOptions])
+    }, [
+        tableState,
+        handleTableChange,
+        editProjectId,
+        fetchProjectOptions,
+        navigate,
+        selectProject,
+        setActiveTab,
+        setProjectSearch,
+        upsertProjectOption,
+    ])
 
     const handleDeleteSubmit = useCallback(async (selectedKeys: any[]) => {
         try {
