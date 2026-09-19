@@ -243,6 +243,7 @@ import {
     computeMagnifierLayoutForAnnotation,
     STUDIO_ANNOTATION_COLUMNS,
     PHOTO_STUDIO_ANNOTATION_COLUMNS,
+    REFERENCE_FIELD_HELP_TEXT,
     type StudioAnnotationRow,
     annotationHasTaskTagForNav,
     annotationPublicToStudioRow,
@@ -7446,6 +7447,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                                                                         <Col xs={24} sm={12}>
                                                                             <Form.Item
                                                                                 label="Reference"
+                                                                                tooltip={REFERENCE_FIELD_HELP_TEXT}
                                                                                 className="studio-annot-form-item studio-annot-switch-field"
                                                                                 colon={false}
                                                                                 required={false}
@@ -7494,6 +7496,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                                                                         <Col xs={24} sm={12}>
                                                                             <Form.Item
                                                                                 label="Reference"
+                                                                                tooltip={REFERENCE_FIELD_HELP_TEXT}
                                                                                 className="studio-annot-form-item studio-annot-switch-field"
                                                                                 colon={false}
                                                                                 required={false}

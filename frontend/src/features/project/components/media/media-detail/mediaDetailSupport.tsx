@@ -498,6 +498,9 @@ export function computeMagnifierLayoutForAnnotation(
 }
 
 /** 与 audio.html 标注表列一致；列 key 即数据表字段名，与后端 list order_by / 筛选参数对齐（不设 width，由内容与表头撑开） */
+export const REFERENCE_FIELD_HELP_TEXT =
+    "Mark as a reference annotation (e.g. for constituting reference call libraries, assembling training datasets, or other uses)"
+
 export const STUDIO_ANNOTATION_COLUMNS: ColumnDef[] = [
     { key: "annotation_id", label: "ID", type: "number", sortable: true, filterable: true, width: 150 },
     { key: "uuid", label: "UUID", type: "text", sortable: true, filterable: true, width: 108, ellipsis: true },
@@ -515,7 +518,7 @@ export const STUDIO_ANNOTATION_COLUMNS: ColumnDef[] = [
     { key: "sound_distance_m", label: "Distance (m)", type: "number", sortable: true, filterable: true, filterType: "numberRange", width: 280 },
     { key: "distance_not_estimable", label: "Not Estimable", type: "badge", sortable: true, filterable: true, filterOptions: ["True", "False"], width: 140 },
     { key: "individual_num", label: "Indiv. Num", type: "number", sortable: true, filterable: true, filterType: "numberRange", width: 280 },
-    { key: "reference", label: "Reference", type: "badge", sortable: true, filterable: true, filterOptions: ["True", "False"], width: 120 },
+    { key: "reference", label: "Reference", type: "badge", sortable: true, filterable: true, filterOptions: ["True", "False"], width: 120, tooltip: REFERENCE_FIELD_HELP_TEXT },
     { key: "comments", label: "Comments", type: "text", sortable: true, filterable: true, width: 220 },
 ]
 
@@ -532,7 +535,7 @@ export const PHOTO_STUDIO_ANNOTATION_COLUMNS: ColumnDef[] = [
     { key: "taxon_name", label: "Taxon", type: "text", sortable: true, filterable: true, width: 180 },
     { key: "uncertain", label: "Uncertain", type: "boolean", sortable: true, filterable: true, filterOptions: ["true", "false"], width: 120 },
     { key: "individual_num", label: "Indiv. Num", type: "number", sortable: true, filterable: true, filterType: "numberRange", width: 180 },
-    { key: "reference", label: "Reference", type: "badge", sortable: true, filterable: true, filterOptions: ["True", "False"], width: 120 },
+    { key: "reference", label: "Reference", type: "badge", sortable: true, filterable: true, filterOptions: ["True", "False"], width: 120, tooltip: REFERENCE_FIELD_HELP_TEXT },
     { key: "comments", label: "Comments", type: "text", sortable: true, filterable: true, width: 220 },
 ]
 
