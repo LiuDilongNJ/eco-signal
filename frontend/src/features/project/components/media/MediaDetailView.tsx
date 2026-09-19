@@ -192,7 +192,10 @@ import {
     FFT_DROPDOWN_ITEMS,
     PLAYBACK_RATE_SLIDER_MIN,
     PLAYBACK_RATE_SLIDER_MAX,
-    SPECTROGRAM_ZOOM_STEP,
+    SPECTROGRAM_ZOOM_FACTOR_MIN,
+    SPECTROGRAM_ZOOM_FACTOR_MAX,
+    SPECTROGRAM_ZOOM_FACTOR_STEP,
+    SPECTROGRAM_ZOOM_MIN_WINDOW_EPSILON_S,
     SPECTROGRAM_FREQ_WINDOW_EPSILON_HZ,
     SPECTROGRAM_DRAFT_MIN_SIZE_PX,
     SPECTROGRAM_PX_PER_SEC_MIN,
@@ -220,6 +223,8 @@ import {
     snapTimeSec,
     resolveSpectrogramZoomWindow,
     resolveSpectrogramViewStart,
+    parseSpectrogramZoomFactor,
+    nextWindowByZoomFactor,
     hexColorToRgba,
     SOUNDSCAPE_LABELS,
     buildSoundscapeSelectOptions,
@@ -273,7 +278,7 @@ import {
     normalizeAnnotationOverlayRect,
     type MediaDetailViewProps,
     SPEC_ZOOM_COOKIE_KEY,
-    SPEC_ZOOM_LEVEL_COOKIE_KEY,
+    SPEC_ZOOM_FACTOR_COOKIE_KEY,
     SPEC_PXS_COOKIE_KEY,
     DEFAULT_SPECTROGRAM_PX_PER_SEC,
     ANNOT_SAVE_MODE_COOKIE_KEY,
@@ -359,15 +364,9 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
     const [spectrogramZoomPercent, setSpectrogramZoomPercent] = useState(() =>
         parseSpectrogramZoomPercent(getCookieValue(SPEC_ZOOM_COOKIE_KEY), 50),
     )
-    /** #142：100% 为打开播放器时的基准视图 */
-    const [spectrogramZoomDraftPercent, setSpectrogramZoomDraftPercent] = useState(() =>
-        String(
-            clamp(
-                Number(getCookieValue(SPEC_ZOOM_LEVEL_COOKIE_KEY)) || 100,
-                10,
-                800,
-            ),
-        ),
+    /** #142：用户设定的缩放增量因子 X，放大/缩小视窗时保持不变 */
+    const [spectrogramZoomFactorDraft, setSpectrogramZoomFactorDraft] = useState(() =>
+        String(parseSpectrogramZoomFactor(getCookieValue(SPEC_ZOOM_FACTOR_COOKIE_KEY))),
     )
     /** 可见窗左边缘对应时间（秒） */
     const [spectrogramViewStart, setSpectrogramViewStart] = useState(0)
@@ -5714,8 +5713,6 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
         syncPlaybackToSpectrogramViewStart(0)
         setSpecFreqMinHz(1)
         setSpecFreqMaxHz(nyquistHz)
-        setSpectrogramZoomDraftPercent("100")
-        setCookieValue(SPEC_ZOOM_LEVEL_COOKIE_KEY, "100")
     }
 
     const channelCount = Number(media.audio_setting?.channel_num ?? media.channels)
@@ -5767,22 +5764,14 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
         }
     }
 
-    const applySpectrogramCentralZoomByPercent = (pctRaw: string, dir: "in" | "out") => {
+    const applySpectrogramCentralZoomByFactor = (factorRaw: string, dir: "in" | "out") => {
         const dur = totalDuration
         const curWin = specWindowSec
         if (!(dur > 0) || !(curWin > 0)) return
-        const currentPercent = Number(pctRaw)
-        if (!Number.isFinite(currentPercent)) return
-        const targetPercent = clamp(
-            currentPercent + (dir === "in" ? SPECTROGRAM_ZOOM_STEP : -SPECTROGRAM_ZOOM_STEP),
-            10,
-            800,
-        )
-        if (targetPercent === currentPercent) return
-
+        const factor = parseSpectrogramZoomFactor(factorRaw)
         const minWin = spectrogramMinWindowSec(dur)
-        const scaleFactor = targetPercent / currentPercent
-        const nextWin = clamp(curWin / scaleFactor, minWin, dur)
+        const nextWin = clamp(nextWindowByZoomFactor(curWin, factor, dir), minWin, dur)
+        if (Math.abs(nextWin - curWin) < SPECTROGRAM_ZOOM_MIN_WINDOW_EPSILON_S) return
         const windowRatio = nextWin / curWin
 
         const { zp: nextZp } = resolveSpectrogramZoomWindow(dur, nextWin)
@@ -5792,9 +5781,6 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
         spectrogramViewStartRef.current = nextVs
         setSpectrogramZoomPercent(nextZp)
         spectrogramZoomPercentRef.current = nextZp
-        const nextDisplay = String(targetPercent)
-        setSpectrogramZoomDraftPercent(nextDisplay)
-        setCookieValue(SPEC_ZOOM_LEVEL_COOKIE_KEY, nextDisplay)
         setSpectrogramViewStart(nextVs)
         storeSpectrogramZoomPercentCookie(nextZp)
         syncPlaybackToSpectrogramViewStart(nextVs)
@@ -5830,13 +5816,13 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
     const handleSpectrogramZoomIn = () => {
         runSpectrogramControl(() => {
             exitAnnotationPanelIfActive()
-            applySpectrogramCentralZoomByPercent(spectrogramZoomDraftPercent, "in")
+            applySpectrogramCentralZoomByFactor(spectrogramZoomFactorDraft, "in")
         })
     }
     const handleSpectrogramZoomOut = () => {
         runSpectrogramControl(() => {
             exitAnnotationPanelIfActive()
-            applySpectrogramCentralZoomByPercent(spectrogramZoomDraftPercent, "out")
+            applySpectrogramCentralZoomByFactor(spectrogramZoomFactorDraft, "out")
         })
     }
     const handleSpectrogramPanLeft = () => {
@@ -6112,23 +6098,30 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
 
                         <span className="toolbar-divider" />
 
-                        {/* Zoom：共用单一百分比；放大后再缩小回到同一视窗 (#142) */}
+                        {/* Zoom：单一增量因子 X；放大 width/X，缩小 width*X (#142) */}
                         <div className="zoom-control-wrapper">
                             <ESInput appearance="unstyled"
                                 type="number"
-                                min={10}
-                                max={800}
-                                step={SPECTROGRAM_ZOOM_STEP}
-                                value={spectrogramZoomDraftPercent}
+                                min={SPECTROGRAM_ZOOM_FACTOR_MIN}
+                                max={SPECTROGRAM_ZOOM_FACTOR_MAX}
+                                step={SPECTROGRAM_ZOOM_FACTOR_STEP}
+                                value={spectrogramZoomFactorDraft}
                                 disabled={isSpectrogramBusy}
-                                aria-label="Zoom percentage"
+                                aria-label="Zoom factor"
+                                title="Zoom in divides the visible width by this factor; zoom out multiplies it"
                                 onChange={(e) => {
                                     const v = e.target.value
-                                    setSpectrogramZoomDraftPercent(v)
-                                    setCookieValue(SPEC_ZOOM_LEVEL_COOKIE_KEY, v)
+                                    setSpectrogramZoomFactorDraft(v)
+                                    const parsed = Number(v)
+                                    if (Number.isFinite(parsed) && parsed >= SPECTROGRAM_ZOOM_FACTOR_MIN) {
+                                        setCookieValue(
+                                            SPEC_ZOOM_FACTOR_COOKIE_KEY,
+                                            String(parseSpectrogramZoomFactor(v)),
+                                        )
+                                    }
                                 }}
                             />
-                            <span className="zoom-control-unit">%</span>
+                            <span className="zoom-control-unit">×</span>
                             <MediaViewerToolbarButton
                                 variant="zoom"
                                 label="Zoom Out (Shift + wheel)"

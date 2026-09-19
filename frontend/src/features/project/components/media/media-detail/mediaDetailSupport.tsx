@@ -33,11 +33,14 @@ export const PLAYBACK_RATE_SLIDER_MIN = 0.1
 export const PLAYBACK_RATE_SLIDER_MAX = 1
 
 /** 声谱图横向缩放：0% = 全时长可见，100% = 最大放大；仅保留极小数学下限避免除零。 */
-export const SPECTROGRAM_ZOOM_STEP = 10
 export const SPECTROGRAM_ZOOM_MIN_WINDOW_EPSILON_S = 1e-6
 export const SPECTROGRAM_FREQ_WINDOW_EPSILON_HZ = 1e-6
 export const SPECTROGRAM_ANNOTATION_MIN_VISIBLE_PX = 6
 export const SPECTROGRAM_DRAFT_MIN_SIZE_PX = 12
+export const SPECTROGRAM_ZOOM_FACTOR_MIN = 1.1
+export const SPECTROGRAM_ZOOM_FACTOR_MAX = 10
+export const SPECTROGRAM_ZOOM_FACTOR_DEFAULT = 2
+export const SPECTROGRAM_ZOOM_FACTOR_STEP = 0.1
 export const SPECTROGRAM_PX_PER_SEC_MIN = 0.01
 export const SPECTROGRAM_DISPLAY_MAX_DECIMALS = 4
 export const SPECTROGRAM_VISIBLE_RANGE_SNAP_EPSILON_S = 0.05
@@ -318,6 +321,19 @@ export function resolveSpectrogramViewStart(durationS: number, centerSec: number
     const win = windowSec > 0 ? windowSec : spectrogramMinWindowSec(dur)
     const maxS = Math.max(0, dur - win)
     return snapTimeSec(clamp(centerSec - win / 2, 0, maxS), dur)
+}
+
+export function parseSpectrogramZoomFactor(raw: string | null | undefined, fallback = SPECTROGRAM_ZOOM_FACTOR_DEFAULT): number {
+    const n = raw != null ? Number(raw) : NaN
+    if (!Number.isFinite(n)) return fallback
+    return clamp(n, SPECTROGRAM_ZOOM_FACTOR_MIN, SPECTROGRAM_ZOOM_FACTOR_MAX)
+}
+
+/** 放大：newWidth = currentWidth / X；缩小：newWidth = currentWidth * X */
+export function nextWindowByZoomFactor(currentWindow: number, factor: number, dir: "in" | "out"): number {
+    const x = parseSpectrogramZoomFactor(String(factor))
+    if (!(currentWindow > 0)) return currentWindow
+    return dir === "in" ? currentWindow / x : currentWindow * x
 }
 
 export function hexColorToRgba(hex: string, alpha: number): string {
@@ -1168,7 +1184,9 @@ export interface MediaDetailViewProps {
 }
 
 export const SPEC_ZOOM_COOKIE_KEY = "ecoSignal_spec_zoom_percent"
-/** #142：用户可理解的当前显示比例，100% 为打开播放器时的基准视图 */
+/** #142：缩放增量因子 X；放大后宽度 = 当前宽度 / X，缩小后宽度 = 当前宽度 * X */
+export const SPEC_ZOOM_FACTOR_COOKIE_KEY = "ecoSignal_spec_zoom_factor"
+/** @deprecated 旧实现把该值当成当前显示比例，不再读取 */
 export const SPEC_ZOOM_LEVEL_COOKIE_KEY = "ecoSignal_spec_zoom_level_percent"
 /** @deprecated 兼容旧 cookie 读取 */
 export const SPEC_ZOOM_DRAFT_IN_COOKIE_KEY = "ecoSignal_spec_zoom_percent_draft_in"
