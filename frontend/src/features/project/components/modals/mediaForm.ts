@@ -36,6 +36,9 @@ export const MEDIA_EDIT_TITLES: Record<EditableMediaKind, string> = {
 export const SENSOR_FIELD_HELP_TEXT =
     "Sensors are recorder-microphone or camera-lens combinations. Admins can manage them under settings."
 
+export const SITE_FIELD_HELP_TEXT =
+    "Sites can be created in the corresponding sites table"
+
 export const GAIN_FIELD_HELP_TEXT =
     "Analog amplification of the recorded audio signal, applied by the recorder. Required to derive dB SPL"
 

@@ -14,7 +14,7 @@ import { canParseFilenameDateTime } from "./filenameDatetime"
 import type { LicenseOption } from "../../../../api/endpoints/licenses"
 import type { SensorOption } from "../../../../api/endpoints/sensors"
 import type { UserOption } from "../../../../api/endpoints/users"
-import { MEDIA_ADD_TITLES, SENSOR_FIELD_HELP_TEXT, GAIN_FIELD_HELP_TEXT, SOUND_NAME_PREFIX_HELP_TEXT, LICENSE_CHOOSER_URL, filterSensorsForMediaType, formatSensorOptionLabel } from "./mediaForm"
+import { MEDIA_ADD_TITLES, SENSOR_FIELD_HELP_TEXT, SITE_FIELD_HELP_TEXT, GAIN_FIELD_HELP_TEXT, SOUND_NAME_PREFIX_HELP_TEXT, LICENSE_CHOOSER_URL, filterSensorsForMediaType, formatSensorOptionLabel } from "./mediaForm"
 import { RESAMPLING_RATE_OPTIONS, isValidResamplingRate } from "./resamplingOptions"
 import "./styles/FormDrawer.css"
 import "./styles/UploadAudioDrawer.css"
@@ -53,7 +53,7 @@ interface UploadAudioDrawerProps {
 
 const MEDIUM_OPTIONS = ["Air", "Water"]
 
-type UploadAudioValidationField = "date_time" | "sensor_id" | "gain" | "target_sampling_rate_hz"
+type UploadAudioValidationField = "date_time" | "site_id" | "sensor_id" | "gain" | "target_sampling_rate_hz"
 
 export function UploadAudioDrawer({ open, initialFiles = [], siteOptions = [], licenseOptions = [], sensorOptions = [], userOptions = [], currentUserId = null, onClose, onSave, onAddMoreFiles, onRetry }: UploadAudioDrawerProps) {
     const isDark = useAppStore(s => s.effectiveTheme === "dark")
@@ -107,6 +107,9 @@ export function UploadAudioDrawer({ open, initialFiles = [], siteOptions = [], l
         const hasDateTime = typeof formData.date_time === "string" && formData.date_time.trim() !== ""
         if (!useFilenameDate && !hasDateTime) {
             nextErrors.date_time = "Please set Date Time or enable From filename"
+        }
+        if (formData.site_id == null) {
+            nextErrors.site_id = "Please select Site"
         }
         if (formData.sensor_id == null) {
             nextErrors.sensor_id = "Please select Sensor"
@@ -351,15 +354,28 @@ export function UploadAudioDrawer({ open, initialFiles = [], siteOptions = [], l
                                         }}
                                     />
                                 </Form.Item>
-                                <Form.Item label="Site">
+                                <Form.Item
+                                    label={renderRequiredLabel(
+                                        <span className="site-form-field-label-with-help">
+                                            Site
+                                            <Tooltip title={SITE_FIELD_HELP_TEXT}>
+                                                <Info size={14} aria-hidden="true" />
+                                            </Tooltip>
+                                        </span>,
+                                    )}
+                                    validateStatus={validationErrors.site_id ? "error" : undefined}
+                                    help={validationErrors.site_id}
+                                >
                                     <Select
                                         showSearch
                                         optionFilterProp="label"
                                         classNames={{ popup: { root: "form-drawer-select-popup" } }}
                                         notFoundContent={selectEmptyState}
-
                                         options={siteOptions.map(s => ({ value: s.site_id, label: s.name }))}
-                                        onChange={v => setFormData(p => ({ ...p, site_id: v }))}
+                                        onChange={v => {
+                                            setFormData(p => ({ ...p, site_id: v }))
+                                            clearValidationError("site_id")
+                                        }}
                                     />
                                 </Form.Item>
                                 <Form.Item

@@ -23,6 +23,7 @@ import {
     MEDIA_ADD_TITLES,
     MEDIA_EDIT_TITLES,
     SENSOR_FIELD_HELP_TEXT,
+    SITE_FIELD_HELP_TEXT,
     LICENSE_CHOOSER_URL,
 } from "./mediaForm"
 import dayjs from "dayjs"
@@ -263,14 +264,25 @@ export function PhotoMediaDrawer(props: PhotoMediaDrawerProps) {
                     <DatePicker showTime format="YYYY-MM-DD HH:mm:ss" disabled={dateFromFilename} />
                 </Form.Item>
             )}
-            <Form.Item name="site_id" label={<StableText>Site</StableText>}>
+            <Form.Item
+                name="site_id"
+                label={
+                    <span className="site-form-field-label-with-help">
+                        <StableText>Site</StableText>
+                        <Tooltip title={SITE_FIELD_HELP_TEXT}>
+                            <Info size={14} aria-hidden="true" />
+                        </Tooltip>
+                    </span>
+                }
+                rules={mode === "add" ? [{ required: true, message: "Please select Site" }] : undefined}
+            >
                 <Select
                     showSearch
                     optionFilterProp="label"
                     className="form-drawer-select"
                     classNames={{ popup: { root: selectPopupClassName } }}
                     options={sites.map((site) => ({ value: site.site_id, label: site.name }))}
-                    allowClear
+                    allowClear={mode !== "add"}
                     notFoundContent={selectEmptyState}
                 />
             </Form.Item>
