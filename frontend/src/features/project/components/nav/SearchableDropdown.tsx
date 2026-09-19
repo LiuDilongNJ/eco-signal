@@ -5,7 +5,7 @@ import { Button as ESButton, Input as ESInput } from "@/components/ui"
  * 复用于 ProjectSelector 和 CollectionSelector
  */
 
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef, useEffect, useLayoutEffect } from "react"
 import { Search, Check } from "lucide-react"
 import { CustomScrollArea } from "@/components/ui"
 import { EmptyState } from "@/components/ui"
@@ -49,6 +49,7 @@ export function SearchableDropdown({
 }: SearchableDropdownProps) {
     const [isOpen, setIsOpen] = useState(false)
     const wrapperRef = useRef<HTMLDivElement>(null)
+    const selectedItemRef = useRef<HTMLDivElement>(null)
 
     const closeDropdown = () => {
         setIsOpen(false)
@@ -64,6 +65,42 @@ export function SearchableDropdown({
         document.addEventListener("click", handleClickOutside)
         return () => document.removeEventListener("click", handleClickOutside)
     }, [])
+
+    useLayoutEffect(() => {
+        if (!isOpen) return
+        let cancelled = false
+        let innerFrame = 0
+        const scrollSelectedIntoView = () => {
+            if (cancelled) return
+            const el = selectedItemRef.current
+            if (!el) return
+            const scrollParent = el.closest(".custom-scroll-area__body") as HTMLElement | null
+            if (!scrollParent) {
+                el.scrollIntoView({ block: "nearest", inline: "nearest" })
+                return
+            }
+            if (getComputedStyle(scrollParent).overflowY === "hidden") {
+                scrollParent.style.overflowY = "auto"
+            }
+            const parentRect = scrollParent.getBoundingClientRect()
+            const elRect = el.getBoundingClientRect()
+            if (parentRect.height < 1) return
+            const above = elRect.top < parentRect.top
+            const below = elRect.bottom > parentRect.bottom
+            if (!above && !below) return
+            scrollParent.scrollTop += above
+                ? elRect.top - parentRect.top
+                : elRect.bottom - parentRect.bottom
+        }
+        const frame = window.requestAnimationFrame(() => {
+            innerFrame = window.requestAnimationFrame(scrollSelectedIntoView)
+        })
+        return () => {
+            cancelled = true
+            window.cancelAnimationFrame(frame)
+            window.cancelAnimationFrame(innerFrame)
+        }
+    }, [isOpen, selectedId, items])
 
     const selectedItem = items.find(item => String(item.id) === String(selectedId))
 
@@ -119,6 +156,7 @@ export function SearchableDropdown({
                             return (
                                 <div
                                     key={item.id}
+                                    ref={isSelected ? selectedItemRef : undefined}
                                     className={`crumb-item ${isSelected ? "selected" : ""}`}
                                     onClick={() => {
                                         onSelect(item.id)
