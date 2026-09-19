@@ -1,4 +1,5 @@
-import { forwardRef, type ForwardedRef, type InputHTMLAttributes, type LabelHTMLAttributes, type ReactElement, type ReactNode, type RefAttributes, type TextareaHTMLAttributes } from "react"
+import { forwardRef, isValidElement, type ForwardedRef, type InputHTMLAttributes, type LabelHTMLAttributes, type ReactElement, type ReactNode, type RefAttributes, type TextareaHTMLAttributes } from "react"
+import { CircleHelp } from "lucide-react"
 import {
     Checkbox as AntCheckbox,
     DatePicker as AntDatePicker,
@@ -11,6 +12,10 @@ import {
 import type { FormItemProps, InputProps as AntInputProps, InputRef } from "antd"
 import type { PickerRef } from "@rc-component/picker"
 import { cn } from "@/lib/utils"
+
+export function FormHelpIcon({ size = 14, className }: { size?: number; className?: string }) {
+    return <CircleHelp size={size} className={cn("es-form-help-icon", className)} aria-hidden="true" />
+}
 
 export type { FormInstance, RuleObject } from "antd/es/form"
 
@@ -155,8 +160,12 @@ export const RadioGroup = AntRadio.Group
 export const Switch = SwitchAdapter as typeof AntSwitch
 
 function FormAdapter(props: React.ComponentProps<typeof AntForm>) {
-    const { className, ...formProps } = props
-    return <AntForm className={cn("es-form", className)} {...formProps} />
+    const { className, tooltip, ...formProps } = props
+    const mergedTooltip =
+        tooltip != null && typeof tooltip === "object" && !isValidElement(tooltip)
+            ? { icon: <FormHelpIcon />, ...tooltip }
+            : { icon: <FormHelpIcon />, ...(tooltip != null ? { title: tooltip } : {}) }
+    return <AntForm className={cn("es-form", className)} tooltip={mergedTooltip} {...formProps} />
 }
 
 export const Form = Object.assign(FormAdapter, {

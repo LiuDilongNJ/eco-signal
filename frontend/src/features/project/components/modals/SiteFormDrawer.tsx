@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import type { ReactNode } from "react"
 import type { RuleObject } from "@/components/ui"
-import { Button, Form, Input, LoadingState, Select, InputNumber, ConfigProvider, Space, Tooltip } from "@/components/ui"
+import { Button, Form, FormHelpIcon, Input, LoadingState, Select, InputNumber, ConfigProvider, Space, Tooltip } from "@/components/ui"
 import { FormDrawer } from "@/components/ui"
 import { renderRequiredMark } from "@/components/ui"
 
@@ -12,7 +12,6 @@ import { useGadm } from "../hooks/useGadm"
 import { useGeoOptions, type GeoOptionsFilter } from "../hooks/useGeoOptions"
 import { CustomScrollArea } from "@/components/ui"
 import { isSelectScrollNearBottom } from "@/hooks/usePagedSelectOptions"
-import { CircleHelp } from "lucide-react"
 import { geoApi } from "@/api/endpoints/geo"
 import "./styles/FormDrawer.css"
 
@@ -147,7 +146,7 @@ function renderFieldLabel(field: FormFieldDef, method: string | undefined) {
         <span className="site-form-field-label-with-help">
             <span>{label}</span>
             <Tooltip title={helpText}>
-                <CircleHelp size={14} strokeWidth={2} aria-label={`${field.label} information`} />
+                <FormHelpIcon />
             </Tooltip>
         </span>
     )

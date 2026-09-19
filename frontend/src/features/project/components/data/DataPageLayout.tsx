@@ -38,7 +38,7 @@ import { submitTabularImport } from "@/api/tabularImport"
 import { IMPORT_RESOURCE_CONFIGS, type ImportResourceKey } from "@/features/imports/importConfigs"
 import { useTabularImport } from "@/features/imports/useTabularImport"
 import { useProjectStore } from "../../stores/useProjectStore"
-import { Checkbox, Combobox, ConfigProvider, DataTable, DatePicker, DropdownMenu, getTooltipText, Input, RowActions, TableToolbar, Tooltip, theme as antdTheme } from "@/components/ui"
+import { Checkbox, Combobox, ConfigProvider, DataTable, DatePicker, DropdownMenu, FormHelpIcon, getTooltipText, Input, RowActions, TableToolbar, Tooltip, theme as antdTheme } from "@/components/ui"
 import type { ThemeConfig } from "@/components/ui"
 import {
     UUID_COLUMN_WIDTH_COLLAPSED,
@@ -985,7 +985,10 @@ export function DataPageLayout({
                             }}>
                                 {col.tooltip ? (
                                     <Tooltip title={col.tooltip}>
-                                        <span className="dpl-th-label-tooltip">{col.label}</span>
+                                        <span className="dpl-th-label-tooltip">
+                                            {col.label}
+                                            {isUuidColumn && !uuidColumnExpanded ? null : <FormHelpIcon />}
+                                        </span>
                                     </Tooltip>
                                 ) : col.label}
                                 {isUuidColumn ? (

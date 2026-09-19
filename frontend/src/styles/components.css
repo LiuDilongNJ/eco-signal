@@ -130,6 +130,13 @@
   color: var(--es-color-text-muted);
 }
 
+.es-form-help-icon,
+.ant-form-item-tooltip .es-form-help-icon {
+  color: var(--es-color-text-secondary);
+  cursor: help;
+  flex: 0 0 auto;
+}
+
 .es-input.ant-input,
 .es-input.ant-input-affix-wrapper,
 .es-textarea.ant-input,

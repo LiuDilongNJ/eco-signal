@@ -1,9 +1,9 @@
 import { Button as ESButton } from "@/components/ui"
 import { useEffect, useMemo, useState, type ReactNode } from "react"
-import { Button, ConfigProvider, Typography, Select, Input, Switch, Progress, Form, DatePicker, Tooltip } from "@/components/ui"
+import { Button, ConfigProvider, Typography, Select, Input, Switch, Progress, Form, DatePicker, FormHelpIcon, Tooltip } from "@/components/ui"
 import { FormDrawer } from "@/components/ui"
 
-import { AudioLines, CheckCircle2, Upload, RefreshCw, Info, ExternalLink } from "lucide-react"
+import { AudioLines, CheckCircle2, Upload, RefreshCw, ExternalLink } from "lucide-react"
 import { useAppStore } from "@/store/useAppStore"
 import { useAntdBrandConfig } from "../../hooks/useAntdBrandConfig"
 import { CustomScrollArea } from "@/components/ui"
@@ -359,7 +359,7 @@ export function UploadAudioDrawer({ open, initialFiles = [], siteOptions = [], l
                                         <span className="site-form-field-label-with-help">
                                             Site
                                             <Tooltip title={SITE_FIELD_HELP_TEXT}>
-                                                <Info size={14} aria-hidden="true" />
+                                                <FormHelpIcon />
                                             </Tooltip>
                                         </span>,
                                     )}
@@ -383,7 +383,7 @@ export function UploadAudioDrawer({ open, initialFiles = [], siteOptions = [], l
                                         <span className="site-form-field-label-with-help">
                                             Sensor
                                             <Tooltip title={SENSOR_FIELD_HELP_TEXT}>
-                                                <Info size={14} aria-hidden="true" />
+                                                <FormHelpIcon />
                                             </Tooltip>
                                         </span>,
                                     )}
@@ -445,7 +445,7 @@ export function UploadAudioDrawer({ open, initialFiles = [], siteOptions = [], l
                                         <span className="site-form-field-label-with-help">
                                             Gain (dB)
                                             <Tooltip title={GAIN_FIELD_HELP_TEXT}>
-                                                <Info size={14} aria-hidden="true" />
+                                                <FormHelpIcon />
                                             </Tooltip>
                                         </span>,
                                     )}
@@ -471,7 +471,7 @@ export function UploadAudioDrawer({ open, initialFiles = [], siteOptions = [], l
                                         <span className="site-form-field-label-with-help">
                                             Sound Name Prefix
                                             <Tooltip title={SOUND_NAME_PREFIX_HELP_TEXT}>
-                                                <Info size={14} aria-hidden="true" />
+                                                <FormHelpIcon />
                                             </Tooltip>
                                         </span>
                                     }

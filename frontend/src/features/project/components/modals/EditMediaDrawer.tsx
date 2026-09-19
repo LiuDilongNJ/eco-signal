@@ -1,8 +1,8 @@
 import { useState, useEffect, useMemo } from "react"
-import { Button, Form, Input, Select, DatePicker, message, ConfigProvider, Tooltip } from "@/components/ui"
+import { Button, Form, FormHelpIcon, Input, Select, DatePicker, message, ConfigProvider, Tooltip } from "@/components/ui"
 import { FormDrawer } from "@/components/ui"
 import { renderRequiredMark } from "@/components/ui"
-import { Info, ExternalLink } from "lucide-react"
+import { ExternalLink } from "lucide-react"
 
 import { CustomScrollArea } from "@/components/ui"
 import { StableText } from "@/components/ui"
@@ -285,7 +285,7 @@ export function EditMediaDrawer({
                                             <span className="site-form-field-label-with-help">
                                                 <StableText>Gain (dB)</StableText>
                                                 <Tooltip title={GAIN_FIELD_HELP_TEXT}>
-                                                    <Info size={14} aria-hidden="true" />
+                                                    <FormHelpIcon />
                                                 </Tooltip>
                                             </span>
                                         }
@@ -327,7 +327,7 @@ export function EditMediaDrawer({
                                                 <span className="site-form-field-label-with-help">
                                                     <StableText>Gain (dB)</StableText>
                                                     <Tooltip title={GAIN_FIELD_HELP_TEXT}>
-                                                        <Info size={14} aria-hidden="true" />
+                                                        <FormHelpIcon />
                                                     </Tooltip>
                                                 </span>
                                             }

@@ -1,7 +1,7 @@
 import { Button as ESButton } from "@/components/ui"
 import { useEffect, useMemo, useState } from "react"
-import { Button, ConfigProvider, DatePicker, Form, Input, message, Progress, Select, Switch, Tooltip, Typography } from "@/components/ui"
-import { CheckCircle2, Image as ImageIcon, RefreshCw, Upload as UploadIcon, Info, ExternalLink } from "lucide-react"
+import { Button, ConfigProvider, DatePicker, Form, FormHelpIcon, Input, message, Progress, Select, Switch, Tooltip, Typography } from "@/components/ui"
+import { CheckCircle2, Image as ImageIcon, RefreshCw, Upload as UploadIcon, ExternalLink } from "lucide-react"
 import { FormDrawer } from "@/components/ui"
 import { CustomScrollArea } from "@/components/ui"
 import { EmptyState } from "@/components/ui"
@@ -270,7 +270,7 @@ export function PhotoMediaDrawer(props: PhotoMediaDrawerProps) {
                     <span className="site-form-field-label-with-help">
                         <StableText>Site</StableText>
                         <Tooltip title={SITE_FIELD_HELP_TEXT}>
-                            <Info size={14} aria-hidden="true" />
+                            <FormHelpIcon />
                         </Tooltip>
                     </span>
                 }
@@ -292,7 +292,7 @@ export function PhotoMediaDrawer(props: PhotoMediaDrawerProps) {
                     <span className="site-form-field-label-with-help">
                         <StableText>Sensor</StableText>
                         <Tooltip title={SENSOR_FIELD_HELP_TEXT}>
-                            <Info size={14} aria-hidden="true" />
+                            <FormHelpIcon />
                         </Tooltip>
                     </span>
                 }

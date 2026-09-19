@@ -371,9 +371,17 @@
 }
 
 .dpl-th-label-tooltip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
+}
+
+.dpl-th-label-tooltip .es-form-help-icon {
+    color: var(--text-secondary);
+    cursor: help;
 }
 
 .dpl-uuid-toggle {

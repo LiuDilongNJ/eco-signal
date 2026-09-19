@@ -1,5 +1,4 @@
-import { Tooltip } from "@/components/ui"
-import { Info } from "lucide-react"
+import { FormHelpIcon, Tooltip } from "@/components/ui"
 
 const ISSUES_URL = "https://github.com/LiuDilongNJ/eco-signal/issues"
 
@@ -14,7 +13,7 @@ export function AssociationRequestHelp({ subject }: { subject: string }) {
                 rel="noreferrer"
                 aria-label={message}
             >
-                <Info size={15} aria-hidden="true" />
+                <FormHelpIcon size={15} />
             </a>
         </Tooltip>
     )
