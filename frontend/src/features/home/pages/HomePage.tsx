@@ -45,6 +45,7 @@ const PAGE_NAV_ITEMS = [
     { id: 'sponsors', label: 'Sponsors' },
     { id: 'footer', label: 'Footer' },
 ] as const;
+const PROJECTS_PAGE_INDEX = PAGE_NAV_ITEMS.findIndex((item) => item.id === "projects");
 const POWERED_BY_ITEMS = [
     {
         name: 'scikit-maad',
@@ -263,6 +264,7 @@ export default function HomePage() {
             return null
         }
     });
+    const wasLoggedInRef = useRef(Boolean(loggedInUser));
     const [showUserMenu, setShowUserMenu] = useState(false);
 
     // Cookie Banner
@@ -359,6 +361,17 @@ export default function HomePage() {
             window.removeEventListener("storage", syncAuth);
         };
     }, [loadCards]);
+
+    useEffect(() => {
+        const nowLoggedIn = Boolean(loggedInUser);
+        if (nowLoggedIn && !wasLoggedInRef.current) {
+            const swiper = mainSwiperRef.current;
+            if (swiper && !swiper.destroyed && PROJECTS_PAGE_INDEX >= 0) {
+                swiper.slideTo(PROJECTS_PAGE_INDEX);
+            }
+        }
+        wasLoggedInRef.current = nowLoggedIn;
+    }, [loggedInUser]);
 
     useEffect(() => {
         if (activePage === 2) {
