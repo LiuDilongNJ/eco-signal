@@ -5027,9 +5027,10 @@ input[type=number] {
     flex-direction: column;
     flex-shrink: 0;
     align-items: center;
-    gap: 8px;
+    gap: 4px;
     position: relative;
-    left: 5px;
+    padding-left: 8px;
+    box-sizing: border-box;
 }
 
 .spectrogram-annot-side-toolbar .btn-toolbar {

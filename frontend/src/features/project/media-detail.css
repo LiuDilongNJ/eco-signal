@@ -1312,6 +1312,17 @@
     transform: none !important;
 }
 
+.content-wrapper--media-detail .spectrogram-annot-side-toolbar {
+    --media-control-icon-size: 20px;
+}
+
+.content-wrapper--media-detail .spectrogram-annot-side-toolbar .media-viewer-toolbar-tooltip-trigger {
+    display: flex;
+    width: var(--media-control-size);
+    height: var(--media-control-size);
+    flex: 0 0 auto;
+}
+
 .content-wrapper--media-detail .spectrogram-annot-side-toolbar .btn-toolbar {
     width: var(--media-control-size) !important;
     min-width: var(--media-control-size) !important;
