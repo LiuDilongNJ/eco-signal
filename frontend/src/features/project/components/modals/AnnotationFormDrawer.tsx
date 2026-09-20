@@ -246,10 +246,6 @@ export function AnnotationFormDrawer({
             rules.push(distanceRule)
         }
 
-        if (field.key === "comments") {
-            rules.push({ max: 500, message: "Comments must be at most 500 characters" })
-        }
-
         return rules
     }
 
@@ -468,9 +464,8 @@ export function AnnotationFormDrawer({
                 />
             )
         } else if (field.type === "textarea") {
-            const maxLength = field.key === "comments" ? 500 : undefined
             innerElement = (
-                <Input.TextArea rows={4} maxLength={maxLength} />
+                <Input.TextArea autoSize={{ minRows: 3, maxRows: 12 }} />
             )
         }
 

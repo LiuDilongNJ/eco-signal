@@ -546,6 +546,8 @@
     font-weight: 700;
     line-height: 1.5715;
     color: var(--text-main);
+    flex-shrink: 0;
+    white-space: nowrap;
 }
 
 .form-drawer-distance-toggle-group {

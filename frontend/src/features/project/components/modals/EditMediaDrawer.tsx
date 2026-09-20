@@ -380,7 +380,7 @@ export function EditMediaDrawer({
                                 </Form.Item>
 
                                 <Form.Item name="note" label={<StableText>Note</StableText>}>
-                                    <Input />
+                                    <Input.TextArea autoSize={{ minRows: 3, maxRows: 12 }} />
                                 </Form.Item>
 
                                 <Form.Item name="creator_id" label={<StableText>Creator</StableText>} required={false}>

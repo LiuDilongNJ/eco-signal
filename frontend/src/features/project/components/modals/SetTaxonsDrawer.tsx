@@ -380,10 +380,11 @@ export function SetTaxonsDrawer({
                 </Form.Item>
 
                 <Form.Item label="Notes">
-                    <Input
+                    <Input.TextArea
                         value={notes}
                         onChange={(e) => setNotes(e.target.value)}
                         className="set-taxons-input"
+                        autoSize={{ minRows: 3, maxRows: 12 }}
                     />
                 </Form.Item>
             </Form>

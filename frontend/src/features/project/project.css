@@ -5417,6 +5417,7 @@ input[type=number] {
     line-height: 1.6;
     color: var(--text-main);
     word-break: break-word;
+    white-space: pre-wrap;
     border-left: 3px solid var(--brand);
     background: var(--brand-tint);
     padding: 8px 10px;

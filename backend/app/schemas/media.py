@@ -118,7 +118,7 @@ class MediaCreate(SQLModel):
     recording_gain_db: Optional[int] = Field(None, description="Recording gain in dB")
     duty_cycle_recording: Optional[int] = Field(None, description="Duty cycle recording duration (seconds)")
     duty_cycle_period: Optional[int] = Field(None, description="Duty cycle period (seconds)")
-    note: Optional[str] = Field(None, max_length=250, description="Optional note")
+    note: Optional[str] = Field(None, description="Optional note")
     doi: Optional[str] = Field(None, max_length=255, description="DOI")
     target_sampling_rate_hz: Optional[int] = Field(
         default=None,

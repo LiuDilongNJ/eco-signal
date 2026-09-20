@@ -33,7 +33,7 @@ class AnnotationCreate(SQLModel):
     sound_id: Optional[int] = Field(None, gt=0)
     object_type: Literal["organism", "other"] | None = None
     reference: bool = False
-    comments: Optional[str] = Field(None, max_length=500)
+    comments: Optional[str] = Field(None)
     
     taxon_id: Optional[int] = None
     uncertain: Optional[bool] = None
@@ -65,7 +65,7 @@ class AnnotationUpdate(SQLModel):
     sound_id: Optional[int] = None
     object_type: Literal["organism", "other"] | None = None
     reference: Optional[bool] = None
-    comments: Optional[str] = Field(None, max_length=500)
+    comments: Optional[str] = Field(None)
     
     # Conditional fields
     taxon_id: Optional[int] = None

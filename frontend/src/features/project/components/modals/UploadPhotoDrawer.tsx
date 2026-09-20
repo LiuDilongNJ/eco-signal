@@ -348,7 +348,7 @@ export function PhotoMediaDrawer(props: PhotoMediaDrawerProps) {
                 <Input maxLength={255} />
             </Form.Item>
             <Form.Item name="note" label={<StableText>Note</StableText>}>
-                <Input maxLength={500} />
+                <Input.TextArea autoSize={{ minRows: 3, maxRows: 12 }} />
             </Form.Item>
             <Form.Item name="creator_id" label={<StableText>Creator</StableText>}>
                 <Select

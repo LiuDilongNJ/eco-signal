@@ -7,6 +7,7 @@ import uuid as uuid_lib
 from datetime import datetime
 from typing import TYPE_CHECKING, Optional
 
+from sqlalchemy import Column, Text
 from sqlmodel import Field, Relationship, SQLModel
 
 if TYPE_CHECKING:
@@ -40,7 +41,7 @@ class AnnotationBase(SQLModel):
     individual_num: Optional[int] = Field(default=1)
     animal_sound_type: Optional[str] = Field(default=None, max_length=128)
     reference: bool = Field(default=False)
-    comments: Optional[str] = Field(default=None, max_length=500)
+    comments: Optional[str] = Field(default=None, sa_column=Column(Text, nullable=True))
 
 
 class Annotation(AnnotationBase, table=True):

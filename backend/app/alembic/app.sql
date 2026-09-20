@@ -604,7 +604,7 @@ CREATE TABLE media (
   medium VARCHAR(50),
   duty_cycle_recording INTEGER,
   duty_cycle_period INTEGER,
-  note VARCHAR(250),
+  note TEXT,
   date_time TIMESTAMP WITH TIME ZONE,
   size_B BIGINT,
   md5_hash CHAR(32),
@@ -769,7 +769,7 @@ CREATE TABLE annotation (
   individual_num INTEGER NOT NULL DEFAULT 1 CHECK (individual_num >= 1),
   animal_sound_type VARCHAR(128),
   reference BOOLEAN NOT NULL DEFAULT FALSE,
-  comments VARCHAR(500),
+  comments TEXT,
   creation_date TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 

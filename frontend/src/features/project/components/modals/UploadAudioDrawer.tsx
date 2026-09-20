@@ -464,7 +464,10 @@ export function UploadAudioDrawer({ open, initialFiles = [], siteOptions = [], l
                                     <Input onChange={e => setFormData(p => ({ ...p, doi: e.target.value }))} />
                                 </Form.Item>
                                 <Form.Item label="Note">
-                                    <Input onChange={e => setFormData(p => ({ ...p, note: e.target.value }))} />
+                                    <Input.TextArea
+                                        autoSize={{ minRows: 3, maxRows: 12 }}
+                                        onChange={e => setFormData(p => ({ ...p, note: e.target.value }))}
+                                    />
                                 </Form.Item>
                                 <Form.Item
                                     label={

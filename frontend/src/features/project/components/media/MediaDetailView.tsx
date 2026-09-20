@@ -7493,7 +7493,8 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                                                                                     label="Comments"
                                                                                     className="studio-annot-form-item"
                                                                                 >
-                                                                                    <Input
+                                                                                    <Input.TextArea
+                                                                                        autoSize={{ minRows: 2, maxRows: 8 }}
                                                                                         value={formComments}
                                                                                         onChange={(e) =>
                                                                                             setFormComments(
@@ -7542,7 +7543,8 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                                                                                 >
                                                                                     <div className="studio-annot-comments-inline-row">
                                                                                         <div className="studio-annot-comments-inline-main">
-                                                                                            <Input
+                                                                                            <Input.TextArea
+                                                                                                autoSize={{ minRows: 2, maxRows: 8 }}
                                                                                                 value={formComments}
                                                                                                 onChange={(e) =>
                                                                                                     setFormComments(
@@ -7867,7 +7869,8 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                                                                     </Form.Item>
 
                                                                 <Form.Item label="Note" className="studio-annot-form-item">
-                                                                    <Input
+                                                                    <Input.TextArea
+                                                                        autoSize={{ minRows: 2, maxRows: 8 }}
                                                                         value={reviewNote}
                                                                         onChange={(e) => setReviewNote(e.target.value)}
                                                                     />

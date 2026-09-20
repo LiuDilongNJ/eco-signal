@@ -7,7 +7,7 @@ import uuid as uuid_lib
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, Optional
 
-from sqlalchemy import Column, JSON
+from sqlalchemy import Column, JSON, Text
 from sqlmodel import Field, Relationship, SQLModel
 
 if TYPE_CHECKING:
@@ -74,7 +74,7 @@ class MediaBase(SQLModel):
     medium: Optional[str] = Field(default=None, max_length=50)
     duty_cycle_recording: Optional[int] = Field(default=None)
     duty_cycle_period: Optional[int] = Field(default=None)
-    note: Optional[str] = Field(default=None, max_length=250)
+    note: Optional[str] = Field(default=None, sa_column=Column(Text, nullable=True))
     date_time: Optional[datetime] = Field(default=None, index=True)
     size_b: Optional[int] = Field(default=None)
     md5_hash: Optional[str] = Field(default=None, max_length=32, index=True)

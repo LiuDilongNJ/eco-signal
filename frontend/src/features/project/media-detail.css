@@ -2523,6 +2523,8 @@
     font-weight: 700;
     line-height: 1.5715;
     color: var(--es-color-text);
+    flex-shrink: 0;
+    white-space: nowrap;
 }
 
 [data-theme="dark"] .studio-annot-distance-title {
