@@ -24,6 +24,7 @@ import {
     MEDIA_EDIT_TITLES,
     SENSOR_FIELD_HELP_TEXT,
     SITE_FIELD_HELP_TEXT,
+    DATE_TIME_FIELD_HELP_TEXT,
     LICENSE_CHOOSER_URL,
 } from "./mediaForm"
 import dayjs from "dayjs"
@@ -231,7 +232,16 @@ export function PhotoMediaDrawer(props: PhotoMediaDrawerProps) {
                     label={
                         <div className="photo-media-drawer-label-row">
                             <span className="photo-media-drawer-label-title">
-                                {renderRequiredLabel(<StableText>Date Time</StableText>)}
+                                {renderRequiredLabel(
+                                    <span className="site-form-field-label-with-help">
+                                        <StableText>Date Time</StableText>
+                                        <Tooltip title={DATE_TIME_FIELD_HELP_TEXT}>
+                                            <span className="site-form-field-label-help-trigger">
+                                                <FormHelpIcon />
+                                            </span>
+                                        </Tooltip>
+                                    </span>,
+                                )}
                             </span>
                             <div className="photo-media-drawer-label-toggle">
                                 <span className="photo-media-drawer-label-toggle-text">From filename</span>

@@ -14,7 +14,7 @@ import { canParseFilenameDateTime } from "./filenameDatetime"
 import type { LicenseOption } from "../../../../api/endpoints/licenses"
 import type { SensorOption } from "../../../../api/endpoints/sensors"
 import type { UserOption } from "../../../../api/endpoints/users"
-import { MEDIA_ADD_TITLES, SENSOR_FIELD_HELP_TEXT, SITE_FIELD_HELP_TEXT, GAIN_FIELD_HELP_TEXT, SOUND_NAME_PREFIX_HELP_TEXT, LICENSE_CHOOSER_URL, filterSensorsForMediaType, formatSensorOptionLabel } from "./mediaForm"
+import { MEDIA_ADD_TITLES, SENSOR_FIELD_HELP_TEXT, SITE_FIELD_HELP_TEXT, GAIN_FIELD_HELP_TEXT, SOUND_NAME_PREFIX_HELP_TEXT, DATE_TIME_FIELD_HELP_TEXT, LICENSE_CHOOSER_URL, filterSensorsForMediaType, formatSensorOptionLabel } from "./mediaForm"
 import { RESAMPLING_RATE_OPTIONS, isValidResamplingRate } from "./resamplingOptions"
 import "./styles/FormDrawer.css"
 import "./styles/UploadAudioDrawer.css"
@@ -317,8 +317,13 @@ export function UploadAudioDrawer({ open, initialFiles = [], siteOptions = [], l
                                     help={validationErrors.date_time}
                                     label={
                                         <div className="upload-audio-form-label-row">
-                                            <span>
+                                            <span className="site-form-field-label-with-help">
                                                 Date Time
+                                                <Tooltip title={DATE_TIME_FIELD_HELP_TEXT}>
+                                                    <span className="site-form-field-label-help-trigger">
+                                                        <FormHelpIcon />
+                                                    </span>
+                                                </Tooltip>
                                                 <span className="form-drawer-required-suffix">*</span>
                                             </span>
                                             <div className="upload-audio-form-label-toggle">

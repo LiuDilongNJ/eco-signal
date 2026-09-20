@@ -1,4 +1,4 @@
-import { forwardRef, isValidElement, type ForwardedRef, type InputHTMLAttributes, type LabelHTMLAttributes, type ReactElement, type ReactNode, type RefAttributes, type TextareaHTMLAttributes } from "react"
+import { forwardRef, isValidElement, type ComponentPropsWithoutRef, type ForwardedRef, type InputHTMLAttributes, type LabelHTMLAttributes, type ReactElement, type ReactNode, type RefAttributes, type TextareaHTMLAttributes } from "react"
 import { CircleHelp } from "lucide-react"
 import {
     Checkbox as AntCheckbox,
@@ -13,9 +13,24 @@ import type { FormItemProps, InputProps as AntInputProps, InputRef } from "antd"
 import type { PickerRef } from "@rc-component/picker"
 import { cn } from "@/lib/utils"
 
-export function FormHelpIcon({ size = 14, className }: { size?: number; className?: string }) {
-    return <CircleHelp size={size} className={cn("es-form-help-icon", className)} aria-hidden="true" />
-}
+type FormHelpIconProps = {
+    size?: number
+    className?: string
+} & Omit<ComponentPropsWithoutRef<typeof CircleHelp>, "size">
+
+export const FormHelpIcon = forwardRef<SVGSVGElement, FormHelpIconProps>(
+    function FormHelpIcon({ size = 14, className, ...props }, ref) {
+        return (
+            <CircleHelp
+                ref={ref}
+                size={size}
+                className={cn("es-form-help-icon", className)}
+                aria-hidden="true"
+                {...props}
+            />
+        )
+    },
+)
 
 export type { FormInstance, RuleObject } from "antd/es/form"
 

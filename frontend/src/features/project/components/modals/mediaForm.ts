@@ -45,6 +45,9 @@ export const GAIN_FIELD_HELP_TEXT =
 export const SOUND_NAME_PREFIX_HELP_TEXT =
     "Add some custom text at the beginning of the uploaded media names"
 
+export const DATE_TIME_FIELD_HELP_TEXT =
+    "Local date and time when each media file was created. This can be extracted from individual filenames when coded in these common formats: YYYYMMDD_..."
+
 export const LICENSE_CHOOSER_URL = "https://creativecommons.org/chooser/"
 
 export function resolveEditableMediaKind(mediaType: string | null, isMetadata: boolean): EditableMediaKind {

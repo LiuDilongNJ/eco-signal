@@ -323,6 +323,14 @@
     gap: 5px;
 }
 
+.site-form-field-label-help-trigger {
+    display: inline-flex;
+    align-items: center;
+    line-height: 0;
+    cursor: help;
+    pointer-events: auto;
+}
+
 .site-form-field-label-with-help .anticon,
 .site-form-field-label-with-help svg {
     color: var(--text-secondary);
