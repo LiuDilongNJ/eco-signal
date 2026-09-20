@@ -2329,6 +2329,15 @@
     gap: 6px;
 }
 
+.studio-annot-review-status-tooltip-trigger {
+    display: block;
+    min-width: 0;
+}
+
+.studio-annot-review-status-tooltip-trigger .studio-annot-review-status-btn {
+    width: 100%;
+}
+
 .studio-annot-review-status-btn {
     appearance: none;
     height: 32px;

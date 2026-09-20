@@ -254,6 +254,7 @@ import {
     annotationConfidenceTier,
     AutoFitBadgeText,
     REVIEW_STATUS_IDS,
+    REVIEW_ACTION_TOOLTIPS,
     reviewStatusRequiresTaxon,
     reviewStatusDisablesTaxon,
     normalizeAnnotationReviews,
@@ -7703,36 +7704,44 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                                                                             id: REVIEW_STATUS_IDS.accepted,
                                                                             label: "Accept",
                                                                             vkey: "accept" as const,
+                                                                            tooltip: REVIEW_ACTION_TOOLTIPS.accept,
                                                                         },
                                                                         {
                                                                             id: REVIEW_STATUS_IDS.corrected,
                                                                             label: "Revise",
                                                                             vkey: "revise" as const,
+                                                                            tooltip: REVIEW_ACTION_TOOLTIPS.revise,
                                                                         },
                                                                         {
                                                                             id: REVIEW_STATUS_IDS.rejected,
                                                                             label: "Reject",
                                                                             vkey: "reject" as const,
+                                                                            tooltip: REVIEW_ACTION_TOOLTIPS.reject,
                                                                         },
                                                                         {
                                                                             id: REVIEW_STATUS_IDS.uncertain,
                                                                             label: "Uncertain",
                                                                             vkey: "uncertain" as const,
+                                                                            tooltip: REVIEW_ACTION_TOOLTIPS.uncertain,
                                                                         },
                                                                     ] as const
                                                                 ).map((s) => (
-                                                                    <ESButton appearance="unstyled"
-                                                                        key={s.id}
-                                                                        type="button"
-                                                                        className={`studio-annot-review-status-btn studio-annot-review-status-btn--${s.vkey}${reviewStatusId === s.id
-                                                                            ? " studio-annot-review-status-btn--selected"
-                                                                            : ""
-                                                                            }`}
-                                                                        disabled={!canCreateReview || reviewSubmitPending}
-                                                                        onClick={() => handleReviewStatusClick(s.id)}
-                                                                    >
-                                                                        {s.label}
-                                                                    </ESButton>
+                                                                    <Tooltip key={s.id} title={s.tooltip}>
+                                                                        <span className="studio-annot-review-status-tooltip-trigger">
+                                                                            <ESButton appearance="unstyled"
+                                                                                type="button"
+                                                                                className={`studio-annot-review-status-btn studio-annot-review-status-btn--${s.vkey}${reviewStatusId === s.id
+                                                                                    ? " studio-annot-review-status-btn--selected"
+                                                                                    : ""
+                                                                                    }`}
+                                                                                disabled={!canCreateReview || reviewSubmitPending}
+                                                                                aria-label={`${s.label}: ${s.tooltip}`}
+                                                                                onClick={() => handleReviewStatusClick(s.id)}
+                                                                            >
+                                                                                {s.label}
+                                                                            </ESButton>
+                                                                        </span>
+                                                                    </Tooltip>
                                                                 ))}
                                                             </div>
 

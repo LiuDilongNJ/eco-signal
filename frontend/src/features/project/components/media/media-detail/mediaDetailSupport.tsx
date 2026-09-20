@@ -776,6 +776,14 @@ export const REVIEW_STATUS_IDS = {
     uncertain: 4,
 } as const
 
+/** #134 播放器 Review 操作按钮 hover 说明 */
+export const REVIEW_ACTION_TOOLTIPS = {
+    accept: "the ID of the annotation is correct",
+    revise: "the ID of the annotation is another, known species",
+    reject: "there is no sound of this type at this annotation",
+    uncertain: "the ID of the annotation is another, unknown species",
+} as const
+
 export function reviewStatusRequiresTaxon(statusId: number): boolean {
     return statusId === REVIEW_STATUS_IDS.corrected
 }
