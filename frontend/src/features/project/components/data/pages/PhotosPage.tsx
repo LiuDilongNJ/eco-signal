@@ -331,7 +331,7 @@ export function PhotosPage() {
                 }
                 addDropdownItems={addDropdownItems}
                 addDisabled={!currentCollectionId || currentCollectionId === "all"}
-                addDisabledTooltip="Before uploading media, please select a collection."
+                addDisabledTooltip="Before uploading media, please select a collection in the top-left drop-down menu."
                 canAdd={canWriteMedia}
                 canEditRecord={(record) => rowCan(record, "edit")}
                 canDeleteRecord={(record) => rowCan(record, "delete")}
