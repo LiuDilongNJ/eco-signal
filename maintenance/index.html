@@ -210,12 +210,6 @@
             width: 16px;
             height: 16px;
         }
-
-        .footer {
-            margin-top: 24px;
-            font-size: 12px;
-            color: var(--text-muted);
-        }
     </style>
 </head>
 <body>
@@ -236,7 +230,7 @@
             </div>
             <div class="status-text">
                 <span id="pollStatus">Checking service availability...</span>
-                <span>Auto-retry in <strong id="countdown">10</strong>s</span>
+                <span>Auto-retry in <strong id="countdown">30</strong>s</span>
             </div>
         </div>
 
@@ -250,14 +244,10 @@
                 <span>Check Now</span>
             </button>
         </div>
-
-        <div class="footer">
-            ecoSignal Bioacoustic Monitoring Platform
-        </div>
     </div>
 
     <script>
-        const INTERVAL_SECONDS = 10;
+        const INTERVAL_SECONDS = 30;
         let remainingSeconds = INTERVAL_SECONDS;
         const countdownEl = document.getElementById('countdown');
         const progressFillEl = document.getElementById('progressFill');

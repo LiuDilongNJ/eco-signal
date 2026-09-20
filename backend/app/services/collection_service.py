@@ -319,6 +319,7 @@ def delete_collection(session: Session, collection_id: int, user: User) -> ApiRe
         if not has_project_write:
             raise HTTPException(status_code=403, detail="Access denied")
 
+    session.exec(delete(UserScopeRole).where(UserScopeRole.collection_id == collection_id))
     session.exec(delete(UserPermission).where(UserPermission.collection_id == collection_id))
     session.exec(delete(CollectionContributor).where(CollectionContributor.collection_id == collection_id))
     session.exec(delete(CollectionTaxon).where(CollectionTaxon.collection_id == collection_id))

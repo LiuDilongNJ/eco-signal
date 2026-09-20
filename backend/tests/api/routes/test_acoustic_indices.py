@@ -178,6 +178,53 @@ def test_run_acoustic_indices_single_index_returns_queued():
         app.dependency_overrides.pop(get_task_publisher, None)
 
 
+def test_run_acoustic_indices_batch_multiple_media_queues_single_task_per_index():
+    mock_redis = AsyncMock()
+    mock_redis.enqueue_task = AsyncMock()
+    mock_redis.aclose = AsyncMock()
+
+    async def override_redis():
+        yield mock_redis
+
+    app.dependency_overrides[get_task_publisher] = override_redis
+    try:
+        mock_session.get.return_value = mock_media
+        mock_session.exec.return_value.first.side_effect = [
+            IndexType(index_id=1, name="temporal_median", param=[
+                {"key": "mode", "default": "fast", "value_type": "string"},
+                {"key": "Nt", "default": 512, "value_type": "number"},
+            ]),
+        ]
+
+        response = client.post(
+            INDICES_RUN_URL,
+            json={
+                "project_id": 1,
+                "media_ids": [1, 2],
+                "selection": {
+                    "min_time": 1.5,
+                    "max_time": 6.0,
+                    "min_frequency": 100,
+                    "max_frequency": 8000,
+                },
+                "channel": "right",
+                "indices": [{"index_id": 1, "params": {"Nt": 1024}}],
+            },
+        )
+
+        assert response.status_code == 200
+        data = response.json()["data"]
+        assert len(data["queued"]) == 1
+        assert data["queued"][0]["type"] == "temporal_median"
+        assert data["queued"][0]["total"] == 2
+        assert data["queued"][0]["completed"] == 0
+        call_kwargs = mock_redis.enqueue_task.call_args.kwargs
+        assert len(call_kwargs["media_items"]) == 2
+        assert [m["media_id"] for m in call_kwargs["media_items"]] == [1, 2]
+    finally:
+        app.dependency_overrides.pop(get_task_publisher, None)
+
+
 def test_preview_acoustic_index_returns_result_without_writing_log(monkeypatch):
     mock_session.get.return_value = mock_media
     mock_session.exec.return_value.first.side_effect = [

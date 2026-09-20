@@ -216,12 +216,34 @@
     background: transparent;
 }
 
+.upd-project-name-wrap,
+.upd-collection-name-wrap {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+}
+
 .upd-project-name {
     font-weight: 600;
     color: var(--text-main);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+}
+
+.upd-public-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-muted);
+    flex-shrink: 0;
+    cursor: default;
+    transition: color 0.15s ease;
+}
+
+.upd-public-icon:hover {
+    color: var(--text-main);
 }
 
 .upd-tree-toggle {
@@ -338,8 +360,11 @@
 }
 
 .upd-collection-name {
-        font-size: 14px;
+    font-size: 14px;
     color: var(--text-main);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .upd-icons-container {

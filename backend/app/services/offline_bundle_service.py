@@ -50,6 +50,7 @@ from app.models import (
     ProjectCollection,
     Queue,
     Sensor,
+    Setting,
     Site,
     SiteCollection,
     SiteProject,
@@ -74,6 +75,8 @@ from app.services.upload_validation_service import validate_filename
 
 BUNDLE_SCHEMA = "offline-bundle"
 SIGNATURE_ALGORITHM = "hmac-sha256"
+SIGNATURE_ALGORITHM_NONE = "none"
+_KEY_FEDERATION_SECRET = "network_federation_secret"
 _ARCHIVE_COPY_CHUNK_SIZE = 1024 * 1024
 _MAX_ARCHIVE_MEMBERS = 100_000
 _MAX_COMPRESSION_RATIO = 200
@@ -99,13 +102,16 @@ def _canonical_json_bytes(payload: Any) -> bytes:
     ).encode("utf-8")
 
 
-def _bundle_secret() -> str:
-    return settings.SECRET_KEY
+def _get_federation_secret(session: Session) -> str:
+    row = session.get(Setting, _KEY_FEDERATION_SECRET)
+    return row.value.strip() if row and row.value else ""
 
 
-def _compute_signature(manifest: dict[str, Any], checksums: dict[str, str]) -> str:
+def _compute_signature(manifest: dict[str, Any], checksums: dict[str, str], secret: str = "") -> str:
+    if not secret:
+        return ""
     message = _canonical_json_bytes({"checksums": checksums, "manifest": manifest})
-    return hmac.new(_bundle_secret().encode("utf-8"), message, hashlib.sha256).hexdigest()
+    return hmac.new(secret.encode("utf-8"), message, hashlib.sha256).hexdigest()
 
 
 def _safe_bundle_member(path: str) -> PurePosixPath:
@@ -470,6 +476,9 @@ def export_collection_bundle(
             rel = path.relative_to(bundle_root).as_posix()
             checksum_entries[rel] = _hash_file(path)
 
+        federation_secret = _get_federation_secret(session)
+        signature_algorithm = SIGNATURE_ALGORITHM if federation_secret else SIGNATURE_ALGORITHM_NONE
+
         manifest = {
             "schema": BUNDLE_SCHEMA,
             "exported_at": datetime.now(UTC),
@@ -477,7 +486,7 @@ def export_collection_bundle(
             "collection_uuid": str(collection.uuid),
             "includes_media": True,
             "hash_algorithm": "sha256",
-            "signature_algorithm": SIGNATURE_ALGORITHM,
+            "signature_algorithm": signature_algorithm,
             "counts": {
                 "sites": site_count,
                 "media": media_count,
@@ -492,7 +501,7 @@ def export_collection_bundle(
         }
         _write_json(bundle_root / "checksums.json", checksum_entries)
         _write_json(bundle_root / "manifest.json", manifest)
-        signature = _compute_signature(manifest, checksum_entries)
+        signature = _compute_signature(manifest, checksum_entries, federation_secret) if federation_secret else ""
         (bundle_root / "manifest.sig").write_text(signature, encoding="utf-8")
 
         with zipfile.ZipFile(output, "w", compression=zipfile.ZIP_DEFLATED) as archive:
@@ -521,7 +530,11 @@ def _load_json(archive: zipfile.ZipFile, member: str) -> Any:
         raise HTTPException(status_code=400, detail=f"Invalid JSON in bundle file: {member}") from exc
 
 
-def _verify_bundle(archive: zipfile.ZipFile) -> tuple[dict[str, Any], dict[str, str]]:
+def _verify_bundle(
+    archive: zipfile.ZipFile,
+    session: Session | None = None,
+    federation_secret: str | None = None,
+) -> tuple[dict[str, Any], dict[str, str], bool]:
     members = archive.infolist()
     if len(members) > _MAX_ARCHIVE_MEMBERS:
         raise HTTPException(status_code=400, detail="Offline bundle contains too many files")
@@ -559,11 +572,13 @@ def _verify_bundle(archive: zipfile.ZipFile) -> tuple[dict[str, Any], dict[str, 
 
     manifest = _load_json(archive, "manifest.json")
     checksums = _load_json(archive, "checksums.json")
-    try:
-        with archive.open("manifest.sig") as source, TextIOWrapper(source, encoding="utf-8") as text:
-            signature = text.read().strip()
-    except KeyError as exc:
-        raise HTTPException(status_code=400, detail="Missing required bundle file: manifest.sig") from exc
+    signature = ""
+    if "manifest.sig" in archive.namelist():
+        try:
+            with archive.open("manifest.sig") as source, TextIOWrapper(source, encoding="utf-8") as text:
+                signature = text.read().strip()
+        except KeyError:
+            pass
 
     try:
         OfflineBundleManifest.model_validate(manifest)
@@ -592,16 +607,42 @@ def _verify_bundle(archive: zipfile.ZipFile) -> tuple[dict[str, Any], dict[str, 
             detail="Offline bundle checksum list does not match archive payload files",
         )
 
-    expected_signature = _compute_signature(manifest, checksums)
-    if not hmac.compare_digest(expected_signature, signature):
-        raise HTTPException(status_code=400, detail="Offline bundle signature verification failed")
-
     for member, expected in checksums.items():
         actual = _hash_archive_member(archive, member)
         if actual != expected:
             raise HTTPException(status_code=400, detail=f"Checksum mismatch for bundle file: {member}")
 
-    return manifest, checksums
+    if federation_secret is not None:
+        secret = federation_secret.strip()
+    elif session is not None:
+        secret = _get_federation_secret(session)
+    else:
+        secret = ""
+
+    sig_algo = manifest.get("signature_algorithm", SIGNATURE_ALGORITHM_NONE)
+    signature_verified = False
+    if sig_algo == SIGNATURE_ALGORITHM:
+        if "manifest.sig" not in archive.namelist():
+            raise HTTPException(status_code=400, detail="Missing required bundle file: manifest.sig")
+        if secret:
+            expected_signature = _compute_signature(manifest, checksums, secret)
+            if not hmac.compare_digest(expected_signature, signature):
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        "Offline bundle signature verification failed: "
+                        "The bundle signature does not match this server's Federation secret. "
+                        "Please ensure both instances use the same Federation secret in Settings > Server."
+                    ),
+                )
+            signature_verified = True
+        else:
+            # Server has no federation secret configured; allow import with signature_verified = False
+            signature_verified = False
+    else:
+        signature_verified = False
+
+    return manifest, checksums, signature_verified
 
 
 def _is_uuid(value: str) -> bool:
@@ -938,12 +979,20 @@ def _import_bundle_payloads(
         result.created_counts.collections += 1
     else:
         result.skipped_counts.collections += 1
+        result.warnings.append(
+            DataImportWarning(
+                resource_type="collection",
+                identifier=str(collection.uuid),
+                message=f"Collection '{collection.name}' already exists in this database; existing collection was reused.",
+            )
+        )
     if _link_collection_to_project(session, project_id, collection.collection_id):
         result.created_counts.project_links += 1
     else:
         result.skipped_counts.project_links += 1
 
     site_map: dict[str, int] = {}
+    skipped_sites_existing = 0
     for site_item in sites_payload:
         if cancellation_token is not None:
             cancellation_token.raise_if_cancelled()
@@ -959,12 +1008,22 @@ def _import_bundle_payloads(
             result.created_counts.sites += 1
         else:
             result.skipped_counts.sites += 1
+            skipped_sites_existing += 1
         if linked:
             result.created_counts.site_links += 1
         else:
             result.skipped_counts.site_links += 1
+    if skipped_sites_existing > 0:
+        result.warnings.append(
+            DataImportWarning(
+                resource_type="site",
+                identifier="",
+                message=f"{skipped_sites_existing} site(s) already exist in this database and were skipped to prevent duplicate records.",
+            )
+        )
 
     media_map: dict[str, int | None] = {}
+    skipped_media_existing = 0
     for media_item in media_payload:
         if cancellation_token is not None:
             cancellation_token.raise_if_cancelled()
@@ -986,6 +1045,7 @@ def _import_bundle_payloads(
                         detail=f"Media UUID {media_uuid} already exists with different binary content",
                     )
             result.skipped_counts.media += 1
+            skipped_media_existing += 1
             if not media_item["is_metadata"]:
                 result.skipped_counts.media_files += 1
             if existing_by_uuid.media_type == "audio":
@@ -1123,7 +1183,17 @@ def _import_bundle_payloads(
         else:
             result.created_counts.photos += 1
 
+    if skipped_media_existing > 0:
+        result.warnings.append(
+            DataImportWarning(
+                resource_type="media",
+                identifier="",
+                message=f"{skipped_media_existing} media item(s) already exist in this database and were skipped to prevent duplicate records.",
+            )
+        )
+
     annotation_map: dict[str, int] = {}
+    skipped_annotations_existing = 0
     valid_sound_ids = set(session.exec(select(SoundClassification.sound_id)).all())
     valid_taxon_ids = set(session.exec(select(Taxon.taxon_id)).all())
     for annotation_item in annotations_payload:
@@ -1159,6 +1229,7 @@ def _import_bundle_payloads(
         if existing_annotation is not None:
             result.skipped_counts.annotations += 1
             annotation_map[str(annotation_item["uuid"])] = existing_annotation.annotation_id
+            skipped_annotations_existing += 1
             continue
         annotation = Annotation(
             uuid=annotation_item["uuid"],
@@ -1187,6 +1258,15 @@ def _import_bundle_payloads(
         session.flush()
         annotation_map[str(annotation.uuid)] = annotation.annotation_id
         result.created_counts.annotations += 1
+
+    if skipped_annotations_existing > 0:
+        result.warnings.append(
+            DataImportWarning(
+                resource_type="annotation",
+                identifier="",
+                message=f"{skipped_annotations_existing} annotation(s) already exist in this database and were skipped to prevent duplicate records.",
+            )
+        )
 
     status_by_name = {
         status.name: status.annotation_review_status_id
@@ -1328,7 +1408,7 @@ def import_collection_bundle_from_file_upload(
 
     try:
         with archive:
-            manifest, checksums = _verify_bundle(archive)
+            manifest, checksums, signature_verified = _verify_bundle(archive, session=session)
             _extract_archive(archive, extract_root)
 
         collection_payload = _load_json_file(extract_root / "data" / "collection.json")
@@ -1364,6 +1444,24 @@ def import_collection_bundle_from_file_upload(
             created_files=created_files,
             commit=queue_id is None,
         )
+        result.signature_verified = signature_verified
+        if not signature_verified:
+            if manifest.get("signature_algorithm") == SIGNATURE_ALGORITHM:
+                result.warnings.append(
+                    DataImportWarning(
+                        resource_type="bundle",
+                        identifier=str(manifest.get("collection_uuid", "")),
+                        message="Bundle imported without signature verification because this server has no Federation secret configured.",
+                    )
+                )
+            else:
+                result.warnings.append(
+                    DataImportWarning(
+                        resource_type="bundle",
+                        identifier=str(manifest.get("collection_uuid", "")),
+                        message="Unsigned bundle imported. Data integrity verified via checksums.",
+                    )
+                )
         if queue_id is not None:
             queue = session.exec(
                 select(Queue).where(Queue.queue_id == queue_id).with_for_update()

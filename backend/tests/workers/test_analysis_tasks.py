@@ -127,6 +127,44 @@ class TestAnalysisTasksAdditional:
         assert mock_service.analyze_and_store_acoustic_index.call_args.kwargs["log_id"] == 1234
         assert mock_service.analyze_and_store_acoustic_index.call_args.kwargs["index_type_name"] == "temporal_median"
 
+    async def test_analyze_acoustic_index_batch_media_items(self):
+        mock_session = MagicMock()
+        queue = MagicMock(spec=Queue, queue_id=1, user_id=1)
+        queue.total = 2
+        queue.completed = 0
+        mock_session.get.return_value = queue
+
+        mock_service = MagicMock()
+        mock_service.analyze_and_store_acoustic_index.side_effect = [
+            {"stored_count": 5, "ACI_sum": 123},
+            {"stored_count": 5, "ACI_sum": 456},
+        ]
+
+        with patch("app.workers.tasks.analysis.Session", return_value=mock_session):
+            mock_session.__enter__ = MagicMock(return_value=mock_session)
+            mock_session.__exit__ = MagicMock(return_value=False)
+            with patch("app.workers.tasks.analysis.analysis_service", mock_service):
+                result = await analyze_acoustic_index(
+                    ctx={},
+                    queue_id=1,
+                    media_items=[
+                        {"media_id": 10, "audio_path": "test1.wav", "channel": "mono", "min_time": 0, "max_time": 5, "min_frequency": 1, "max_frequency": 9000, "filter_enabled": False},
+                        {"media_id": 11, "audio_path": "test2.wav", "channel": "mono", "min_time": 0, "max_time": 5, "min_frequency": 1, "max_frequency": 9000, "filter_enabled": False},
+                    ],
+                    index_id=3,
+                    index_name="temporal_median",
+                    params={"Nt": 512},
+                )
+
+        assert result["status"] == "completed"
+        assert result["stored_count"] == 10
+        assert result["recordings_count"] == 2
+        assert result["message"] == "temporal_median processed 2 recordings."
+        assert queue.status == 2
+        assert queue.completed == 2
+        assert queue.total == 2
+        assert mock_service.analyze_and_store_acoustic_index.call_count == 2
+
     async def test_analyze_acoustic_index_dispatches_acoustic_analysis(self):
         mock_session = MagicMock()
         queue = MagicMock(spec=Queue, queue_id=1, user_id=1)

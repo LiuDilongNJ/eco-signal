@@ -8,7 +8,7 @@ from app.csv_export import CsvColumn, export_columns_csv
 from app.models import User
 from app.models.collection import Collection, CollectionContributor
 from app.models.media import Media, MediaCollection
-from app.models.permission import Permission, UserPermission
+from app.models.permission import Permission, UserPermission, UserScopeRole
 from app.models.project import Project, ProjectContributor
 from app.models.system import FileUpload
 from app.models.task import Task
@@ -74,6 +74,7 @@ def _cleanup_user_delete_dependencies(session: Session, user_id: int) -> None:
             or_(Task.assigner_id == user_id, Task.assignee_id == user_id)
         )
     )
+    session.exec(delete(UserScopeRole).where(UserScopeRole.user_id == user_id))
     session.exec(delete(UserPermission).where(UserPermission.user_id == user_id))
 
 

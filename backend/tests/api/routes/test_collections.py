@@ -1173,6 +1173,20 @@ class TestCollectionDelete:
                 permission_id=read_perm.permission_id,
             )
         )
+        role = db.exec(select(Role).where(Role.code == "viewer")).first()
+        if not role:
+            role = Role(code="viewer", name="Viewer", kind="access")
+            db.add(role)
+            db.commit()
+            db.refresh(role)
+        db.add(
+            UserScopeRole(
+                user_id=contributor.user_id,
+                role_id=role.role_id,
+                project_id=project.project_id,
+                collection_id=collection.collection_id,
+            )
+        )
         db.commit()
 
         collection_id = collection.collection_id
@@ -1186,6 +1200,7 @@ class TestCollectionDelete:
         assert db.exec(select(ProjectCollection).where(ProjectCollection.collection_id == collection_id)).first() is None
         assert db.exec(select(CollectionContributor).where(CollectionContributor.collection_id == collection_id)).first() is None
         assert db.exec(select(CollectionTaxon).where(CollectionTaxon.collection_id == collection_id)).first() is None
+        assert db.exec(select(UserScopeRole).where(UserScopeRole.collection_id == collection_id)).first() is None
         assert db.exec(select(UserPermission).where(UserPermission.collection_id == collection_id)).first() is None
 
     def test_delete_collection_with_any_linked_project_write_permission(

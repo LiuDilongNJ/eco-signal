@@ -11,7 +11,7 @@ from sqlmodel import Session, select
 
 from app.core.config import settings
 from app.core.security import verify_password
-from app.models import Permission, User, UserPermission, UserPreference
+from app.models import Permission, Role, User, UserPermission, UserPreference, UserScopeRole
 from app.models.annotation import Annotation, AnnotationReview, AnnotationReviewStatus
 from app.models.collection import Collection, CollectionContributor
 from app.models.media import Media
@@ -2391,6 +2391,26 @@ def test_delete_user_detaches_media_and_cleans_auxiliary_records(
     )
     db.commit()
 
+    owner = db.get(User, admin_id)
+    assert owner is not None
+    project, collection = _create_project_with_collection(
+        db,
+        owner,
+        project_name=f"delete_user_proj_{random_lower_string()[:8]}",
+        collection_name=f"delete_user_coll_{random_lower_string()[:8]}",
+    )
+    role = db.exec(select(Role).where(Role.name == "User")).first()
+    assert role is not None
+    db.add(
+        UserScopeRole(
+            user_id=user_id,
+            role_id=role.role_id,
+            project_id=project.project_id,
+            collection_id=collection.collection_id,
+        )
+    )
+    db.commit()
+
     r = client.delete(
         f"{settings.API_V1_STR}/users/{user_id}",
         headers=superuser_token_headers,
@@ -2407,6 +2427,9 @@ def test_delete_user_detaches_media_and_cleans_auxiliary_records(
         select(Task).where(
             or_(Task.assigner_id == user_id, Task.assignee_id == user_id)
         )
+    ).first() is None
+    assert db.exec(
+        select(UserScopeRole).where(UserScopeRole.user_id == user_id)
     ).first() is None
 
 

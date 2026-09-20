@@ -16,6 +16,7 @@ from app.repositories.query_helpers import (
 
 _FILTER_SPECS: list[FilterSpec] = [
     ("project_id", CollectionBundleExport.project_id, FilterOp.EQ),
+    ("collection_id", CollectionBundleExport.collection_id, FilterOp.EQ),
     ("user_id", CollectionBundleExport.user_id, FilterOp.EQ),
 ]
 
@@ -31,11 +32,16 @@ class CollectionBundleExportRepository:
         session: Session,
         *,
         project_id: int,
+        collection_id: int | None = None,
         user_id: int | None,
     ) -> list[CollectionBundleExport]:
         statement = apply_filters(
             select(CollectionBundleExport),
-            {"project_id": project_id, "user_id": user_id},
+            {
+                "project_id": project_id,
+                "collection_id": collection_id,
+                "user_id": user_id,
+            },
             _FILTER_SPECS,
         )
         statement = statement.where(CollectionBundleExport.status != "expired")

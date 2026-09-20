@@ -326,6 +326,7 @@ def get_user_permission_config(
                 else [],
                 "inherited_permissions": inherited_permissions,
                 "effective_permissions": effective_collection_permissions.get(scope_key, []),
+                "is_public": bool(col.public_access and proj.public),
             })
 
         projects_result.append({
@@ -338,6 +339,7 @@ def get_user_permission_config(
                 project_direct_permissions + effective_project_permissions.get(proj.project_id, [])
             ),
             "collections": collections_data,
+            "is_public": bool(proj.public),
         })
 
     return {

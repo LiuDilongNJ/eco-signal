@@ -29,6 +29,7 @@ from app.models import (
     Project,
     ProjectCollection,
     Queue,
+    Setting,
     Site,
     SiteCollection,
     SoundClassification,
@@ -114,6 +115,7 @@ def _build_bundle_bytes(
     sensor_id: int | None = None,
     license_id: int | None = None,
     label_assignments: list[tuple[int, str]] | None = None,
+    federation_secret: str = "",
 ) -> bytes:
     collection_uuid = collection_uuid or str(uuid.uuid4())
     site_uuid = str(uuid.uuid4())
@@ -215,7 +217,7 @@ def _build_bundle_bytes(
         },
         "warnings": [],
     }
-    signature = offline_bundle_service._compute_signature(manifest, checksums)
+    signature = offline_bundle_service._compute_signature(manifest, checksums, secret=federation_secret)
 
     stream = BytesIO()
     with zipfile.ZipFile(stream, "w", compression=zipfile.ZIP_DEFLATED) as archive:
@@ -302,6 +304,7 @@ def _build_media_only_bundle(
     media_specs: list[dict],
     *,
     collection_uuid: str | None = None,
+    federation_secret: str = "",
 ) -> bytes:
     collection_uuid = collection_uuid or str(uuid.uuid4())
     files: dict[str, bytes] = {
@@ -393,7 +396,7 @@ def _build_media_only_bundle(
         archive.writestr("manifest.json", json.dumps(manifest, separators=(",", ":")))
         archive.writestr(
             "manifest.sig",
-            offline_bundle_service._compute_signature(manifest, checksums),
+            offline_bundle_service._compute_signature(manifest, checksums, secret=federation_secret),
         )
     return stream.getvalue()
 
@@ -565,8 +568,10 @@ def test_bundle_json_helpers_reject_invalid_inputs(tmp_path: Path) -> None:
 
 
 def test_verify_bundle_rejects_missing_signature_and_bad_integrity(tmp_path: Path) -> None:
+    secret = "test-secret"
     content = _build_media_only_bundle(
-        [{"media_type": "photo", "filename": "image.png", "content": _photo_bytes()}]
+        [{"media_type": "photo", "filename": "image.png", "content": _photo_bytes()}],
+        federation_secret=secret,
     )
     with zipfile.ZipFile(BytesIO(content)) as source:
         members = {
@@ -581,7 +586,7 @@ def test_verify_bundle_rejects_missing_signature_and_bad_integrity(tmp_path: Pat
     with zipfile.ZipFile(missing_signature) as archive, pytest.raises(
         HTTPException, match="manifest.sig"
     ):
-        offline_bundle_service._verify_bundle(archive)
+        offline_bundle_service._verify_bundle(archive, federation_secret=secret)
 
     bad_signature = tmp_path / "bad-signature.zip"
     with zipfile.ZipFile(BytesIO(content)) as source, zipfile.ZipFile(bad_signature, "w") as archive:
@@ -590,7 +595,7 @@ def test_verify_bundle_rejects_missing_signature_and_bad_integrity(tmp_path: Pat
     with zipfile.ZipFile(bad_signature) as archive, pytest.raises(
         HTTPException, match="signature verification"
     ):
-        offline_bundle_service._verify_bundle(archive)
+        offline_bundle_service._verify_bundle(archive, federation_secret=secret)
 
     bad_checksum = tmp_path / "bad-checksum.zip"
     with zipfile.ZipFile(BytesIO(content)) as source, zipfile.ZipFile(bad_checksum, "w") as archive:
@@ -602,7 +607,88 @@ def test_verify_bundle_rejects_missing_signature_and_bad_integrity(tmp_path: Pat
     with zipfile.ZipFile(bad_checksum) as archive, pytest.raises(
         HTTPException, match="Checksum mismatch"
     ):
-        offline_bundle_service._verify_bundle(archive)
+        offline_bundle_service._verify_bundle(archive, federation_secret=secret)
+
+
+def test_verify_bundle_with_matching_federation_secret() -> None:
+    secret = "cluster-secret-42"
+    content = _build_media_only_bundle(
+        [{"media_type": "photo", "filename": "image.png", "content": _photo_bytes()}],
+        federation_secret=secret,
+    )
+    with zipfile.ZipFile(BytesIO(content)) as archive:
+        manifest, checksums, verified = offline_bundle_service._verify_bundle(
+            archive, federation_secret=secret
+        )
+    assert verified is True
+    assert manifest["signature_algorithm"] == "hmac-sha256"
+
+
+def test_verify_bundle_graceful_degradation_without_secret() -> None:
+    secret = "cluster-secret-42"
+    content = _build_media_only_bundle(
+        [{"media_type": "photo", "filename": "image.png", "content": _photo_bytes()}],
+        federation_secret=secret,
+    )
+    with zipfile.ZipFile(BytesIO(content)) as archive:
+        manifest, checksums, verified = offline_bundle_service._verify_bundle(
+            archive, federation_secret=None
+        )
+    assert verified is False
+
+
+def test_verify_bundle_mismatched_secret_error_message() -> None:
+    content = _build_media_only_bundle(
+        [{"media_type": "photo", "filename": "image.png", "content": _photo_bytes()}],
+        federation_secret="secret-origin",
+    )
+    with zipfile.ZipFile(BytesIO(content)) as archive:
+        with pytest.raises(HTTPException) as exc_info:
+            offline_bundle_service._verify_bundle(archive, federation_secret="secret-target")
+    assert exc_info.value.status_code == 400
+    assert "Federation secret" in exc_info.value.detail
+    assert "Settings > Server" in exc_info.value.detail
+
+
+def test_export_and_import_with_database_federation_setting(tmp_path: Path, db: Session) -> None:
+    setting = Setting(name="network_federation_secret", value="shared-node-key", group="server")
+    db.add(setting)
+    db.commit()
+
+    collection = _seed_exportable_collection(db)
+    output_path = tmp_path / f"export-{collection.collection_id}.zip"
+    offline_bundle_service.export_collection_bundle(
+        db,
+        collection.collection_id,
+        output_path=output_path,
+    )
+
+    # Verify bundle directly using DB session
+    with zipfile.ZipFile(output_path) as archive:
+        manifest_data = json.loads(archive.read("manifest.json"))
+        assert manifest_data["signature_algorithm"] == "hmac-sha256"
+        _, _, verified = offline_bundle_service._verify_bundle(archive, session=db)
+    assert verified is True
+
+    # When federation secret is removed from DB, it should degrade gracefully
+    db.delete(setting)
+    db.commit()
+    with zipfile.ZipFile(output_path) as archive:
+        _, _, unverified = offline_bundle_service._verify_bundle(archive, session=db)
+    assert unverified is False
+
+    # When federation secret differs in DB, it should raise 400
+    mismatched = Setting(name="network_federation_secret", value="different-node-key", group="server")
+    db.add(mismatched)
+    db.commit()
+    with zipfile.ZipFile(output_path) as archive:
+        with pytest.raises(HTTPException) as exc_info:
+            offline_bundle_service._verify_bundle(archive, session=db)
+    assert exc_info.value.status_code == 400
+    assert "Federation secret" in exc_info.value.detail
+
+    db.delete(mismatched)
+    db.commit()
 
 
 def test_verify_bundle_rejects_unsafe_member_and_invalid_checksums(
@@ -1657,3 +1743,88 @@ def test_export_collection_bundle_fails_when_audio_source_is_ambiguous(
             collection.collection_id,
             output_path=tmp_path / "ambiguous.zip",
         )
+
+
+def test_import_bundle_payloads_reports_duplicate_skip_reasons(db: Session) -> None:
+    sound, status, project, uploader = _seed_import_context(db)
+    bundle_bytes = _build_bundle_bytes(
+        sound_id=sound.sound_id,
+        review_status_name=status.name,
+    )
+
+    first_result = _import_bundle_bytes(
+        db,
+        project=project,
+        uploader=uploader,
+        bundle_bytes=bundle_bytes,
+    )
+    assert first_result.created_counts.collections == 1
+    assert first_result.created_counts.media == 1
+
+    # Re-import identical bundle into the same project
+    second_result = _import_bundle_bytes(
+        db,
+        project=project,
+        uploader=uploader,
+        bundle_bytes=bundle_bytes,
+    )
+    assert second_result.created_counts.collections == 0
+    assert second_result.skipped_counts.collections == 1
+    assert second_result.created_counts.media == 0
+    assert second_result.skipped_counts.media == 1
+
+    warning_messages = [w.message for w in second_result.warnings]
+    assert any("already exists in this database; existing collection was reused" in msg for msg in warning_messages)
+    assert any("site(s) already exist in this database and were skipped" in msg for msg in warning_messages)
+    assert any("media item(s) already exist in this database and were skipped" in msg for msg in warning_messages)
+    assert any("annotation(s) already exist in this database and were skipped" in msg for msg in warning_messages)
+
+
+def test_export_audio_with_zero_bit_depth_succeeds(db: Session, tmp_path: Path) -> None:
+    collection = Collection(name=f"OfflineZeroBit {uuid.uuid4().hex[:6]}", creator_id=1)
+    db.add(collection)
+    db.flush()
+
+    content = b"mp3-simulated-content"
+    _write_media_file(collection.collection_id, 8, "test.mp3", content)
+    audio_setting = AudioSetting(
+        sampling_rate_hz=32000,
+        bit_depth=0,
+        channel_num=2,
+        duration_s=3.06,
+    )
+    db.add(audio_setting)
+    db.flush()
+
+    media = Media(
+        media_type="audio",
+        directory=8,
+        filename="test.mp3",
+        name="test.mp3",
+        size_b=len(content),
+        md5_hash=hashlib.md5(content).hexdigest(),
+        uploader_id=1,
+        creator_id=1,
+        audio_setting_id=audio_setting.audio_setting_id,
+    )
+    db.add(media)
+    db.flush()
+    db.add(MediaCollection(media_id=media.media_id, collection_id=collection.collection_id, added_by=1))
+    db.commit()
+
+    output_zip = tmp_path / "zero_bit_depth_export.zip"
+    result = offline_bundle_service.export_collection_bundle(
+        db,
+        collection.collection_id,
+        output_path=output_zip,
+    )
+    assert output_zip.exists()
+    assert result["counts"]["media"] == 1
+
+    # Verify JSON content inside zip
+    with zipfile.ZipFile(output_zip, "r") as archive:
+        media_records = json.loads(archive.read("data/media.json").decode("utf-8"))
+        assert len(media_records) == 1
+        assert media_records[0]["audio_setting"]["bit_depth"] == 0
+
+

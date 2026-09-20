@@ -30,12 +30,17 @@ export const collectionBundleExportsApi = {
         })
     },
 
-    list(projectId: number) {
+    list(projectId: number, collectionId?: number) {
         return apiClient.get<{
             code: number
             message: string
             data: CollectionBundleExport[]
-        }>("/v1/collection-bundle-exports", { params: { project_id: projectId } })
+        }>("/v1/collection-bundle-exports", {
+            params: {
+                project_id: projectId,
+                ...(collectionId !== undefined ? { collection_id: collectionId } : {}),
+            },
+        })
     },
 
     get(exportId: string, signal?: AbortSignal) {

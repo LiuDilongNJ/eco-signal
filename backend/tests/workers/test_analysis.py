@@ -61,6 +61,19 @@ class TestAnalysisCompletionMessage:
 
         assert message == "insects-base-cnn10-96k-t found 0 detections. 0 tags were inserted."
 
+    def test_formats_multiple_recordings_message(self):
+        from app.workers.tasks.analysis import _format_analysis_completion_message
+
+        message = _format_analysis_completion_message(
+            {
+                "analysis_message_model": "BirdNET v2.4",
+                "detection_count": 145,
+                "annotation_count": 145,
+                "recordings_count": 2,
+            }
+        )
+        assert message == "BirdNET v2.4 processed 2 recordings, found 145 detections. 145 tags were inserted."
+
     def test_updates_annotation_count_after_merge(self):
         from app.workers.tasks.analysis import _update_annotation_count_after_merge
 
@@ -254,6 +267,60 @@ class TestAnalyzeBirdnetWorker:
 
         mock_service.merge_annotations.assert_not_called()
 
+    async def test_batch_media_items_increments_completed_and_formats_message(self):
+        from app.workers.tasks.analysis import analyze_birdnet
+
+        mock_session = MagicMock()
+        mock_queue = _make_queue()
+        mock_queue.total = 2
+        mock_queue.completed = 0
+        mock_session.get.return_value = mock_queue
+
+        mock_service = MagicMock()
+        mock_service.birdnet.version = "2.4"
+        mock_service.analyze_and_store_birdnet.side_effect = [
+            {
+                "detection_count": 2,
+                "annotation_count": 2,
+                "unmatched_species": [],
+                "analysis_message_model": "BirdNET v2.4",
+                "unmatched_species_count": 0,
+            },
+            {
+                "detection_count": 3,
+                "annotation_count": 3,
+                "unmatched_species": ["Species X"],
+                "analysis_message_model": "BirdNET v2.4",
+                "unmatched_species_count": 1,
+            },
+        ]
+
+        with patch("app.workers.tasks.analysis.Session", return_value=mock_session):
+            mock_session.__enter__ = MagicMock(return_value=mock_session)
+            mock_session.__exit__ = MagicMock(return_value=False)
+
+            with patch("app.workers.tasks.analysis.analysis_service", mock_service), \
+                 patch("app.workers.tasks.analysis.cache_analysis_queue_message") as mock_cache:
+                result = await analyze_birdnet(
+                    ctx={},
+                    queue_id=1,
+                    media_items=[
+                        {"media_id": 10, "audio_path": "/tmp/1.wav"},
+                        {"media_id": 11, "audio_path": "/tmp/2.wav"},
+                    ],
+                )
+
+        assert mock_service.analyze_and_store_birdnet.call_count == 2
+        assert result["status"] == "completed"
+        assert result["recordings_count"] == 2
+        assert result["detection_count"] == 5
+        assert result["annotation_count"] == 5
+        assert mock_queue.completed == 2
+        assert mock_queue.total == 2
+        assert "BirdNET v2.4 processed 2 recordings, found 5 detections. 5 tags were inserted." in result["message"]
+        assert "(1 tags with unmatched species: Species X inserted into comments)" in result["message"]
+        mock_cache.assert_called_once_with(1, result["message"])
+
 
 # analyze_batdetect worker
 
@@ -331,6 +398,57 @@ class TestAnalyzeBatdetectWorker:
 
         mock_service.merge_annotations.assert_called_once()
         assert mock_service.merge_annotations.call_args.kwargs["annotation_ids"] == [201, 202]
+
+    async def test_batch_media_items_increments_completed_and_formats_message(self):
+        from app.workers.tasks.analysis import analyze_batdetect
+
+        mock_session = MagicMock()
+        mock_queue = _make_queue()
+        mock_queue.total = 2
+        mock_queue.completed = 0
+        mock_session.get.return_value = mock_queue
+
+        mock_service = MagicMock()
+        mock_service.batdetect.version = "0.1.2"
+        mock_service.analyze_and_store_batdetect.side_effect = [
+            {
+                "detection_count": 50,
+                "annotation_count": 50,
+                "unmatched_species": [],
+                "analysis_message_model": "batdetect2 0.1.2",
+            },
+            {
+                "detection_count": 95,
+                "annotation_count": 95,
+                "unmatched_species": [],
+                "analysis_message_model": "batdetect2 0.1.2",
+            },
+        ]
+
+        with patch("app.workers.tasks.analysis.Session", return_value=mock_session):
+            mock_session.__enter__ = MagicMock(return_value=mock_session)
+            mock_session.__exit__ = MagicMock(return_value=False)
+
+            with patch("app.workers.tasks.analysis.analysis_service", mock_service), \
+                 patch("app.workers.tasks.analysis.cache_analysis_queue_message") as mock_cache:
+                result = await analyze_batdetect(
+                    ctx={},
+                    queue_id=1,
+                    media_items=[
+                        {"media_id": 10, "audio_path": "/tmp/1.wav"},
+                        {"media_id": 11, "audio_path": "/tmp/2.wav"},
+                    ],
+                )
+
+        assert mock_service.analyze_and_store_batdetect.call_count == 2
+        assert result["status"] == "completed"
+        assert result["recordings_count"] == 2
+        assert result["detection_count"] == 145
+        assert result["annotation_count"] == 145
+        assert mock_queue.completed == 2
+        assert mock_queue.total == 2
+        assert result["message"] == "batdetect2 0.1.2 processed 2 recordings, found 145 detections. 145 tags were inserted."
+        mock_cache.assert_called_once_with(1, result["message"])
 
 
 # analyze_insects worker
@@ -486,6 +604,56 @@ class TestAnalyzeInsectsWorker:
             )
 
         assert result == {"error": "Queue not found"}
+
+    async def test_batch_media_items_increments_completed_and_formats_message(self):
+        from app.workers.tasks.analysis import analyze_insects
+
+        mock_session = MagicMock()
+        mock_queue = _make_queue()
+        mock_queue.total = 2
+        mock_queue.completed = 0
+        mock_session.get.return_value = mock_queue
+
+        mock_service = MagicMock()
+        mock_service.analyze_and_store_insects.side_effect = [
+            {
+                "detection_count": 10,
+                "annotation_count": 10,
+                "unmatched_species": [],
+                "analysis_message_model": "insects-base-cnn10-96k-t",
+            },
+            {
+                "detection_count": 20,
+                "annotation_count": 20,
+                "unmatched_species": [],
+                "analysis_message_model": "insects-base-cnn10-96k-t",
+            },
+        ]
+
+        with patch("app.workers.tasks.analysis.Session", return_value=mock_session):
+            mock_session.__enter__ = MagicMock(return_value=mock_session)
+            mock_session.__exit__ = MagicMock(return_value=False)
+
+            with patch("app.workers.tasks.analysis.analysis_service", mock_service), \
+                 patch("app.workers.tasks.analysis.cache_analysis_queue_message") as mock_cache:
+                result = await analyze_insects(
+                    ctx={},
+                    queue_id=1,
+                    media_items=[
+                        {"media_id": 10, "audio_path": "/tmp/1.wav"},
+                        {"media_id": 11, "audio_path": "/tmp/2.wav"},
+                    ],
+                )
+
+        assert mock_service.analyze_and_store_insects.call_count == 2
+        assert result["status"] == "completed"
+        assert result["recordings_count"] == 2
+        assert result["detection_count"] == 30
+        assert result["annotation_count"] == 30
+        assert mock_queue.completed == 2
+        assert mock_queue.total == 2
+        assert result["message"] == "insects-base-cnn10-96k-t processed 2 recordings, found 30 detections. 30 tags were inserted."
+        mock_cache.assert_called_once_with(1, result["message"])
 
 
 # ModelDownloadError → ARQ Retry

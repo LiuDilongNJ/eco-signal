@@ -1551,6 +1551,20 @@ class TestProjectDelete:
                 permission_id=permission.permission_id,
             )
         )
+        role = db.exec(select(Role).where(Role.code == "viewer")).first()
+        if not role:
+            role = Role(code="viewer", name="Viewer", kind="access")
+            db.add(role)
+            db.commit()
+            db.refresh(role)
+        db.add(
+            UserScopeRole(
+                user_id=1,
+                role_id=role.role_id,
+                project_id=project.project_id,
+                collection_id=collection.collection_id,
+            )
+        )
         db.commit()
 
         r = client.delete(
@@ -1561,6 +1575,9 @@ class TestProjectDelete:
         assert db.exec(select(Project).where(Project.project_id == project.project_id)).first() is None
         assert db.exec(
             select(ProjectCollection).where(ProjectCollection.project_id == project.project_id)
+        ).all() == []
+        assert db.exec(
+            select(UserScopeRole).where(UserScopeRole.project_id == project.project_id)
         ).all() == []
         assert db.exec(
             select(UserPermission).where(UserPermission.project_id == project.project_id)

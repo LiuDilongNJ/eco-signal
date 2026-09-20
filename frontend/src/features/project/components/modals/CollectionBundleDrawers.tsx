@@ -22,8 +22,8 @@ import {
     dataImportsApi,
     type DataImportStatus,
 } from "@/api/endpoints/dataImports"
-import { CustomScrollArea } from "@/components/ui"
-import { FormDrawer } from "@/components/ui"
+import { CustomScrollArea, FormDrawer, LoadingState } from "@/components/ui"
+import { ConfirmDialog } from "./ConfirmDialog"
 import { useAntdBrandConfig } from "@/features/project/hooks/useAntdBrandConfig"
 import { useAppStore } from "@/store/useAppStore"
 import { downloadFile } from "@/utils/download"
@@ -52,6 +52,67 @@ const COUNT_LABELS: Record<string, string> = {
 
 function countLabel(key: string): string {
     return COUNT_LABELS[key] ?? key.replace(/_/g, " ")
+}
+
+export function formatBundleCounts(counts: Record<string, number> | null | undefined): string {
+    if (!counts) return ""
+
+    const parts: string[] = []
+
+    if (counts.sites !== undefined) {
+        parts.push(`Sites: ${counts.sites}`)
+    }
+
+    if (counts.media !== undefined) {
+        const subParts: string[] = []
+        if (counts.audio !== undefined) {
+            subParts.push(`${counts.audio} ${counts.audio === 1 ? "audio" : "audios"}`)
+        }
+        if (counts.photos !== undefined) {
+            subParts.push(`${counts.photos} ${counts.photos === 1 ? "photo" : "photos"}`)
+        }
+        if (subParts.length > 0) {
+            parts.push(`Media: ${counts.media} (${subParts.join(", ")})`)
+        } else {
+            parts.push(`Media: ${counts.media}`)
+        }
+    } else if (counts.audio !== undefined || counts.photos !== undefined) {
+        const total = (counts.audio ?? 0) + (counts.photos ?? 0)
+        const subParts: string[] = []
+        if (counts.audio !== undefined) subParts.push(`${counts.audio} ${counts.audio === 1 ? "audio" : "audios"}`)
+        if (counts.photos !== undefined) subParts.push(`${counts.photos} ${counts.photos === 1 ? "photo" : "photos"}`)
+        parts.push(`Media: ${total} (${subParts.join(", ")})`)
+    }
+
+    if (counts.annotations !== undefined) {
+        parts.push(`Annotations: ${counts.annotations}`)
+    }
+
+    if (counts.reviews !== undefined) {
+        parts.push(`Reviews: ${counts.reviews}`)
+    }
+
+    if (counts.labels !== undefined) {
+        parts.push(`Labels: ${counts.labels}`)
+    }
+
+    const handledKeys = new Set([
+        "sites",
+        "media",
+        "audio",
+        "photos",
+        "media_files",
+        "annotations",
+        "reviews",
+        "labels",
+    ])
+    for (const [key, value] of Object.entries(counts)) {
+        if (!handledKeys.has(key)) {
+            parts.push(`${countLabel(key)}: ${value}`)
+        }
+    }
+
+    return parts.join(" · ")
 }
 
 function bundleDrawerStyles() {
@@ -130,6 +191,7 @@ export function ImportBundleDrawer({
     const [batchId, setBatchId] = useState<string | null>(null)
     const [status, setStatus] = useState<DataImportStatus | null>(null)
     const [error, setError] = useState<string | null>(null)
+    const [confirmOpen, setConfirmOpen] = useState(false)
     const completedBatchRef = useRef<string | null>(null)
     const fileInputRef = useRef<HTMLInputElement | null>(null)
     const openCycleRef = useRef(0)
@@ -148,6 +210,7 @@ export function ImportBundleDrawer({
         setBatchId(null)
         setStatus(null)
         setError(null)
+        setConfirmOpen(false)
         completedBatchRef.current = null
     }, [open])
 
@@ -242,6 +305,7 @@ export function ImportBundleDrawer({
         setBatchId(null)
         setStatus(null)
         setError(null)
+        setConfirmOpen(false)
     }
 
     const close = () => {
@@ -273,7 +337,7 @@ export function ImportBundleDrawer({
                             icon={<Upload size={14} />}
                             loading={uploading}
                             disabled={!file || !projectId || isActive}
-                            onClick={() => void startImport()}
+                            onClick={() => setConfirmOpen(true)}
                         >
                             Import
                         </Button>
@@ -286,7 +350,7 @@ export function ImportBundleDrawer({
                             type="info"
                             showIcon
                             title="The bundle will be imported into the current project."
-                            description="Only one signed ZIP bundle can be uploaded. Processing continues in the background after upload."
+                            description="Only one ZIP bundle can be uploaded at a time. Processing continues in the background after upload."
                         />
                         <div className="collection-bundle-drawer__file-picker">
                             <ESInput appearance="unstyled"
@@ -347,6 +411,43 @@ export function ImportBundleDrawer({
                         ) : null}
                         {summary && (
                             <>
+                                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                                    <Typography.Text type="secondary">Verification:</Typography.Text>
+                                    {summary.signature_verified ? (
+                                        <Tag className="collection-bundle-drawer__status collection-bundle-drawer__status--success">
+                                            Federation Verified
+                                        </Tag>
+                                    ) : (
+                                        <Tag className="collection-bundle-drawer__status">
+                                            Checksums Verified (Unsigned)
+                                        </Tag>
+                                    )}
+                                </div>
+                                {(() => {
+                                    const totalCreated = Object.values(summary.created_counts).reduce((a, b) => a + b, 0)
+                                    const totalSkipped = Object.values(summary.skipped_counts).reduce((a, b) => a + b, 0)
+                                    if (totalCreated === 0 && totalSkipped > 0) {
+                                        return (
+                                            <Alert
+                                                type="info"
+                                                showIcon
+                                                title="All bundle items already exist in this database"
+                                                description="All collections, sites, media, and annotations in this bundle already exist in the target database. They were safely skipped to prevent duplicate records."
+                                            />
+                                        )
+                                    }
+                                    if (totalCreated > 0 && totalSkipped > 0) {
+                                        return (
+                                            <Alert
+                                                type="info"
+                                                showIcon
+                                                title="Some items already exist in this database"
+                                                description="Items matching existing records were safely skipped to prevent duplicate records."
+                                            />
+                                        )
+                                    }
+                                    return null
+                                })()}
                                 <Descriptions title="Created" size="small" column={2} bordered>
                                     {Object.entries(summary.created_counts).map(([key, value]) => (
                                         <Descriptions.Item key={key} label={countLabel(key)}>{value}</Descriptions.Item>
@@ -363,7 +464,9 @@ export function ImportBundleDrawer({
                                         showIcon
                                         title={`${summary.conflicts.length} conflict(s)`}
                                         description={summary.conflicts.map((item) =>
-                                            `${item.resource_type} ${item.identifier}: ${item.reason}`
+                                            item.identifier
+                                                ? `${item.resource_type} ${item.identifier}: ${item.reason}`
+                                                : `${item.resource_type}: ${item.reason}`
                                         ).join("\n")}
                                     />
                                 )}
@@ -373,7 +476,9 @@ export function ImportBundleDrawer({
                                         showIcon
                                         title={`${summary.warnings.length} warning(s)`}
                                         description={summary.warnings.map((item) =>
-                                            `${item.resource_type} ${item.identifier}: ${item.message}`
+                                            item.identifier
+                                                ? `${item.resource_type} ${item.identifier}: ${item.message}`
+                                                : `${item.resource_type}: ${item.message}`
                                         ).join("\n")}
                                     />
                                 )}
@@ -381,6 +486,16 @@ export function ImportBundleDrawer({
                         )}
                     </div>
                 </CustomScrollArea>
+                <ConfirmDialog
+                    open={confirmOpen}
+                    onClose={() => setConfirmOpen(false)}
+                    title="Import Collection Bundle?"
+                    message="This will import collections, sites, media, and annotations into the current project. If this bundle is from an external or unsigned source, its publisher identity cannot be verified with a Federation secret (only file checksums will be validated). Please ensure the file comes from a trusted source."
+                    confirmLabel="Confirm & Import"
+                    cancelLabel="Cancel"
+                    variant="warning"
+                    onConfirm={() => { void startImport() }}
+                />
             </FormDrawer>
         </ConfigProvider>
     )
@@ -401,6 +516,7 @@ export function ExportBundleDrawer({
 }: ExportBundleDrawerProps) {
     const [exports, setExports] = useState<CollectionBundleExport[]>([])
     const [activeId, setActiveId] = useState<string | null>(null)
+    const [loading, setLoading] = useState(false)
     const [creating, setCreating] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const openCycleRef = useRef(0)
@@ -409,11 +525,41 @@ export function ExportBundleDrawer({
 
     useEffect(() => {
         openCycleRef.current += 1
-        if (!open) return
-        setExports([])
-        setActiveId(null)
-        setCreating(false)
+        if (!open || !projectId || !collection?.collection_id) {
+            setExports([])
+            setActiveId(null)
+            setCreating(false)
+            setError(null)
+            setLoading(false)
+            return
+        }
+
+        const openCycle = openCycleRef.current
+        setLoading(true)
         setError(null)
+
+        collectionBundleExportsApi
+            .list(projectId, collection.collection_id)
+            .then((response) => {
+                if (openCycleRef.current !== openCycle) return
+                const data = response.data || []
+                setExports(data)
+                const runningExport = data.find(
+                    (item) => !TERMINAL_EXPORT_STATUSES.has(item.status),
+                )
+                if (runningExport) {
+                    setActiveId(runningExport.export_id)
+                }
+            })
+            .catch((loadError: unknown) => {
+                if (openCycleRef.current !== openCycle) return
+                setError(errorMessage(loadError, "Failed to load recent exports"))
+            })
+            .finally(() => {
+                if (openCycleRef.current === openCycle) {
+                    setLoading(false)
+                }
+            })
     }, [collection?.collection_id, open, projectId])
 
     useEffect(() => {
@@ -463,7 +609,10 @@ export function ExportBundleDrawer({
                 collection.collection_id,
             )
             if (openCycleRef.current !== openCycle) return
-            setExports((previous) => [response.data, ...previous])
+            setExports((previous) => [
+                response.data,
+                ...previous.filter((item) => item.export_id !== response.data.export_id),
+            ])
             setActiveId(response.data.export_id)
             message.success("Collection bundle export queued")
         } catch (createError: unknown) {
@@ -516,8 +665,8 @@ export function ExportBundleDrawer({
                         <Alert
                             type="info"
                             showIcon
-                            title="A successful offline bundle includes every audio and photo file."
-                            description="Generation fails if a source file is missing or ambiguous. Completed downloads remain available for 24 hours."
+                            title="An offline bundle includes media, sites, annotations, reviews, and labels."
+                            description="Every audio and photo file is included. Generation fails if a source file is missing or ambiguous. Completed downloads remain available for 24 hours."
                         />
                         {collection && (
                             <Descriptions size="small" column={1} bordered>
@@ -530,7 +679,11 @@ export function ExportBundleDrawer({
                         <Typography.Title level={5} className="collection-bundle-drawer__section-title">
                             Recent exports
                         </Typography.Title>
-                        {selectedExports.length === 0 ? (
+                        {loading ? (
+                            <div style={{ padding: "16px 0", textAlign: "center" }}>
+                                <LoadingState size="sm" label="Loading recent exports..." />
+                            </div>
+                        ) : selectedExports.length === 0 ? (
                             <Typography.Text type="secondary">No recent exports for this collection.</Typography.Text>
                         ) : (
                             <div className="collection-bundle-drawer__records">
@@ -555,7 +708,7 @@ export function ExportBundleDrawer({
                                             )}
                                             {item.counts && (
                                                 <Typography.Text type="secondary">
-                                                    {Object.entries(item.counts).map(([key, value]) => `${countLabel(key)}: ${value}`).join(" · ")}
+                                                    {formatBundleCounts(item.counts)}
                                                 </Typography.Text>
                                             )}
                                             {item.status === "completed" && (
