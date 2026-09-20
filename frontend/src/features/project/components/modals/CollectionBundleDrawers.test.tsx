@@ -9,7 +9,7 @@ import {
 } from "@/api/endpoints/collectionBundleExports"
 import { dataImportsApi, type DataImportStatus } from "@/api/endpoints/dataImports"
 import { APP_OVERLAY_ROOT_ID } from "@/providers/StageOverlayContext"
-import { ExportBundleDrawer, ImportBundleDrawer } from "./CollectionBundleDrawers"
+import { ExportBundleDrawer, ImportBundleDrawer, formatBundleCounts } from "./CollectionBundleDrawers"
 
 function addOverlayRoot() {
     const overlay = document.createElement("div")
@@ -340,9 +340,13 @@ describe("ExportBundleDrawer", () => {
         )
 
         expect(screen.getByRole("button", { name: "Export Bundle" })).toBeInTheDocument()
+        expect(
+            screen.getByText("An offline bundle includes media, sites, annotations, reviews, and labels.")
+        ).toBeInTheDocument()
         await waitFor(() => {
             expect(screen.getByText("collection-10.zip")).toBeInTheDocument()
         })
+        expect(screen.getByText("Sites: 2 · Media: 10")).toBeInTheDocument()
         expect(screen.getByRole("button", { name: /download/i })).toBeInTheDocument()
         expect(collectionBundleExportsApi.list).toHaveBeenCalledWith(1, 10)
 
@@ -404,5 +408,45 @@ describe("ExportBundleDrawer", () => {
         })
 
         overlay.remove()
+    })
+})
+
+describe("formatBundleCounts", () => {
+    it("formats bundle counts with media breakdown and plural audios/photos", () => {
+        const counts = {
+            sites: 1,
+            media: 7,
+            audio: 4,
+            photos: 3,
+            media_files: 7,
+            annotations: 201,
+            reviews: 0,
+            labels: 0,
+        }
+        expect(formatBundleCounts(counts)).toBe(
+            "Sites: 1 · Media: 7 (4 audios, 3 photos) · Annotations: 201 · Reviews: 0 · Labels: 0"
+        )
+    })
+
+    it("handles singular audio and photo counts", () => {
+        const counts = {
+            media: 2,
+            audio: 1,
+            photos: 1,
+        }
+        expect(formatBundleCounts(counts)).toBe("Media: 2 (1 audio, 1 photo)")
+    })
+
+    it("formats counts without audio/photo breakdown", () => {
+        const counts = {
+            sites: 2,
+            media: 10,
+        }
+        expect(formatBundleCounts(counts)).toBe("Sites: 2 · Media: 10")
+    })
+
+    it("returns empty string for null or undefined counts", () => {
+        expect(formatBundleCounts(null)).toBe("")
+        expect(formatBundleCounts(undefined)).toBe("")
     })
 })
