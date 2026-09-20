@@ -54,6 +54,67 @@ function countLabel(key: string): string {
     return COUNT_LABELS[key] ?? key.replace(/_/g, " ")
 }
 
+export function formatBundleCounts(counts: Record<string, number> | null | undefined): string {
+    if (!counts) return ""
+
+    const parts: string[] = []
+
+    if (counts.sites !== undefined) {
+        parts.push(`Sites: ${counts.sites}`)
+    }
+
+    if (counts.media !== undefined) {
+        const subParts: string[] = []
+        if (counts.audio !== undefined) {
+            subParts.push(`${counts.audio} ${counts.audio === 1 ? "audio" : "audios"}`)
+        }
+        if (counts.photos !== undefined) {
+            subParts.push(`${counts.photos} ${counts.photos === 1 ? "photo" : "photos"}`)
+        }
+        if (subParts.length > 0) {
+            parts.push(`Media: ${counts.media} (${subParts.join(", ")})`)
+        } else {
+            parts.push(`Media: ${counts.media}`)
+        }
+    } else if (counts.audio !== undefined || counts.photos !== undefined) {
+        const total = (counts.audio ?? 0) + (counts.photos ?? 0)
+        const subParts: string[] = []
+        if (counts.audio !== undefined) subParts.push(`${counts.audio} ${counts.audio === 1 ? "audio" : "audios"}`)
+        if (counts.photos !== undefined) subParts.push(`${counts.photos} ${counts.photos === 1 ? "photo" : "photos"}`)
+        parts.push(`Media: ${total} (${subParts.join(", ")})`)
+    }
+
+    if (counts.annotations !== undefined) {
+        parts.push(`Annotations: ${counts.annotations}`)
+    }
+
+    if (counts.reviews !== undefined) {
+        parts.push(`Reviews: ${counts.reviews}`)
+    }
+
+    if (counts.labels !== undefined) {
+        parts.push(`Labels: ${counts.labels}`)
+    }
+
+    const handledKeys = new Set([
+        "sites",
+        "media",
+        "audio",
+        "photos",
+        "media_files",
+        "annotations",
+        "reviews",
+        "labels",
+    ])
+    for (const [key, value] of Object.entries(counts)) {
+        if (!handledKeys.has(key)) {
+            parts.push(`${countLabel(key)}: ${value}`)
+        }
+    }
+
+    return parts.join(" · ")
+}
+
 function bundleDrawerStyles() {
     return {
         wrapper: {
@@ -353,9 +414,13 @@ export function ImportBundleDrawer({
                                 <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                                     <Typography.Text type="secondary">Verification:</Typography.Text>
                                     {summary.signature_verified ? (
-                                        <Tag color="success">Federation Verified</Tag>
+                                        <Tag className="collection-bundle-drawer__status collection-bundle-drawer__status--success">
+                                            Federation Verified
+                                        </Tag>
                                     ) : (
-                                        <Tag color="default">Checksums Verified (Unsigned)</Tag>
+                                        <Tag className="collection-bundle-drawer__status">
+                                            Checksums Verified (Unsigned)
+                                        </Tag>
                                     )}
                                 </div>
                                 {(() => {
@@ -600,8 +665,8 @@ export function ExportBundleDrawer({
                         <Alert
                             type="info"
                             showIcon
-                            title="A successful offline bundle includes every audio and photo file."
-                            description="Generation fails if a source file is missing or ambiguous. Completed downloads remain available for 24 hours."
+                            title="An offline bundle includes media, sites, annotations, reviews, and labels."
+                            description="Every audio and photo file is included. Generation fails if a source file is missing or ambiguous. Completed downloads remain available for 24 hours."
                         />
                         {collection && (
                             <Descriptions size="small" column={1} bordered>
@@ -643,7 +708,7 @@ export function ExportBundleDrawer({
                                             )}
                                             {item.counts && (
                                                 <Typography.Text type="secondary">
-                                                    {Object.entries(item.counts).map(([key, value]) => `${countLabel(key)}: ${value}`).join(" · ")}
+                                                    {formatBundleCounts(item.counts)}
                                                 </Typography.Text>
                                             )}
                                             {item.status === "completed" && (
