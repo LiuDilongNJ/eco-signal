@@ -286,3 +286,82 @@ def test_collection_bundle_export_expired_download_returns_gone(
 
     assert response.status_code == 410
     assert not target.exists()
+
+
+def test_list_collection_bundle_exports_by_project_and_collection(
+    client: TestClient,
+    db: Session,
+    superuser_token_headers: dict[str, str],
+) -> None:
+    project, collection1 = _seed_scope(db)
+    suffix = uuid4().hex[:8]
+    collection2 = Collection(
+        name=f"Bundle Collection 2 {suffix}",
+        creator_id=1,
+    )
+    db.add(collection2)
+    db.commit()
+    db.refresh(collection2)
+    db.add(
+        ProjectCollection(
+            project_id=project.project_id,
+            collection_id=collection2.collection_id,
+        )
+    )
+    db.commit()
+
+    queue1 = Queue(type="offline_export", user_id=1, total=1, status=QueueStatus.COMPLETED)
+    queue2 = Queue(type="offline_export", user_id=1, total=1, status=QueueStatus.COMPLETED)
+    db.add(queue1)
+    db.add(queue2)
+    db.commit()
+    db.refresh(queue1)
+    db.refresh(queue2)
+
+    now = datetime.now(UTC).replace(tzinfo=None)
+    record1 = CollectionBundleExport(
+        project_id=project.project_id,
+        collection_id=collection1.collection_id,
+        user_id=1,
+        queue_id=queue1.queue_id,
+        status="completed",
+        filename="col1.zip",
+        creation_date=now,
+        expires_at=now + timedelta(hours=1),
+    )
+    record2 = CollectionBundleExport(
+        project_id=project.project_id,
+        collection_id=collection2.collection_id,
+        user_id=1,
+        queue_id=queue2.queue_id,
+        status="completed",
+        filename="col2.zip",
+        creation_date=now,
+        expires_at=now + timedelta(hours=1),
+    )
+    db.add(record1)
+    db.add(record2)
+    db.commit()
+
+    # List all exports for project
+    res_all = client.get(
+        f"{settings.API_V1_STR}/collection-bundle-exports?project_id={project.project_id}",
+        headers=superuser_token_headers,
+    )
+    assert res_all.status_code == 200
+    all_exports = res_all.json()["data"]
+    export_ids_all = [item["export_id"] for item in all_exports]
+    assert str(record1.export_id) in export_ids_all
+    assert str(record2.export_id) in export_ids_all
+
+    # List exports filtered by collection1
+    res_col1 = client.get(
+        f"{settings.API_V1_STR}/collection-bundle-exports?project_id={project.project_id}&collection_id={collection1.collection_id}",
+        headers=superuser_token_headers,
+    )
+    assert res_col1.status_code == 200
+    col1_exports = res_col1.json()["data"]
+    export_ids_col1 = [item["export_id"] for item in col1_exports]
+    assert str(record1.export_id) in export_ids_col1
+    assert str(record2.export_id) not in export_ids_col1
+

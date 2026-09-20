@@ -84,6 +84,7 @@ def list_collection_bundle_exports(
     session: SessionDep,
     current_user: CurrentUser,
     project_id: int = Query(..., description="项目 ID / Project ID"),
+    collection_id: int | None = Query(None, description="集合 ID / Collection ID"),
 ) -> ApiResponse[list[CollectionBundleExportPublic]]:
     """
     列出当前项目下尚未过期的导出。 /
@@ -94,6 +95,7 @@ def list_collection_bundle_exports(
         data=collection_bundle_export_service.list_exports(
             session,
             project_id=project_id,
+            collection_id=collection_id,
             current_user=current_user,
             is_admin=permission_service.is_admin(current_user),
         )

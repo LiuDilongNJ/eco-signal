@@ -76,12 +76,15 @@ def test_list_exports_filters_expired_records_and_scopes_non_admin(monkeypatch) 
     result = collection_bundle_export_service.list_exports(
         session,
         project_id=10,
+        collection_id=20,
         current_user=user,
         is_admin=False,
     )
 
     assert [item.export_id for item in result] == [active.export_id]
-    repository.list_recent.assert_called_once_with(session, project_id=10, user_id=8)
+    repository.list_recent.assert_called_once_with(
+        session, project_id=10, collection_id=20, user_id=8
+    )
     assert expired.status == "expired"
 
 

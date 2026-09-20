@@ -112,12 +112,14 @@ def list_exports(
     session: Session,
     *,
     project_id: int,
+    collection_id: int | None = None,
     current_user: User,
     is_admin: bool,
 ) -> list[CollectionBundleExportPublic]:
     records = collection_bundle_export_repository.list_recent(
         session,
         project_id=project_id,
+        collection_id=collection_id,
         user_id=None if is_admin else current_user.user_id,
     )
     for record in records:

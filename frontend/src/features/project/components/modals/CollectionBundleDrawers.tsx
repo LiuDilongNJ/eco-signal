@@ -22,8 +22,8 @@ import {
     dataImportsApi,
     type DataImportStatus,
 } from "@/api/endpoints/dataImports"
-import { CustomScrollArea } from "@/components/ui"
-import { FormDrawer } from "@/components/ui"
+import { CustomScrollArea, FormDrawer, LoadingState } from "@/components/ui"
+import { ConfirmDialog } from "./ConfirmDialog"
 import { useAntdBrandConfig } from "@/features/project/hooks/useAntdBrandConfig"
 import { useAppStore } from "@/store/useAppStore"
 import { downloadFile } from "@/utils/download"
@@ -130,6 +130,7 @@ export function ImportBundleDrawer({
     const [batchId, setBatchId] = useState<string | null>(null)
     const [status, setStatus] = useState<DataImportStatus | null>(null)
     const [error, setError] = useState<string | null>(null)
+    const [confirmOpen, setConfirmOpen] = useState(false)
     const completedBatchRef = useRef<string | null>(null)
     const fileInputRef = useRef<HTMLInputElement | null>(null)
     const openCycleRef = useRef(0)
@@ -148,6 +149,7 @@ export function ImportBundleDrawer({
         setBatchId(null)
         setStatus(null)
         setError(null)
+        setConfirmOpen(false)
         completedBatchRef.current = null
     }, [open])
 
@@ -242,6 +244,7 @@ export function ImportBundleDrawer({
         setBatchId(null)
         setStatus(null)
         setError(null)
+        setConfirmOpen(false)
     }
 
     const close = () => {
@@ -273,7 +276,7 @@ export function ImportBundleDrawer({
                             icon={<Upload size={14} />}
                             loading={uploading}
                             disabled={!file || !projectId || isActive}
-                            onClick={() => void startImport()}
+                            onClick={() => setConfirmOpen(true)}
                         >
                             Import
                         </Button>
@@ -286,7 +289,7 @@ export function ImportBundleDrawer({
                             type="info"
                             showIcon
                             title="The bundle will be imported into the current project."
-                            description="Only one signed ZIP bundle can be uploaded. Processing continues in the background after upload."
+                            description="Only one ZIP bundle can be uploaded at a time. Processing continues in the background after upload."
                         />
                         <div className="collection-bundle-drawer__file-picker">
                             <ESInput appearance="unstyled"
@@ -347,6 +350,39 @@ export function ImportBundleDrawer({
                         ) : null}
                         {summary && (
                             <>
+                                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                                    <Typography.Text type="secondary">Verification:</Typography.Text>
+                                    {summary.signature_verified ? (
+                                        <Tag color="success">Federation Verified</Tag>
+                                    ) : (
+                                        <Tag color="default">Checksums Verified (Unsigned)</Tag>
+                                    )}
+                                </div>
+                                {(() => {
+                                    const totalCreated = Object.values(summary.created_counts).reduce((a, b) => a + b, 0)
+                                    const totalSkipped = Object.values(summary.skipped_counts).reduce((a, b) => a + b, 0)
+                                    if (totalCreated === 0 && totalSkipped > 0) {
+                                        return (
+                                            <Alert
+                                                type="info"
+                                                showIcon
+                                                title="All bundle items already exist in this database"
+                                                description="All collections, sites, media, and annotations in this bundle already exist in the target database. They were safely skipped to prevent duplicate records."
+                                            />
+                                        )
+                                    }
+                                    if (totalCreated > 0 && totalSkipped > 0) {
+                                        return (
+                                            <Alert
+                                                type="info"
+                                                showIcon
+                                                title="Some items already exist in this database"
+                                                description="Items matching existing records were safely skipped to prevent duplicate records."
+                                            />
+                                        )
+                                    }
+                                    return null
+                                })()}
                                 <Descriptions title="Created" size="small" column={2} bordered>
                                     {Object.entries(summary.created_counts).map(([key, value]) => (
                                         <Descriptions.Item key={key} label={countLabel(key)}>{value}</Descriptions.Item>
@@ -363,7 +399,9 @@ export function ImportBundleDrawer({
                                         showIcon
                                         title={`${summary.conflicts.length} conflict(s)`}
                                         description={summary.conflicts.map((item) =>
-                                            `${item.resource_type} ${item.identifier}: ${item.reason}`
+                                            item.identifier
+                                                ? `${item.resource_type} ${item.identifier}: ${item.reason}`
+                                                : `${item.resource_type}: ${item.reason}`
                                         ).join("\n")}
                                     />
                                 )}
@@ -373,7 +411,9 @@ export function ImportBundleDrawer({
                                         showIcon
                                         title={`${summary.warnings.length} warning(s)`}
                                         description={summary.warnings.map((item) =>
-                                            `${item.resource_type} ${item.identifier}: ${item.message}`
+                                            item.identifier
+                                                ? `${item.resource_type} ${item.identifier}: ${item.message}`
+                                                : `${item.resource_type}: ${item.message}`
                                         ).join("\n")}
                                     />
                                 )}
@@ -381,6 +421,16 @@ export function ImportBundleDrawer({
                         )}
                     </div>
                 </CustomScrollArea>
+                <ConfirmDialog
+                    open={confirmOpen}
+                    onClose={() => setConfirmOpen(false)}
+                    title="Import Collection Bundle?"
+                    message="This will import collections, sites, media, and annotations into the current project. If this bundle is from an external or unsigned source, its publisher identity cannot be verified with a Federation secret (only file checksums will be validated). Please ensure the file comes from a trusted source."
+                    confirmLabel="Confirm & Import"
+                    cancelLabel="Cancel"
+                    variant="warning"
+                    onConfirm={() => { void startImport() }}
+                />
             </FormDrawer>
         </ConfigProvider>
     )
@@ -401,6 +451,7 @@ export function ExportBundleDrawer({
 }: ExportBundleDrawerProps) {
     const [exports, setExports] = useState<CollectionBundleExport[]>([])
     const [activeId, setActiveId] = useState<string | null>(null)
+    const [loading, setLoading] = useState(false)
     const [creating, setCreating] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const openCycleRef = useRef(0)
@@ -409,11 +460,41 @@ export function ExportBundleDrawer({
 
     useEffect(() => {
         openCycleRef.current += 1
-        if (!open) return
-        setExports([])
-        setActiveId(null)
-        setCreating(false)
+        if (!open || !projectId || !collection?.collection_id) {
+            setExports([])
+            setActiveId(null)
+            setCreating(false)
+            setError(null)
+            setLoading(false)
+            return
+        }
+
+        const openCycle = openCycleRef.current
+        setLoading(true)
         setError(null)
+
+        collectionBundleExportsApi
+            .list(projectId, collection.collection_id)
+            .then((response) => {
+                if (openCycleRef.current !== openCycle) return
+                const data = response.data || []
+                setExports(data)
+                const runningExport = data.find(
+                    (item) => !TERMINAL_EXPORT_STATUSES.has(item.status),
+                )
+                if (runningExport) {
+                    setActiveId(runningExport.export_id)
+                }
+            })
+            .catch((loadError: unknown) => {
+                if (openCycleRef.current !== openCycle) return
+                setError(errorMessage(loadError, "Failed to load recent exports"))
+            })
+            .finally(() => {
+                if (openCycleRef.current === openCycle) {
+                    setLoading(false)
+                }
+            })
     }, [collection?.collection_id, open, projectId])
 
     useEffect(() => {
@@ -463,7 +544,10 @@ export function ExportBundleDrawer({
                 collection.collection_id,
             )
             if (openCycleRef.current !== openCycle) return
-            setExports((previous) => [response.data, ...previous])
+            setExports((previous) => [
+                response.data,
+                ...previous.filter((item) => item.export_id !== response.data.export_id),
+            ])
             setActiveId(response.data.export_id)
             message.success("Collection bundle export queued")
         } catch (createError: unknown) {
@@ -530,7 +614,11 @@ export function ExportBundleDrawer({
                         <Typography.Title level={5} className="collection-bundle-drawer__section-title">
                             Recent exports
                         </Typography.Title>
-                        {selectedExports.length === 0 ? (
+                        {loading ? (
+                            <div style={{ padding: "16px 0", textAlign: "center" }}>
+                                <LoadingState size="sm" label="Loading recent exports..." />
+                            </div>
+                        ) : selectedExports.length === 0 ? (
                             <Typography.Text type="secondary">No recent exports for this collection.</Typography.Text>
                         ) : (
                             <div className="collection-bundle-drawer__records">

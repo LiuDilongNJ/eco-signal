@@ -29,7 +29,7 @@ class OfflineBundleManifest(BundleModel):
     collection_uuid: UUID
     includes_media: Literal[True]
     hash_algorithm: Literal["sha256"]
-    signature_algorithm: Literal["hmac-sha256"]
+    signature_algorithm: Literal["hmac-sha256", "none"] = "none"
     counts: OfflineBundleCounts
     warnings: list[str] = Field(default_factory=list)
 
@@ -74,7 +74,7 @@ class OfflineSitePayload(BundleModel):
 class OfflineAudioSettingPayload(BundleModel):
     recording_gain_db: int | None = None
     sampling_rate_hz: int = Field(gt=0)
-    bit_depth: int | None = Field(default=None, gt=0)
+    bit_depth: int | None = Field(default=None, ge=0)
     channel_num: int | None = Field(default=None, gt=0)
     duration_s: float = Field(ge=0)
     file_metadata: dict | None = None
