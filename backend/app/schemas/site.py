@@ -151,6 +151,12 @@ class SiteMapLightGeometry(SQLModel):
 class SiteMapLightMarker(SQLModel):
     site_id: int
     name: str
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    gadm0: Optional[str] = None
+    gadm1: Optional[str] = None
+    gadm2: Optional[str] = None
+    iho: Optional[str] = None
     geometry: SiteMapLightGeometry
     media_count: int = 0
     realm_id: Optional[int] = None

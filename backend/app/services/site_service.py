@@ -424,8 +424,8 @@ def _build_marker_geometry(row: dict, *, include_polygons: bool = True) -> dict:
 
 
 def _build_site_map_light_marker(row: dict) -> SiteMapLightMarker:
-    marker_lon = row.get("longitude")
-    marker_lat = row.get("latitude")
+    marker_lat = row.get("resolved_lat", row.get("latitude"))
+    marker_lon = row.get("resolved_lon", row.get("longitude"))
     point = (
         SiteMapLightPoint(latitude=marker_lat, longitude=marker_lon)
         if marker_lat is not None and marker_lon is not None
@@ -434,6 +434,12 @@ def _build_site_map_light_marker(row: dict) -> SiteMapLightMarker:
     return SiteMapLightMarker(
         site_id=row["site_id"],
         name=row.get("name") or "",
+        latitude=row.get("latitude"),
+        longitude=row.get("longitude"),
+        gadm0=row.get("gadm0"),
+        gadm1=row.get("gadm1"),
+        gadm2=row.get("gadm2"),
+        iho=row.get("iho"),
         geometry=SiteMapLightGeometry(point=point, point_source=row.get("point_source")),
         media_count=row["media_count"],
         realm_id=row.get("realm_id"),
@@ -444,8 +450,8 @@ def _build_site_map_light_marker(row: dict) -> SiteMapLightMarker:
 
 
 def _build_site_map_light_marker_dict(row: dict) -> dict:
-    marker_lon = row.get("longitude")
-    marker_lat = row.get("latitude")
+    marker_lat = row.get("resolved_lat", row.get("latitude"))
+    marker_lon = row.get("resolved_lon", row.get("longitude"))
     point = (
         {"latitude": marker_lat, "longitude": marker_lon}
         if marker_lat is not None and marker_lon is not None
@@ -454,6 +460,12 @@ def _build_site_map_light_marker_dict(row: dict) -> dict:
     return {
         "site_id": row["site_id"],
         "name": row.get("name") or "",
+        "latitude": row.get("latitude"),
+        "longitude": row.get("longitude"),
+        "gadm0": row.get("gadm0"),
+        "gadm1": row.get("gadm1"),
+        "gadm2": row.get("gadm2"),
+        "iho": row.get("iho"),
         "geometry": {"point": point, "point_source": row.get("point_source")},
         "media_count": row["media_count"],
         "realm_id": row.get("realm_id"),

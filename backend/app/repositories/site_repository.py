@@ -994,8 +994,10 @@ class SiteRepository(BaseRepository[Site, SiteCreate, SiteUpdate]):
         base_columns = [
             Site.site_id.label("site_id"),
             Site.name.label("name"),
-            coord["resolved_lat"].label("latitude"),
-            coord["resolved_lon"].label("longitude"),
+            Site.latitude.label("latitude"),
+            Site.longitude.label("longitude"),
+            coord["resolved_lat"].label("resolved_lat"),
+            coord["resolved_lon"].label("resolved_lon"),
             case(
                 ((Site.longitude.is_not(None) & Site.latitude.is_not(None)), literal("coordinates")),
                 (Site.location.is_not(None), literal("gadm")),
@@ -1006,6 +1008,10 @@ class SiteRepository(BaseRepository[Site, SiteCreate, SiteUpdate]):
             realm.name.label("realm_name"),
             Site.biome_id.label("biome_id"),
             Site.functional_type_id.label("functional_type_id"),
+            Site.gadm0.label("gadm0"),
+            Site.gadm1.label("gadm1"),
+            Site.gadm2.label("gadm2"),
+            Site.iho.label("iho"),
             func.coalesce(media_count_subquery.c.media_count, 0).label("media_count"),
         ]
         if use_project_site_scope:

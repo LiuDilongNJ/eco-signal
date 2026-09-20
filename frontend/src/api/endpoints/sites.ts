@@ -34,6 +34,12 @@ export interface SiteOption {
 export interface SiteMapMarker {
     site_id: number
     name?: string | null
+    latitude?: number | null
+    longitude?: number | null
+    gadm0?: string | null
+    gadm1?: string | null
+    gadm2?: string | null
+    iho?: string | null
     geometry?: {
         point?: {
             latitude: number

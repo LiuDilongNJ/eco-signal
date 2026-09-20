@@ -931,6 +931,10 @@ class TestSiteMap:
             name="Light Mode Site",
             longitude=113.2,
             latitude=22.1,
+            gadm0="China",
+            gadm1="Guangdong",
+            gadm2="Guangzhou",
+            iho="South China Sea",
         )
         self._create_site_media(
             db,
@@ -950,6 +954,12 @@ class TestSiteMap:
         assert set(marker.keys()) == {
             "site_id",
             "name",
+            "latitude",
+            "longitude",
+            "gadm0",
+            "gadm1",
+            "gadm2",
+            "iho",
             "geometry",
             "media_count",
             "realm_id",
@@ -959,6 +969,12 @@ class TestSiteMap:
         }
         assert marker["site_id"] == site.site_id
         assert marker["name"] == "Light Mode Site"
+        assert marker["latitude"] == 22.1
+        assert marker["longitude"] == 113.2
+        assert marker["gadm0"] == "China"
+        assert marker["gadm1"] == "Guangdong"
+        assert marker["gadm2"] == "Guangzhou"
+        assert marker["iho"] == "South China Sea"
         assert marker["media_count"] == 1
         assert set(marker["geometry"].keys()) == {"point", "point_source"}
         assert marker["geometry"]["point"] is not None
