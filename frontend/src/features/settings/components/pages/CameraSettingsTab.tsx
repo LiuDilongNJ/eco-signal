@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from "react"
 import { Button, ConfigProvider, Descriptions, Form, Input, Modal, Select, Space, message } from "@/components/ui"
 import { FormDrawer } from "@/components/ui"
 
-import { Camera, FileUp, Info, Link2, Plus } from "lucide-react"
+import { Camera, FileUp, Link2, Plus } from "lucide-react"
 import { ApiError } from "../../../../api/client"
 import { camerasApi, type CameraListItem, type CameraPublic } from "../../../../api/endpoints/cameras"
 import { useAppDefaultAntdBrandConfig } from "../../../project/hooks/useAntdBrandConfig"
@@ -418,8 +418,7 @@ export function CameraSettingsTab() {
                 addDropdownItems={[
                     { key: "new", label: "New Camera", icon: <Plus size={14} />, onClick: openCreate },
                     { type: "divider" as const },
-                    { key: "import", label: "Import Data", icon: <FileUp size={14} />, onClick: () => csvImport.triggerImport() },
-                    { key: "instructions", label: "Import Instructions", icon: <Info size={14} />, onClick: () => csvImport.showInstructions() },
+                    { key: "import", label: "Import Data", icon: <FileUp size={14} />, onClick: () => csvImport.showInstructions() },
                 ]}
                 addDisabled={csvImport.importing}
                 onEditCustom={handleEdit}

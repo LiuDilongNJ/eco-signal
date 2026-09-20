@@ -141,11 +141,10 @@ export function useTabularImport({ label, config, submit, onCommitted, variants,
                         setInstructionsOpen(false)
                         setActiveVariantKey(null)
                     }}
-                    onBrowse={activeConfig.combinedImport ? () => {
+                    onBrowse={() => {
                         setInstructionsOpen(false)
-                        setActiveVariantKey(null)
                         inputRef.current?.click()
-                    } : undefined}
+                    }}
                     browseDisabled={!canBrowse}
                 />
             </>

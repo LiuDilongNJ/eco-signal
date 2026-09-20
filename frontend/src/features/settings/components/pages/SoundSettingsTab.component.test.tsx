@@ -125,7 +125,6 @@ describe("SoundSettingsTab interactions", () => {
         expect(addItems.filter((item) => item.type !== "divider").map((item) => item.label)).toEqual([
             "New Sound",
             "Import Data",
-            "Import Instructions",
         ])
         expect(addItems[1]).toMatchObject({ type: "divider" })
 
@@ -168,9 +167,10 @@ describe("SoundSettingsTab interactions", () => {
     it("shows concise import guidance with downloadable CSV, TXT, and JSON templates", async () => {
         render(<SoundSettingsTab />)
 
-        menuAction(3)
+        menuAction(2)
 
         expect(screen.getByText("Data Import Instructions")).toBeInTheDocument()
+        expect(screen.getByRole("button", { name: "Browse" })).toBeInTheDocument()
         expect(screen.getByText("soundscape_component")).toBeInTheDocument()
         expect(screen.queryByText(/Duplicate rows are preserved/)).not.toBeInTheDocument()
         expect(screen.queryByText("CSV example")).not.toBeInTheDocument()
@@ -203,13 +203,16 @@ describe("SoundSettingsTab interactions", () => {
         expect(screen.queryByText("Choose or drop a CSV file here")).not.toBeInTheDocument()
     })
 
-    it("opens the hidden CSV chooser directly from the Add menu", () => {
+    it("opens import instructions from the Add menu and browses from there", () => {
         const { container } = render(<SoundSettingsTab />)
         const input = container.querySelector<HTMLInputElement>('input[type="file"]')
         expect(input).not.toBeNull()
         const click = vi.spyOn(input!, "click")
 
         menuAction(2)
+        expect(screen.getByText("Data Import Instructions")).toBeInTheDocument()
+
+        fireEvent.click(screen.getByRole("button", { name: "Browse" }))
 
         expect(click).toHaveBeenCalledOnce()
         expect(screen.queryByText("Import Sounds")).not.toBeInTheDocument()

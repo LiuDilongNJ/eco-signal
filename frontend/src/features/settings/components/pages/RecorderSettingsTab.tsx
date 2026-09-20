@@ -3,7 +3,7 @@ import { useCallback, useState } from "react"
 import { Button, ConfigProvider, Descriptions, Form, Input, Modal, Select, Space, message } from "@/components/ui"
 import { FormDrawer } from "@/components/ui"
 
-import { CassetteTape, FileUp, Info, Link2, Plus } from "lucide-react"
+import { CassetteTape, FileUp, Link2, Plus } from "lucide-react"
 import { ApiError } from "../../../../api/client"
 import { recordersApi, type RecorderPublic } from "../../../../api/endpoints/recorders"
 import { fetchMicrophoneListAll, microphonesApi, type MicrophoneListItem, type MicrophonePublic } from "../../../../api/endpoints/microphones"
@@ -444,8 +444,7 @@ export function RecorderSettingsTab() {
                 addDropdownItems={[
                     { key: "new", label: "New Recorder", icon: <Plus size={14} />, onClick: openCreate },
                     { type: "divider" as const },
-                    { key: "import", label: "Import Data", icon: <FileUp size={14} />, onClick: () => csvImport.triggerImport() },
-                    { key: "instructions", label: "Import Instructions", icon: <Info size={14} />, onClick: () => csvImport.showInstructions() },
+                    { key: "import", label: "Import Data", icon: <FileUp size={14} />, onClick: () => csvImport.showInstructions() },
                 ]}
                 addDisabled={csvImport.importing}
                 onEditCustom={handleEdit}

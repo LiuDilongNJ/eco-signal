@@ -97,16 +97,20 @@ export function ImportInstructionsDrawer({ config, open, onClose, onBrowse, brow
                         <Button onClick={() => downloadTemplate("txt")}>Download TXT Template</Button>
                         <Button onClick={() => downloadTemplate("json")}>Download JSON Template</Button>
                     </div>
-                    {config.instructionsUploadPrompt ? <p>{config.instructionsUploadPrompt}</p> : null}
+                    {config.instructionsUploadPrompt
+                        ? <p>{config.instructionsUploadPrompt}</p>
+                        : onBrowse
+                            ? <p>Upload your data to the current collection.</p>
+                            : null}
                     {onBrowse ? (
                         <Button
                             type="primary"
                             disabled={browseDisabled}
-                            title="Select a metadata file to upload"
-                            aria-label="Select a metadata file to upload"
+                            title="Browse"
+                            aria-label="Browse"
                             onClick={onBrowse}
                         >
-                            Select metadata file
+                            Browse
                         </Button>
                     ) : null}
                 </div>

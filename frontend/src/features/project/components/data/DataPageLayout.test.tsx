@@ -246,7 +246,7 @@ describe("DataPageLayout collection context", () => {
         await userEvent.click(screen.getByRole("button", { name: "Add" }))
         expect(await screen.findByText("Add Site")).toBeInTheDocument()
         expect(screen.getByText("Import Data")).toBeInTheDocument()
-        expect(screen.getByText("Import Instructions")).toBeInTheDocument()
+        expect(screen.queryByText("Import Instructions")).not.toBeInTheDocument()
 
         rerender(
             <MemoryRouter>
@@ -266,7 +266,7 @@ describe("DataPageLayout collection context", () => {
         expect(importButton.querySelector("svg")).toBeInTheDocument()
         await userEvent.click(importButton)
         expect(await screen.findByText("Import Data")).toBeInTheDocument()
-        expect(screen.getByText("Import Instructions")).toBeInTheDocument()
+        expect(screen.queryByText("Import Instructions")).not.toBeInTheDocument()
     })
 
     it("keeps mixed add/import actions disabled with their disabled reason", async () => {

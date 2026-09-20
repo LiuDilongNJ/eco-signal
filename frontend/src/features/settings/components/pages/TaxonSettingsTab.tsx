@@ -5,7 +5,7 @@ import { ConfigProvider, Form, Input, Select, message } from "@/components/ui"
 import { FormDrawer } from "@/components/ui"
 import { LoadingState } from "@/components/ui"
 
-import { FileUp, GitFork, Info, Plus } from "lucide-react"
+import { FileUp, GitFork, Plus } from "lucide-react"
 import { ApiError } from "../../../../api/client"
 import { downloadFile } from "@/utils/download"
 import {
@@ -493,8 +493,7 @@ export function TaxonSettingsTab() {
                 addDropdownItems={[
                     { key: "new", label: "New Taxon", icon: <Plus size={14} />, onClick: () => openCreate() },
                     { type: "divider" as const },
-                    { key: "import", label: "Import Data", icon: <FileUp size={14} />, onClick: () => csvImport.triggerImport() },
-                    { key: "instructions", label: "Import Instructions", icon: <Info size={14} />, onClick: () => csvImport.showInstructions() },
+                    { key: "import", label: "Import Data", icon: <FileUp size={14} />, onClick: () => csvImport.showInstructions() },
                 ]}
                 addDisabled={csvImport.importing}
                 onEditCustom={(keys) => void handleEdit(keys)}

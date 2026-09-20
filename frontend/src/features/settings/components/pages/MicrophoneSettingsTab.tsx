@@ -3,7 +3,7 @@ import { useCallback, useState } from "react"
 import { ConfigProvider, Descriptions, Form, Input, InputNumber, Space, message } from "@/components/ui"
 import { FormDrawer } from "@/components/ui"
 
-import { FileUp, Info, Mic, Plus } from "lucide-react"
+import { FileUp, Mic, Plus } from "lucide-react"
 import { ApiError } from "../../../../api/client"
 import { microphonesApi, type MicrophonePublic } from "../../../../api/endpoints/microphones"
 import { DataPageLayout } from "../../../project/components/data/DataPageLayout"
@@ -306,8 +306,7 @@ export function MicrophoneSettingsTab() {
                 addDropdownItems={[
                     { key: "new", label: "New Microphone", icon: <Plus size={14} />, onClick: openCreate },
                     { type: "divider" as const },
-                    { key: "import", label: "Import Data", icon: <FileUp size={14} />, onClick: () => csvImport.triggerImport() },
-                    { key: "instructions", label: "Import Instructions", icon: <Info size={14} />, onClick: () => csvImport.showInstructions() },
+                    { key: "import", label: "Import Data", icon: <FileUp size={14} />, onClick: () => csvImport.showInstructions() },
                 ]}
                 addDisabled={csvImport.importing}
                 onEditCustom={handleEdit}

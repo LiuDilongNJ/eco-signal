@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from "react"
 import { Descriptions, Form, Input, ConfigProvider, Space, message } from "@/components/ui"
 import { FormDrawer } from "@/components/ui"
 
-import { Aperture, FileUp, Info, Plus } from "lucide-react"
+import { Aperture, FileUp, Plus } from "lucide-react"
 import { ApiError } from "../../../../api/client"
 import { lensesApi, type LensListItem, type LensPublic } from "../../../../api/endpoints/lenses"
 import { DataPageLayout } from "../../../project/components/data/DataPageLayout"
@@ -309,8 +309,7 @@ export function LensSettingsTab() {
                 addDropdownItems={[
                     { key: "new", label: "New Lens", icon: <Plus size={14} />, onClick: openCreate },
                     { type: "divider" as const },
-                    { key: "import", label: "Import Data", icon: <FileUp size={14} />, onClick: () => csvImport.triggerImport() },
-                    { key: "instructions", label: "Import Instructions", icon: <Info size={14} />, onClick: () => csvImport.showInstructions() },
+                    { key: "import", label: "Import Data", icon: <FileUp size={14} />, onClick: () => csvImport.showInstructions() },
                 ]}
                 addDisabled={csvImport.importing}
                 onEditCustom={handleEdit}

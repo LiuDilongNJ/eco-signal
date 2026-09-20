@@ -8,7 +8,7 @@ import {
     Input,
     message,
 } from "@/components/ui"
-import { AudioLines, FileUp, Info, Plus } from "lucide-react"
+import { AudioLines, FileUp, Plus } from "lucide-react"
 import { ApiError } from "../../../../api/client"
 
 import {
@@ -221,12 +221,6 @@ export function SoundSettingsTab() {
             key: "import",
             label: "Import Data",
             icon: <FileUp size={14} />,
-            onClick: () => csvImport.triggerImport(),
-        },
-        {
-            key: "instructions",
-            label: "Import Instructions",
-            icon: <Info size={14} />,
             onClick: () => csvImport.showInstructions(),
         },
     ]

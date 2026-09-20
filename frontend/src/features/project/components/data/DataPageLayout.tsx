@@ -20,7 +20,6 @@ import {
     Trash2,
     Download,
     FileUp,
-    Info,
     RotateCcw,
     MoreHorizontal,
     Eye,
@@ -1419,52 +1418,27 @@ export function DataPageLayout({
         })
     }
     if (importConfig) {
+        const combinedImport = Boolean(
+            (IMPORT_RESOURCE_CONFIGS[importConfig.resourceKey] as { combinedImport?: boolean }).combinedImport,
+        )
         if (importConfig.variants?.length) {
             importConfig.variants.forEach((variant) => {
                 mergedAddDropdownItems.push({
-                    key: `__import_group_${variant.key}`,
-                    type: "group",
+                    key: `__import_${variant.key}`,
                     label: variant.label,
-                    children: [
-                        {
-                            key: `__import_${variant.key}`,
-                            label: "Import Data",
-                            icon: <FileUp size={14} />,
-                            disabled: importBlocked,
-                            title: importConfig.disabled ? importConfig.disabledReason : undefined,
-                            onClick: () => tabularImport.triggerImport(variant.key),
-                        },
-                        {
-                            key: `__import_instructions_${variant.key}`,
-                            label: "Import Instructions",
-                            icon: <Info size={14} />,
-                            onClick: () => tabularImport.showInstructions(variant.key),
-                        },
-                    ],
+                    icon: <FileUp size={14} />,
+                    disabled: false,
+                    title: importConfig.disabled ? importConfig.disabledReason : undefined,
+                    onClick: () => tabularImport.showInstructions(variant.key),
                 })
-            })
-        } else if ((IMPORT_RESOURCE_CONFIGS[importConfig.resourceKey] as { combinedImport?: boolean }).combinedImport) {
-            mergedAddDropdownItems.push({
-                key: "__import_metadata",
-                label: importConfig.importLabel ?? "Metadata",
-                icon: <FileUp size={14} />,
-                disabled: false,
-                title: importConfig.disabled ? importConfig.disabledReason : undefined,
-                onClick: () => tabularImport.showInstructions(),
             })
         } else {
             mergedAddDropdownItems.push({
                 key: "__import_data",
-                label: importConfig.importLabel ?? "Import Data",
+                label: importConfig.importLabel ?? (combinedImport ? "Metadata" : "Import Data"),
                 icon: <FileUp size={14} />,
-                disabled: importBlocked,
+                disabled: false,
                 title: importConfig.disabled ? importConfig.disabledReason : undefined,
-                onClick: () => tabularImport.triggerImport(),
-            })
-            mergedAddDropdownItems.push({
-                key: "__import_instructions",
-                label: importConfig.instructionsLabel ?? "Import Instructions",
-                icon: <Info size={14} />,
                 onClick: () => tabularImport.showInstructions(),
             })
         }
