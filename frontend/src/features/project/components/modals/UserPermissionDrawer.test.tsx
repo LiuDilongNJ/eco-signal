@@ -634,4 +634,84 @@ describe("UserPermissionDrawer", () => {
         expect(reviewItem).toHaveAttribute("data-state", "write_all")
         expect(document.querySelector(".upd-list-header")).not.toBeNull()
     })
+
+    it("displays unlocked padlock indicator on public projects and collections", async () => {
+        mocks.getUserPermissionConfig.mockResolvedValue({
+            data: {
+                is_admin: false,
+                can_manage_admin_role: false,
+                projects: [{
+                    project_id: 1,
+                    project_name: "Public Project",
+                    can_manage_project: true,
+                    stored_permissions: [],
+                    effective_permissions: [],
+                    assigned_role: "custom",
+                    is_public: true,
+                    collections: [{
+                        project_id: 1,
+                        collection_id: 10,
+                        collection_name: "Public Collection",
+                        can_manage_collection: true,
+                        stored_permissions: [],
+                        effective_permissions: [],
+                        inherited_permissions: [],
+                        assigned_role: "custom",
+                        is_public: true,
+                    }],
+                }, {
+                    project_id: 2,
+                    project_name: "Private Project",
+                    can_manage_project: true,
+                    stored_permissions: [],
+                    effective_permissions: [],
+                    assigned_role: "custom",
+                    is_public: false,
+                    collections: [{
+                        project_id: 2,
+                        collection_id: 20,
+                        collection_name: "Private Collection",
+                        can_manage_collection: true,
+                        stored_permissions: [],
+                        effective_permissions: [],
+                        inherited_permissions: [],
+                        assigned_role: "custom",
+                        is_public: false,
+                    }],
+                }],
+            },
+        })
+        mocks.listAccessRoles.mockResolvedValue({ data: [] })
+
+        render(
+            <MemoryRouter>
+                <UserPermissionDrawer open userId={2} onClose={vi.fn()} />
+            </MemoryRouter>,
+        )
+
+        await screen.findByText("Public Project")
+
+        // Public project badge should be present
+        const publicProjectBadge = screen.getByLabelText("Public project")
+        expect(publicProjectBadge).toBeInTheDocument()
+
+        // Toggle open Public Project so collections are rendered
+        const user = userEvent.setup()
+        await user.click(screen.getByRole("button", { name: /Public Project/i }))
+
+        await screen.findByText("Public Collection")
+        const publicCollectionBadge = screen.getByLabelText("Public collection")
+        expect(publicCollectionBadge).toBeInTheDocument()
+
+        // Toggle open Private Project
+        await user.click(screen.getByRole("button", { name: /Private Project/i }))
+        await screen.findByText("Private Collection")
+
+        // Check private project and collection rows do not have public badges
+        const privateProjectRow = screen.getByText("Private Project").closest(".upd-project-row")
+        expect(privateProjectRow?.querySelector('[aria-label="Public project"]')).toBeNull()
+
+        const privateCollectionRow = screen.getByText("Private Collection").closest(".upd-collection-row")
+        expect(privateCollectionRow?.querySelector('[aria-label="Public collection"]')).toBeNull()
+    })
 })

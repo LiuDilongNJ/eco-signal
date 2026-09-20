@@ -16,6 +16,7 @@ export interface CollectionPermissionConfig {
     inherited_permissions: string[]
     assigned_role: AccessRoleCode | null
     can_manage_collection: boolean
+    is_public?: boolean
 }
 
 export interface ProjectPermissionConfig {
@@ -26,6 +27,7 @@ export interface ProjectPermissionConfig {
     effective_permissions: string[]
     assigned_role: AccessRoleCode | null
     collections: CollectionPermissionConfig[]
+    is_public?: boolean
 }
 
 export interface UserPermissionConfig {

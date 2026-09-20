@@ -1234,6 +1234,57 @@ class TestGetUserPermissionConfig:
         col_ids = [c["collection_id"] for c in proj_data["collections"]]
         assert col.collection_id in col_ids
 
+    def test_returns_is_public_flag_for_projects_and_collections(
+        self, client: TestClient, superuser_token_headers: dict[str, str], db: Session
+    ) -> None:
+        """Projects and collections expose is_public flag reflecting their open-access status."""
+        user = _create_user(db)
+
+        # Public project with public collection
+        pub_proj = _create_project(db, user.user_id, public=True)
+        pub_col = Collection(name=f"pub_col_{random_lower_string()[:8]}", creator_id=user.user_id, public_access=True)
+        db.add(pub_col)
+        db.commit()
+        db.refresh(pub_col)
+        _link_project_collection(db, pub_proj.project_id, pub_col.collection_id)
+
+        # Public project with private collection
+        priv_col = Collection(name=f"priv_col_{random_lower_string()[:8]}", creator_id=user.user_id, public_access=False)
+        db.add(priv_col)
+        db.commit()
+        db.refresh(priv_col)
+        _link_project_collection(db, pub_proj.project_id, priv_col.collection_id)
+
+        # Private project with private collection
+        priv_proj = _create_project(db, user.user_id, public=False)
+        col_under_priv = Collection(name=f"col_under_priv_{random_lower_string()[:8]}", creator_id=user.user_id, public_access=False)
+        db.add(col_under_priv)
+        db.commit()
+        db.refresh(col_under_priv)
+        _link_project_collection(db, priv_proj.project_id, col_under_priv.collection_id)
+
+        r = client.get(
+            f"{settings.API_V1_STR}/users/{user.user_id}/permission-configuration",
+            headers=superuser_token_headers,
+        )
+        assert r.status_code == 200
+        data = r.json()["data"]
+
+        pub_proj_data = next(p for p in data["projects"] if p["project_id"] == pub_proj.project_id)
+        assert pub_proj_data["is_public"] is True
+
+        pub_col_data = next(c for c in pub_proj_data["collections"] if c["collection_id"] == pub_col.collection_id)
+        assert pub_col_data["is_public"] is True
+
+        priv_col_data = next(c for c in pub_proj_data["collections"] if c["collection_id"] == priv_col.collection_id)
+        assert priv_col_data["is_public"] is False
+
+        priv_proj_data = next(p for p in data["projects"] if p["project_id"] == priv_proj.project_id)
+        assert priv_proj_data["is_public"] is False
+
+        col_under_priv_data = next(c for c in priv_proj_data["collections"] if c["collection_id"] == col_under_priv.collection_id)
+        assert col_under_priv_data["is_public"] is False
+
     def test_includes_projects_without_permission(
         self, client: TestClient, superuser_token_headers: dict[str, str], db: Session
     ) -> None:

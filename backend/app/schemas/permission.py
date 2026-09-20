@@ -20,6 +20,7 @@ class CollectionPermissionConfig(SQLModel):
     stored_permissions: list[str]
     inherited_permissions: list[str] = []
     effective_permissions: list[str]
+    is_public: bool = False
 
 
 class ProjectPermissionConfig(SQLModel):
@@ -31,6 +32,7 @@ class ProjectPermissionConfig(SQLModel):
     stored_permissions: list[str]
     effective_permissions: list[str]
     collections: list[CollectionPermissionConfig]
+    is_public: bool = False
 
 
 class UserPermissionConfig(SQLModel):

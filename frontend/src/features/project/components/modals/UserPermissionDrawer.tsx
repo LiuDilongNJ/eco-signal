@@ -13,7 +13,7 @@ import {
     message,
 } from "@/components/ui"
 
-import { X, AudioLines, MapPin, ScanLine, ClipboardCheck, Check, ChevronDown, ChevronRight, AlertTriangle, Eye, Pencil, User, Users } from "lucide-react"
+import { X, AudioLines, MapPin, ScanLine, ClipboardCheck, Check, ChevronDown, ChevronRight, AlertTriangle, Eye, Pencil, User, Users, Unlock } from "lucide-react"
 import { useAppStore } from "@/store/useAppStore"
 import { useAntdBrandConfig } from "../../hooks/useAntdBrandConfig"
 import { permissionsApi } from "../../../../api/endpoints/permissions"
@@ -942,22 +942,31 @@ export function UserPermissionDrawer({ open, userId, userIds, currentUserId, onC
                                                                 <div className="upd-checkbox-unchecked" />
                                                             )}
                                                         </div>
-                                                        {canExpandProject ? (
-                                                            <ESButton appearance="unstyled"
-                                                                type="button"
-                                                                className="upd-tree-toggle"
-                                                                onClick={() => toggleProjectExpanded(project.project_id)}
-                                                            >
-                                                                {isProjectExpanded ? (
-                                                                    <ChevronDown size={16} className="upd-tree-toggle-icon" />
-                                                                ) : (
-                                                                    <ChevronRight size={16} className="upd-tree-toggle-icon" />
-                                                                )}
+                                                        <div className="upd-project-name-wrap">
+                                                            {canExpandProject ? (
+                                                                <ESButton appearance="unstyled"
+                                                                    type="button"
+                                                                    className="upd-tree-toggle"
+                                                                    onClick={() => toggleProjectExpanded(project.project_id)}
+                                                                >
+                                                                    {isProjectExpanded ? (
+                                                                        <ChevronDown size={16} className="upd-tree-toggle-icon" />
+                                                                    ) : (
+                                                                        <ChevronRight size={16} className="upd-tree-toggle-icon" />
+                                                                    )}
+                                                                    <span className="upd-project-name">{project.project_name}</span>
+                                                                </ESButton>
+                                                            ) : (
                                                                 <span className="upd-project-name">{project.project_name}</span>
-                                                            </ESButton>
-                                                        ) : (
-                                                            <span className="upd-project-name">{project.project_name}</span>
-                                                        )}
+                                                            )}
+                                                            {project.is_public && (
+                                                                <Tooltip title="Public project (accessible to all users)">
+                                                                    <span className="upd-public-icon" aria-label="Public project">
+                                                                        <Unlock size={14} />
+                                                                    </span>
+                                                                </Tooltip>
+                                                            )}
+                                                        </div>
                                                     </div>
                                                     <div className="upd-divider" />
                                                     <div className="upd-role-container">
@@ -1025,7 +1034,16 @@ export function UserPermissionDrawer({ open, userId, userIds, currentUserId, onC
                                                                         <div className="upd-checkbox-unchecked" />
                                                                     )}
                                                                 </div>
-                                                                <span className="upd-collection-name">{col.collection_name}</span>
+                                                                <div className="upd-collection-name-wrap">
+                                                                    <span className="upd-collection-name">{col.collection_name}</span>
+                                                                    {col.is_public && (
+                                                                        <Tooltip title="Public collection (accessible to all users)">
+                                                                            <span className="upd-public-icon" aria-label="Public collection">
+                                                                                <Unlock size={14} />
+                                                                            </span>
+                                                                        </Tooltip>
+                                                                    )}
+                                                                </div>
                                                             </div>
                                                             <div className="upd-divider" />
                                                             <div className="upd-role-container">
