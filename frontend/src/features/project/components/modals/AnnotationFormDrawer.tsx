@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react"
 import type { ReactNode } from "react"
 import type { RuleObject } from "@/components/ui"
-import { Button, Form, Input, LoadingState, Select, Switch, ConfigProvider, Space } from "@/components/ui"
+import { Button, Col, Form, Input, InputNumber, LoadingState, Row, Select, Switch, ConfigProvider, Space } from "@/components/ui"
 import { FormDrawer } from "@/components/ui"
 
 import { CustomScrollArea } from "@/components/ui"
@@ -341,7 +341,15 @@ export function AnnotationFormDrawer({
         }
 
         if (field.type === "number") {
-            innerElement = <Input />
+            innerElement = BBOX_FIELD_KEYS.has(field.key) ? (
+                <InputNumber
+                    style={{ width: "100%" }}
+                    precision={isPhoto ? 0 : 4}
+                    step={isPhoto ? 1 : 0.0001}
+                />
+            ) : (
+                <Input />
+            )
         } else if (field.type === "select") {
             let options = (field.options || []).map((opt) =>
                 typeof opt === "string" ? { label: opt, value: opt } : { label: opt.label, value: String(opt.value) },
@@ -476,6 +484,27 @@ export function AnnotationFormDrawer({
         )
     }
 
+    const renderMainFields = () => {
+        const bboxFields = fields.filter((field) => BBOX_FIELD_KEYS.has(field.key))
+        const taxonField = fields.find((field) => field.key === "taxon")
+        const otherFields = fields.filter((field) => !BBOX_FIELD_KEYS.has(field.key) && field.key !== "taxon")
+        return (
+            <>
+                {bboxFields.length > 0 ? (
+                    <Row gutter={[14, 0]} className="form-drawer-bbox-row">
+                        {bboxFields.map((field) => (
+                            <Col key={field.key} span={6}>
+                                {renderFieldItem(field)}
+                            </Col>
+                        ))}
+                    </Row>
+                ) : null}
+                {taxonField ? renderFieldItem(taxonField) : null}
+                {otherFields.map((field) => renderFieldItem(field))}
+            </>
+        )
+    }
+
     return (
         <ConfigProvider theme={drawerTheme}>
             <FormDrawer
@@ -526,7 +555,19 @@ export function AnnotationFormDrawer({
                     <Form
                         form={form}
                         layout="vertical"
-                        onFinish={onSubmit}
+                        onFinish={(values) => {
+                            if (!isPhoto) {
+                                onSubmit(values)
+                                return
+                            }
+                            const next = { ...values }
+                            for (const key of ["min_x", "max_x", "min_y", "max_y"] as const) {
+                                if (next[key] === undefined || next[key] === null || next[key] === "") continue
+                                const n = Number(next[key])
+                                if (Number.isFinite(n)) next[key] = Math.round(n)
+                            }
+                            onSubmit(next)
+                        }}
                         requiredMark={false}
                         disabled={submitting}
                         className="shared-drawer-form"
@@ -534,12 +575,12 @@ export function AnnotationFormDrawer({
                     >
                         {mode === "add" ? (
                             <div className="form-drawer-main-col">
-                                {fields.map(f => renderFieldItem(f))}
+                                {renderMainFields()}
                             </div>
                         ) : (
                             <div className="form-drawer-layout">
                                 <div className="form-drawer-main-col">
-                                    {fields.map(f => renderFieldItem(f))}
+                                    {renderMainFields()}
                                 </div>
                                 <div className="form-drawer-side-col">
                                     {initialData && (

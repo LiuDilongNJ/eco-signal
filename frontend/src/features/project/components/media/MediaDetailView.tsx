@@ -5051,10 +5051,11 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                 return
             }
 
-            const min_x = roundAnnotationCoord(Math.min(annotationDraft.min_x, annotationDraft.max_x))
-            const max_x = roundAnnotationCoord(Math.max(annotationDraft.min_x, annotationDraft.max_x))
-            const min_y = roundAnnotationCoord(Math.min(annotationDraft.min_y, annotationDraft.max_y))
-            const max_y = roundAnnotationCoord(Math.max(annotationDraft.min_y, annotationDraft.max_y))
+            const coordDecimals = isPhoto ? 0 : 4
+            const min_x = roundAnnotationCoord(Math.min(annotationDraft.min_x, annotationDraft.max_x), coordDecimals)
+            const max_x = roundAnnotationCoord(Math.max(annotationDraft.min_x, annotationDraft.max_x), coordDecimals)
+            const min_y = roundAnnotationCoord(Math.min(annotationDraft.min_y, annotationDraft.max_y), coordDecimals)
+            const max_y = roundAnnotationCoord(Math.max(annotationDraft.min_y, annotationDraft.max_y), coordDecimals)
 
             const patch: UpdateAnnotationPayload = {
                 min_x,
@@ -7112,120 +7113,70 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                                                             style={{ padding: 0 }}
                                                         >
                                                             <Row gutter={[14, 0]} className={isPhoto ? "studio-annot-photo-coordinate-row" : undefined}>
-                                                                <Col xs={isPhoto ? 24 : 12} sm={isPhoto ? 12 : 6}>
+                                                                <Col span={6}>
                                                                     <Form.Item label={renderStudioRequiredLabel(isPhoto ? "Min X (px)" : "Min X (s)")} className="studio-annot-form-item">
                                                                         <InputNumber
                                                                             style={{ width: "100%" }}
-                                                                            precision={4}
-                                                                            step={0.0001}
+                                                                            precision={isPhoto ? 0 : 4}
+                                                                            step={isPhoto ? 1 : 0.0001}
                                                                             value={annotationDraft.min_x}
                                                                             onChange={(v) => {
                                                                                 if (typeof v !== "number" || Number.isNaN(v)) return
                                                                                 setDistanceFieldUnlocked(false)
-                                                                                setAnnotationDraft((d) => (d ? { ...d, min_x: v } : d))
+                                                                                setAnnotationDraft((d) => (d ? { ...d, min_x: isPhoto ? Math.round(v) : v } : d))
                                                                             }}
                                                                         />
                                                                     </Form.Item>
                                                                 </Col>
-                                                                <Col xs={isPhoto ? 24 : 12} sm={isPhoto ? 12 : 6}>
+                                                                <Col span={6}>
                                                                     <Form.Item label={renderStudioRequiredLabel(isPhoto ? "Max X (px)" : "Max X (s)")} className="studio-annot-form-item">
                                                                         <InputNumber
                                                                             style={{ width: "100%" }}
-                                                                            precision={4}
-                                                                            step={0.0001}
+                                                                            precision={isPhoto ? 0 : 4}
+                                                                            step={isPhoto ? 1 : 0.0001}
                                                                             value={annotationDraft.max_x}
                                                                             onChange={(v) => {
                                                                                 if (typeof v !== "number" || Number.isNaN(v)) return
                                                                                 setDistanceFieldUnlocked(false)
-                                                                                setAnnotationDraft((d) => (d ? { ...d, max_x: v } : d))
+                                                                                setAnnotationDraft((d) => (d ? { ...d, max_x: isPhoto ? Math.round(v) : v } : d))
                                                                             }}
                                                                         />
                                                                     </Form.Item>
                                                                 </Col>
-                                                                <Col xs={isPhoto ? 24 : 12} sm={isPhoto ? 12 : 6}>
+                                                                <Col span={6}>
                                                                     <Form.Item label={renderStudioRequiredLabel(isPhoto ? "Min Y (px)" : "Min Y (Hz)")} className="studio-annot-form-item">
                                                                         <InputNumber
                                                                             style={{ width: "100%" }}
-                                                                            precision={4}
-                                                                            step={0.0001}
+                                                                            precision={isPhoto ? 0 : 4}
+                                                                            step={isPhoto ? 1 : 0.0001}
                                                                             value={annotationDraft.min_y}
                                                                             onChange={(v) => {
                                                                                 if (typeof v !== "number" || Number.isNaN(v)) return
                                                                                 setDistanceFieldUnlocked(false)
-                                                                                setAnnotationDraft((d) => (d ? { ...d, min_y: v } : d))
+                                                                                setAnnotationDraft((d) => (d ? { ...d, min_y: isPhoto ? Math.round(v) : v } : d))
                                                                             }}
                                                                         />
                                                                     </Form.Item>
                                                                 </Col>
-                                                                <Col xs={isPhoto ? 24 : 12} sm={isPhoto ? 12 : 6}>
+                                                                <Col span={6}>
                                                                     <Form.Item label={renderStudioRequiredLabel(isPhoto ? "Max Y (px)" : "Max Y (Hz)")} className="studio-annot-form-item">
                                                                         <InputNumber
                                                                             style={{ width: "100%" }}
-                                                                            precision={4}
-                                                                            step={0.0001}
+                                                                            precision={isPhoto ? 0 : 4}
+                                                                            step={isPhoto ? 1 : 0.0001}
                                                                             value={annotationDraft.max_y}
                                                                             onChange={(v) => {
                                                                                 if (typeof v !== "number" || Number.isNaN(v)) return
                                                                                 setDistanceFieldUnlocked(false)
-                                                                                setAnnotationDraft((d) => (d ? { ...d, max_y: v } : d))
+                                                                                setAnnotationDraft((d) => (d ? { ...d, max_y: isPhoto ? Math.round(v) : v } : d))
                                                                             }}
-                                                                        />
-                                                                    </Form.Item>
-                                                                </Col>
-                                                            </Row>
-                                                            {isPhoto ? (
-                                                                <Row gutter={[14, 0]} className="studio-annot-photo-flow-row">
-                                                                    <Col xs={24} sm={12}>
-                                                                        <Form.Item label={renderStudioRequiredLabel("Object Type")} className="studio-annot-form-item">
-                                                                            <Select className="form-drawer-select" options={[{ value: "organism", label: "Organism" }, { value: "other", label: "Other" }]} value={formObjectType ?? undefined} onChange={(value) => setFormObjectType(value ?? null)} />
-                                                                        </Form.Item>
-                                                                    </Col>
-                                                                </Row>
-                                                            ) : null}
-                                                            <Row gutter={[14, 0]} style={isPhoto ? { display: "none" } : undefined}>
-                                                                <Col xs={24} sm={12}>
-                                                                    <Form.Item label={renderStudioRequiredLabel("Soundscape")} className="studio-annot-form-item">
-                                                                        <Select
-                                                                            className="form-drawer-select"
-                                                                            classNames={{ popup: { root: "form-drawer-select-popup" } }}
-                                                                            allowClear
-                                                                            showSearch
-                                                                            optionFilterProp="label"
-                                                                            options={soundscapeSelectOptions}
-                                                                            value={formSoundscape === null ? undefined : formSoundscape}
-                                                                            onChange={(v) => {
-                                                                                setFormSoundscape(v === undefined ? null : String(v))
-                                                                                setFormSoundTypeSoundId(null)
-                                                                            }}
-                                                                            filterOption={selectSearchFilter}
-                                                                        />
-                                                                    </Form.Item>
-                                                                </Col>
-                                                                <Col xs={24} sm={12}>
-                                                                    <Form.Item label={renderStudioRequiredLabel("Sound Type")} className="studio-annot-form-item">
-                                                                        <Select
-                                                                            className="form-drawer-select"
-                                                                            classNames={{ popup: { root: "form-drawer-select-popup" } }}
-                                                                            allowClear
-                                                                            showSearch
-                                                                            optionFilterProp="label"
-                                                                            options={soundTypeSelectOptions}
-                                                                            value={formSoundTypeSoundId ?? undefined}
-                                                                            disabled={formSoundscape === null || soundTypeSelectOptions.length === 0}
-                                                                            onChange={(v) => {
-                                                                                setFormSoundTypeSoundId(
-                                                                                    typeof v === "number" && !Number.isNaN(v) ? v : null,
-                                                                                )
-                                                                            }}
-                                                                            filterOption={selectSearchFilter}
                                                                         />
                                                                     </Form.Item>
                                                                 </Col>
                                                             </Row>
                                                             {(isPhoto ? formObjectType === "organism" : isBiophonyAnnotationForm) ? (
-                                                                <>
-                                                                    <Row gutter={[14, 0]} className={isPhoto ? "studio-annot-photo-flow-row" : undefined}>
-                                                                        <Col xs={24} sm={12}>
+                                                                    <Row gutter={[14, 0]} className={isPhoto ? "studio-annot-photo-taxon-row" : "studio-annot-taxon-row"}>
+                                                                        <Col span={24}>
                                                                             <Form.Item
                                                                                 label={
                                                                                     <div
@@ -7373,20 +7324,59 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                                                                                 />
                                                                             </Form.Item>
                                                                         </Col>
-                                                                        <Col xs={24} sm={12}>
-                                                                            <Form.Item
-                                                                                label="Uncertain"
-                                                                                className="studio-annot-form-item studio-annot-switch-field"
-                                                                                colon={false}
-                                                                                required={false}
-                                                                            >
-                                                                                <Switch
-                                                                                    checked={formUncertain === "true"}
-                                                                                    onChange={(checked) => setFormUncertain(checked ? "true" : "false")}
-                                                                                />
-                                                                            </Form.Item>
-                                                                        </Col>
                                                                     </Row>
+                                                            ) : null}
+                                                            {isPhoto ? (
+                                                                <Row gutter={[14, 0]} className="studio-annot-photo-flow-row">
+                                                                    <Col xs={24} sm={12}>
+                                                                        <Form.Item label={renderStudioRequiredLabel("Object Type")} className="studio-annot-form-item">
+                                                                            <Select className="form-drawer-select" options={[{ value: "organism", label: "Organism" }, { value: "other", label: "Other" }]} value={formObjectType ?? undefined} onChange={(value) => setFormObjectType(value ?? null)} />
+                                                                        </Form.Item>
+                                                                    </Col>
+                                                                </Row>
+                                                            ) : null}
+                                                            <Row gutter={[14, 0]} style={isPhoto ? { display: "none" } : undefined}>
+                                                                <Col xs={24} sm={12}>
+                                                                    <Form.Item label={renderStudioRequiredLabel("Soundscape")} className="studio-annot-form-item">
+                                                                        <Select
+                                                                            className="form-drawer-select"
+                                                                            classNames={{ popup: { root: "form-drawer-select-popup" } }}
+                                                                            allowClear
+                                                                            showSearch
+                                                                            optionFilterProp="label"
+                                                                            options={soundscapeSelectOptions}
+                                                                            value={formSoundscape === null ? undefined : formSoundscape}
+                                                                            onChange={(v) => {
+                                                                                setFormSoundscape(v === undefined ? null : String(v))
+                                                                                setFormSoundTypeSoundId(null)
+                                                                            }}
+                                                                            filterOption={selectSearchFilter}
+                                                                        />
+                                                                    </Form.Item>
+                                                                </Col>
+                                                                <Col xs={24} sm={12}>
+                                                                    <Form.Item label={renderStudioRequiredLabel("Sound Type")} className="studio-annot-form-item">
+                                                                        <Select
+                                                                            className="form-drawer-select"
+                                                                            classNames={{ popup: { root: "form-drawer-select-popup" } }}
+                                                                            allowClear
+                                                                            showSearch
+                                                                            optionFilterProp="label"
+                                                                            options={soundTypeSelectOptions}
+                                                                            value={formSoundTypeSoundId ?? undefined}
+                                                                            disabled={formSoundscape === null || soundTypeSelectOptions.length === 0}
+                                                                            onChange={(v) => {
+                                                                                setFormSoundTypeSoundId(
+                                                                                    typeof v === "number" && !Number.isNaN(v) ? v : null,
+                                                                                )
+                                                                            }}
+                                                                            filterOption={selectSearchFilter}
+                                                                        />
+                                                                    </Form.Item>
+                                                                </Col>
+                                                            </Row>
+                                                            {(isPhoto ? formObjectType === "organism" : isBiophonyAnnotationForm) ? (
+                                                                <>
                                                                     {!isPhoto ? <Row gutter={[14, 0]}>
                                                                         <Col xs={24} sm={12}>
                                                                             <Form.Item label="Animal Sound" className="studio-annot-form-item">
@@ -7458,6 +7448,19 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                                                                         </Col>
                                                                     </Row> : null}
                                                                     <Row gutter={[14, 0]} className={isPhoto ? "studio-annot-photo-flow-row" : undefined}>
+                                                                        <Col xs={24} sm={12}>
+                                                                            <Form.Item
+                                                                                label="Uncertain"
+                                                                                className="studio-annot-form-item studio-annot-switch-field"
+                                                                                colon={false}
+                                                                                required={false}
+                                                                            >
+                                                                                <Switch
+                                                                                    checked={formUncertain === "true"}
+                                                                                    onChange={(checked) => setFormUncertain(checked ? "true" : "false")}
+                                                                                />
+                                                                            </Form.Item>
+                                                                        </Col>
                                                                         <Col xs={24} sm={12}>
                                                                             <Form.Item label="Indiv. Num" className="studio-annot-form-item">
                                                                                 <Input

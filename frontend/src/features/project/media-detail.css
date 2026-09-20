@@ -1487,8 +1487,21 @@
     align-items: start;
 }
 
-.studio-annot-photo-form-grid > .studio-annot-photo-coordinate-row {
+.studio-annot-photo-form-grid > .studio-annot-photo-coordinate-row,
+.studio-annot-photo-form-grid > .studio-annot-photo-taxon-row {
     grid-column: 1 / -1;
+    min-width: 0;
+}
+
+.studio-annot-photo-form-grid > .studio-annot-photo-taxon-row .ant-col,
+.studio-annot-photo-form-grid > .studio-annot-photo-taxon-row .ant-form-item,
+.studio-annot-photo-form-grid > .studio-annot-photo-taxon-row .ant-select {
+    min-width: 0;
+    max-width: 100%;
+}
+
+.studio-annot-taxon-row {
+    width: 100%;
 }
 
 .studio-annot-photo-form-grid > .studio-annot-photo-flow-row {

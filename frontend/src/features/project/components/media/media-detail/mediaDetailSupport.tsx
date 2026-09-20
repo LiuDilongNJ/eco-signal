@@ -208,9 +208,10 @@ export function formatSpectrogramPxPerSecDisplay(v: number): string {
     return formatDisplayNumber(normalizeSpectrogramPxPerSec(v))
 }
 
-export function roundAnnotationCoord(value: number): number {
+export function roundAnnotationCoord(value: number, decimals = 4): number {
     if (!Number.isFinite(value)) return value
-    return Number(value.toFixed(4))
+    if (decimals <= 0) return Math.round(value)
+    return Number(value.toFixed(decimals))
 }
 
 export function snapVisibleRangeEndSec(endSec: number, durationSec: number): number {

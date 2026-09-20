@@ -317,6 +317,10 @@
     min-width: 0;
 }
 
+.form-drawer-bbox-row .ant-input-number {
+    width: 100%;
+}
+
 .site-form-field-label-with-help {
     display: inline-flex;
     align-items: center;
