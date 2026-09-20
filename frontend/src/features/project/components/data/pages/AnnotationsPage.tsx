@@ -10,7 +10,7 @@ import { createUuidColumn } from "../uuidColumn"
 import { message } from "@/components/ui"
 import { annotationsApi } from "../../../../../api/endpoints/annotations"
 import { useProjectStore } from "../../../stores/useProjectStore"
-import { ScanLine, ClipboardList } from "lucide-react"
+import { ScanLine, ListChecks } from "lucide-react"
 import { AssignTasksDrawer } from "../../modals/AssignTasksDrawer"
 import { AnnotationFormDrawer } from "../../modals/AnnotationFormDrawer"
 import { downloadFile } from "@/utils/download"
@@ -438,7 +438,7 @@ export function AnnotationsPage() {
                                 setAssignTasksOpen(true)
                             }}
                         >
-                            <ClipboardList size={14} /> Assignment
+                            <ListChecks size={14} /> Assignment
                         </ESButton>
                     )
                 }}

@@ -7,7 +7,7 @@ import {
     ToolbarButton,
     type TableProps,
 } from "@/components/ui"
-import { ClipboardList, Download, Eye, EyeOff, RotateCcw, Trash2 } from "lucide-react"
+import { ListChecks, Download, Eye, EyeOff, RotateCcw, Trash2 } from "lucide-react"
 import type { StudioAnnotationRow } from "./mediaDetailSupport"
 
 type ThemeContract = ComponentProps<typeof ConfigProvider>["theme"]
@@ -105,7 +105,7 @@ export function AnnotationDataTablePanel({
                                 className="data-btn studio-table-toolbar-button"
                                 active={actions.assignActive}
                                 label="Assign selected annotations"
-                                icon={<ClipboardList size={16} />}
+                                icon={<ListChecks size={16} />}
                                 disabled={actions.selectedCount === 0}
                                 onClick={() => void actions.onAssign()}
                             />

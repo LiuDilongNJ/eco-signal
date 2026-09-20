@@ -1,7 +1,7 @@
 import { Input as ESInput, Button as ESButton } from "@/components/ui"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { message } from "@/components/ui"
-import { ClipboardList as ClipboardListIcon, Image, Link as LinkIcon, Tag as TagIcon } from "lucide-react"
+import { ListChecks as ListChecksIcon, Image, Link as LinkIcon, Tag as TagIcon } from "lucide-react"
 import { mediaApi } from "../../../../../api/endpoints/media"
 import { downloadFile } from "@/utils/download"
 import { useProjectStore } from "../../../stores/useProjectStore"
@@ -317,7 +317,7 @@ export function PhotosPage() {
                                     setAssignMediaIds(ids)
                                 }}
                             >
-                                <ClipboardListIcon size={14} /> Assignment
+                                <ListChecksIcon size={14} /> Assignment
                             </ESButton>
                         </>
                     )

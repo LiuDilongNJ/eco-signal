@@ -44,7 +44,7 @@ import {
     Filter,
     Download,
     RotateCcw,
-    ClipboardList,
+    ListChecks,
     Trash2,
     MapPin,
     Cpu,
@@ -6555,7 +6555,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                                         ? "Task toggle ON. When ON, Previous/Next navigate to annotations you are tasked to review (even in other media). When OFF, they go to adjacent annotations."
                                         : "Task toggle OFF. When ON, Previous/Next navigate to annotations you are tasked to review (even in other media). When OFF, they go to adjacent annotations."
                                 }
-                                icon={<ClipboardList size={20} strokeWidth={2} />}
+                                icon={<ListChecks size={20} strokeWidth={2} />}
                                 onClick={() => setNavOnlyTaskTagged((v) => !v)}
                             />
                         </div>
@@ -6854,7 +6854,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                                                 disabled={!canAssignSelectedAnnotations}
                                                 onClick={() => void openAssignTaskPanel()}
                                             >
-                                                <ClipboardList size={16} />
+                                                <ListChecks size={16} />
                                             </ESButton>
                                             <ESButton appearance="unstyled"
                                                 type="button"

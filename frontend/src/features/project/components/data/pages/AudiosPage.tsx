@@ -13,7 +13,7 @@ import {
     AudioLines,
     Link as LinkIcon,
     Tag as TagIcon,
-    ClipboardList as ClipboardListIcon,
+    ListChecks as ListChecksIcon,
     Bot as BotIcon,
     Activity as ActivityIcon,
     Info,
@@ -440,7 +440,7 @@ export function AudiosPage() {
                             )
                             setAssignDrawerOpen(true)
                         }}>
-                            <ClipboardListIcon size={14} /> Assignment
+                            <ListChecksIcon size={14} /> Assignment
                         </ESButton>
                         {(() => {
                             const analysisDisabled =

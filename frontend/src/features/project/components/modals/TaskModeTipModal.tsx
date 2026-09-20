@@ -3,7 +3,7 @@
  */
 
 import { useEffect, useId, useState } from "react"
-import { ClipboardList } from "lucide-react"
+import { ListChecks } from "lucide-react"
 import { Button } from "@/components/ui"
 import { Modal } from "./Modal"
 import {
@@ -67,7 +67,7 @@ export function TaskModeTipModal({ open, onClose }: TaskModeTipModalProps) {
                 </p>
                 <div className="task-mode-tip-preview" aria-hidden="true">
                     <span className="task-mode-tip-chip is-active" title="Task mode">
-                        <ClipboardList size={18} strokeWidth={2} />
+                        <ListChecks size={18} strokeWidth={2} />
                     </span>
                 </div>
                 <p>

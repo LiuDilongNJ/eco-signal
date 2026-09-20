@@ -15,7 +15,7 @@ import {
     type ReactNode,
 } from "react"
 import {
-    ClipboardList,
+    ListChecks,
     Eye,
     EyeOff,
     Maximize,
@@ -868,7 +868,7 @@ export function PhotoImageViewer({
                                 ? "Task toggle ON. When ON, Previous/Next navigate to annotations you are tasked to review (even in other media). When OFF, they go to adjacent annotations."
                                 : "Task toggle OFF. When ON, Previous/Next navigate to annotations you are tasked to review (even in other media). When OFF, they go to adjacent annotations."
                         }
-                        icon={<ClipboardList size={20} strokeWidth={2} />}
+                        icon={<ListChecks size={20} strokeWidth={2} />}
                         onClick={onToggleNavOnlyTaskTagged}
                     />
                 </div>
