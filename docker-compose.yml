@@ -236,8 +236,11 @@ services:
       - PROMETHEUS_MULTIPROC_DIR=/tmp/prometheus
       - TORCH_NUM_THREADS=2
       - OMP_NUM_THREADS=2
-    # Using entrypoint.sh with SKIP_PRESTART=true
-    command: python -m app.workers.rabbitmq_worker
+    # Prepare models before starting worker loop; ignore errors if offline/restricted network
+    command:
+      - /bin/sh
+      - -c
+      - python /app/scripts/setup_birdnet_model.py && python /app/scripts/setup_insects_model.py || true; exec python -m app.workers.rabbitmq_worker
     volumes:
       - app-media-data:/app/sounds
       - prometheus-metrics:/tmp/prometheus
@@ -281,7 +284,10 @@ services:
       - PROMETHEUS_MULTIPROC_DIR=/tmp/prometheus
       - TORCH_NUM_THREADS=2
       - OMP_NUM_THREADS=2
-    command: python -m app.workers.rabbitmq_worker
+    command:
+      - /bin/sh
+      - -c
+      - python /app/scripts/setup_birdnet_model.py && python /app/scripts/setup_insects_model.py || true; exec python -m app.workers.rabbitmq_worker
     volumes:
       - app-media-data:/app/sounds
       - prometheus-metrics:/tmp/prometheus
