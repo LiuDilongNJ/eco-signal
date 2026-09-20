@@ -1937,6 +1937,28 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
         })
     }, [])
 
+    const isAnnotationTableRowSelectIgnoredTarget = (target: EventTarget | null) => {
+        if (!(target instanceof HTMLElement)) return true
+        return Boolean(
+            target.closest(
+                ".studio-annot-td-selection, .studio-annot-select-cell, .ant-checkbox-wrapper, button, a, input, textarea, select, [role='button'], [contenteditable='true']",
+            ),
+        )
+    }
+
+    const toggleAnnotationRowSelection = useCallback((recordId: number) => {
+        setSelectedAnnotationKeys((prev) => {
+            const s = new Set(prev.map((k) => Number(k)))
+            if (s.has(recordId)) s.delete(recordId)
+            else s.add(recordId)
+            const next = Array.from(s)
+            annotationTableSelectedIdsRef.current = next
+                .map((k) => Number(k))
+                .filter((n) => Number.isFinite(n) && n > 0)
+            return next
+        })
+    }, [])
+
     const toggleAnnotationSelectAllCurrentPage = useCallback(() => {
         const pageIds = annotationTableRows.map((r) => r.annotation_id)
         if (pageIds.length === 0) return
@@ -6955,30 +6977,34 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                                             ),
                                         }}
                                         pagination={false}
-                                        rowClassName={(record) =>
-                                            record.annotation_id === annotationLinkedHighlightId ||
+                                        rowClassName={(record) => {
+                                            const classes = []
+                                            if (
+                                                record.annotation_id === annotationLinkedHighlightId ||
                                                 record.annotation_id === editingAnnotationId
-                                                ? "studio-annotation-row--linked"
-                                                : ""
-                                        }
+                                            ) {
+                                                classes.push("studio-annotation-row--linked")
+                                            }
+                                            if (selectedAnnotationKeys.some((key) => Number(key) === record.annotation_id)) {
+                                                classes.push("dpl-row-selected")
+                                            }
+                                            return classes.join(" ")
+                                        }}
                                         onRow={(record) => ({
                                             onClick: (e) => {
-                                                const t = e.target as HTMLElement
-                                                if (
-                                                t.closest(".ant-checkbox-wrapper") ||
-                                                t.closest("button") ||
-                                                t.closest("a")
-                                            ) {
-                                                return
-                                            }
-                                            void openAnnotationEditorById(record.annotation_id)
-                                        },
-                                        onMouseEnter: () => setAnnotationLinkedHighlightId(record.annotation_id),
-                                        onMouseLeave: () =>
-                                            setAnnotationLinkedHighlightId((cur) =>
-                                                cur === record.annotation_id ? null : cur,
-                                            ),
-                                    })}
+                                                if (isAnnotationTableRowSelectIgnoredTarget(e.target)) return
+                                                toggleAnnotationRowSelection(record.annotation_id)
+                                            },
+                                            onDoubleClick: (e) => {
+                                                if (isAnnotationTableRowSelectIgnoredTarget(e.target)) return
+                                                void openAnnotationEditorById(record.annotation_id)
+                                            },
+                                            onMouseEnter: () => setAnnotationLinkedHighlightId(record.annotation_id),
+                                            onMouseLeave: () =>
+                                                setAnnotationLinkedHighlightId((cur) =>
+                                                    cur === record.annotation_id ? null : cur,
+                                                ),
+                                        })}
                                     onChange={handleAnnotationTableChange}
                                 />
                             </div>

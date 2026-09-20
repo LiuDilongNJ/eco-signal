@@ -492,7 +492,11 @@
         0 2px 12px rgba(var(--es-color-brand-rgb), 0.28);
 }
 
-/* 音频详情页标注表：行 hover 与声谱图联动高亮 */
+/* 音频详情页标注表：整行可点选，光标与 Data 表一致 */
+.studio-annotation-table-wrap .data-table-wrapper .ant-table-tbody>tr>td {
+    cursor: pointer;
+}
+
 .studio-annotation-table-wrap .data-table-wrapper .ant-table-tbody>tr:hover>td {
     background: var(--es-color-bg-subtle) !important;
 }
@@ -503,6 +507,22 @@
 
 .studio-annotation-table-wrap .ant-table-tbody>tr.studio-annotation-row--linked:hover>td {
     background: var(--es-color-bg-subtle) !important;
+}
+
+.studio-annotation-table-wrap .data-table-wrapper .ant-table-tbody>tr.dpl-row-selected>td,
+.studio-annotation-table-wrap .data-table-wrapper .ant-table-tbody>tr.dpl-row-selected:hover>td,
+.studio-annotation-table-wrap .ant-table-tbody>tr.dpl-row-selected.studio-annotation-row--linked>td,
+.studio-annotation-table-wrap .ant-table-tbody>tr.dpl-row-selected.studio-annotation-row--linked:hover>td {
+    background: var(--es-color-brand-soft) !important;
+}
+
+.studio-annotation-table-wrap .data-table-wrapper .ant-table-tbody>tr.dpl-row-selected>td.studio-annot-td-selection,
+.studio-annotation-table-wrap .data-table-wrapper .ant-table-tbody>tr.dpl-row-selected:hover>td.studio-annot-td-selection,
+.studio-annotation-table-wrap .data-table-wrapper .ant-table-tbody>tr.dpl-row-selected>td.ant-table-cell-fix-start,
+.studio-annotation-table-wrap .data-table-wrapper .ant-table-tbody>tr.dpl-row-selected:hover>td.ant-table-cell-fix-start,
+.studio-annotation-table-wrap .data-table-wrapper .ant-table-tbody>tr.dpl-row-selected>td.ant-table-cell-fix-left,
+.studio-annotation-table-wrap .data-table-wrapper .ant-table-tbody>tr.dpl-row-selected:hover>td.ant-table-cell-fix-left {
+    background: color-mix(in srgb, var(--es-color-brand) 10%, var(--card-bg)) !important;
 }
 
 /* 表头固定：Table 使用 scroll.y，外层不要整体滚动 */
