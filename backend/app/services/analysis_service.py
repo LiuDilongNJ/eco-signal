@@ -1042,10 +1042,11 @@ class AnalysisService:
         queue_type: str,
         user_id: int,
         message: str,
+        total: int = 1,
         **job_kwargs: Any,
     ) -> QueueDetail:
         """Create a Queue record, enqueue the RabbitMQ job, and return a status response."""
-        queue = Queue(type=queue_type, user_id=user_id, status=QueueStatus.PENDING)
+        queue = Queue(type=queue_type, user_id=user_id, status=QueueStatus.PENDING, total=total, completed=0)
         session.add(queue)
         session.commit()
         session.refresh(queue)
@@ -1065,7 +1066,7 @@ class AnalysisService:
             message=message,
             progress=0,
             completed=0,
-            total=0,
+            total=total,
             type=queue_type,
         )
 
@@ -1102,9 +1103,10 @@ class AnalysisService:
                     nyquist_hz=media_context["nyquist_hz"],
                 )
 
-        for media_id, media_context, audio_path in prepared_media:
-            if request.birdnet is not None:
-                try:
+        if request.birdnet is not None and prepared_media:
+            try:
+                media_items: list[dict[str, Any]] = []
+                for media_id, media_context, audio_path in prepared_media:
                     validated_week = self._resolve_week_from_datetime(media_context["date_time"])
                     resolved_lat = media_context["resolved_lat"]
                     resolved_lon = media_context["resolved_lon"]
@@ -1116,71 +1118,107 @@ class AnalysisService:
                         max_frequency=request.birdnet.max_freq,
                         nyquist_hz=media_context["nyquist_hz"],
                     )
-                    resp = await self._enqueue_job(
-                        session, publisher, WorkerTaskType.ANALYZE_BIRDNET, "birdnet",
-                        current_user.user_id, "BirdNET task submitted",
-                        audio_path=audio_path,
-                        media_id=media_id,
-                        min_confidence=request.birdnet.min_conf,
-                        overlap=request.birdnet.overlap,
-                        sensitivity=request.birdnet.sensitivity,
-                        sf_thresh=request.birdnet.sf_thresh,
-                        min_frequency=min_frequency,
-                        max_frequency=max_frequency,
-                        lat=resolved_lat,
-                        lon=resolved_lon,
-                        week=validated_week,
-                        locale=request.birdnet.locale,
-                        top_n=request.birdnet.top_n,
-                        merge_enabled=request.merge.is_merged,
-                        merge_max_gap=request.merge.max_gap,
-                        merge_keep_only=request.merge.keep_merged,
-                    )
-                    queued.append(resp)
-                except Exception as e:
-                    logger.exception("Failed to enqueue BirdNET task")
+                    media_items.append({
+                        "media_id": media_id,
+                        "audio_path": audio_path,
+                        "lat": resolved_lat,
+                        "lon": resolved_lon,
+                        "week": validated_week,
+                        "min_frequency": min_frequency,
+                        "max_frequency": max_frequency,
+                    })
+                first_item = media_items[0]
+                resp = await self._enqueue_job(
+                    session, publisher, WorkerTaskType.ANALYZE_BIRDNET, "birdnet",
+                    current_user.user_id, "BirdNET task submitted",
+                    total=len(media_items),
+                    media_items=media_items,
+                    audio_path=first_item["audio_path"],
+                    media_id=first_item["media_id"],
+                    min_confidence=request.birdnet.min_conf,
+                    overlap=request.birdnet.overlap,
+                    sensitivity=request.birdnet.sensitivity,
+                    sf_thresh=request.birdnet.sf_thresh,
+                    min_frequency=first_item["min_frequency"],
+                    max_frequency=first_item["max_frequency"],
+                    lat=first_item["lat"],
+                    lon=first_item["lon"],
+                    week=first_item["week"],
+                    locale=request.birdnet.locale,
+                    top_n=request.birdnet.top_n,
+                    merge_enabled=request.merge.is_merged,
+                    merge_max_gap=request.merge.max_gap,
+                    merge_keep_only=request.merge.keep_merged,
+                )
+                queued.append(resp)
+            except Exception as e:
+                logger.exception("Failed to enqueue BirdNET task")
+                for media_id, _, _ in prepared_media:
                     failed.append({"media_id": media_id, "model": "birdnet", "reason": str(e)})
 
-            if request.batdetect is not None:
-                try:
-                    resp = await self._enqueue_job(
-                        session, publisher, WorkerTaskType.ANALYZE_BATDETECT, "batdetect2",
-                        current_user.user_id, "BatDetect2 task submitted",
-                        audio_path=audio_path,
-                        media_id=media_id,
-                        detection_threshold=request.batdetect.detection_threshold,
-                        chunk_size=request.batdetect.chunk_size,
-                        merge_enabled=request.merge.is_merged,
-                        merge_max_gap=request.merge.max_gap,
-                        merge_keep_only=request.merge.keep_merged,
-                        max_duration=media_context.get("duration_s"),
-                    )
-                    queued.append(resp)
-                except Exception as e:
-                    logger.exception("Failed to enqueue BatDetect2 task")
+        if request.batdetect is not None and prepared_media:
+            try:
+                media_items = [
+                    {
+                        "media_id": media_id,
+                        "audio_path": audio_path,
+                        "max_duration": media_context.get("duration_s"),
+                    }
+                    for media_id, media_context, audio_path in prepared_media
+                ]
+                first_item = media_items[0]
+                resp = await self._enqueue_job(
+                    session, publisher, WorkerTaskType.ANALYZE_BATDETECT, "batdetect2",
+                    current_user.user_id, "BatDetect2 task submitted",
+                    total=len(media_items),
+                    media_items=media_items,
+                    audio_path=first_item["audio_path"],
+                    media_id=first_item["media_id"],
+                    detection_threshold=request.batdetect.detection_threshold,
+                    chunk_size=request.batdetect.chunk_size,
+                    merge_enabled=request.merge.is_merged,
+                    merge_max_gap=request.merge.max_gap,
+                    merge_keep_only=request.merge.keep_merged,
+                    max_duration=first_item.get("max_duration"),
+                )
+                queued.append(resp)
+            except Exception as e:
+                logger.exception("Failed to enqueue BatDetect2 task")
+                for media_id, _, _ in prepared_media:
                     failed.append({"media_id": media_id, "model": "batdetect", "reason": str(e)})
 
-            if request.insects is not None:
-                try:
-                    stride_length = request.insects.stride_length
+        if request.insects is not None and prepared_media:
+            try:
+                media_items = []
+                stride_length = request.insects.stride_length
+                for media_id, media_context, audio_path in prepared_media:
                     max_freq = request.insects.max_freq
                     if max_freq is None:
                         max_freq = media_context["nyquist_hz"] or 48000
-                    resp = await self._enqueue_job(
-                        session, publisher, WorkerTaskType.ANALYZE_INSECTS, "insects",
-                        current_user.user_id, "insects-base-cnn10-96k-t task submitted",
-                        audio_path=audio_path,
-                        media_id=media_id,
-                        window_size=request.insects.window_size,
-                        stride_length=stride_length,
-                        max_freq=max_freq,
-                        merge_enabled=request.merge.is_merged,
-                        merge_max_gap=request.merge.max_gap,
-                        merge_keep_only=request.merge.keep_merged,
-                    )
-                    queued.append(resp)
-                except Exception as e:
-                    logger.exception("Failed to enqueue insects task")
+                    media_items.append({
+                        "media_id": media_id,
+                        "audio_path": audio_path,
+                        "max_freq": max_freq,
+                    })
+                first_item = media_items[0]
+                resp = await self._enqueue_job(
+                    session, publisher, WorkerTaskType.ANALYZE_INSECTS, "insects",
+                    current_user.user_id, "insects-base-cnn10-96k-t task submitted",
+                    total=len(media_items),
+                    media_items=media_items,
+                    audio_path=first_item["audio_path"],
+                    media_id=first_item["media_id"],
+                    window_size=request.insects.window_size,
+                    stride_length=stride_length,
+                    max_freq=first_item["max_freq"],
+                    merge_enabled=request.merge.is_merged,
+                    merge_max_gap=request.merge.max_gap,
+                    merge_keep_only=request.merge.keep_merged,
+                )
+                queued.append(resp)
+            except Exception as e:
+                logger.exception("Failed to enqueue insects task")
+                for media_id, _, _ in prepared_media:
                     failed.append({"media_id": media_id, "model": "insects", "reason": str(e)})
 
         return RunAnalysisResponse(queued=queued, failed=failed)
@@ -1200,6 +1238,7 @@ class AnalysisService:
         queued: list[QueueDetail] = []
         failed: list[dict] = []
         batch_log_id: int | None = None
+        prepared_media: list[dict[str, Any]] = []
 
         for media_id in request.media_ids:
             try:
@@ -1219,55 +1258,91 @@ class AnalysisService:
                 )
                 max_frequency = request.selection.max_frequency if request.selection else media_context["nyquist_hz"]
                 filter_enabled = request.selection.filter_enabled if request.selection else False
+                prepared_media.append({
+                    "media_id": media_id,
+                    "audio_path": audio_path,
+                    "channel": requested_channel,
+                    "min_time": min_time,
+                    "max_time": max_time,
+                    "min_frequency": min_frequency,
+                    "max_frequency": max_frequency,
+                    "filter_enabled": filter_enabled,
+                    "duration_s": media_context["duration_s"],
+                })
             except Exception as e:
                 failed.append({"media_id": media_id, "reason": str(e)})
-                continue
 
-            for index_job in request.indices:
-                is_analysis_job = index_job.analysis_type is not None
-                index_type = None if is_analysis_job else index_type_repository.get_by_id(session, index_job.index_id)
-                if not is_analysis_job and (index_type is None or not index_type.name):
+        if not prepared_media:
+            return AcousticIndicesResponse(queued=queued, failed=failed)
+
+        for index_job in request.indices:
+            is_analysis_job = index_job.analysis_type is not None
+            index_type = None if is_analysis_job else index_type_repository.get_by_id(session, index_job.index_id)
+            if not is_analysis_job and (index_type is None or not index_type.name):
+                for pm in prepared_media:
                     failed.append(
                         {
-                            "media_id": media_id,
+                            "media_id": pm["media_id"],
                             "index_id": index_job.index_id,
                             "reason": "Unknown acoustic index",
                         }
                     )
-                    continue
+                continue
 
-                task_name = index_job.analysis_type if is_analysis_job else index_type.name
-                params = index_job.params if is_analysis_job else self.build_index_params(index_type.param, index_job.params)
-                try:
-                    if (
-                        task_name == "template_matching"
-                        and self._is_full_time_window(float(min_time), float(max_time), media_context["duration_s"])
-                    ):
-                        raise ValueError("Please zoom in before executing.")
-                    if not is_analysis_job and batch_log_id is None:
-                        batch_log_id = index_log_repository.reserve_log_id(session)
-                    resp = await self._enqueue_job(
-                        session, publisher, WorkerTaskType.ANALYZE_ACOUSTIC_INDEX, task_name,
-                        current_user.user_id, f"{task_name} task submitted",
-                        audio_path=audio_path,
-                        media_id=media_id,
-                        index_id=None if is_analysis_job else index_type.index_id,
-                        index_name=task_name,
-                        params=params,
-                        stored_params={} if is_analysis_job else index_job.params,
-                        channel=requested_channel,
-                        min_time=min_time,
-                        max_time=max_time,
-                        min_frequency=min_frequency,
-                        max_frequency=max_frequency,
-                        filter_enabled=filter_enabled,
-                        log_id=None if is_analysis_job else batch_log_id,
-                    )
-                    queued.append(resp)
-                except Exception as e:
-                    logger.exception("Failed to enqueue acoustic calculation task")
+            task_name = index_job.analysis_type if is_analysis_job else index_type.name
+            params = index_job.params if is_analysis_job else self.build_index_params(index_type.param, index_job.params)
+
+            valid_media_items: list[dict[str, Any]] = []
+            for pm in prepared_media:
+                if (
+                    task_name == "template_matching"
+                    and self._is_full_time_window(float(pm["min_time"]), float(pm["max_time"]), pm["duration_s"])
+                ):
                     failed_item = {
-                        "media_id": media_id,
+                        "media_id": pm["media_id"],
+                        "reason": "Please zoom in before executing.",
+                    }
+                    if is_analysis_job:
+                        failed_item["analysis_type"] = task_name
+                    else:
+                        failed_item["index_id"] = index_type.index_id
+                        failed_item["index_name"] = index_type.name
+                    failed.append(failed_item)
+                else:
+                    valid_media_items.append(pm)
+
+            if not valid_media_items:
+                continue
+
+            try:
+                if not is_analysis_job and batch_log_id is None:
+                    batch_log_id = index_log_repository.reserve_log_id(session)
+                first_item = valid_media_items[0]
+                resp = await self._enqueue_job(
+                    session, publisher, WorkerTaskType.ANALYZE_ACOUSTIC_INDEX, task_name,
+                    current_user.user_id, f"{task_name} task submitted",
+                    total=len(valid_media_items),
+                    media_items=valid_media_items,
+                    audio_path=first_item["audio_path"],
+                    media_id=first_item["media_id"],
+                    index_id=None if is_analysis_job else index_type.index_id,
+                    index_name=task_name,
+                    params=params,
+                    stored_params={} if is_analysis_job else index_job.params,
+                    channel=first_item["channel"],
+                    min_time=first_item["min_time"],
+                    max_time=first_item["max_time"],
+                    min_frequency=first_item["min_frequency"],
+                    max_frequency=first_item["max_frequency"],
+                    filter_enabled=first_item["filter_enabled"],
+                    log_id=None if is_analysis_job else batch_log_id,
+                )
+                queued.append(resp)
+            except Exception as e:
+                logger.exception("Failed to enqueue acoustic calculation task")
+                for pm in valid_media_items:
+                    failed_item = {
+                        "media_id": pm["media_id"],
                         "reason": str(e),
                     }
                     if is_analysis_job:

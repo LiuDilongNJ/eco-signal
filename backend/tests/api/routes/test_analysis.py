@@ -56,6 +56,8 @@ def override_get_current_user():
 def reset_mocks(monkeypatch: pytest.MonkeyPatch):
     """Reset session mock state before each test."""
     mock_session.reset_mock()
+    mock_session.get.side_effect = None
+    mock_session.get.return_value = None
     mock_session.refresh.side_effect = _mock_refresh
     mock_session.exec.return_value.all.return_value = []
     mock_session.exec.return_value.first.return_value = None
@@ -221,6 +223,26 @@ class TestRunAnalysis:
         data = resp.json()["data"]
         assert len(data["queued"]) == 2
         assert mock_redis.enqueue_task.call_count == 2
+
+    def test_batch_multiple_media_ids_queues_single_task_per_model(self, client, mock_redis):
+        """Submitting multiple media_ids with a model queues exactly one task with total=N."""
+        mock_session.get.return_value = _make_media()
+
+        payload = {
+            "media_ids": [10, 11, 12],
+            "birdnet": {"min_conf": 0.5},
+        }
+        resp = self._post(client, payload)
+        assert resp.status_code == 200
+        data = resp.json()["data"]
+        assert len(data["queued"]) == 1
+        assert data["queued"][0]["status"] == "pending"
+        assert data["queued"][0]["total"] == 3
+        assert data["queued"][0]["completed"] == 0
+        assert mock_redis.enqueue_task.call_count == 1
+        kwargs = mock_redis.enqueue_task.call_args[1]
+        assert len(kwargs["media_items"]) == 3
+        assert [m["media_id"] for m in kwargs["media_items"]] == [10, 11, 12]
 
     def test_no_model_selected_returns_400(self, client, mock_redis):
         """If no model is selected, return 400."""

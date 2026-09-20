@@ -38,13 +38,17 @@ def _format_analysis_completion_message(result: dict[str, Any]) -> str | None:
         output_items = [
             f"{name}: {value}"
             for name, value in result.items()
-            if name not in {"stored_count", "detection_count", "completion_message", "warning", "message"}
+            if name not in {"stored_count", "detection_count", "completion_message", "warning", "message", "recordings_count"}
         ]
         return ", ".join(output_items) if output_items else "Acoustic index calculation finished."
 
     detection_count = int(result.get("detection_count") or 0)
     annotation_count = int(result.get("annotation_count") or 0)
-    message = f"{model_name} found {detection_count} detections. {annotation_count} tags were inserted."
+    recordings_count = result.get("recordings_count")
+    if recordings_count is not None and recordings_count > 1:
+        message = f"{model_name} processed {recordings_count} recordings, found {detection_count} detections. {annotation_count} tags were inserted."
+    else:
+        message = f"{model_name} found {detection_count} detections. {annotation_count} tags were inserted."
 
     unmatched_count = int(result.get("unmatched_species_count") or 0)
     unmatched_species = [str(species) for species in result.get("unmatched_species") or [] if species]
@@ -127,8 +131,9 @@ async def _run_with_queue(
                     )
 
             queue.status = QueueStatus.COMPLETED
-            queue.completed = result.get("detection_count", result.get("stored_count", 1))
-            queue.total = queue.completed
+            if not isinstance(queue.total, int) or queue.total <= 0:
+                queue.total = 1
+            queue.completed = queue.total
             queue.stop_time = datetime.datetime.now(datetime.UTC)
             session.commit()
 
@@ -160,8 +165,9 @@ async def _run_with_queue(
 async def analyze_birdnet(
         ctx: dict[str, Any],
         queue_id: int,
-        audio_path: str,
+        audio_path: str = "",
         media_id: int | None = None,
+        media_items: list[dict[str, Any]] | None = None,
         min_confidence: float = 0.1,
         overlap: float = 0.0,
         sensitivity: float = 1.0,
@@ -179,66 +185,124 @@ async def analyze_birdnet(
 ) -> dict[str, Any]:
     """BirdNET analysis task. Executed by ARQ Worker in background."""
     cancellation_token = ctx.get("cancellation_token")
+
     def work(session: Session, queue: Queue) -> dict[str, Any]:
-        if media_id:
-            result = analysis_service.analyze_and_store_birdnet(
-                session=session,
-                audio_path=Path(audio_path),
-                media_id=media_id,
-                creator_id=queue.user_id,
-                min_confidence=min_confidence,
-                overlap=overlap,
-                sensitivity=sensitivity,
-                sf_thresh=sf_thresh,
-                min_frequency=min_frequency,
-                max_frequency=max_frequency,
-                lat=lat,
-                lon=lon,
-                week=week,
-                locale=locale,
-                top_n=top_n,
-                cancellation_token=cancellation_token,
-                commit=False,
-            )
+        items = media_items
+        if not items:
+            items = [{
+                "media_id": media_id,
+                "audio_path": audio_path,
+                "lat": lat,
+                "lon": lon,
+                "week": week,
+                "min_frequency": min_frequency,
+                "max_frequency": max_frequency,
+            }]
+
+        if not isinstance(queue.total, int) or queue.total <= 0:
+            queue.total = len(items)
+        if not isinstance(queue.completed, int):
+            queue.completed = 0
+
+        total_detection_count = 0
+        total_annotation_count = 0
+        all_unmatched_species: list[str] = []
+        total_unmatched_count = 0
+        last_result: dict[str, Any] = {}
+
+        for item in items:
             if cancellation_token is not None:
                 cancellation_token.raise_if_cancelled()
-            if merge_enabled and result["annotation_count"] > 0:
-                creator_type = f"BirdNET-Analyzer {analysis_service.birdnet.version}"
-                merge_count = analysis_service.merge_annotations(
+
+            item_audio_path = item.get("audio_path") or audio_path
+            item_media_id = item.get("media_id")
+            item_lat = item.get("lat", lat)
+            item_lon = item.get("lon", lon)
+            item_week = item.get("week", week)
+            item_min_freq = item.get("min_frequency", min_frequency)
+            item_max_freq = item.get("max_frequency", max_frequency)
+
+            if item_media_id:
+                res = analysis_service.analyze_and_store_birdnet(
                     session=session,
-                    media_id=media_id,
-                    creator_type=creator_type,
-                    max_gap=merge_max_gap,
-                    keep_merged_only=merge_keep_only,
-                    annotation_ids=result.get("annotation_ids"),
+                    audio_path=Path(item_audio_path),
+                    media_id=item_media_id,
+                    creator_id=queue.user_id,
+                    min_confidence=min_confidence,
+                    overlap=overlap,
+                    sensitivity=sensitivity,
+                    sf_thresh=sf_thresh,
+                    min_frequency=item_min_freq,
+                    max_frequency=item_max_freq,
+                    lat=item_lat,
+                    lon=item_lon,
+                    week=item_week,
+                    locale=locale,
+                    top_n=top_n,
+                    cancellation_token=cancellation_token,
                     commit=False,
                 )
-                _update_annotation_count_after_merge(
-                    result,
-                    merge_count,
-                    keep_merged_only=merge_keep_only,
+                if cancellation_token is not None:
+                    cancellation_token.raise_if_cancelled()
+                if merge_enabled and res.get("annotation_count", 0) > 0:
+                    creator_type = f"BirdNET-Analyzer {analysis_service.birdnet.version}"
+                    merge_count = analysis_service.merge_annotations(
+                        session=session,
+                        media_id=item_media_id,
+                        creator_type=creator_type,
+                        max_gap=merge_max_gap,
+                        keep_merged_only=merge_keep_only,
+                        annotation_ids=res.get("annotation_ids"),
+                        commit=False,
+                    )
+                    _update_annotation_count_after_merge(
+                        res,
+                        merge_count,
+                        keep_merged_only=merge_keep_only,
+                    )
+            else:
+                detections = analysis_service.birdnet.analyze(
+                    Path(item_audio_path),
+                    min_confidence=min_confidence,
+                    overlap=overlap,
+                    sensitivity=sensitivity,
+                    sf_thresh=sf_thresh,
+                    lat=item_lat,
+                    lon=item_lon,
+                    week=item_week,
+                    min_frequency=item_min_freq,
+                    max_frequency=item_max_freq,
+                    locale=locale,
+                    top_n=top_n,
+                    cancellation_token=cancellation_token,
                 )
-            return result
+                res = {
+                    "detection_count": len(detections),
+                    "annotation_count": 0,
+                    "analysis_message_model": f"BirdNET v{analysis_service.birdnet.version}",
+                }
 
-        detections = analysis_service.birdnet.analyze(
-            Path(audio_path),
-            min_confidence=min_confidence,
-            overlap=overlap,
-            sensitivity=sensitivity,
-            sf_thresh=sf_thresh,
-            lat=lat,
-            lon=lon,
-            week=week,
-            min_frequency=min_frequency,
-            max_frequency=max_frequency,
-            locale=locale,
-            top_n=top_n,
-            cancellation_token=cancellation_token,
-        )
+            total_detection_count += int(res.get("detection_count") or 0)
+            total_annotation_count += int(res.get("annotation_count") or 0)
+            total_unmatched_count += int(res.get("unmatched_species_count") or 0)
+            for sp in res.get("unmatched_species") or []:
+                if sp and sp not in all_unmatched_species:
+                    all_unmatched_species.append(str(sp))
+
+            last_result = res
+            queue.completed = min(queue.completed + 1, queue.total)
+            session.commit()
+
+        if len(items) == 1:
+            return last_result
+
         return {
-            "detection_count": len(detections),
-            "annotation_count": 0,
+            "detection_count": total_detection_count,
+            "annotation_count": total_annotation_count,
+            "unmatched_species": all_unmatched_species,
+            "unmatched_species_count": total_unmatched_count,
             "analysis_message_model": f"BirdNET v{analysis_service.birdnet.version}",
+            "recordings_count": len(items),
         }
 
     return await _run_with_queue("BirdNET", queue_id, work, cancellation_token)
@@ -247,8 +311,9 @@ async def analyze_birdnet(
 async def analyze_batdetect(
         ctx: dict[str, Any],
         queue_id: int,
-        audio_path: str,
-        media_id: int,
+        audio_path: str = "",
+        media_id: int | None = None,
+        media_items: list[dict[str, Any]] | None = None,
         detection_threshold: float = 0.3,
         chunk_size: float = 2.0,
         merge_enabled: bool = False,
@@ -258,37 +323,87 @@ async def analyze_batdetect(
 ) -> dict[str, Any]:
     """Batdetect2 analysis task. Executed by ARQ Worker in background."""
     cancellation_token = ctx.get("cancellation_token")
+
     def work(session: Session, queue: Queue) -> dict[str, Any]:
-        result = analysis_service.analyze_and_store_batdetect(
-            session=session,
-            audio_path=Path(audio_path),
-            media_id=media_id,
-            creator_id=queue.user_id,
-            detection_threshold=detection_threshold,
-            chunk_size=chunk_size,
-            cancellation_token=cancellation_token,
-            commit=False,
-            max_duration=max_duration,
-        )
-        if cancellation_token is not None:
-            cancellation_token.raise_if_cancelled()
-        if merge_enabled and result["annotation_count"] > 0:
-            creator_type = f"batdetect2 {analysis_service.batdetect.version}"
-            merge_count = analysis_service.merge_annotations(
+        items = media_items
+        if not items:
+            items = [{
+                "media_id": media_id,
+                "audio_path": audio_path,
+                "max_duration": max_duration,
+            }]
+
+        if not isinstance(queue.total, int) or queue.total <= 0:
+            queue.total = len(items)
+        if not isinstance(queue.completed, int):
+            queue.completed = 0
+
+        total_detection_count = 0
+        total_annotation_count = 0
+        all_unmatched_species: list[str] = []
+        total_unmatched_count = 0
+        last_result: dict[str, Any] = {}
+
+        for item in items:
+            if cancellation_token is not None:
+                cancellation_token.raise_if_cancelled()
+
+            item_audio_path = item.get("audio_path") or audio_path
+            item_media_id = item.get("media_id") or media_id
+            item_max_duration = item.get("max_duration", max_duration)
+
+            res = analysis_service.analyze_and_store_batdetect(
                 session=session,
-                media_id=media_id,
-                creator_type=creator_type,
-                max_gap=merge_max_gap,
-                keep_merged_only=merge_keep_only,
-                annotation_ids=result.get("annotation_ids"),
+                audio_path=Path(item_audio_path),
+                media_id=item_media_id,
+                creator_id=queue.user_id,
+                detection_threshold=detection_threshold,
+                chunk_size=chunk_size,
+                cancellation_token=cancellation_token,
                 commit=False,
+                max_duration=item_max_duration,
             )
-            _update_annotation_count_after_merge(
-                result,
-                merge_count,
-                keep_merged_only=merge_keep_only,
-            )
-        return result
+            if cancellation_token is not None:
+                cancellation_token.raise_if_cancelled()
+            if merge_enabled and res.get("annotation_count", 0) > 0:
+                creator_type = f"batdetect2 {analysis_service.batdetect.version}"
+                merge_count = analysis_service.merge_annotations(
+                    session=session,
+                    media_id=item_media_id,
+                    creator_type=creator_type,
+                    max_gap=merge_max_gap,
+                    keep_merged_only=merge_keep_only,
+                    annotation_ids=res.get("annotation_ids"),
+                    commit=False,
+                )
+                _update_annotation_count_after_merge(
+                    res,
+                    merge_count,
+                    keep_merged_only=merge_keep_only,
+                )
+
+            total_detection_count += int(res.get("detection_count") or 0)
+            total_annotation_count += int(res.get("annotation_count") or 0)
+            total_unmatched_count += int(res.get("unmatched_species_count") or 0)
+            for sp in res.get("unmatched_species") or []:
+                if sp and sp not in all_unmatched_species:
+                    all_unmatched_species.append(str(sp))
+
+            last_result = res
+            queue.completed = min(queue.completed + 1, queue.total)
+            session.commit()
+
+        if len(items) == 1:
+            return last_result
+
+        return {
+            "detection_count": total_detection_count,
+            "annotation_count": total_annotation_count,
+            "unmatched_species": all_unmatched_species,
+            "unmatched_species_count": total_unmatched_count,
+            "analysis_message_model": f"batdetect2 {analysis_service.batdetect.version}",
+            "recordings_count": len(items),
+        }
 
     return await _run_with_queue("batdetect2", queue_id, work, cancellation_token)
 
@@ -296,8 +411,9 @@ async def analyze_batdetect(
 async def analyze_insects(
         ctx: dict[str, Any],
         queue_id: int,
-        audio_path: str,
-        media_id: int,
+        audio_path: str = "",
+        media_id: int | None = None,
+        media_items: list[dict[str, Any]] | None = None,
         window_size: float = 4.0,
         stride_length: float = 4.0,
         max_freq: int = 48000,
@@ -307,37 +423,87 @@ async def analyze_insects(
 ) -> dict[str, Any]:
     """insects-base-cnn10-96k-t analysis task. Executed by ARQ Worker in background."""
     cancellation_token = ctx.get("cancellation_token")
+
     def work(session: Session, queue: Queue) -> dict[str, Any]:
-        result = analysis_service.analyze_and_store_insects(
-            session=session,
-            audio_path=Path(audio_path),
-            media_id=media_id,
-            creator_id=queue.user_id,
-            window_size=window_size,
-            stride_length=stride_length,
-            max_freq=max_freq,
-            cancellation_token=cancellation_token,
-            commit=False,
-        )
-        if cancellation_token is not None:
-            cancellation_token.raise_if_cancelled()
-        if merge_enabled and result["annotation_count"] > 0:
-            creator_type = "insects-base-cnn10-96k-t"
-            merge_count = analysis_service.merge_annotations(
+        items = media_items
+        if not items:
+            items = [{
+                "media_id": media_id,
+                "audio_path": audio_path,
+                "max_freq": max_freq,
+            }]
+
+        if not isinstance(queue.total, int) or queue.total <= 0:
+            queue.total = len(items)
+        if not isinstance(queue.completed, int):
+            queue.completed = 0
+
+        total_detection_count = 0
+        total_annotation_count = 0
+        all_unmatched_species: list[str] = []
+        total_unmatched_count = 0
+        last_result: dict[str, Any] = {}
+
+        for item in items:
+            if cancellation_token is not None:
+                cancellation_token.raise_if_cancelled()
+
+            item_audio_path = item.get("audio_path") or audio_path
+            item_media_id = item.get("media_id") or media_id
+            item_max_freq = item.get("max_freq", max_freq)
+
+            res = analysis_service.analyze_and_store_insects(
                 session=session,
-                media_id=media_id,
-                creator_type=creator_type,
-                max_gap=merge_max_gap,
-                keep_merged_only=merge_keep_only,
-                annotation_ids=result.get("annotation_ids"),
+                audio_path=Path(item_audio_path),
+                media_id=item_media_id,
+                creator_id=queue.user_id,
+                window_size=window_size,
+                stride_length=stride_length,
+                max_freq=item_max_freq,
+                cancellation_token=cancellation_token,
                 commit=False,
             )
-            _update_annotation_count_after_merge(
-                result,
-                merge_count,
-                keep_merged_only=merge_keep_only,
-            )
-        return result
+            if cancellation_token is not None:
+                cancellation_token.raise_if_cancelled()
+            if merge_enabled and res.get("annotation_count", 0) > 0:
+                creator_type = "insects-base-cnn10-96k-t"
+                merge_count = analysis_service.merge_annotations(
+                    session=session,
+                    media_id=item_media_id,
+                    creator_type=creator_type,
+                    max_gap=merge_max_gap,
+                    keep_merged_only=merge_keep_only,
+                    annotation_ids=res.get("annotation_ids"),
+                    commit=False,
+                )
+                _update_annotation_count_after_merge(
+                    res,
+                    merge_count,
+                    keep_merged_only=merge_keep_only,
+                )
+
+            total_detection_count += int(res.get("detection_count") or 0)
+            total_annotation_count += int(res.get("annotation_count") or 0)
+            total_unmatched_count += int(res.get("unmatched_species_count") or 0)
+            for sp in res.get("unmatched_species") or []:
+                if sp and sp not in all_unmatched_species:
+                    all_unmatched_species.append(str(sp))
+
+            last_result = res
+            queue.completed = min(queue.completed + 1, queue.total)
+            session.commit()
+
+        if len(items) == 1:
+            return last_result
+
+        return {
+            "detection_count": total_detection_count,
+            "annotation_count": total_annotation_count,
+            "unmatched_species": all_unmatched_species,
+            "unmatched_species_count": total_unmatched_count,
+            "analysis_message_model": "insects-base-cnn10-96k-t",
+            "recordings_count": len(items),
+        }
 
     return await _run_with_queue("insects", queue_id, work, cancellation_token)
 
@@ -345,10 +511,11 @@ async def analyze_insects(
 async def analyze_acoustic_index(
         ctx: dict[str, Any],
         queue_id: int,
-        audio_path: str,
-        media_id: int,
-        index_id: int | None,
-        index_name: str,
+        audio_path: str = "",
+        media_id: int | None = None,
+        media_items: list[dict[str, Any]] | None = None,
+        index_id: int | None = None,
+        index_name: str = "",
         params: dict[str, Any] | None = None,
         stored_params: dict[str, Any] | None = None,
         channel: str = "left",
@@ -361,44 +528,94 @@ async def analyze_acoustic_index(
 ) -> dict[str, Any]:
     """Generic acoustic index analysis task. Executed by ARQ Worker in background."""
     cancellation_token = ctx.get("cancellation_token")
+
     def work(session: Session, queue: Queue) -> dict[str, Any]:
-        if index_id is None:
-            if max_time is None or max_frequency is None:
-                raise ValueError("max_time and max_frequency are required for acoustic analysis")
-            return analysis_service.analyze_acoustic_selection(
-                session=session,
-                audio_path=Path(audio_path),
-                media_id=media_id,
-                user_id=queue.user_id,
-                analysis_type=index_name,
-                params=params or {},
-                channel=channel,
-                min_time=float(min_time),
-                max_time=float(max_time),
-                min_frequency=float(min_frequency),
-                max_frequency=float(max_frequency),
-                filter_enabled=filter_enabled,
-                cancellation_token=cancellation_token,
-                commit=False,
-            )
-        return analysis_service.analyze_and_store_acoustic_index(
-            session=session,
-            audio_path=Path(audio_path),
-            media_id=media_id,
-            user_id=queue.user_id,
-            index_type_name=index_name,
-            index_id=index_id,
-            params=params,
-            stored_params=stored_params,
-            channel=channel,
-            min_time=min_time,
-            max_time=max_time,
-            min_frequency=min_frequency,
-            max_frequency=max_frequency,
-            log_id=log_id,
-            filter_enabled=filter_enabled,
-            cancellation_token=cancellation_token,
-            commit=False,
-        )
+        items = media_items
+        if not items:
+            items = [{
+                "media_id": media_id,
+                "audio_path": audio_path,
+                "channel": channel,
+                "min_time": min_time,
+                "max_time": max_time,
+                "min_frequency": min_frequency,
+                "max_frequency": max_frequency,
+                "filter_enabled": filter_enabled,
+            }]
+
+        if not isinstance(queue.total, int) or queue.total <= 0:
+            queue.total = len(items)
+        if not isinstance(queue.completed, int):
+            queue.completed = 0
+
+        total_stored_count = 0
+        last_result: dict[str, Any] = {}
+
+        for item in items:
+            if cancellation_token is not None:
+                cancellation_token.raise_if_cancelled()
+
+            item_audio_path = item.get("audio_path") or audio_path
+            item_media_id = item.get("media_id") or media_id
+            item_channel = item.get("channel", channel)
+            item_min_time = item.get("min_time", min_time)
+            item_max_time = item.get("max_time", max_time)
+            item_min_freq = item.get("min_frequency", min_frequency)
+            item_max_freq = item.get("max_frequency", max_frequency)
+            item_filter = item.get("filter_enabled", filter_enabled)
+
+            if index_id is None:
+                if item_max_time is None or item_max_freq is None:
+                    raise ValueError("max_time and max_frequency are required for acoustic analysis")
+                res = analysis_service.analyze_acoustic_selection(
+                    session=session,
+                    audio_path=Path(item_audio_path),
+                    media_id=item_media_id,
+                    user_id=queue.user_id,
+                    analysis_type=index_name,
+                    params=params or {},
+                    channel=item_channel,
+                    min_time=float(item_min_time),
+                    max_time=float(item_max_time),
+                    min_frequency=float(item_min_freq),
+                    max_frequency=float(item_max_freq),
+                    filter_enabled=item_filter,
+                    cancellation_token=cancellation_token,
+                    commit=False,
+                )
+            else:
+                res = analysis_service.analyze_and_store_acoustic_index(
+                    session=session,
+                    audio_path=Path(item_audio_path),
+                    media_id=item_media_id,
+                    user_id=queue.user_id,
+                    index_type_name=index_name,
+                    index_id=index_id,
+                    params=params,
+                    stored_params=stored_params,
+                    channel=item_channel,
+                    min_time=item_min_time,
+                    max_time=item_max_time,
+                    min_frequency=item_min_freq,
+                    max_frequency=item_max_freq,
+                    log_id=log_id,
+                    filter_enabled=item_filter,
+                    cancellation_token=cancellation_token,
+                    commit=False,
+                )
+
+            total_stored_count += int(res.get("stored_count") or 0)
+            last_result = res
+            queue.completed = min(queue.completed + 1, queue.total)
+            session.commit()
+
+        if len(items) == 1:
+            return last_result
+
+        return {
+            "stored_count": total_stored_count,
+            "completion_message": f"{index_name} processed {len(items)} recordings.",
+            "recordings_count": len(items),
+        }
 
     return await _run_with_queue(index_name, queue_id, work, cancellation_token)
