@@ -1,6 +1,6 @@
 /** 未登录或登出后的落地页（与路由 `/` 一致；`/index` 仍为同一首页） */
 export const AUTH_LANDING_PATH = "/"
-const AUTH_API_PREFIX = "/v1"
+const AUTH_API_PREFIX = "/api/v1"
 
 /** 登录/登出后通知各页面刷新列表（如项目下拉选项） */
 export function dispatchAuthChange() {
@@ -53,22 +53,6 @@ function createAuthSessionVersion(): string {
     return `${Date.now()}-${Math.random().toString(36).slice(2)}`
 }
 
-function resolveApiBaseUrlForAuth(): string {
-    const explicit = import.meta.env.VITE_API_BASE_URL as string | undefined
-    if (explicit != null && String(explicit).trim() !== "") {
-        return String(explicit).replace(/\/$/, "")
-    }
-    if (import.meta.env.DEV) {
-        return "/api"
-    }
-    const originOnly = import.meta.env.VITE_API_URL as string | undefined
-    if (originOnly != null && String(originOnly).trim() !== "") {
-        const o = String(originOnly).trim().replace(/\/$/, "")
-        return o.endsWith("/api") ? o : `${o}/api`
-    }
-    return "/api"
-}
-
 /** Clear auth state and redirect to landing page. */
 export function clearAuthAndRedirectToIndex() {
     authUtils.clearAuth()
@@ -78,7 +62,7 @@ export function clearAuthAndRedirectToIndex() {
 
 /** Logout current refresh session and always clear local auth state. */
 export async function logoutAndRedirectToIndex() {
-    const logoutUrl = `${resolveApiBaseUrlForAuth()}${AUTH_API_PREFIX}/auth-tokens/current`
+    const logoutUrl = `${AUTH_API_PREFIX}/auth-tokens/current`
     try {
         await fetch(logoutUrl, {
             method: "DELETE",
@@ -92,7 +76,7 @@ export async function logoutAndRedirectToIndex() {
 }
 
 export async function expireIdleSession() {
-    const logoutUrl = `${resolveApiBaseUrlForAuth()}${AUTH_API_PREFIX}/auth-tokens/current`
+    const logoutUrl = `${AUTH_API_PREFIX}/auth-tokens/current`
     try {
         await fetch(logoutUrl, {
             method: "DELETE",

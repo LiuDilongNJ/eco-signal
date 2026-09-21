@@ -119,7 +119,9 @@ docker compose exec -T frontend npm run build
 
 ## 生产环境说明
 
-`docker compose watch` 和本地 `docker compose up` 命令仅用于开发。公开部署、迁移、备份、恢复、HTTPS 和 GitHub Actions 配置请使用[运维指南](docs/operations-guide.zh.md)。
+`docker compose watch` 和本地 `docker compose up` 命令仅用于开发。公开部署、迁移、备份、恢复、HTTPS（自动化 Let's Encrypt 或自备静态证书）和 GitHub Actions 配置请使用[运维指南](docs/operations-guide.zh.md)。
+
+证书部署统一使用单域名：自有证书由 Nginx 终结 HTTPS，通过 `./deploy.sh --reload-certs` 热更新；自动证书继续由 Traefik 和 Let's Encrypt 管理。详见[运维指南](docs/operations-guide.zh.md#自定义域名与-https-配置)。
 
 ## 文档导航
 

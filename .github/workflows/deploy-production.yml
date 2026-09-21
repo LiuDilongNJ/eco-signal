@@ -19,7 +19,6 @@ jobs:
       ENVIRONMENT: production
       DOMAIN: ${{ vars.DOMAIN }}
       STACK_NAME: ${{ vars.STACK_NAME }}
-      FRONTEND_HOST: ${{ vars.FRONTEND_HOST }}
       BACKEND_CORS_ORIGINS: ${{ vars.BACKEND_CORS_ORIGINS }}
       AUTH_SESSION_IDLE_EXPIRE_MINUTES: ${{ vars.AUTH_SESSION_IDLE_EXPIRE_MINUTES || '30' }}
       SECRET_KEY: ${{ secrets.SECRET_KEY }}
@@ -38,20 +37,26 @@ jobs:
       LEGACY_PROJECT_DIR: ${{ vars.LEGACY_PROJECT_DIR || './ecoSound-web' }}
       GEO_DB_READY_URL: ${{ vars.GEO_DB_READY_URL || 'https://github.com/csaay/geo_db/releases/download/v1.0.2/geo_db_ready.zip' }}
       GEO_DB_XR_SEED_URL: ${{ vars.GEO_DB_XR_SEED_URL || 'https://github.com/csaay/geo_db/releases/download/v1.0.2/col_xr_seed.zip' }}
+      ENABLE_HTTPS: ${{ vars.ENABLE_HTTPS || 'true' }}
+      HTTPS_MODE: ${{ vars.HTTPS_MODE || 'letsencrypt' }}
+      TLS_CERT_FILE: ${{ vars.TLS_CERT_FILE }}
+      TLS_KEY_FILE: ${{ vars.TLS_KEY_FILE }}
       EMAIL: ${{ vars.EMAIL }}
-      TRAEFIK_DASHBOARD_USER: ${{ vars.TRAEFIK_DASHBOARD_USER }}
-      TRAEFIK_DASHBOARD_HASH: ${{ secrets.TRAEFIK_DASHBOARD_HASH }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          clean: false
       - name: Prepare deployment env file
         run: |
           cp .env.example .env
           cat >> .env <<EOF
           DOMAIN=${DOMAIN}
-          FRONTEND_HOST=${FRONTEND_HOST}
           ENVIRONMENT=${ENVIRONMENT}
-          ENABLE_HTTPS=true
+          ENABLE_HTTPS=${ENABLE_HTTPS}
+          HTTPS_MODE=${HTTPS_MODE}
+          TLS_CERT_FILE=${TLS_CERT_FILE}
+          TLS_KEY_FILE=${TLS_KEY_FILE}
           PROJECT_NAME=${PROJECT_NAME}
           STACK_NAME=${STACK_NAME}
           BACKEND_CORS_ORIGINS=${BACKEND_CORS_ORIGINS}
@@ -78,7 +83,5 @@ jobs:
           RABBITMQ_PASSWORD=ecosignal
           RABBITMQ_VHOST=/
           EMAIL=${EMAIL}
-          TRAEFIK_DASHBOARD_USER=${TRAEFIK_DASHBOARD_USER}
-          TRAEFIK_DASHBOARD_HASH=${TRAEFIK_DASHBOARD_HASH}
           EOF
       - run: ./deploy.sh

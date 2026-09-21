@@ -9,30 +9,7 @@
  * - 类型安全
  */
 
-/**
- * 解析 API 根路径（与后端 FastAPI 的 `API_V1_STR` 前缀一致，一般为 `/api`）。
- * - `VITE_API_BASE_URL` 优先：如 `/api` 或 `https://host.example.com/api`
- * - 生产 / preview：`VITE_API_URL` 仅写后端 origin 时自动补 `/api`
- * - **开发 `npm run dev`**：未显式设置 `VITE_API_BASE_URL` 时固定为 `/api`，走 Vite 代理、与页面同源，
- *   避免 `127.0.0.1:5173` 页面直连 `localhost:8000` 触发浏览器 CORS。
- */
-export function resolveApiBaseUrl(): string {
-    const explicit = import.meta.env.VITE_API_BASE_URL as string | undefined
-    if (explicit != null && String(explicit).trim() !== "") {
-        return String(explicit).replace(/\/$/, "")
-    }
-    if (import.meta.env.DEV) {
-        return "/api"
-    }
-    const originOnly = import.meta.env.VITE_API_URL as string | undefined
-    if (originOnly != null && String(originOnly).trim() !== "") {
-        const o = String(originOnly).trim().replace(/\/$/, "")
-        return o.endsWith("/api") ? o : `${o}/api`
-    }
-    return "/api"
-}
-
-const API_BASE_URL = resolveApiBaseUrl()
+const API_BASE_URL = "/api"
 
 export class ApiError extends Error {
     constructor(

@@ -21,8 +21,6 @@ RUN npm ci
 
 COPY . .
 
-ARG VITE_API_BASE_URL
-ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
 ARG VITE_CARTO_BASEMAP_KEY
 ENV VITE_CARTO_BASEMAP_KEY=$VITE_CARTO_BASEMAP_KEY
 
@@ -31,6 +29,7 @@ RUN npm run build
 FROM ${NGINX_BASE_IMAGE} AS production
 
 COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY nginx/routes.conf /etc/nginx/includes/routes.conf
 
 COPY --from=builder /app/dist /usr/share/nginx/html
 

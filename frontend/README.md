@@ -95,8 +95,6 @@ src/
 
 | 变量               | 说明       | 默认值      |
 | ------------------ | ---------- | ----------- |
-| `VITE_API_BASE_URL` | API 根路径（优先）。开发时未设置则固定为 `/api`（走 Vite 代理、避免 CORS） | `/api`      |
-| `VITE_API_URL`     | 生产 / `vite preview` 用；`npm run dev` 不读取，请走代理 | — |
 | `VITE_APP_TITLE`   | 应用标题   | `ecoSignal` |
 | `VITE_CARTO_BASEMAP_KEY` | CARTO 栅格底图 API Key | — |
 

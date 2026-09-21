@@ -1,0 +1,27 @@
+services:
+  backend:
+    ports: !override []
+    environment:
+      ENABLE_HTTPS: "true"
+      FRONTEND_PORT: "443"
+  worker:
+    environment:
+      ENABLE_HTTPS: "true"
+      FRONTEND_PORT: "443"
+  worker-analysis:
+    environment:
+      ENABLE_HTTPS: "true"
+      FRONTEND_PORT: "443"
+  frontend:
+    ports: !override
+      - "80:80"
+      - "443:443"
+    labels:
+      - ecosignal.tls-mode=static
+      - ecosignal.domain=${DOMAIN?Variable not set}
+    environment:
+      DOMAIN: ${DOMAIN?Variable not set}
+      NGINX_ENVSUBST_FILTER: ^DOMAIN$
+    volumes:
+      - ./.deploy/tls:/etc/nginx/tls:ro
+      - ./frontend/nginx/https.conf.template:/etc/nginx/templates/default.conf.template:ro

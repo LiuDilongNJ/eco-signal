@@ -8,7 +8,7 @@
  * - `PUT /api/v1/sensors/{id}` — 更新（管理员，响应体 `data` 为 null）
  * - `DELETE /api/v1/sensors/{id}` — 删除（管理员）
  *
- * 前端通过 `resolveApiBaseUrl()`（默认 `/api`）+ 路径 `/v1/sensors` 请求，即同源 `/api/v1/sensors`，开发环境由 Vite 代理到 `http://localhost:8000`。
+ * 前端通过固定根路径 `/api` 请求同源 `/api/v1/sensors`，开发环境由 Vite 代理到 `http://localhost:8000`。
  */
 import { apiClient } from "../client"
 
