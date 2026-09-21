@@ -169,6 +169,12 @@ fi
 COMPOSE_DISPLAY="$(compose_display_command)"
 COMPOSE_DISPLAY="${COMPOSE_DISPLAY% }"
 
+# shellcheck source=scripts/migration-runtime.sh
+source "${PROJECT_ROOT}/scripts/migration-runtime.sh"
+trap cleanup_migration_runtime_on_exit EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
 if [[ -z "$OLD_PROJECT_DIR" ]]; then
     OLD_PROJECT_DIR="$(resolve_old_project_dir)"
 else
@@ -293,12 +299,10 @@ if [[ "$REPAIR_NETWORK_FEDERATION" == true ]]; then
     info "Repairing migrated federation settings only..."
     REPAIR_ARGS=(--repair-network-federation)
     [[ "$DRY_RUN" == true ]] && REPAIR_ARGS+=(--dry-run)
-    "${DOCKER_COMPOSE[@]}" cp "${PROJECT_ROOT}/backend/scripts/." backend:/app/scripts/
-    "${DOCKER_COMPOSE[@]}" exec -T \
+    run_migration_in_backend \
         -e LEGACY_APP_URL="$LEGACY_APP_URL_VALUE" \
         -e LEGACY_HOST_URL="$LEGACY_HOST_URL_VALUE" \
-        backend \
-        python scripts/migrate_from_biosounds.py "${REPAIR_ARGS[@]}"
+        -- "${REPAIR_ARGS[@]}"
     success "Federation repair finished."
     exit 0
 fi
@@ -345,15 +349,13 @@ if [[ "$REPAIR_PERMISSIONS" == true ]]; then
     info "Repairing / re-migrating permissions into user_scope_role..."
     REPAIR_ARGS=(--repair-permissions)
     [[ "$DRY_RUN" == true ]] && REPAIR_ARGS+=(--dry-run)
-    "${DOCKER_COMPOSE[@]}" cp "${PROJECT_ROOT}/backend/scripts/." backend:/app/scripts/
-    "${DOCKER_COMPOSE[@]}" exec -T \
+    run_migration_in_backend \
         -e MYSQL_HOST="host.docker.internal" \
         -e MYSQL_PORT="$MYSQL_PORT" \
         -e MYSQL_USER="$MYSQL_USER" \
         -e MYSQL_PASSWORD="$MYSQL_PASSWORD" \
         -e MYSQL_DB="$MYSQL_DB" \
-        backend \
-        python scripts/migrate_from_biosounds.py "${REPAIR_ARGS[@]}"
+        -- "${REPAIR_ARGS[@]}"
     success "Permission repair finished."
     exit 0
 fi
@@ -541,6 +543,8 @@ verify_managed_media_mounts() {
 
 verify_direct_mount_access() {
     info "Verifying direct-mount media paths in backend container..."
+    # Variables expand in the container shell.
+    # shellcheck disable=SC2016
     "${DOCKER_COMPOSE[@]}" exec -T backend sh -lc '
 set -eu
 for d in /app/sounds/sounds /app/sounds/images /app/sounds/projects; do
@@ -636,11 +640,10 @@ else
     [[ "$DRY_RUN" == true ]] && DB_MIGRATE_ARGS+=(--dry-run)
     [[ "$RESET_TARGET" == true ]] && DB_MIGRATE_ARGS+=(--reset-target)
 
-    info "Syncing latest migration scripts into backend container..."
-    "${DOCKER_COMPOSE[@]}" cp "${PROJECT_ROOT}/backend/scripts/." backend:/app/scripts/
+    info "Preparing latest migration scripts in the backend container..."
 
     MIGRATION_EXIT=0
-    if "${DOCKER_COMPOSE[@]}" exec -T \
+    if run_migration_in_backend \
         -e MYSQL_HOST="$MYSQL_HOST_IN_CONTAINER" \
         -e MYSQL_PORT="$MYSQL_PORT" \
         -e MYSQL_USER="$MYSQL_USER" \
@@ -648,8 +651,7 @@ else
         -e MYSQL_DB="$MYSQL_DB" \
         -e LEGACY_APP_URL="$LEGACY_APP_URL_VALUE" \
         -e LEGACY_HOST_URL="$LEGACY_HOST_URL_VALUE" \
-        backend \
-        python scripts/migrate_from_biosounds.py "${DB_MIGRATE_ARGS[@]}" --audit-report "$AUDIT_REPORT_CONTAINER_PATH"; then
+        -- "${DB_MIGRATE_ARGS[@]}" --audit-report "$AUDIT_REPORT_CONTAINER_PATH"; then
         :
     else
         MIGRATION_EXIT=$?
