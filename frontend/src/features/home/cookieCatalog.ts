@@ -79,6 +79,12 @@ export const COOKIE_CATALOG: CookieCatalogEntry[] = [
         category: "Functional Cookies",
         description: "Remembers the default annotation save action",
     },
+    {
+        name: "ecoSignal_annot_last_sound",
+        duration: COOKIE_RETENTION,
+        category: "Functional Cookies",
+        description: "Remembers the last soundscape component and sound type used when tagging annotations",
+    },
 ]
 
 export function cookiesForCategory(category: CookieCategory): CookieCatalogEntry[] {

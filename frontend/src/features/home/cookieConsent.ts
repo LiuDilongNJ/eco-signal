@@ -20,6 +20,7 @@ export const FUNCTIONAL_COOKIE_NAMES = [
     "ecoSignal_photo_zoom_level_percent",
     "ecoSignal_spec_px_per_sec",
     "ecoSignal_annot_save_mode",
+    "ecoSignal_annot_last_sound",
 ] as const
 
 export const FUNCTIONAL_LOCAL_STORAGE_KEYS = [

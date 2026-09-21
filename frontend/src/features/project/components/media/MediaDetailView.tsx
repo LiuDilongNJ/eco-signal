@@ -296,6 +296,10 @@ import {
     getCookieValue,
     setCookieValue,
 } from "./media-detail/mediaDetailSupport"
+import {
+    resolveLastAnnotationSound,
+    writeLastAnnotationSound,
+} from "./media-detail/lastAnnotationSoundPreference"
 
 export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
     const { id: projectRouteId } = useParams<{ id?: string }>()
@@ -2531,8 +2535,9 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
     }, [annotationTableRows, editingAnnotationId, scrollAnnotationTableRowIntoView])
 
     const resetAnnotationFormFields = useCallback(() => {
-        setFormSoundscape(null)
-        setFormSoundTypeSoundId(null)
+        const lastSound = isPhoto ? null : resolveLastAnnotationSound(soundClassifications)
+        setFormSoundscape(lastSound ? lastSound.soundscape : null)
+        setFormSoundTypeSoundId(lastSound?.soundId ?? null)
         setFormTaxonId(null)
         setFormTaxonSearch("")
         setFormUncertain("")
@@ -2543,7 +2548,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
         setFormReference("")
         setFormComments("")
         taxonOptionsState.reset()
-    }, [taxonOptionsState.reset])
+    }, [isPhoto, soundClassifications, taxonOptionsState.reset])
 
     const initReviewFormFromReviews = useCallback((reviews: AnnotationReviewRead[], myId: number | null) => {
         const mine = myId != null ? reviews.find((r) => r.reviewer_id === myId) : undefined
@@ -5050,6 +5055,12 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                 message.error("Sound classifications unavailable. Refresh and try again.")
                 return
             }
+            if (!isPhoto && formSoundscape !== null && formSoundTypeSoundId != null) {
+                writeLastAnnotationSound({
+                    soundscape: formSoundscape,
+                    soundId: formSoundTypeSoundId,
+                })
+            }
 
             const coordDecimals = isPhoto ? 0 : 4
             const min_x = roundAnnotationCoord(Math.min(annotationDraft.min_x, annotationDraft.max_x), coordDecimals)
@@ -7347,8 +7358,15 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                                                                             options={soundscapeSelectOptions}
                                                                             value={formSoundscape === null ? undefined : formSoundscape}
                                                                             onChange={(v) => {
-                                                                                setFormSoundscape(v === undefined ? null : String(v))
+                                                                                const next = v === undefined ? null : String(v)
+                                                                                setFormSoundscape(next)
                                                                                 setFormSoundTypeSoundId(null)
+                                                                                if (editingAnnotationId == null && next !== null) {
+                                                                                    writeLastAnnotationSound({
+                                                                                        soundscape: next,
+                                                                                        soundId: null,
+                                                                                    })
+                                                                                }
                                                                             }}
                                                                             filterOption={selectSearchFilter}
                                                                         />
@@ -7366,9 +7384,19 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                                                                             value={formSoundTypeSoundId ?? undefined}
                                                                             disabled={formSoundscape === null || soundTypeSelectOptions.length === 0}
                                                                             onChange={(v) => {
-                                                                                setFormSoundTypeSoundId(
-                                                                                    typeof v === "number" && !Number.isNaN(v) ? v : null,
-                                                                                )
+                                                                                const next =
+                                                                                    typeof v === "number" && !Number.isNaN(v) ? v : null
+                                                                                setFormSoundTypeSoundId(next)
+                                                                                if (
+                                                                                    editingAnnotationId == null &&
+                                                                                    formSoundscape !== null &&
+                                                                                    next != null
+                                                                                ) {
+                                                                                    writeLastAnnotationSound({
+                                                                                        soundscape: formSoundscape,
+                                                                                        soundId: next,
+                                                                                    })
+                                                                                }
                                                                             }}
                                                                             filterOption={selectSearchFilter}
                                                                         />
