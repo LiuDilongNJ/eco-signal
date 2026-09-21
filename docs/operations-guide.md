@@ -8,6 +8,7 @@
 ## Contents
 
 - [Configure production](#configure-production)
+- [Configure custom domains and HTTPS](#configure-custom-domains-and-https)
 - [Deploy and verify](#deploy-and-verify)
 - [Use GitHub Actions](#use-github-actions)
 - [Migrate data](#migrate-data)
@@ -23,7 +24,73 @@ Set `ENVIRONMENT=staging` or `ENVIRONMENT=production` explicitly. `AUTH_SESSION_
 docker compose -f docker-compose.yml config --environment | grep '^ENVIRONMENT='
 ```
 
-HTTP is the default. A public HTTPS deployment needs `ENABLE_HTTPS=true`, `dashboard.DOMAIN`, `api.DOMAIN`, `EMAIL`, and public inbound ports 80 and 443. HTTP mode uses `DOMAIN` and `FRONTEND_PORT` on one origin.
+## Configure custom domains and HTTPS
+
+All modes use one `DOMAIN` for the homepage `/`, API `/api/`, and media `/sounds/`. Point DNS A/AAAA records to the server address; a CNAME points to another hostname. No `api.` or `dashboard.` subdomains are needed. The Traefik dashboard is not publicly exposed.
+
+### 1. Own certificates: HTTPS directly through Nginx
+
+```ini
+DOMAIN=ecosignal.example.org
+ENABLE_HTTPS=true
+HTTPS_MODE=static
+TLS_CERT_FILE=/etc/ssl/certs/ecosignal-fullchain.pem
+TLS_KEY_FILE=/etc/ssl/private/ecosignal.key
+BACKEND_CORS_ORIGINS="https://ecosignal.example.org"
+```
+
+- Supply a PEM certificate chain in leaf-first order followed by intermediate certificates, and a matching private key without an interactive password. The certificate must cover `DOMAIN` and be currently valid. Restrict private-key source access to the deployment account and administrators.
+- Frontend Nginx publishes host ports 80/443, redirects HTTP to the configured `https://DOMAIN`, proxies `/api/` to the backend, and serves `/sounds/` directly from mounted files. The backend does not publish a host port.
+- A Docker tool container checks certificate format, validity, hostname and key matching. Expiry within 30 days produces a warning; invalid material blocks deployment. Host OpenSSL is not required.
+- Private CA certificates are supported. Install the organization's trust chain on browsers and API clients. Deployment verification pins the validated leaf instead of requiring the tool container to trust the private CA.
+- Validated certificates are copied into `.deploy/tls`, mounted read-only as a whole directory. It contains private keys and the previous pair: restrict access, exclude it from Git and images, and retain it in a stable deployment directory. Do not edit the installed pair manually.
+
+To update certificates only, replace the configured source files, then run:
+
+```bash
+./deploy.sh --reload-certs
+# Windows PowerShell:
+./deploy.ps1 -ReloadCerts
+```
+
+Updates share the deployment lock, back up and install the pair, run `nginx -t`, then `nginx -s reload`. New TLS connections must return the expected fingerprint and hostname within 30 seconds. Failure restores the previous pair, verifies recovery, and returns a nonzero status. This operation does not enable maintenance, restart containers, or rebuild the application; old workers finish existing requests. Full application releases may still require a maintenance window.
+
+### 2. Automated certificates: Traefik + Let's Encrypt
+
+```ini
+DOMAIN=ecosignal.example.org
+ENABLE_HTTPS=true
+HTTPS_MODE=letsencrypt
+EMAIL=admin@example.org
+BACKEND_CORS_ORIGINS="https://ecosignal.example.org"
+```
+
+Traefik publishes ports 80/443 and terminates HTTPS before forwarding to frontend Nginx. Both frontend and API use `https://ecosignal.example.org`. TLS-ALPN-01 requires public port 443 to reach Traefik directly; port 80 serves HTTP redirects. Allow outbound ACME access and avoid upstream proxies intercepting the TLS challenge. Traefik persists ACME accounts/certificates and renews automatically; do not use `--reload-certs` for this mode.
+
+Initial issuance waits up to 180 seconds. Failure reports diagnostics instead of deployment success. Test with `ACME_CA_SERVER=https://acme-staging-v02.api.letsencrypt.org/directory` using a separate Compose project and certificate volume, never production ACME data. Test roots are not trusted by ordinary clients. Restore the default production directory for deployment; do not bypass production trust verification.
+
+### 3. HTTP: internal access or an external HTTPS gateway
+
+```ini
+DOMAIN=ecosignal.example.org
+ENABLE_HTTPS=false
+FRONTEND_PORT=80
+BACKEND_CORS_ORIGINS="http://ecosignal.example.org"
+```
+
+Nginx serves `http://DOMAIN:FRONTEND_PORT`. When an external gateway terminates TLS, configure CORS for the browser's actual origin and have the trusted gateway set `X-Forwarded-Proto`.
+
+### Mode changes and verification
+
+- Switch modes in a maintenance window. Before handing over ports, the script checks Traefik's deployment directory and stack ownership. It stops only the matching entrypoint and retains ACME volumes; ambiguous ownership blocks the operation. Do not share this entrypoint instance between projects.
+- `--dry-run` / `-DryRun` resolves application, entrypoint and maintenance configuration and validates static source certificates. It may build a tool image and run temporary validation containers, but does not start the application or replace installed certificates.
+- Deployment verifies ingress TLS before ending maintenance, then checks the homepage and API health endpoint. Failure retains or restores maintenance. Checks originate in the ingress container network with correct SNI; also verify public DNS, firewall rules and client CA trust from an external client.
+
+### Deployment regression tests
+
+Run `./scripts/test-tls.sh` for validation, script failure handling and Nginx reload tests; `./scripts/test-tls.sh --integration` also builds the production frontend and tests isolated HTTP/static/ACME stacks, including issuance and renewal against Pebble, a local ACME test CA. Test stacks use unique names, no published host ports, and separate disposable certificate volumes. `./scripts/test-tls.sh --powershell` runs the same command tests through Bash and PowerShell 7 in a Linux container; native Windows Docker Desktop path/ACL behavior still requires host validation.
+
+The self-hosted Actions checkout preserves `.deploy` so active directory mounts, certificate backups and deployment locks survive code updates. Keep the checkout path stable. Source keys remain outside the checkout.
 
 ## Deploy and verify
 
@@ -51,7 +118,7 @@ The default production result is `production 1800`. Use `--force-unlock` only af
 
 Staging runs on pushes to `main`; production runs when a release is published. Configure `SECRET_KEY`, `FIRST_SUPERUSER`, `FIRST_SUPERUSER_PASSWORD`, `POSTGRES_PASSWORD`, `REDIS_PASSWORD`, and `RABBITMQ_ERLANG_COOKIE` as environment secrets, plus `SENTRY_DSN` when enabled.
 
-Set optional values such as `DOMAIN`, `FRONTEND_PORT`, `STACK_NAME`, `BACKEND_CORS_ORIGINS`, and `AUTH_SESSION_IDLE_EXPIRE_MINUTES` separately in the staging and production environments. Do not define `ENVIRONMENT` as a GitHub variable. Install a self-hosted runner with the appropriate environment label.
+Set optional values such as `DOMAIN`, `ENABLE_HTTPS`, `HTTPS_MODE`, `TLS_CERT_FILE`, `TLS_KEY_FILE`, `FRONTEND_PORT`, `STACK_NAME`, `BACKEND_CORS_ORIGINS`, and `AUTH_SESSION_IDLE_EXPIRE_MINUTES` separately in the staging and production environments. Do not define `ENVIRONMENT` as a GitHub variable. Install a self-hosted runner with the appropriate environment label.
 
 ## Migrate data
 
@@ -113,7 +180,7 @@ Optional GitHub variables include:
 | Variable | Default or meaning |
 | --- | --- |
 | `DOMAIN` | No default; deployment domain |
-| `FRONTEND_PORT` | `80`; frontend host port |
+| `FRONTEND_PORT` | `80` for HTTP; HTTPS overrides the public origin port to `443` |
 | `STACK_NAME` | Compose project name |
 | `BACKEND_CORS_ORIGINS` | No default; allowed backend origins |
 | `AUTH_SESSION_IDLE_EXPIRE_MINUTES` | `30` in staging/production; `0` disables expiry |
@@ -121,6 +188,10 @@ Optional GitHub variables include:
 | `POSTGRES_USER` / `POSTGRES_DB` | `postgres` / `ecosignal` |
 | `DOCKER_IMAGE_BACKEND` / `DOCKER_IMAGE_FRONTEND` | `backend` / `frontend` |
 | `MEDIA_STORAGE_MODE` | `managed`; use `direct-mount` only when source media remains mounted |
+| `ENABLE_HTTPS` | `false` in the example; Actions defaults to `true` |
+| `ACME_CA_SERVER` | Production Let's Encrypt directory by default; isolate test CA data |
+| `HTTPS_MODE` | `letsencrypt`; set `static` for Bring-Your-Own-Certificate HTTPS |
+| `TLS_CERT_FILE` / `TLS_KEY_FILE` | Host paths to static TLS certificate and private key |
 | `LEGACY_PROJECT_DIR` | `./ecoSound-web`; source media path |
 | `LEGACY_APP_URL` / `LEGACY_HOST_URL` | Source public URL / federation hub |
 | `GEO_DB_READY_URL` / `GEO_DB_XR_SEED_URL` | Bundled geographical-data defaults |

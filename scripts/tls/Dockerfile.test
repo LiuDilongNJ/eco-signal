@@ -1,0 +1,3 @@
+FROM ecosignal-tls-tools:local
+RUN apk add --no-cache nginx bash docker-cli docker-cli-compose && pip install --no-cache-dir pytest pytest-cov cryptography
+ENTRYPOINT ["python", "-m", "pytest"]

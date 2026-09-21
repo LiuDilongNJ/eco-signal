@@ -59,11 +59,30 @@ class InsectAnalyzer:
         return self._version
 
     def _resolve_model_path(self) -> str:
-        """Resolve the local model directory path."""
+        """Resolve the local model directory path, automatically preparing it if missing."""
         for candidate in CACHED_MODEL_PATHS:
             if candidate.is_dir() and (candidate / "model.yaml").is_file():
                 return str(candidate)
-        return str(CACHED_MODEL_PATHS[0])
+
+        target_dir = CACHED_MODEL_PATHS[0]
+        try:
+            from scripts.setup_insects_model import check_insects_files, prepare_insects_model
+
+            logger.info("Insects model files not found, attempting on-demand preparation in %s", target_dir)
+            prepare_insects_model(target_dir)
+            if check_insects_files(target_dir):
+                return str(target_dir)
+        except Exception as exc:
+            logger.warning("Failed to automatically prepare insects model: %s", exc)
+
+        for candidate in CACHED_MODEL_PATHS:
+            if candidate.is_dir() and (candidate / "model.yaml").is_file():
+                return str(candidate)
+
+        raise RuntimeError(
+            f"Insects model files are missing from '{target_dir}' and automatic preparation failed. "
+            "Ensure the server has internet connectivity to Hugging Face or run 'python /app/scripts/setup_insects_model.py' manually."
+        )
 
     def _get_inference(
         self,

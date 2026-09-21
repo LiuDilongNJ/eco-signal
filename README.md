@@ -119,7 +119,9 @@ Backend tests use a separate `ecosignal_test` database in the same PostgreSQL in
 
 ## Production note
 
-`docker compose watch` and the local `docker compose up` commands are for development only. For public deployment, migration, backup, recovery, HTTPS, and GitHub Actions configuration, use the [Operations Guide](docs/operations-guide.md).
+`docker compose watch` and the local `docker compose up` commands are for development only. For public deployment, migration, backup, recovery, HTTPS (automated Let's Encrypt or Bring-Your-Own-Certificate), and GitHub Actions configuration, use the [Operations Guide](docs/operations-guide.md).
+
+Certificate deployment uses one domain: own certificates terminate at Nginx with `./deploy.sh --reload-certs` hot reload; automated certificates use Traefik and Let's Encrypt. See the [operations guide](docs/operations-guide.md#configure-custom-domains-and-https).
 
 ## Documentation
 

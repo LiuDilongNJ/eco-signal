@@ -117,9 +117,6 @@ services:
     build:
       context: ./frontend
       target: development
-      args:
-        - VITE_API_BASE_URL=/api
-        - NODE_ENV=development
     environment:
       - VITE_API_PROXY_TARGET=http://backend:8000
       - VITE_CARTO_BASEMAP_KEY=${VITE_CARTO_BASEMAP_KEY:-}
