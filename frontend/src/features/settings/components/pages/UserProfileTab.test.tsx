@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import type { ReactNode } from "react"
+import { MemoryRouter } from "react-router-dom"
 import { beforeAll, describe, expect, it, vi } from "vitest"
 
 import { UserProfileTab } from "./UserProfileTab"
@@ -43,9 +44,17 @@ beforeAll(() => {
     })
 })
 
+function renderProfile(initialEntry = "/settings?tab=profile") {
+    return render(
+        <MemoryRouter initialEntries={[initialEntry]}>
+            <UserProfileTab />
+        </MemoryRouter>,
+    )
+}
+
 describe("UserProfileTab labels", () => {
     it("does not show required markers on profile and password labels", async () => {
-        const { container } = render(<UserProfileTab />)
+        const { container } = renderProfile()
 
         await screen.findByDisplayValue("Ada")
         expect(container.querySelector('label[for="prof-name"]')).toHaveTextContent("Name")
@@ -66,6 +75,14 @@ describe("UserProfileTab labels", () => {
             expect(labels[1]).toHaveTextContent("New Password")
             expect(labels[0]).not.toHaveTextContent("Current Password*")
             expect(labels[1]).not.toHaveTextContent("New Password*")
+        })
+    })
+
+    it("opens the change-password modal when changePassword=1 is present", async () => {
+        renderProfile("/settings?tab=profile&changePassword=1")
+        await screen.findByDisplayValue("Ada")
+        await waitFor(() => {
+            expect(document.querySelectorAll(".settings-form-modal-field-label")).toHaveLength(2)
         })
     })
 })

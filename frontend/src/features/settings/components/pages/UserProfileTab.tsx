@@ -2,6 +2,7 @@ import { Input as ESInput, Button as ESButton, Label } from "@/components/ui"
 import { CustomScrollArea } from "@/components/ui"
 import { LoadingState } from "@/components/ui"
 import { useState, useEffect } from "react"
+import { useSearchParams } from "react-router-dom"
 import { message, Modal, Input } from "@/components/ui"
 import { usersApi, UserPublic } from "../../../../api/endpoints/users"
 import {
@@ -18,6 +19,7 @@ type ProfileField = "name" | "email" | "orcid" | "color"
 type PasswordField = "current_password" | "new_password"
 
 export function UserProfileTab() {
+    const [searchParams, setSearchParams] = useSearchParams()
     const [user, setUser] = useState<UserPublic | null>(null)
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
@@ -60,6 +62,14 @@ export function UserProfileTab() {
     useEffect(() => {
         fetchUser()
     }, [])
+
+    useEffect(() => {
+        if (searchParams.get("changePassword") !== "1") return
+        setIsPasswordModalOpen(true)
+        const next = new URLSearchParams(searchParams)
+        next.delete("changePassword")
+        setSearchParams(next, { replace: true })
+    }, [searchParams, setSearchParams])
 
     const validateProfile = (): boolean => {
         const nextErrors: Partial<Record<ProfileField, string>> = {}

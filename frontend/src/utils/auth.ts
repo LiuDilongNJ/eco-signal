@@ -1,6 +1,29 @@
 /** 未登录或登出后的落地页（与路由 `/` 一致；`/index` 仍为同一首页） */
 export const AUTH_LANDING_PATH = "/"
+/** W3C change-password well-known URL → Settings Profile + open modal */
+export const CHANGE_PASSWORD_WELL_KNOWN_PATH = "/.well-known/change-password"
+export const CHANGE_PASSWORD_APP_PATH = "/settings?tab=profile&changePassword=1"
 const AUTH_API_PREFIX = "/api/v1"
+const AUTH_NEXT_QUERY_KEY = "next"
+
+/** Only allow same-origin relative paths (block protocol-relative and external URLs). */
+export function parseSafeInternalNextPath(raw: string | null | undefined): string | null {
+    if (raw == null) return null
+    const value = raw.trim()
+    if (!value.startsWith("/") || value.startsWith("//")) return null
+    if (value.includes("://")) return null
+    return value
+}
+
+export function buildAuthLandingWithNext(nextPath: string): string {
+    const safe = parseSafeInternalNextPath(nextPath) ?? nextPath
+    return `${AUTH_LANDING_PATH}?${AUTH_NEXT_QUERY_KEY}=${encodeURIComponent(safe)}`
+}
+
+export function readAuthNextFromSearch(search: string): string | null {
+    const params = new URLSearchParams(search.startsWith("?") ? search.slice(1) : search)
+    return parseSafeInternalNextPath(params.get(AUTH_NEXT_QUERY_KEY))
+}
 
 /** 登录/登出后通知各页面刷新列表（如项目下拉选项） */
 export function dispatchAuthChange() {

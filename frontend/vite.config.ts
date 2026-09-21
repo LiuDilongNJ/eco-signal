@@ -5,7 +5,25 @@ import { defineConfig } from "vite"
 
 // https://vite.dev/config/
 export default defineConfig({
-    plugins: [react(), tailwindcss()],
+    plugins: [
+        {
+            name: "eco-change-password-well-known",
+            configureServer(server) {
+                server.middlewares.use((req, res, next) => {
+                    const pathOnly = req.url?.split("?", 1)[0]
+                    if (pathOnly === "/.well-known/change-password") {
+                        res.statusCode = 302
+                        res.setHeader("Location", "/settings?tab=profile&changePassword=1")
+                        res.end()
+                        return
+                    }
+                    next()
+                })
+            },
+        },
+        react(),
+        tailwindcss(),
+    ],
     resolve: {
         alias: {
             "@": path.resolve(__dirname, "./src"),

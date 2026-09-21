@@ -1,6 +1,6 @@
 import { Button as ESButton, EmptyState, Input as ESInput } from "@/components/ui"
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Swiper, SwiperSlide } from 'swiper/react';
 import { Mousewheel, EffectFade } from 'swiper/modules';
 import { MapContainer, TileLayer, Marker, useMap } from 'react-leaflet';
@@ -17,7 +17,7 @@ import 'swiper/css/thumbs';
 import 'swiper/css/effect-fade';
 import 'leaflet/dist/leaflet.css';
 import '../styles/HomePage.css';
-import { authUtils, logoutAndRedirectToIndex } from '@/utils/auth';
+import { authUtils, logoutAndRedirectToIndex, readAuthNextFromSearch } from '@/utils/auth';
 import { LoginModal } from '@/components/ui';
 import { projectsApi } from '@/api/endpoints/projects';
 import type { NetworkNodePublic } from '@/api/endpoints/network';
@@ -245,6 +245,8 @@ const PremiumIcon = (name: string, isSelected: boolean, isLocal: boolean) => L.d
 
 export default function HomePage() {
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
+    const authNextPath = useMemo(() => readAuthNextFromSearch(searchParams.toString()), [searchParams]);
     const selectProject = useProjectStore((s) => s.selectProject);
     const currentProjectId = useProjectStore((s) => s.currentProjectId);
     const mainSwiperRef = useRef<any>(null);
@@ -266,6 +268,15 @@ export default function HomePage() {
     });
     const wasLoggedInRef = useRef(Boolean(loggedInUser));
     const [showUserMenu, setShowUserMenu] = useState(false);
+
+    useEffect(() => {
+        if (!authNextPath) return
+        if (authUtils.hasToken()) {
+            navigate(authNextPath, { replace: true })
+            return
+        }
+        setShowLogin(true)
+    }, [authNextPath, navigate])
 
     // Cookie Banner
 
@@ -693,6 +704,9 @@ export default function HomePage() {
                 onSuccess={(username) => {
                     setLoggedInUser(username);
                     void loadCards();
+                    if (authNextPath) {
+                        navigate(authNextPath, { replace: true })
+                    }
                 }}
             />
 

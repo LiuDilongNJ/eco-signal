@@ -7,15 +7,21 @@
  */
 
 import { useEffect, useState, type ReactNode } from "react"
-import { Navigate, Routes, Route } from "react-router-dom"
+import { Navigate, Routes, Route, useLocation } from "react-router-dom"
 import ProjectPage from "@/features/project/pages/ProjectPage"
 import HomePage from "@/features/home/pages/HomePage"
 import PrivacyPolicyPage from "@/features/home/pages/PrivacyPolicyPage"
 import SettingsPage from "@/features/settings/pages/SettingsPage"
 import NotFoundPage from "@/features/errors/pages/NotFoundPage"
-import { AUTH_LANDING_PATH, authUtils } from "@/utils/auth"
+import {
+    CHANGE_PASSWORD_APP_PATH,
+    CHANGE_PASSWORD_WELL_KNOWN_PATH,
+    buildAuthLandingWithNext,
+    authUtils,
+} from "@/utils/auth"
 
 function RequireAuth({ children }: { children: ReactNode }) {
+    const location = useLocation()
     const [hasToken, setHasToken] = useState(() => authUtils.hasToken())
 
     useEffect(() => {
@@ -29,7 +35,8 @@ function RequireAuth({ children }: { children: ReactNode }) {
     }, [])
 
     if (!hasToken) {
-        return <Navigate to={AUTH_LANDING_PATH} replace />
+        const next = `${location.pathname}${location.search}`
+        return <Navigate to={buildAuthLandingWithNext(next)} replace />
     }
 
     return <>{children}</>
@@ -47,6 +54,12 @@ export function AppRouter() {
             <Route path="/" element={<HomePage />} />
             <Route path="/index" element={<HomePage />} />
             <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
+
+            {/* Password-manager well-known URL (SPA fallback when nginx/vite did not redirect) */}
+            <Route
+                path={CHANGE_PASSWORD_WELL_KNOWN_PATH}
+                element={<Navigate to={CHANGE_PASSWORD_APP_PATH} replace />}
+            />
 
             {/* 设置页 */}
             <Route

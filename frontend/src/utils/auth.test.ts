@@ -5,7 +5,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import {
     AUTH_LOGIN_REQUIRED_EVENT,
     authUtils,
+    buildAuthLandingWithNext,
     dispatchLoginRequired,
+    parseSafeInternalNextPath,
+    readAuthNextFromSearch,
     resetLoginRequiredDispatch,
 } from "./auth"
 
@@ -112,5 +115,22 @@ describe("authUtils.clearAuth idempotency", () => {
         authUtils.clearAuth()
 
         expect(authUtils.getSessionVersion()).toBeNull()
+    })
+})
+
+describe("auth next-path helpers", () => {
+    it("accepts same-origin relative paths only", () => {
+        expect(parseSafeInternalNextPath("/settings?tab=profile&changePassword=1")).toBe(
+            "/settings?tab=profile&changePassword=1",
+        )
+        expect(parseSafeInternalNextPath("//evil.example")).toBeNull()
+        expect(parseSafeInternalNextPath("https://evil.example/")).toBeNull()
+        expect(parseSafeInternalNextPath("settings")).toBeNull()
+    })
+
+    it("builds and reads landing next query values", () => {
+        const landing = buildAuthLandingWithNext("/settings?tab=profile&changePassword=1")
+        expect(landing).toBe("/?next=%2Fsettings%3Ftab%3Dprofile%26changePassword%3D1")
+        expect(readAuthNextFromSearch(landing.slice(1))).toBe("/settings?tab=profile&changePassword=1")
     })
 })

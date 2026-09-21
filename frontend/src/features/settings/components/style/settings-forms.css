@@ -416,6 +416,10 @@
 }
 
 /* Ant Design modal + password fields */
+.settings-form-modal-root .ant-modal-close {
+    border-radius: 50% !important;
+}
+
 .settings-form-modal-fields {
     display: flex;
     flex-direction: column;
