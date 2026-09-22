@@ -505,7 +505,7 @@ export function PhotoMediaDrawer(props: PhotoMediaDrawerProps) {
                                                 icon={<UploadIcon size={16} />}
                                                 onClick={props.onAddFiles}
                                             >
-                                                Upload
+                                                Add more
                                             </Button>
                                         </div>
                                     </div>

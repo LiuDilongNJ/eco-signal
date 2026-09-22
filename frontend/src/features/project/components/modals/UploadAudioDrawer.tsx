@@ -304,7 +304,7 @@ export function UploadAudioDrawer({ open, initialFiles = [], siteOptions = [], l
                                     icon={<Upload size={16} />}
                                     disabled={!onAddMoreFiles}
                                 >
-                                    Upload
+                                    Add more
                                 </Button>
                             </div>
                         </div>
