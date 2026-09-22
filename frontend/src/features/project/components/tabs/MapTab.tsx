@@ -50,6 +50,8 @@ interface Site {
     biome: string
     functional_type: string
     center: [number, number]
+    /** True when the site has manual GPS coordinates (not just a region centroid). */
+    hasCoordinates: boolean
     polygon: [number, number][]
     ihoPolygons: [number, number][][]
     mediaCount: number
@@ -209,16 +211,28 @@ function mapMarkerToSite(
     const g = (m.geometry ?? {}) as Record<string, unknown>
     const location = g?.location as GeoLocationBlock
     const locationIho = g?.location_iho as GeoLocationBlock
+    const pointSource = (g?.point_source as string | null | undefined) ?? null
+    const hasCoordinates =
+        pointSource === "coordinates" ||
+        (typeof m.latitude === "number" &&
+            typeof m.longitude === "number" &&
+            !Number.isNaN(m.latitude) &&
+            !Number.isNaN(m.longitude))
 
     // 1. 中心点：仅使用 geometry.point（不再做兼容回退）
     const [lat, lng] = geometryPointLatLng(g ?? undefined) ?? [0, 0]
 
-    // 2. 选中区域：优先使用 geometry.location.coordinates
-    const clickPolygon = location?.coordinates ? (extractGeoJsonOuterRing(location.coordinates) ? lngLatRingToLeaflet(extractGeoJsonOuterRing(location.coordinates)!) : []) : []
+    // 2. 选中区域：仅无人工坐标时展示 GADM / IHO 区域
+    const clickPolygon =
+        !hasCoordinates && location?.coordinates
+            ? extractGeoJsonOuterRing(location.coordinates)
+                ? lngLatRingToLeaflet(extractGeoJsonOuterRing(location.coordinates)!)
+                : []
+            : []
 
     // 3. IHO 区域：优先使用 geometry.location_iho，备选使用 geometry.iho
     const rawIho = locationIho?.coordinates ?? (g as any)?.iho?.coordinates ?? (g as any)?.location_iho?.coordinates
-    const ihoPolygons = rawIho ? geometryToLeafletAllRings(rawIho) : []
+    const ihoPolygons = !hasCoordinates && rawIho ? geometryToLeafletAllRings(rawIho) : []
 
     return {
         id: String(m.site_id),
@@ -232,6 +246,7 @@ function mapMarkerToSite(
                 ? (lookups.functionalTypeById.get(m.functional_type_id) ?? `Group #${m.functional_type_id}`)
                 : "-",
         center: [lat, lng],
+        hasCoordinates,
         polygon: clickPolygon,
         ihoPolygons,
         mediaCount: m.media_count ?? 0,
@@ -330,23 +345,103 @@ function createClusterProportionalIcon(
 
 type MarkerWithSite = L.Marker & { __site?: Site }
 
-/** 点击单个站点标点（无更下层聚合）时，将视图移到该站点围栏，并返回目标缩放级别 */
+/** Collect GADM + IHO rings so region sites can fit the full area. */
+function siteRegionLatLngs(site: Site): [number, number][] {
+    const points: [number, number][] = []
+    if (site.polygon.length >= 3) points.push(...site.polygon)
+    for (const ring of site.ihoPolygons) {
+        if (ring.length >= 3) points.push(...ring)
+    }
+    return points
+}
+
+function siteRegionBounds(site: Site): L.LatLngBounds | null {
+    const points = siteRegionLatLngs(site)
+    if (points.length < 3) return null
+    const bounds = L.latLngBounds(points)
+    return bounds.isValid() ? bounds : null
+}
+
+function panMapClearOfSiteSidebar(map: L.Map): void {
+    const panel = document.querySelector<HTMLElement>(".site-sidebar-panel.visible")
+    if (!panel) return
+    const mapWidth = map.getSize().x
+    const panelWidth = panel.getBoundingClientRect().width
+    const offset = Math.min(
+        mapWidth * 0.25,
+        panelWidth / 2 + MAP_SELECTION_PANEL_GAP_PX,
+    )
+    if (offset > 0) map.panBy([-offset, 0], { duration: 0.25 })
+}
+
+/** 点击单个站点标点时，将视图移到该站点（有区域则完整框住区域），并返回目标缩放级别 */
 function fitMapToSiteFence(map: L.Map, site: Site): number {
+    map.once("moveend", () => panMapClearOfSiteSidebar(map))
+
+    // Region-only sites: fit the full GADM / IHO polygon so the area is visible.
+    if (!site.hasCoordinates) {
+        const bounds = siteRegionBounds(site)
+        if (bounds) {
+            const padding: [number, number] = [48, 48]
+            const targetZoom = Math.min(
+                map.getBoundsZoom(bounds, false, padding),
+                MAP_FIT_ALL_MAX_ZOOM,
+            )
+            map.fitBounds(bounds, {
+                padding,
+                maxZoom: MAP_FIT_ALL_MAX_ZOOM,
+                animate: true,
+                duration: 0.75,
+            })
+            return targetZoom
+        }
+    }
+
     const targetZoom = Math.max(map.getZoom(), MAP_SITE_NO_FENCE_MIN_ZOOM)
-    // 详情侧栏覆盖在地图上方，飞到中心后再向左平移，避免选中点落在侧栏下面。
-    map.once("moveend", () => {
-        const panel = document.querySelector<HTMLElement>(".site-sidebar-panel.visible")
-        if (!panel) return
-        const mapWidth = map.getSize().x
-        const panelWidth = panel.getBoundingClientRect().width
-        const offset = Math.min(
-            mapWidth * 0.25,
-            panelWidth / 2 + MAP_SELECTION_PANEL_GAP_PX,
-        )
-        if (offset > 0) map.panBy([-offset, 0], { duration: 0.25 })
-    })
     map.flyTo(site.center, targetZoom, { duration: 0.75 })
     return targetZoom
+}
+
+/** After geometries load for a region site, refit so the full area is in view. */
+function FitSelectedRegionWhenReady({
+    site,
+    onSelectionZoomChange,
+    lastSelectionTimeRef,
+}: {
+    site: Site | null
+    onSelectionZoomChange: (zoom: number | null) => void
+    lastSelectionTimeRef: React.MutableRefObject<number>
+}) {
+    const map = useMap()
+    const trackedSiteIdRef = useRef<string | null>(null)
+    const prevPointCountRef = useRef(0)
+
+    useEffect(() => {
+        if (!site || site.hasCoordinates) {
+            trackedSiteIdRef.current = null
+            prevPointCountRef.current = 0
+            return
+        }
+
+        const pointCount = siteRegionLatLngs(site).length
+        if (trackedSiteIdRef.current !== site.id) {
+            // New selection: seed with current geometry. Click handler already fitted
+            // if rings were cached; only refit when rings arrive later.
+            trackedSiteIdRef.current = site.id
+            prevPointCountRef.current = pointCount
+            return
+        }
+
+        const hadRegion = prevPointCountRef.current >= 3
+        prevPointCountRef.current = pointCount
+        if (hadRegion || pointCount < 3) return
+
+        lastSelectionTimeRef.current = Date.now()
+        const targetZoom = fitMapToSiteFence(map, site)
+        onSelectionZoomChange(targetZoom)
+    }, [site, map, onSelectionZoomChange, lastSelectionTimeRef])
+
+    return null
 }
 
 /** Leaflet.markercluster：近距站点合并为聚合圆，点击可展开 / 放大 */
@@ -494,7 +589,8 @@ function ClusteredSiteMarkers({
 }
 
 function SiteSelectionPolygon({ site }: { site: Site | null }) {
-    if (!site) return null
+    // Coordinate sites show only the marker; region polygons are for admin-region sites.
+    if (!site || site.hasCoordinates) return null
     if (!site.polygon || site.polygon.length < 3) return null
     const color = getRealmColor(site.realm)
     return (
@@ -533,13 +629,14 @@ function SiteRegionPolygons({
         }
     }, [map])
 
-    // 仅当选中「单个站点 marker」时才显示区域背景（聚合点击/缩放不显示）
+    // 仅当选中「单个无坐标站点」时才显示区域背景（有坐标只显示点）
     if (!selectedSiteId) return null
 
     return (
         <>
             {sites
                 .filter((site) => site.id === selectedSiteId)
+                .filter((site) => !site.hasCoordinates)
                 .filter((site) => site.polygon.length >= 3)
                 .map((site) => {
                     const color = getRealmColor(site.realm)
@@ -563,7 +660,7 @@ function SiteRegionPolygons({
 }
 
 function SiteIhoPolygons({ site }: { site: Site | null }) {
-    if (!site) return null
+    if (!site || site.hasCoordinates) return null
     const color = getRealmColor(site.realm)
     return (
         <>
@@ -896,9 +993,18 @@ export function MapTab() {
                                 ? {
                                     ...marker,
                                     geometry: {
-                                        point: (geometryItem.geometry as any)?.point ?? marker.geometry?.point ?? null,
+                                        point:
+                                            (geometryItem.geometry as any)?.point ??
+                                            marker.geometry?.point ??
+                                            null,
+                                        // Keep list-endpoint source so coordinate sites stay point-only.
+                                        point_source:
+                                            marker.geometry?.point_source ??
+                                            (geometryItem.geometry as any)?.point_source ??
+                                            null,
                                         location: (geometryItem.geometry as any)?.location ?? null,
-                                        location_iho: (geometryItem.geometry as any)?.location_iho ?? null,
+                                        location_iho:
+                                            (geometryItem.geometry as any)?.location_iho ?? null,
                                     },
                                 }
                                 : marker,
@@ -1297,6 +1403,11 @@ export function MapTab() {
                         />
                         <SiteIhoPolygons site={selectedSite} />
                         <SiteSelectionPolygon site={selectedSite} />
+                        <FitSelectedRegionWhenReady
+                            site={selectedSite}
+                            onSelectionZoomChange={setSelectionZoom}
+                            lastSelectionTimeRef={lastMapSelectionTimeRef}
+                        />
                         <ClusteredSiteMarkers
                             sites={filteredSites}
                             selectedSite={selectedSite}
