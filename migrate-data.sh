@@ -159,13 +159,9 @@ done
 MEDIA_MODE="$(media_mode)"
 CURRENT_ENVIRONMENT="$(resolve_setting ENVIRONMENT local)"
 COMPOSE_PROJECT="$(normalize_project_name "$(resolve_setting STACK_NAME ecosignal)")"
-DOCKER_COMPOSE=(docker compose --project-name "$COMPOSE_PROJECT" -f docker-compose.yml)
-if [[ "$CURRENT_ENVIRONMENT" != "staging" && "$CURRENT_ENVIRONMENT" != "production" ]]; then
-    DOCKER_COMPOSE+=(-f docker-compose.override.yml)
-fi
-if [[ "$MEDIA_MODE" == "direct-mount" ]]; then
-    DOCKER_COMPOSE+=(-f docker-compose.media-direct.yml)
-fi
+# shellcheck source=scripts/migration-compose.sh
+source "${PROJECT_ROOT}/scripts/migration-compose.sh"
+configure_migration_compose "$CURRENT_ENVIRONMENT" "$COMPOSE_PROJECT" "$MEDIA_MODE"
 COMPOSE_DISPLAY="$(compose_display_command)"
 COMPOSE_DISPLAY="${COMPOSE_DISPLAY% }"
 
@@ -231,9 +227,9 @@ fi
 info "Detected environment: $CURRENT_ENVIRONMENT"
 info "Docker Compose project name: $COMPOSE_PROJECT"
 if [[ "$CURRENT_ENVIRONMENT" == "staging" || "$CURRENT_ENVIRONMENT" == "production" ]]; then
-    info "Using Docker Compose files: docker-compose.yml only"
+    info "Using Docker Compose files: docker-compose.yml with the production profile"
 else
-    info "Using Docker Compose files: default compose discovery"
+    info "Using Docker Compose files: docker-compose.yml and docker-compose.override.yml"
 fi
 [[ -d "$OLD_PROJECT_DIR" ]] || die "Directory not found: $OLD_PROJECT_DIR"
 [[ -f "$OLD_PROJECT_DIR/docker-compose.yml" ]] || die "Missing docker-compose.yml in old project"
@@ -295,6 +291,8 @@ DB_RUNNING=$("${DOCKER_COMPOSE[@]}" ps --status running --services 2>/dev/null |
 [[ "$DB_RUNNING" -gt 0 ]] || die "The db container is not running."
 success "ecoSignal backend and db are running."
 
+load_active_media_services || die "Unable to determine active media services."
+
 if [[ "$REPAIR_NETWORK_FEDERATION" == true ]]; then
     info "Repairing migrated federation settings only..."
     REPAIR_ARGS=(--repair-network-federation)
@@ -306,26 +304,6 @@ if [[ "$REPAIR_NETWORK_FEDERATION" == true ]]; then
     success "Federation repair finished."
     exit 0
 fi
-
-recreate_running_media_services() {
-    local service container_id
-    local services=()
-    for service in backend worker worker-analysis frontend; do
-        container_id=$("${DOCKER_COMPOSE[@]}" ps -q "$service" 2>/dev/null | head -n 1)
-        if [[ -n "$container_id" ]] && [[ "$(docker inspect --format '{{.State.Running}}' "$container_id")" == "true" ]]; then
-            services+=("$service")
-        fi
-    done
-
-    if [[ ${#services[@]} -eq 0 ]]; then
-        warn "No running media services need recreation. Future starts will use $MEDIA_MODE mode."
-        return 0
-    fi
-
-    info "Recreating media services for $MEDIA_MODE mode: ${services[*]}"
-    "${DOCKER_COMPOSE[@]}" up -d --force-recreate "${services[@]}"
-    success "Media services recreated for $MEDIA_MODE mode."
-}
 
 MYSQL_HOST="${MYSQL_HOST:-127.0.0.1}"
 MYSQL_PORT="${MYSQL_PORT:-$(parse_legacy_compose_port)}"
@@ -522,7 +500,7 @@ persist_media_storage_mode() {
 
 verify_managed_media_mounts() {
     local service container_id mounts
-    for service in backend worker worker-analysis frontend; do
+    for service in "${MIGRATION_ACTIVE_MEDIA_SERVICES[@]}"; do
         container_id=$("${DOCKER_COMPOSE[@]}" ps -q "$service" 2>/dev/null | head -n 1)
         [[ -n "$container_id" ]] || continue
         mounts=$(docker inspect --format '{{range .Mounts}}{{printf "%s %s\n" .Type .Destination}}{{end}}' "$container_id")
@@ -591,7 +569,7 @@ prepare_media_access() {
     fi
 
     require_full_legacy_media_tree "${MISSING_DIRS[@]-}"
-    recreate_running_media_services
+    recreate_running_media_services "$MEDIA_MODE"
     verify_direct_mount_access
     success "Direct-mount media verification completed."
 }
@@ -704,7 +682,7 @@ elif [[ "$COPY_FILES" == true ]]; then
     done
 
     persist_media_storage_mode managed
-    recreate_running_media_services
+    recreate_running_media_services "$MEDIA_MODE"
     verify_managed_media_mounts
     success "Static file migration completed and managed media storage is active."
 else
