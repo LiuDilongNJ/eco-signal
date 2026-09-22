@@ -95,7 +95,12 @@ class TaxonListItem(SQLModel):
 
 
 class TaxonCreate(SQLModel):
-    """Schema for creating a new taxon."""
+    """Schema for creating a new taxon.
+
+    COL path: provide at least one col_*_id (scientific name resolved from dictionary).
+    Custom path: provide cached_scientific_name with no COL ids (taxonomy_source becomes "custom").
+    """
+    cached_scientific_name: Optional[str] = None
     cached_common_name: Optional[str] = None
     col_species_id: Optional[str] = None
     col_genus_id: Optional[str] = None
@@ -107,6 +112,7 @@ class TaxonCreate(SQLModel):
 
 class TaxonUpdate(SQLModel):
     """Schema for updating an existing taxon; all fields optional."""
+    cached_scientific_name: Optional[str] = None
     cached_common_name: Optional[str] = None
     col_species_id: Optional[str] = None
     col_genus_id: Optional[str] = None

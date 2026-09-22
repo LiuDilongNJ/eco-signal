@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest"
 
 import {
+    customScientificNameRule,
     optionalOrcidRule,
     taxonHierarchyCreateRule,
+    validateCustomScientificName,
     validateOptionalOrcid,
     validateRequiredCoordRange,
     validateRequiredFederationUrl,
@@ -27,6 +29,34 @@ describe("taxon hierarchy validation", () => {
         const validate = rule.validator as (rule: unknown, value: unknown) => Promise<void>
 
         await expect(validate({}, undefined)).resolves.toBeUndefined()
+    })
+})
+
+describe("custom scientific name validation", () => {
+    it("requires a non-empty scientific name", () => {
+        expect(validateCustomScientificName("")).toBe("Scientific name is required")
+        expect(validateCustomScientificName("   ")).toBe("Scientific name is required")
+    })
+
+    it("accepts free-text names used for custom taxa", () => {
+        expect(validateCustomScientificName("Bat call type A")).toBeNull()
+        expect(validateCustomScientificName("Turdus merula/viscivora")).toBeNull()
+    })
+
+    it("rejects names longer than 200 characters", () => {
+        expect(validateCustomScientificName("x".repeat(201))).toBe(
+            "Scientific name must be at most 200 characters",
+        )
+    })
+
+    it("exposes a Form rule that mirrors validateCustomScientificName", async () => {
+        const validate = customScientificNameRule().validator as (
+            rule: unknown,
+            value: unknown,
+        ) => Promise<void>
+
+        await expect(validate({}, "Bat call type A")).resolves.toBeUndefined()
+        await expect(validate({}, "")).rejects.toThrow("Scientific name is required")
     })
 })
 

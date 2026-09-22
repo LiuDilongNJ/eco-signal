@@ -63,6 +63,7 @@ export interface TaxonListQueryParams {
 }
 
 export type TaxonCreateBody = {
+    cached_scientific_name?: string | null
     cached_common_name?: string | null
     col_species_id?: string | null
     col_genus_id?: string | null

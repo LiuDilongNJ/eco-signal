@@ -37,6 +37,22 @@ export function taxonHierarchyCreateRule(form: FormInstance): RuleObject {
     }
 }
 
+export function validateCustomScientificName(value: string): string | null {
+    const trimmed = value.trim()
+    if (!trimmed) return "Scientific name is required"
+    if (trimmed.length > 200) return "Scientific name must be at most 200 characters"
+    return null
+}
+
+export function customScientificNameRule(): RuleObject {
+    return {
+        validator: async (_, value) => {
+            const error = validateCustomScientificName(String(value ?? ""))
+            if (error) throw new Error(error)
+        },
+    }
+}
+
 export function validateRequiredEmail(email: string): string | null {
     const trimmed = email.trim()
     if (!trimmed) return "Email is required"

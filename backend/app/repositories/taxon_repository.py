@@ -626,6 +626,43 @@ class TaxonRepository:
         self._set_cached_option_page(cache_key, result, total)
         return result, total
 
+    def _local_name_match_clause(self, q: str | None):
+        if not q:
+            return None
+        search_term = f"%{q}%"
+        return or_(
+            Taxon.cached_scientific_name.ilike(search_term),
+            Taxon.cached_common_name.ilike(search_term),
+        )
+
+    def _count_local_custom(self, session: Session, q: str | None = None) -> int:
+        stmt = select(func.count()).select_from(Taxon).where(Taxon.taxonomy_source == "custom")
+        name_clause = self._local_name_match_clause(q)
+        if name_clause is not None:
+            stmt = stmt.where(name_clause)
+        return session.exec(stmt).one()
+
+    def _search_local(
+        self,
+        session: Session,
+        q: str | None = None,
+        limit: int = 10,
+        offset: int = 0,
+        *,
+        custom_only: bool = False,
+    ) -> list[Taxon]:
+        stmt = select(Taxon)
+        if custom_only:
+            stmt = stmt.where(Taxon.taxonomy_source == "custom")
+        name_clause = self._local_name_match_clause(q)
+        if name_clause is not None:
+            stmt = stmt.where(name_clause)
+        stmt = stmt.order_by(
+            Taxon.cached_scientific_name,
+            Taxon.taxon_id,
+        ).offset(offset).limit(limit)
+        return list(session.exec(stmt).all())
+
     def search(
         self,
         session: Session,
@@ -633,32 +670,53 @@ class TaxonRepository:
         limit: int = 10,
         offset: int = 0,
     ) -> list[Taxon] | list[dict[str, Any]]:
+        """Search local + remote COL dictionary.
+
+        Custom taxons live only in the local table, so they are merged into
+        remote suggestion pages; otherwise they would be invisible whenever the
+        XR dictionary is available.
+        """
         if self._remote_table_available(session):
             try:
-                remote_rows = self._rows_from_remote_search(
+                custom_count = self._count_local_custom(session, q=q)
+
+                if offset < custom_count:
+                    customs_page = self._search_local(
+                        session,
+                        q=q,
+                        limit=limit,
+                        offset=offset,
+                        custom_only=True,
+                    )
+                    remote_limit = max(0, limit - len(customs_page))
+                    remote_rows: list[dict[str, Any]] = []
+                    if remote_limit > 0:
+                        remote_rows = self._bridge_local_taxon_ids(
+                            session=session,
+                            rows=self._rows_from_remote_search(
+                                session=session,
+                                q=q,
+                                limit=remote_limit,
+                                offset=0,
+                            ),
+                        )
+                    return [*customs_page, *remote_rows]
+
+                remote_offset = offset - custom_count
+                remote_rows = self._bridge_local_taxon_ids(
                     session=session,
-                    q=q,
-                    limit=limit,
-                    offset=offset,
+                    rows=self._rows_from_remote_search(
+                        session=session,
+                        q=q,
+                        limit=limit,
+                        offset=remote_offset,
+                    ),
                 )
-                return self._bridge_local_taxon_ids(session=session, rows=remote_rows)
+                return remote_rows
             except SQLAlchemyError:
                 pass
 
-        stmt = select(Taxon)
-        if q:
-            search_term = f"%{q}%"
-            stmt = stmt.where(
-                or_(
-                    Taxon.cached_scientific_name.ilike(search_term),
-                    Taxon.cached_common_name.ilike(search_term),
-                )
-            )
-        stmt = stmt.order_by(
-            Taxon.cached_scientific_name,
-            Taxon.taxon_id,
-        ).offset(offset).limit(limit)
-        return list(session.exec(stmt).all())
+        return self._search_local(session, q=q, limit=limit, offset=offset)
 
     def get_all_sound_classifications(self, session: Session) -> list[SoundClassification]:
         stmt = select(SoundClassification).order_by(
@@ -1020,8 +1078,66 @@ class TaxonRepository:
             found.update(session.exec(stmt).all())
         return found
 
+    @staticmethod
+    def _normalize_scientific_name(value: str | None) -> str | None:
+        if value is None:
+            return None
+        trimmed = value.strip()
+        return trimmed or None
+
+    def has_custom_scientific_name(
+        self,
+        session: Session,
+        scientific_name: str,
+        exclude_id: int | None = None,
+    ) -> bool:
+        stmt = select(func.count()).select_from(Taxon).where(
+            Taxon.taxonomy_source == "custom",
+            func.lower(Taxon.cached_scientific_name) == scientific_name.casefold(),
+        )
+        if exclude_id is not None:
+            stmt = stmt.where(Taxon.taxon_id != exclude_id)
+        return session.exec(stmt).one() > 0
+
     def create(self, session: Session, data: TaxonCreate) -> Taxon:
         payload = data.model_dump()
+        has_col_id = any(
+            payload.get(field)
+            for field in (
+                "col_species_id",
+                "col_genus_id",
+                "col_family_id",
+                "col_order_id",
+                "col_class_id",
+            )
+        )
+        scientific_name = self._normalize_scientific_name(data.cached_scientific_name)
+        source = (data.taxonomy_source or "").strip()
+        wants_custom = source.casefold() == "custom" or (not has_col_id and scientific_name is not None)
+
+        if wants_custom and not has_col_id:
+            if not scientific_name:
+                raise RemoteTaxonLookupError(
+                    "cached_scientific_name is required for custom taxons",
+                    status_code=400,
+                )
+            if len(scientific_name) > 200:
+                raise RemoteTaxonLookupError(
+                    "cached_scientific_name must be at most 200 characters",
+                    status_code=400,
+                )
+            if self.has_custom_scientific_name(session, scientific_name):
+                raise RemoteTaxonLookupError("Taxon already exists", status_code=409)
+            taxon = Taxon(
+                cached_scientific_name=scientific_name,
+                cached_common_name=data.cached_common_name,
+                taxonomy_source="custom",
+            )
+            session.add(taxon)
+            session.commit()
+            session.refresh(taxon)
+            return taxon
+
         lowest_col_id = self._extract_lowest_col_id(payload)
         if self.has_lowest_col_id(session, lowest_col_id):
             raise RemoteTaxonLookupError("Taxon already exists", status_code=409)
@@ -1049,6 +1165,28 @@ class TaxonRepository:
                 raise RemoteTaxonLookupError("Taxon already exists", status_code=409)
             for field, value in self._build_taxon_values_from_lowest(session, lowest_col_id).items():
                 setattr(taxon, field, value)
+
+        if "cached_scientific_name" in changes:
+            scientific_name = self._normalize_scientific_name(changes.pop("cached_scientific_name"))
+            is_custom = (taxon.taxonomy_source or "").casefold() == "custom"
+            if is_custom:
+                if not scientific_name:
+                    raise RemoteTaxonLookupError(
+                        "cached_scientific_name is required for custom taxons",
+                        status_code=400,
+                    )
+                if len(scientific_name) > 200:
+                    raise RemoteTaxonLookupError(
+                        "cached_scientific_name must be at most 200 characters",
+                        status_code=400,
+                    )
+                if self.has_custom_scientific_name(
+                    session, scientific_name, exclude_id=taxon.taxon_id
+                ):
+                    raise RemoteTaxonLookupError("Taxon already exists", status_code=409)
+                taxon.cached_scientific_name = scientific_name
+            # COL taxons keep scientific name from the dictionary; ignore client edits.
+
         for field, value in changes.items():
             setattr(taxon, field, value)
         session.add(taxon)

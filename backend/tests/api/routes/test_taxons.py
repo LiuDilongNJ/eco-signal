@@ -1038,6 +1038,116 @@ class TestTaxonAdminAPI:
         assert data["lowest_col_id"] == "SP1"
         assert "lowest_rank" not in data
 
+    def test_create_custom_taxon_success(
+        self, client: TestClient, superuser_token_headers: dict, db: Session
+    ) -> None:
+        payload = {
+            "cached_scientific_name": "Bat call type A",
+            "cached_common_name": "Mystery bat",
+            "taxonomy_source": "custom",
+        }
+        r = client.post(self.BASE, headers=superuser_token_headers, json=payload)
+        assert r.status_code == 200
+        data = r.json()["data"]
+        assert data["cached_scientific_name"] == "Bat call type A"
+        assert data["cached_common_name"] == "Mystery bat"
+        assert data["taxonomy_source"] == "custom"
+        assert data["col_species_id"] is None
+        assert data["col_genus_id"] is None
+        assert data["col_family_id"] is None
+        assert data["col_order_id"] is None
+        assert data["col_class_id"] is None
+        assert data["lowest_col_id"] is None
+
+        stored = db.get(Taxon, data["taxon_id"])
+        assert stored is not None
+        assert stored.taxonomy_source == "custom"
+        assert stored.cached_scientific_name == "Bat call type A"
+
+    def test_create_custom_taxon_infers_custom_without_source(
+        self, client: TestClient, superuser_token_headers: dict
+    ) -> None:
+        r = client.post(
+            self.BASE,
+            headers=superuser_token_headers,
+            json={"cached_scientific_name": "Turdus merula/viscivora"},
+        )
+        assert r.status_code == 200
+        data = r.json()["data"]
+        assert data["cached_scientific_name"] == "Turdus merula/viscivora"
+        assert data["taxonomy_source"] == "custom"
+
+    def test_create_custom_taxon_rejects_duplicate_name(
+        self, client: TestClient, superuser_token_headers: dict, db: Session
+    ) -> None:
+        create_test_taxon(
+            db,
+            col_species_id=None,
+            cached_scientific_name="Bat call type A",
+            cached_common_name=None,
+            taxonomy_source="custom",
+        )
+        r = client.post(
+            self.BASE,
+            headers=superuser_token_headers,
+            json={
+                "cached_scientific_name": "bat call type a",
+                "taxonomy_source": "custom",
+            },
+        )
+        assert r.status_code == 409
+        assert r.json()["message"] == "Taxon already exists"
+
+    def test_create_custom_taxon_requires_scientific_name(
+        self, client: TestClient, superuser_token_headers: dict
+    ) -> None:
+        r = client.post(
+            self.BASE,
+            headers=superuser_token_headers,
+            json={"taxonomy_source": "custom"},
+        )
+        assert r.status_code == 400
+        assert "cached_scientific_name" in r.json()["message"]
+
+    def test_search_suggestions_includes_custom_taxon(
+        self, client: TestClient, db: Session
+    ) -> None:
+        create_test_taxon(
+            db,
+            col_species_id=None,
+            cached_scientific_name="Bat call type A",
+            cached_common_name="Mystery bat",
+            taxonomy_source="custom",
+        )
+        r = client.get(f"{settings.API_V1_STR}/taxons/suggestions?q=Bat call")
+        assert r.status_code == 200
+        names = [t["cached_scientific_name"] for t in r.json()["data"]]
+        assert "Bat call type A" in names
+
+    def test_update_custom_taxon_scientific_name(
+        self, client: TestClient, superuser_token_headers: dict, db: Session
+    ) -> None:
+        taxon = create_test_taxon(
+            db,
+            col_species_id=None,
+            cached_scientific_name="Old custom name",
+            cached_common_name="Alias",
+            taxonomy_source="custom",
+        )
+        r = client.put(
+            f"{self.BASE}/{taxon.taxon_id}",
+            headers=superuser_token_headers,
+            json={
+                "cached_scientific_name": "New custom name",
+                "cached_common_name": "Updated alias",
+            },
+        )
+        assert r.status_code == 200
+        data = r.json()["data"]
+        assert data["cached_scientific_name"] == "New custom name"
+        assert data["cached_common_name"] == "Updated alias"
+        assert data["taxonomy_source"] == "custom"
+
     def test_create_taxon_requires_admin(
         self, client: TestClient, normal_user_token_headers: dict
     ) -> None:

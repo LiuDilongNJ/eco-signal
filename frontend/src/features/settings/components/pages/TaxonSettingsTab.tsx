@@ -1,7 +1,7 @@
 import { CustomScrollArea } from "@/components/ui"
 import { useCallback, useMemo, useState } from "react"
 import type { ReactNode, UIEvent as ReactUIEvent } from "react"
-import { ConfigProvider, Form, Input, Select, message } from "@/components/ui"
+import { ConfigProvider, Form, Input, Radio, Select, message } from "@/components/ui"
 import { FormDrawer } from "@/components/ui"
 import { LoadingState } from "@/components/ui"
 
@@ -30,6 +30,7 @@ import "../style/settings-forms.css"
 import "../style/camera-settings.css"
 import {
     COL_HIERARCHY_FIELDS,
+    customScientificNameRule,
     renderRequiredLabel,
     taxonHierarchyCreateRule,
 } from "../../utils/formValidation"
@@ -123,7 +124,11 @@ function formatApiDate(d: string | null | undefined): string {
     return String(d).replace("T", " ").slice(0, 19)
 }
 
+type TaxonEntryMode = "col" | "custom"
+
 type TaxonFormValues = {
+    entry_mode?: TaxonEntryMode
+    cached_scientific_name?: string
     cached_common_name?: string
     col_species_id?: string
     col_genus_id?: string
@@ -133,7 +138,14 @@ type TaxonFormValues = {
     taxonomy_source?: string
 }
 
-function buildWriteBody(vals: TaxonFormValues): TaxonCreateBody {
+function buildWriteBody(vals: TaxonFormValues, entryMode: TaxonEntryMode): TaxonCreateBody {
+    if (entryMode === "custom") {
+        return {
+            cached_scientific_name: nullableTrimmedText(vals.cached_scientific_name),
+            cached_common_name: nullableTrimmedText(vals.cached_common_name),
+            taxonomy_source: "custom",
+        }
+    }
     return {
         cached_common_name: nullableTrimmedText(vals.cached_common_name),
         col_species_id: nullableTrimmedText(vals.col_species_id),
@@ -141,7 +153,7 @@ function buildWriteBody(vals: TaxonFormValues): TaxonCreateBody {
         col_family_id: nullableTrimmedText(vals.col_family_id),
         col_order_id: nullableTrimmedText(vals.col_order_id),
         col_class_id: nullableTrimmedText(vals.col_class_id),
-        taxonomy_source: nullableTrimmedText(vals.taxonomy_source),
+        taxonomy_source: nullableTrimmedText(vals.taxonomy_source) ?? "CatalogueOfLife-XR",
     }
 }
 
@@ -169,6 +181,7 @@ export function TaxonSettingsTab() {
 
     const [formOpen, setFormOpen] = useState(false)
     const [formMode, setFormMode] = useState<"create" | "edit">("create")
+    const [entryMode, setEntryMode] = useState<TaxonEntryMode>("col")
     const [editingId, setEditingId] = useState<number | null>(null)
     const [formSaving, setFormSaving] = useState(false)
     const csvImport = useSettingsCsvImport("taxons", taxonsApi.importCsv, () => tableState && handleTableChange(tableState))
@@ -179,10 +192,11 @@ export function TaxonSettingsTab() {
         () => taxonHierarchyCreateRule(form),
         [form],
     )
+    const scientificNameRule = useMemo(() => customScientificNameRule(), [])
 
     const colHierarchyItemProps = (label: ReactNode, validatesGroup = false) => ({
         label,
-        ...(validatesGroup
+        ...(validatesGroup && entryMode === "col"
             ? {
                 rules: [taxonHierarchyRule],
                 dependencies: [...COL_HIERARCHY_FIELDS],
@@ -316,12 +330,39 @@ export function TaxonSettingsTab() {
 
     const openCreate = () => {
         setFormMode("create")
+        setEntryMode("col")
         setEditingId(null)
         form.resetFields()
-        form.setFieldsValue({ taxonomy_source: "CatalogueOfLife-XR" })
+        form.setFieldsValue({
+            entry_mode: "col",
+            taxonomy_source: "CatalogueOfLife-XR",
+        })
         hierarchyOptions.resetAll()
         void hierarchyOptions.loadFirst("class")
         setFormOpen(true)
+    }
+
+    const handleEntryModeChange = (next: TaxonEntryMode) => {
+        setEntryMode(next)
+        form.setFieldsValue({ entry_mode: next })
+        if (next === "custom") {
+            form.setFieldsValue({
+                taxonomy_source: "custom",
+                col_class_id: undefined,
+                col_order_id: undefined,
+                col_family_id: undefined,
+                col_genus_id: undefined,
+                col_species_id: undefined,
+            })
+            hierarchyOptions.resetAll()
+            return
+        }
+        form.setFieldsValue({
+            taxonomy_source: "CatalogueOfLife-XR",
+            cached_scientific_name: undefined,
+        })
+        hierarchyOptions.resetAll()
+        void hierarchyOptions.loadFirst("class")
     }
 
     const handleEdit = async (selectedKeys: unknown[]) => {
@@ -342,7 +383,12 @@ export function TaxonSettingsTab() {
                 return
             }
             const t = res.data!
+            const isCustom = (t.taxonomy_source ?? "").trim().toLowerCase() === "custom"
+            const nextMode: TaxonEntryMode = isCustom ? "custom" : "col"
+            setEntryMode(nextMode)
             form.setFieldsValue({
+                entry_mode: nextMode,
+                cached_scientific_name: t.cached_scientific_name ?? "",
                 cached_common_name: t.cached_common_name ?? "",
                 col_species_id: t.col_species_id ?? "",
                 col_genus_id: t.col_genus_id ?? "",
@@ -351,6 +397,10 @@ export function TaxonSettingsTab() {
                 col_class_id: t.col_class_id ?? "",
                 taxonomy_source: t.taxonomy_source ?? "",
             })
+            if (isCustom) {
+                hierarchyOptions.resetAll()
+                return
+            }
             const selected = {
                 class: currentTaxonOption(t.col_class_id, t.col_class_name),
                 order: currentTaxonOption(t.col_order_id, t.col_order_name),
@@ -400,7 +450,7 @@ export function TaxonSettingsTab() {
         try {
             const vals = await form.validateFields()
             setFormSaving(true)
-            const payload = buildWriteBody(vals)
+            const payload = buildWriteBody(vals, entryMode)
             if (formMode === "create") {
                 const res = await taxonsApi.create(payload)
                 if (res.code !== 0 && res.code !== 200) {
@@ -539,147 +589,178 @@ export function TaxonSettingsTab() {
                                 requiredMark={false}
                                 className="shared-drawer-form"
                             >
-                                <Form.Item name="cached_common_name" label="Common name">
-                                    <Input />
-                                </Form.Item>
-                                <Form.Item name="taxonomy_source" label="Taxonomy source">
-                                    <Input />
-                                </Form.Item>
-                                <Form.Item name="col_class_id" {...colHierarchyItemProps(renderRequiredLabel("COL class"), true)}>
-                                    <Select
-                                        className="form-drawer-select"
-                                        classNames={{ popup: { root: "form-drawer-select-popup" } }}
-                                        allowClear
-                                        showSearch
-                                        loading={hierarchyOptions.states.class.loading}
-                                        options={toSelectOptions(hierarchyOptions.states.class.options)}
-                                        filterOption={false}
-                                        onSearch={(q) => hierarchyOptions.search("class", {}, q)}
-                                        onPopupScroll={(event) => handleOptionScroll("class", event)}
-                                        popupRender={(menu) => renderOptionsPopup("class", menu)}
-                                        onChange={(val: string | undefined) => {
-                                            rememberSelectedOption("class", val)
-                                            form.setFieldsValue({
-                                                col_order_id: undefined,
-                                                col_family_id: undefined,
-                                                col_genus_id: undefined,
-                                                col_species_id: undefined,
-                                            })
-                                            hierarchyOptions.resetRank("order")
-                                            hierarchyOptions.resetRank("family")
-                                            hierarchyOptions.resetRank("genus")
-                                            hierarchyOptions.resetRank("species")
-                                            if (val) {
-                                                void hierarchyOptions.loadFirst("order", { class_id: val })
-                                            }
-                                        }}
+                                <Form.Item name="entry_mode" label="Entry mode" initialValue="col">
+                                    <Radio.Group
+                                        disabled={formMode === "edit"}
+                                        onChange={(e) => handleEntryModeChange(e.target.value as TaxonEntryMode)}
+                                        options={[
+                                            { label: "Catalogue of Life", value: "col" },
+                                            { label: "Custom", value: "custom" },
+                                        ]}
                                     />
                                 </Form.Item>
-                                <Form.Item name="col_order_id" {...colHierarchyItemProps("COL order")}>
-                                    <Select
-                                        className="form-drawer-select"
-                                        classNames={{ popup: { root: "form-drawer-select-popup" } }}
-                                        allowClear
-                                        showSearch
-                                        loading={hierarchyOptions.states.order.loading}
-                                        options={toSelectOptions(hierarchyOptions.states.order.options)}
-                                        filterOption={false}
-                                        onSearch={(q) => {
-                                            const classId = form.getFieldValue("col_class_id") as string | undefined
-                                            hierarchyOptions.search("order", { class_id: classId ?? null }, q)
-                                        }}
-                                        onPopupScroll={(event) => handleOptionScroll("order", event)}
-                                        popupRender={(menu) => renderOptionsPopup("order", menu)}
-                                        onChange={(val: string | undefined) => {
-                                            rememberSelectedOption("order", val)
-                                            form.setFieldsValue({
-                                                col_family_id: undefined,
-                                                col_genus_id: undefined,
-                                                col_species_id: undefined,
-                                            })
-                                            hierarchyOptions.resetRank("family")
-                                            hierarchyOptions.resetRank("genus")
-                                            hierarchyOptions.resetRank("species")
-                                            if (val) {
-                                                void hierarchyOptions.loadFirst("family", { order_id: val })
-                                            }
-                                        }}
-                                    />
-                                </Form.Item>
-                                <Form.Item name="col_family_id" {...colHierarchyItemProps("COL family")}>
-                                    <Select
-                                        className="form-drawer-select"
-                                        classNames={{ popup: { root: "form-drawer-select-popup" } }}
-                                        allowClear
-                                        showSearch
-                                        loading={hierarchyOptions.states.family.loading}
-                                        options={toSelectOptions(hierarchyOptions.states.family.options)}
-                                        filterOption={false}
-                                        onSearch={(q) => {
-                                            const orderId = form.getFieldValue("col_order_id") as string | undefined
-                                            hierarchyOptions.search("family", { order_id: orderId ?? null }, q)
-                                        }}
-                                        onPopupScroll={(event) => handleOptionScroll("family", event)}
-                                        popupRender={(menu) => renderOptionsPopup("family", menu)}
-                                        onChange={(val: string | undefined) => {
-                                            rememberSelectedOption("family", val)
-                                            form.setFieldsValue({
-                                                col_genus_id: undefined,
-                                                col_species_id: undefined,
-                                            })
-                                            hierarchyOptions.resetRank("genus")
-                                            hierarchyOptions.resetRank("species")
-                                            if (val) {
-                                                void hierarchyOptions.loadFirst("genus", { family_id: val })
-                                            }
-                                        }}
-                                    />
-                                </Form.Item>
-                                <Form.Item name="col_genus_id" {...colHierarchyItemProps("COL genus")}>
-                                    <Select
-                                        className="form-drawer-select"
-                                        classNames={{ popup: { root: "form-drawer-select-popup" } }}
-                                        allowClear
-                                        showSearch
-                                        loading={hierarchyOptions.states.genus.loading}
-                                        options={toSelectOptions(hierarchyOptions.states.genus.options)}
-                                        filterOption={false}
-                                        onSearch={(q) => {
-                                            const familyId = form.getFieldValue("col_family_id") as string | undefined
-                                            hierarchyOptions.search("genus", { family_id: familyId ?? null }, q)
-                                        }}
-                                        onPopupScroll={(event) => handleOptionScroll("genus", event)}
-                                        popupRender={(menu) => renderOptionsPopup("genus", menu)}
-                                        onChange={(val: string | undefined) => {
-                                            rememberSelectedOption("genus", val)
-                                            form.setFieldsValue({ col_species_id: undefined })
-                                            hierarchyOptions.resetRank("species")
-                                            if (val) {
-                                                void hierarchyOptions.loadFirst("species", { genus_id: val })
-                                            }
-                                        }}
-                                    />
-                                </Form.Item>
-                                <Form.Item name="col_species_id" {...colHierarchyItemProps("COL species")}>
-                                    <Select
-                                        className="form-drawer-select"
-                                        classNames={{ popup: { root: "form-drawer-select-popup" } }}
-                                        allowClear
-                                        showSearch
-                                        loading={hierarchyOptions.states.species.loading}
-                                        options={toSelectOptions(hierarchyOptions.states.species.options)}
-                                        filterOption={false}
-                                        onSearch={(q) => {
-                                            const genusId = form.getFieldValue("col_genus_id") as string | undefined
-                                            hierarchyOptions.search("species", { genus_id: genusId ?? null }, q)
-                                        }}
-                                        onPopupScroll={(event) => handleOptionScroll("species", event)}
-                                        popupRender={(menu) => renderOptionsPopup("species", menu)}
-                                        onChange={(val: string | undefined) => {
-                                            rememberSelectedOption("species", val)
-                                        }}
-                                    />
-                                </Form.Item>
+                                {entryMode === "custom" ? (
+                                    <>
+                                        <Form.Item
+                                            name="cached_scientific_name"
+                                            label={renderRequiredLabel("Scientific name")}
+                                            rules={[scientificNameRule]}
+                                            validateTrigger={["onChange", "onBlur"]}
+                                        >
+                                            <Input placeholder="e.g. Bat call type A" />
+                                        </Form.Item>
+                                        <Form.Item name="cached_common_name" label="Common name">
+                                            <Input />
+                                        </Form.Item>
+                                        <Form.Item name="taxonomy_source" hidden>
+                                            <Input />
+                                        </Form.Item>
+                                    </>
+                                ) : (
+                                    <>
+                                        <Form.Item name="cached_common_name" label="Common name">
+                                            <Input />
+                                        </Form.Item>
+                                        <Form.Item name="taxonomy_source" label="Taxonomy source">
+                                            <Input />
+                                        </Form.Item>
+                                        <Form.Item name="col_class_id" {...colHierarchyItemProps(renderRequiredLabel("COL class"), true)}>
+                                            <Select
+                                                className="form-drawer-select"
+                                                classNames={{ popup: { root: "form-drawer-select-popup" } }}
+                                                allowClear
+                                                showSearch
+                                                loading={hierarchyOptions.states.class.loading}
+                                                options={toSelectOptions(hierarchyOptions.states.class.options)}
+                                                filterOption={false}
+                                                onSearch={(q) => hierarchyOptions.search("class", {}, q)}
+                                                onPopupScroll={(event) => handleOptionScroll("class", event)}
+                                                popupRender={(menu) => renderOptionsPopup("class", menu)}
+                                                onChange={(val: string | undefined) => {
+                                                    rememberSelectedOption("class", val)
+                                                    form.setFieldsValue({
+                                                        col_order_id: undefined,
+                                                        col_family_id: undefined,
+                                                        col_genus_id: undefined,
+                                                        col_species_id: undefined,
+                                                    })
+                                                    hierarchyOptions.resetRank("order")
+                                                    hierarchyOptions.resetRank("family")
+                                                    hierarchyOptions.resetRank("genus")
+                                                    hierarchyOptions.resetRank("species")
+                                                    if (val) {
+                                                        void hierarchyOptions.loadFirst("order", { class_id: val })
+                                                    }
+                                                }}
+                                            />
+                                        </Form.Item>
+                                        <Form.Item name="col_order_id" {...colHierarchyItemProps("COL order")}>
+                                            <Select
+                                                className="form-drawer-select"
+                                                classNames={{ popup: { root: "form-drawer-select-popup" } }}
+                                                allowClear
+                                                showSearch
+                                                loading={hierarchyOptions.states.order.loading}
+                                                options={toSelectOptions(hierarchyOptions.states.order.options)}
+                                                filterOption={false}
+                                                onSearch={(q) => {
+                                                    const classId = form.getFieldValue("col_class_id") as string | undefined
+                                                    hierarchyOptions.search("order", { class_id: classId ?? null }, q)
+                                                }}
+                                                onPopupScroll={(event) => handleOptionScroll("order", event)}
+                                                popupRender={(menu) => renderOptionsPopup("order", menu)}
+                                                onChange={(val: string | undefined) => {
+                                                    rememberSelectedOption("order", val)
+                                                    form.setFieldsValue({
+                                                        col_family_id: undefined,
+                                                        col_genus_id: undefined,
+                                                        col_species_id: undefined,
+                                                    })
+                                                    hierarchyOptions.resetRank("family")
+                                                    hierarchyOptions.resetRank("genus")
+                                                    hierarchyOptions.resetRank("species")
+                                                    if (val) {
+                                                        void hierarchyOptions.loadFirst("family", { order_id: val })
+                                                    }
+                                                }}
+                                            />
+                                        </Form.Item>
+                                        <Form.Item name="col_family_id" {...colHierarchyItemProps("COL family")}>
+                                            <Select
+                                                className="form-drawer-select"
+                                                classNames={{ popup: { root: "form-drawer-select-popup" } }}
+                                                allowClear
+                                                showSearch
+                                                loading={hierarchyOptions.states.family.loading}
+                                                options={toSelectOptions(hierarchyOptions.states.family.options)}
+                                                filterOption={false}
+                                                onSearch={(q) => {
+                                                    const orderId = form.getFieldValue("col_order_id") as string | undefined
+                                                    hierarchyOptions.search("family", { order_id: orderId ?? null }, q)
+                                                }}
+                                                onPopupScroll={(event) => handleOptionScroll("family", event)}
+                                                popupRender={(menu) => renderOptionsPopup("family", menu)}
+                                                onChange={(val: string | undefined) => {
+                                                    rememberSelectedOption("family", val)
+                                                    form.setFieldsValue({
+                                                        col_genus_id: undefined,
+                                                        col_species_id: undefined,
+                                                    })
+                                                    hierarchyOptions.resetRank("genus")
+                                                    hierarchyOptions.resetRank("species")
+                                                    if (val) {
+                                                        void hierarchyOptions.loadFirst("genus", { family_id: val })
+                                                    }
+                                                }}
+                                            />
+                                        </Form.Item>
+                                        <Form.Item name="col_genus_id" {...colHierarchyItemProps("COL genus")}>
+                                            <Select
+                                                className="form-drawer-select"
+                                                classNames={{ popup: { root: "form-drawer-select-popup" } }}
+                                                allowClear
+                                                showSearch
+                                                loading={hierarchyOptions.states.genus.loading}
+                                                options={toSelectOptions(hierarchyOptions.states.genus.options)}
+                                                filterOption={false}
+                                                onSearch={(q) => {
+                                                    const familyId = form.getFieldValue("col_family_id") as string | undefined
+                                                    hierarchyOptions.search("genus", { family_id: familyId ?? null }, q)
+                                                }}
+                                                onPopupScroll={(event) => handleOptionScroll("genus", event)}
+                                                popupRender={(menu) => renderOptionsPopup("genus", menu)}
+                                                onChange={(val: string | undefined) => {
+                                                    rememberSelectedOption("genus", val)
+                                                    form.setFieldsValue({ col_species_id: undefined })
+                                                    hierarchyOptions.resetRank("species")
+                                                    if (val) {
+                                                        void hierarchyOptions.loadFirst("species", { genus_id: val })
+                                                    }
+                                                }}
+                                            />
+                                        </Form.Item>
+                                        <Form.Item name="col_species_id" {...colHierarchyItemProps("COL species")}>
+                                            <Select
+                                                className="form-drawer-select"
+                                                classNames={{ popup: { root: "form-drawer-select-popup" } }}
+                                                allowClear
+                                                showSearch
+                                                loading={hierarchyOptions.states.species.loading}
+                                                options={toSelectOptions(hierarchyOptions.states.species.options)}
+                                                filterOption={false}
+                                                onSearch={(q) => {
+                                                    const genusId = form.getFieldValue("col_genus_id") as string | undefined
+                                                    hierarchyOptions.search("species", { genus_id: genusId ?? null }, q)
+                                                }}
+                                                onPopupScroll={(event) => handleOptionScroll("species", event)}
+                                                popupRender={(menu) => renderOptionsPopup("species", menu)}
+                                                onChange={(val: string | undefined) => {
+                                                    rememberSelectedOption("species", val)
+                                                }}
+                                            />
+                                        </Form.Item>
+                                    </>
+                                )}
                             </Form>
                         </div>
                     </div>
