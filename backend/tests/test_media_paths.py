@@ -140,3 +140,54 @@ def test_resolve_existing_analysis_audio_resolves_recorded_format_when_no_compan
     resolved = resolve_existing_analysis_audio_media_path(12, 34, "clip.ogg")
 
     assert resolved == ogg_path
+
+
+def test_serve_media_options_preflight_returns_204_with_cors_headers() -> None:
+    from fastapi.testclient import TestClient
+    from app.main import app
+
+    client = TestClient(app)
+    response = client.options(
+        "/sounds/images/1/29/demo_thumbnail.png",
+        headers={"Origin": "https://external.example.com", "Access-Control-Request-Method": "GET"},
+    )
+    assert response.status_code == 204
+    assert response.headers["access-control-allow-origin"] == "*"
+    assert "GET" in response.headers["access-control-allow-methods"]
+    assert "OPTIONS" in response.headers["access-control-allow-methods"]
+    assert response.headers.get("access-control-max-age") == "86400"
+
+
+def test_serve_media_get_includes_cors_headers(tmp_path, monkeypatch) -> None:
+    from fastapi.testclient import TestClient
+    from app.main import app
+
+    monkeypatch.setattr(settings, "MEDIA_ROOT", str(tmp_path))
+    image_dir = tmp_path / "images" / "1" / "29"
+    image_dir.mkdir(parents=True)
+    img_file = image_dir / "demo_thumbnail.png"
+    img_file.write_bytes(b"\x89PNG\r\n\x1a\n")
+
+    client = TestClient(app)
+    response = client.get(
+        "/sounds/images/1/29/demo_thumbnail.png",
+        headers={"Origin": "https://external.example.com"},
+    )
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == "*"
+    assert response.content == b"\x89PNG\r\n\x1a\n"
+
+
+def test_serve_media_not_found_includes_cors_headers(tmp_path, monkeypatch) -> None:
+    from fastapi.testclient import TestClient
+    from app.main import app
+
+    monkeypatch.setattr(settings, "MEDIA_ROOT", str(tmp_path))
+    client = TestClient(app)
+    response = client.get(
+        "/sounds/images/1/29/missing.png",
+        headers={"Origin": "https://external.example.com"},
+    )
+    assert response.status_code == 404
+    assert response.headers["access-control-allow-origin"] == "*"
+
