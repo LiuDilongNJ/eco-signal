@@ -12,5 +12,6 @@ docker run --rm \
     -w "$PWD" \
     ecosignal-migration-runtime-tests:local \
     -q --noconftest -c /dev/null \
+    backend/tests/deployment/test_migration_compose.py \
     backend/tests/deployment/test_migration_runtime.py \
     -o cache_dir=/tmp/pytest-cache

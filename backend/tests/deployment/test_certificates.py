@@ -13,7 +13,11 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[3]
-spec = importlib.util.spec_from_file_location("certificates", ROOT / "scripts/tls/certificates.py")
+cert_script = ROOT / "scripts/tls/certificates.py"
+if not cert_script.exists():
+    pytest.skip(f"Deployment test script not found at {cert_script}", allow_module_level=True)
+
+spec = importlib.util.spec_from_file_location("certificates", cert_script)
 tls = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(tls)
 
@@ -182,6 +186,23 @@ def test_nginx_routes_and_maintenance(nginx_server):
     assert response.status == 301
     assert response.getheader("Location") == "https://app.test/api/test?q=1"
     conn.close()
+
+    context = tls.tls_context(tls.check_certificate(state / "cert.pem", "app.test"))
+    conn_ssl = tls.http.client.HTTPSConnection("127.0.0.1", port, context=context)
+    conn_ssl.request("OPTIONS", "/sounds/audio.wav", headers={"Host": "app.test", "Origin": "https://other.test"})
+    options_res = conn_ssl.getresponse()
+    assert options_res.status == 204
+    assert options_res.getheader("Access-Control-Allow-Origin") == "*"
+    assert "OPTIONS" in (options_res.getheader("Access-Control-Allow-Methods") or "")
+    conn_ssl.close()
+
+    conn_ssl = tls.http.client.HTTPSConnection("127.0.0.1", port, context=context)
+    conn_ssl.request("GET", "/sounds/audio.wav", headers={"Host": "app.test", "Origin": "https://other.test"})
+    get_res = conn_ssl.getresponse()
+    assert get_res.status == 200
+    assert get_res.getheader("Access-Control-Allow-Origin") == "*"
+    conn_ssl.close()
+
     (maintenance / "maintenance.flag").touch()
     with pytest.raises(ValueError, match="503"):
         tls.wait_ready("app.test", "127.0.0.1", port, state / "cert.pem", 0, ["/"], True)

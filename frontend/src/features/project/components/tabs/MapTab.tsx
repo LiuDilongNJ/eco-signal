@@ -382,13 +382,13 @@ function fitMapToSiteFence(map: L.Map, site: Site): number {
     if (!site.hasCoordinates) {
         const bounds = siteRegionBounds(site)
         if (bounds) {
-            const padding: [number, number] = [48, 48]
+            const padding = L.point(48, 48)
             const targetZoom = Math.min(
                 map.getBoundsZoom(bounds, false, padding),
                 MAP_FIT_ALL_MAX_ZOOM,
             )
             map.fitBounds(bounds, {
-                padding,
+                padding: [48, 48],
                 maxZoom: MAP_FIT_ALL_MAX_ZOOM,
                 animate: true,
                 duration: 0.75,

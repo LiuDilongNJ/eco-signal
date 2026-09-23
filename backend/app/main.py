@@ -103,6 +103,33 @@ if settings.all_cors_origins:
         )
     app.add_middleware(CORSMiddleware, **cors_kw)
 
+
+class MediaCorsMiddleware:
+    """Allow open CORS access for public media files under /sounds/."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] == "http" and scope["path"].startswith("/sounds/"):
+            if scope["method"] == "OPTIONS":
+                response = RawResponse(
+                    status_code=204,
+                    headers={
+                        "Access-Control-Allow-Origin": "*",
+                        "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
+                        "Access-Control-Allow-Headers": "*",
+                        "Access-Control-Max-Age": "86400",
+                    },
+                )
+                await response(scope, receive, send)
+                return
+
+        await self.app(scope, receive, send)
+
+
+app.add_middleware(MediaCorsMiddleware)
+
 @app.middleware("http")
 async def strip_empty_query_params(request: Request, call_next):
     """Strip empty string query parameters for GET requests before route handling.
@@ -169,15 +196,39 @@ except OSError:
     logger.warning("Media root %s could not be created during startup", media_root())
 
 
-@app.get("/sounds/{media_path:path}", include_in_schema=False)
-async def serve_media(media_path: str) -> FileResponse:
+_MEDIA_CORS_HEADERS = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
+    "Access-Control-Allow-Headers": "*",
+}
+
+
+@app.api_route("/sounds/{media_path:path}", methods=["GET", "HEAD", "OPTIONS"], include_in_schema=False)
+async def serve_media(request: Request, media_path: str) -> RawResponse:
+    if request.method == "OPTIONS":
+        return RawResponse(
+            status_code=204,
+            headers={
+                **_MEDIA_CORS_HEADERS,
+                "Access-Control-Max-Age": "86400",
+            },
+        )
+
     if not is_safe_public_media_request_path(media_path):
-        raise HTTPException(status_code=400, detail="Invalid media path")
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid media path",
+            headers=_MEDIA_CORS_HEADERS,
+        )
 
     resolved = resolve_existing_media_path(Path(media_path))
     if resolved is None or not resolved.is_file():
-        raise HTTPException(status_code=404, detail="Media file not found")
-    return FileResponse(resolved)
+        raise HTTPException(
+            status_code=404,
+            detail="Media file not found",
+            headers=_MEDIA_CORS_HEADERS,
+        )
+    return FileResponse(resolved, headers=_MEDIA_CORS_HEADERS)
 
 
 @app.get("/metrics", include_in_schema=False)
