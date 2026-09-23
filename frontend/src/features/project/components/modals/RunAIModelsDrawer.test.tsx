@@ -86,5 +86,7 @@ describe("RunAIModelsDrawer", () => {
         const drawer = document.querySelector(".ai-models-drawer")
         expect(drawer?.querySelector(".ant-drawer-footer")).not.toBeNull()
         expect(drawer?.querySelector(".ant-drawer-header .ant-drawer-extra")).toBeNull()
+        expect(screen.getByRole("button", { name: "Run" })).toBeInTheDocument()
+        expect(screen.getByText("AI Models")).toBeInTheDocument()
     })
 })

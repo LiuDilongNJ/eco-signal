@@ -1,4 +1,4 @@
-import { Button as ESButton } from "@/components/ui"
+import { Button as ESButton, FormHelpIcon, Tooltip } from "@/components/ui"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Button, Checkbox, ConfigProvider, Input, InputNumber, Radio, Space, message } from "@/components/ui"
 import { LoadingState } from "@/components/ui"
@@ -50,6 +50,9 @@ interface AcousticIndicesDrawerProps {
     embedded?: boolean
     selectionMode?: "single" | "multiple"
 }
+
+const PLAYER_ACOUSTIC_INDICES_HELP =
+    "Only one acoustic index can be run at a time. To run several acoustic indices on several recordings, visit the Audios table in the Dashboard."
 
 type ParamValue = string | number | boolean | null
 type ParamState = Record<number, Record<string, ParamValue>>
@@ -556,7 +559,14 @@ export function AcousticIndicesDrawer({
                         <ESButton appearance="unstyled" type="button" className="header-back" title="Back" onClick={handleClose}>
                             <ArrowLeft size={18} strokeWidth={2.25} />
                         </ESButton>
-                        <span className="header-title studio-analysis-embed-heading">{isBatch ? `Calculate Acoustic Indices (${targetMediaIds.length})` : "Calculate Acoustic Indices"}</span>
+                        <span className="header-title studio-analysis-embed-heading">
+                            {isBatch ? `Calculate Acoustic Indices (${targetMediaIds.length})` : "Calculate Acoustic Indices"}
+                            <Tooltip title={PLAYER_ACOUSTIC_INDICES_HELP}>
+                                <span className="studio-analysis-embed-help" tabIndex={0} aria-label={PLAYER_ACOUSTIC_INDICES_HELP}>
+                                    <FormHelpIcon size={15} />
+                                </span>
+                            </Tooltip>
+                        </span>
                     </div>
                     <div className="studio-analysis-embed-body">
                         <CustomScrollArea variant="fill" style={{ padding: "12px 14px" }}>
@@ -575,13 +585,14 @@ export function AcousticIndicesDrawer({
         <ConfigProvider theme={themeCfg}>
             <>
                 <FormDrawer
+                    rootClassName="acoustic-idx-drawer"
                     maskClosable={false}
                     closable={false}
                     title={<div style={{ fontWeight: 600, fontSize: 18, color: "var(--text-main)" }}>{isBatch ? `Calculate Acoustic Indices for ${targetMediaIds.length} Items` : "Calculate Acoustic Indices"}</div>}
                     placement="right"
                     open={open}
                     onClose={handleClose}
-                    extra={actions}
+                    footer={<div className="acoustic-idx-footer">{actions}</div>}
                     styles={{
                         wrapper: { width: 480 },
                         body: { padding: 0, overflow: "hidden" },

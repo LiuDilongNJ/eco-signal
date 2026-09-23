@@ -1,4 +1,4 @@
-import { Button as ESButton } from "@/components/ui"
+import { Button as ESButton, FormHelpIcon, Tooltip } from "@/components/ui"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { Button, Checkbox, InputNumber, Radio, Select, message, ConfigProvider, Divider, Space, Modal } from "@/components/ui"
 import { FormDrawer } from "@/components/ui"
@@ -20,6 +20,9 @@ interface AnalysisCompletionSummary extends AnalysisQueuePollSummary {
 }
 
 type CompletionTone = "success" | "warning" | "error"
+
+const PLAYER_AI_MODELS_HELP =
+    "Only one model can be run at a time. To run several models on several recordings, visit the Audios table in the Dashboard."
 
 const AI_MODEL_DOC_URLS = {
     birdnet: "https://github.com/kahst/BirdNET-Analyzer",
@@ -565,7 +568,7 @@ export function RunAIModelsDrawer({
                 className="ai-models-btn-save"
                 style={{ background: "var(--brand)", borderColor: "var(--brand)" }}
             >
-                Save
+                Run
             </Button>
         </Space>
     )
@@ -640,7 +643,14 @@ export function RunAIModelsDrawer({
                         <ESButton appearance="unstyled" type="button" className="header-back" title="Back" onClick={handleClose}>
                             <ArrowLeft size={18} strokeWidth={2.25} />
                         </ESButton>
-                        <span className="header-title studio-analysis-embed-heading">{isBatch ? `Run AI Models (${targetMediaIds.length})` : "Run AI Models"}</span>
+                        <span className="header-title studio-analysis-embed-heading">
+                            {isBatch ? `AI Models (${targetMediaIds.length})` : "AI Models"}
+                            <Tooltip title={PLAYER_AI_MODELS_HELP}>
+                                <span className="studio-analysis-embed-help" tabIndex={0} aria-label={PLAYER_AI_MODELS_HELP}>
+                                    <FormHelpIcon size={15} />
+                                </span>
+                            </Tooltip>
+                        </span>
                     </div>
                     <div className="studio-analysis-embed-body">
                         <CustomScrollArea variant="fill" style={{ padding: "12px 14px" }}>
@@ -661,7 +671,7 @@ export function RunAIModelsDrawer({
                     rootClassName="ai-models-drawer"
                     maskClosable={false}
                     closable={false}
-                    title={<div style={{ fontWeight: 600, fontSize: 18, color: 'var(--text-main)' }}>Run AI Models</div>}
+                    title={<div style={{ fontWeight: 600, fontSize: 18, color: 'var(--text-main)' }}>AI Models</div>}
                     placement="right"
                     open={open}
                     onClose={handleClose}
