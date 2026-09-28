@@ -42,7 +42,7 @@ verify_endpoint() {
         args+=(--pin --cert /state/cert.pem)
     fi
     if [[ "$phase" == application ]]; then args+=(--path / --path /api/v1/health); fi
-    docker run --rm --network "container:$target" "${options[@]}" "$tls_image" "${args[@]}"
+    docker run --rm --network "container:$target" ${options[@]+"${options[@]}"} "$tls_image" "${args[@]}"
 }
 
 rollback_tls() {

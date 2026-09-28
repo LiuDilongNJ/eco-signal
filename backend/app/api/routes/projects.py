@@ -79,9 +79,9 @@ def get_project_cards(
     name: Optional[str] = Query(default=None, description="通过名称搜索 / Search in name"),
 ) -> Any:
     """
-    获取项目卡片列表（返回活跃且公开的项目，按 project_id 升序）。 / Get project cards (all active and public, ordered by project_id asc).
+    获取活跃项目卡片列表，按 project_id 升序。 / Get active project cards ordered by project_id asc.
 
-    仅展示公开项目，私有项目仅在控制台中管理。 / Only public projects are displayed; private projects are managed within the dashboard.
+    匿名用户仅可见公开项目；登录用户还可见有权限的私有项目；管理员可见全部活跃项目。 / Anonymous users see public projects; signed-in users also see accessible private projects; admins see all active projects.
     """
     data = project_service.get_active_project_cards(session, current_user, name)
     return api_success(data=data)

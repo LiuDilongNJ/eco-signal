@@ -265,9 +265,11 @@ class ProjectRepository(BaseRepository[Project, ProjectCreate, ProjectUpdate]):
         self,
         session: Session,
         *,
+        user_id: int | None = None,
+        is_admin: bool = False,
         name: str | None = None,
     ) -> Sequence[Project]:
-        """Get all active and public projects for card display with required relations preloaded."""
+        """Get active projects visible to the viewer with required relations preloaded."""
         statement = (
             select(Project)
             .options(
@@ -285,21 +287,22 @@ class ProjectRepository(BaseRepository[Project, ProjectCreate, ProjectUpdate]):
                 selectinload(Project.creator),
                 selectinload(Project.contributors).selectinload(ProjectContributor.user),
             )
-            .where(Project.active == True, Project.public == True)
+            .where(Project.active == True)
         )
+
+        if not is_admin:
+            if user_id is None:
+                statement = statement.where(Project.public == True)
+            else:
+                statement = statement.where(
+                    Project.project_id.in_(self._build_accessible_project_ids_subquery(user_id))
+                )
 
         if name:
             statement = statement.where(Project.name.ilike(f"%{name}%"))
 
         statement = statement.order_by(Project.project_id.asc())
         return session.exec(statement).all()
-
-    def get_accessible_project_ids_for_user(self, session: Session, user_id: int) -> set[int]:
-        """Return project IDs the user can access."""
-        accessible_subquery = self._build_accessible_project_ids_subquery(user_id)
-        accessible_alias = accessible_subquery.subquery()
-        rows = session.exec(select(accessible_alias.c.project_id)).all()
-        return {row for row in rows if row is not None}
 
     def get_manageable_project_collection_rows(
         self,

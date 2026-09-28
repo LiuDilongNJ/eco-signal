@@ -466,17 +466,17 @@ def get_active_project_cards(
     user: User | None,
     name: str | None = None,
 ) -> list[ProjectCardPublic]:
-    """Get active public projects for card-style list display."""
+    """Get active projects visible to the viewer for card-style display."""
     is_admin = bool(user and permission_service.is_admin(user))
-    accessible_ids: set[int] = set()
-    if user and not is_admin:
-        accessible_ids = project_repository.get_accessible_project_ids_for_user(session, user.user_id)
-
-    projects = project_repository.get_active_projects_for_cards(session, name=name)
+    projects = project_repository.get_active_projects_for_cards(
+        session,
+        user_id=user.user_id if user else None,
+        is_admin=is_admin,
+        name=name,
+    )
 
     data: list[ProjectCardPublic] = []
     for p in projects:
-        can_access = is_admin or p.public or (user is not None and p.project_id in accessible_ids)
         creator_name = p.creator.name if p.creator else ""
         contributors: list[str] = []
         if creator_name:
@@ -494,8 +494,8 @@ def get_active_project_cards(
                 description=p.description,
                 description_short=p.description_short,
                 doi=p.doi,
-                url=p.url if can_access else "",
-                can_access=can_access,
+                url=p.url,
+                can_access=True,
                 image_url=build_media_public_url(logical_project_media_path(p.picture_id)) if p.picture_id else "",
                 creator=creator_name,
                 contributors=contributors,

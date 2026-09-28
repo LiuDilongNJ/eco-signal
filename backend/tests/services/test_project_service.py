@@ -1,4 +1,5 @@
-"""Tests for project_service name uniqueness conflict handling."""
+"""Tests for project service behavior."""
+from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
@@ -27,6 +28,38 @@ class DummyProjectUpdateIn:
 class DummyUser:
     def __init__(self, user_id: int = 1):
         self.user_id = user_id
+
+
+def test_get_active_project_cards_returns_accessible_private_card(monkeypatch: pytest.MonkeyPatch) -> None:
+    """An authorized private project retains its destination and access flag."""
+    project = SimpleNamespace(
+        project_id=42,
+        name="Private Project",
+        public=False,
+        description=None,
+        description_short=None,
+        doi=None,
+        url="https://example.com/private",
+        picture_id=None,
+        creator=None,
+        contributors=[],
+    )
+    query_args = {}
+
+    def get_projects(_session, **kwargs):
+        query_args.update(kwargs)
+        return [project]
+
+    monkeypatch.setattr(project_service.permission_service, "is_admin", lambda user: False)
+    monkeypatch.setattr(project_service.project_repository, "get_active_projects_for_cards", get_projects)
+
+    cards = project_service.get_active_project_cards(Mock(), DummyUser(user_id=7))
+
+    assert query_args == {"user_id": 7, "is_admin": False, "name": None}
+    assert len(cards) == 1
+    assert cards[0].public is False
+    assert cards[0].can_access is True
+    assert cards[0].url == project.url
 
 
 def test_create_project_integrityerror_converted_to_409(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -80,7 +80,7 @@ run_migration_in_backend() {
     shift
 
     prepare_migration_runtime || return 1
-    if "${DOCKER_COMPOSE[@]}" exec -T "${compose_exec_args[@]}" backend \
+    if "${DOCKER_COMPOSE[@]}" exec -T ${compose_exec_args[@]+"${compose_exec_args[@]}"} backend \
         python "${MIGRATION_RUNTIME_DIR}/migrate_from_biosounds.py" "$@"; then
         execution_status=0
     else

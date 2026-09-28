@@ -519,10 +519,10 @@ class TestProjectCards:
         assert "active" not in card
         assert "status" not in card
 
-    def test_get_project_cards_excludes_private_projects_for_authenticated_users(
+    def test_get_project_cards_excludes_unpermitted_private_projects(
         self, client: TestClient, normal_user_token_headers: dict[str, str], db: Session
     ) -> None:
-        """Authenticated users only see public active projects in card directory."""
+        """Authenticated users do not see private projects without access."""
         private_active = create_test_project(db, name="Normal User Private Active", public=False, active=True)
         public_active = create_test_project(db, name="Normal User Public Active", public=True, active=True)
 
@@ -541,10 +541,39 @@ class TestProjectCards:
         assert public_card["can_access"] is True
         assert public_card["url"] != ""
 
-    def test_get_project_cards_admin_active_public_only(
+    def test_get_project_cards_includes_permitted_private_projects(
+        self, client: TestClient, normal_user_token_headers: dict[str, str], db: Session
+    ) -> None:
+        """A project reader sees the private project card with its destination URL."""
+        token = normal_user_token_headers["Authorization"].split(" ")[1]
+        user_id = int(pyjwt.decode(token, options={"verify_signature": False})["sub"])
+        private_project = create_test_project(db, name="Permitted Private Card", public=False)
+        permission = db.exec(select(Permission).where(Permission.name == "project:read")).one()
+        db.add(
+            UserPermission(
+                user_id=user_id,
+                project_id=private_project.project_id,
+                permission_id=permission.permission_id,
+            )
+        )
+        db.commit()
+
+        response = client.get(
+            f"{settings.API_V1_STR}/project-directory-items",
+            headers=normal_user_token_headers,
+        )
+        assert response.status_code == 200
+        cards = response.json()["data"]
+        private_card = next(card for card in cards if card["project_id"] == private_project.project_id)
+        assert private_card["public"] is False
+        assert private_card["can_access"] is True
+        assert private_card["url"] == private_project.url
+        assert [card["project_id"] for card in cards] == sorted(card["project_id"] for card in cards)
+
+    def test_get_project_cards_admin_sees_active_private_projects(
         self, client: TestClient, superuser_token_headers: dict[str, str], db: Session
     ) -> None:
-        """Admin should only see active public projects in card directory; private projects stay in dashboard."""
+        """Admins see active public and private projects in the card directory."""
         private_active = create_test_project(db, name="Admin Private Active", public=False, active=True)
         public_active = create_test_project(db, name="Admin Public Active", public=True, active=True)
         inactive_project = create_test_project(db, name="Admin Inactive", public=True, active=False)
@@ -556,7 +585,7 @@ class TestProjectCards:
         assert r.status_code == 200
         data = r.json()["data"]
         returned_ids = [item["project_id"] for item in data]
-        assert private_active.project_id not in returned_ids
+        assert private_active.project_id in returned_ids
         assert public_active.project_id in returned_ids
         assert inactive_project.project_id not in returned_ids
         assert all(item["can_access"] is True for item in data)
