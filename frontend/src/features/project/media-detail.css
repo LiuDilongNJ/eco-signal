@@ -911,12 +911,29 @@
 }
 
 .studio-analysis-embed-heading {
+    display: flex;
+    align-items: center;
+    gap: 6px;
     flex: 1;
     font-weight: 700;
     font-size: 1.02rem;
     letter-spacing: -0.02em;
     color: var(--es-color-text-secondary);
     line-height: 1.25;
+}
+
+.studio-analysis-embed-help {
+    display: inline-flex;
+    align-items: center;
+    flex-shrink: 0;
+    color: var(--es-color-text-muted, var(--es-color-text-secondary));
+    cursor: help;
+}
+
+.studio-analysis-embed-help:focus-visible {
+    outline: 2px solid var(--es-color-brand);
+    outline-offset: 2px;
+    border-radius: 999px;
 }
 
 [data-theme="dark"] .studio-analysis-embed-heading {
