@@ -12,6 +12,14 @@ from app.ai.insects.analyzer import (
     InsectAnalyzer,
 )
 from app.core.task_cancellation import CancellationToken, TaskCancelledError
+from scripts.setup_insects_model import REQUIRED_FILES
+
+
+def create_model_files(model_dir: Path) -> None:
+    for relative_path in REQUIRED_FILES:
+        file_path = model_dir / relative_path
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+        file_path.write_text("dummy")
 
 
 class TestInsectAnalyzerVersion:
@@ -42,26 +50,35 @@ class TestInsectAnalyzerResolveModelPath:
     """Tests for _resolve_model_path."""
 
     def test_resolve_model_path_finds_valid_directory(self, tmp_path):
-        """Returns the first candidate directory containing model.yaml."""
+        """Returns the first candidate directory containing all required files."""
         analyzer = InsectAnalyzer()
         candidate = tmp_path / "model_candidate"
-        candidate.mkdir()
-        (candidate / "model.yaml").write_text("model: test")
+        create_model_files(candidate)
 
         with patch("app.ai.insects.analyzer.CACHED_MODEL_PATHS", [candidate]):
             resolved = analyzer._resolve_model_path()
 
         assert resolved == str(candidate)
 
+    def test_resolve_model_path_skips_incomplete_directory(self, tmp_path):
+        analyzer = InsectAnalyzer()
+        incomplete = tmp_path / "incomplete"
+        incomplete.mkdir()
+        (incomplete / "model.yaml").write_text("model: test")
+        complete = tmp_path / "complete"
+        create_model_files(complete)
+
+        with patch("app.ai.insects.analyzer.CACHED_MODEL_PATHS", [incomplete, complete]):
+            assert analyzer._resolve_model_path() == str(complete)
+
     def test_resolve_model_path_fallback(self, tmp_path):
-        """Prepares model and returns target path if none initially exist with model.yaml."""
+        """Prepares a model when no complete candidate exists."""
         analyzer = InsectAnalyzer()
         fallback = tmp_path / "fallback"
 
         with patch("app.ai.insects.analyzer.CACHED_MODEL_PATHS", [fallback]):
-            with patch("scripts.setup_insects_model.prepare_insects_model") as mock_prep:
-                with patch("scripts.setup_insects_model.check_insects_files", return_value=True):
-                    resolved = analyzer._resolve_model_path()
+            with patch("app.ai.insects.analyzer.prepare_insects_model", side_effect=create_model_files) as mock_prep:
+                resolved = analyzer._resolve_model_path()
 
         assert resolved == str(fallback)
         mock_prep.assert_called_once_with(fallback)
@@ -291,12 +308,12 @@ class TestResolveModelPath:
     """Tests for InsectAnalyzer._resolve_model_path()."""
 
     def test_resolve_model_path_cached_hit(self, tmp_path):
-        """Returns the first existing cached directory containing model.yaml."""
-        (tmp_path / "model.yaml").write_text("dummy")
+        """Returns the first existing complete model directory."""
+        create_model_files(tmp_path)
         analyzer = InsectAnalyzer()
 
         with patch("app.ai.insects.analyzer.CACHED_MODEL_PATHS", [tmp_path]):
-            with patch("scripts.setup_insects_model.prepare_insects_model") as mock_prep:
+            with patch("app.ai.insects.analyzer.prepare_insects_model") as mock_prep:
                 resolved = analyzer._resolve_model_path()
                 assert resolved == str(tmp_path)
                 mock_prep.assert_not_called()
@@ -306,26 +323,24 @@ class TestResolveModelPath:
         analyzer = InsectAnalyzer()
 
         def fake_prepare(target_dir):
-            (target_dir / "model.yaml").write_text("dummy")
+            create_model_files(target_dir)
             return True
 
         with patch("app.ai.insects.analyzer.CACHED_MODEL_PATHS", [tmp_path]):
-            with patch("scripts.setup_insects_model.prepare_insects_model", side_effect=fake_prepare) as mock_prep:
-                with patch("scripts.setup_insects_model.check_insects_files", return_value=True):
-                    resolved = analyzer._resolve_model_path()
-                    assert resolved == str(tmp_path)
-                    mock_prep.assert_called_once_with(tmp_path)
+            with patch("app.ai.insects.analyzer.prepare_insects_model", side_effect=fake_prepare) as mock_prep:
+                resolved = analyzer._resolve_model_path()
+                assert resolved == str(tmp_path)
+                mock_prep.assert_called_once_with(tmp_path)
 
     def test_resolve_model_path_raises_clean_error_on_failure(self, tmp_path):
         """Raises a descriptive RuntimeError when model files are missing and preparation fails."""
         analyzer = InsectAnalyzer()
 
         with patch("app.ai.insects.analyzer.CACHED_MODEL_PATHS", [tmp_path]):
-            with patch("scripts.setup_insects_model.prepare_insects_model", side_effect=RuntimeError("Network error")):
-                with patch("scripts.setup_insects_model.check_insects_files", return_value=False):
+            with patch("app.ai.insects.analyzer.prepare_insects_model", side_effect=RuntimeError("Network error")):
+                with patch("app.ai.insects.analyzer.check_insects_files", return_value=False):
                     with pytest.raises(RuntimeError) as exc_info:
                         analyzer._resolve_model_path()
 
-                    assert "Insects model files are missing" in str(exc_info.value)
-                    assert "setup_insects_model.py" in str(exc_info.value)
-
+                    assert "automatic preparation failed" in str(exc_info.value)
+                    assert "analysis worker logs" in str(exc_info.value)

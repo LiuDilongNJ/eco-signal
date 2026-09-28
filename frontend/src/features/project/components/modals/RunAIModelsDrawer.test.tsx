@@ -28,6 +28,28 @@ describe("RunAIModelsDrawer", () => {
         addOverlayRoot()
     })
 
+    it("shows Run for the embedded model action", () => {
+        vi.mocked(modelsApi.getModels).mockResolvedValue({
+            code: 0,
+            message: "success",
+            data: [],
+        })
+
+        render(
+            <MemoryRouter>
+                <RunAIModelsDrawer
+                    open
+                    embedded
+                    mediaId={1}
+                    projectId={10}
+                    onClose={vi.fn()}
+                />
+            </MemoryRouter>,
+        )
+
+        expect(screen.getByRole("button", { name: "Run" })).toBeInTheDocument()
+    })
+
     it("renders AI model names and versions, including BatDetect2", async () => {
         vi.mocked(modelsApi.getModels).mockResolvedValue({
             code: 0,

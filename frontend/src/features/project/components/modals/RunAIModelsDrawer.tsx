@@ -222,7 +222,7 @@ export function RunAIModelsDrawer({
         if (model === "insects") setEnableInsects((enabled) => !enabled)
     }
 
-    const handleSave = async () => {
+    const handleRun = async () => {
         if (targetMediaIds.length === 0 || !projectId) return
 
         if (!enableBirdNet && !enableBatDetect && !enableInsects) {
@@ -561,11 +561,11 @@ export function RunAIModelsDrawer({
             <Button
                 type="primary"
                 loading={submitting}
-                onClick={handleSave}
+                onClick={handleRun}
                 className="ai-models-btn-save"
                 style={{ background: "var(--brand)", borderColor: "var(--brand)" }}
             >
-                Save
+                Run
             </Button>
         </Space>
     )

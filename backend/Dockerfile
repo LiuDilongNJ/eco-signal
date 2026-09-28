@@ -44,6 +44,9 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
     uv sync --frozen --no-install-project --no-dev
 
+COPY ./scripts/setup_insects_model.py /app/scripts/setup_insects_model.py
+RUN INSECTS_MODEL_DIR=/app/models/insects .venv/bin/python /app/scripts/setup_insects_model.py
+
 # Download and validate the BirdNET model while the dependency layer is built.
 RUN --mount=type=cache,id=birdnet-v2.4-model,target=/root/.cache/birdnet-model,sharing=locked \
     set -eux; \
@@ -102,6 +105,7 @@ RUN sox --version && lame --version | head -n 1
 
 # Copy virtual environment from builder
 COPY --from=builder /app/.venv /app/.venv
+COPY --from=builder /app/models/insects /app/models/insects
 # Copy application code
 COPY ./scripts /app/scripts
 COPY ./pyproject.toml ./uv.lock ./alembic.ini /app/

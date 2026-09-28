@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from app.core.task_cancellation import CancellationToken
+from scripts.setup_insects_model import check_insects_files, prepare_insects_model
 
 logger = logging.getLogger(__name__)
 
@@ -13,8 +14,8 @@ logger = logging.getLogger(__name__)
 INSECT_MIN_FREQ = 1
 INSECT_MAX_FREQ = 96000
 
-# Candidate local model paths (prioritizing persistent docker volume)
 CACHED_MODEL_PATHS = [
+    Path("/app/models/insects"),
     Path("/models/insects"),
     Path("/models/insects/AlexanderGbd--insects-base-cnn10-96k-t--main"),
     Path.home()
@@ -61,27 +62,25 @@ class InsectAnalyzer:
     def _resolve_model_path(self) -> str:
         """Resolve the local model directory path, automatically preparing it if missing."""
         for candidate in CACHED_MODEL_PATHS:
-            if candidate.is_dir() and (candidate / "model.yaml").is_file():
+            if check_insects_files(candidate):
                 return str(candidate)
 
         target_dir = CACHED_MODEL_PATHS[0]
         try:
-            from scripts.setup_insects_model import check_insects_files, prepare_insects_model
-
             logger.info("Insects model files not found, attempting on-demand preparation in %s", target_dir)
             prepare_insects_model(target_dir)
             if check_insects_files(target_dir):
                 return str(target_dir)
-        except Exception as exc:
-            logger.warning("Failed to automatically prepare insects model: %s", exc)
+        except Exception:
+            logger.exception("Failed to prepare insects model")
 
         for candidate in CACHED_MODEL_PATHS:
-            if candidate.is_dir() and (candidate / "model.yaml").is_file():
+            if check_insects_files(candidate):
                 return str(candidate)
 
         raise RuntimeError(
-            f"Insects model files are missing from '{target_dir}' and automatic preparation failed. "
-            "Ensure the server has internet connectivity to Hugging Face or run 'python /app/scripts/setup_insects_model.py' manually."
+            "Insects model files are unavailable and automatic preparation failed. "
+            "Check the analysis worker logs for the download or file validation error."
         )
 
     def _get_inference(

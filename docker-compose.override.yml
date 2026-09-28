@@ -74,7 +74,6 @@ services:
       - app-media-data:/app/sounds
       - birdnet-model-data:/models/birdnet:ro
       - insects-model-data:/models/insects:ro
-      - ./backend/scripts/setup_insects_model.py:/app/scripts/setup_insects_model.py:ro
       - ./data:/app/data # Mount raw geo data files for one-time import
 
   worker:
@@ -108,7 +107,6 @@ services:
       - app-media-data:/app/sounds
       - birdnet-model-data:/models/birdnet
       - insects-model-data:/models/insects
-      - ./backend/scripts/setup_insects_model.py:/app/scripts/setup_insects_model.py:ro
 
   frontend:
     restart: "no"
