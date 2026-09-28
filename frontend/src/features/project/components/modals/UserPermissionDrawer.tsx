@@ -13,11 +13,12 @@ import {
     message,
 } from "@/components/ui"
 
-import { X, AudioLines, MapPin, ScanLine, ClipboardCheck, Check, ChevronDown, ChevronRight, AlertTriangle, Eye, Pencil, User, Users, Unlock } from "lucide-react"
+import { X, MapPin, ScanLine, ClipboardCheck, Check, ChevronDown, ChevronRight, AlertTriangle, Eye, Pencil, User, Users, Unlock } from "lucide-react"
 import { useAppStore } from "@/store/useAppStore"
 import { useAntdBrandConfig } from "../../hooks/useAntdBrandConfig"
 import { permissionsApi } from "../../../../api/endpoints/permissions"
 import type { AccessRoleCode, AccessRolePublic, CollectionPermissionConfig, ProjectPermissionConfig, UserPermissionConfig } from "../../../../api/endpoints/permissions"
+import { MediaIcon } from "../MediaIcon"
 import { isSuccessfulDrawerResponse } from "./utils/isSuccessfulDrawerResponse"
 import "./styles/UserPermissionDrawer.css"
 interface UserPermissionDrawerProps {
@@ -30,7 +31,7 @@ interface UserPermissionDrawerProps {
 }
 
 const MODULE_ICONS = [
-    { key: "media", icon: AudioLines, label: "Media" },
+    { key: "media", icon: MediaIcon, label: "Media" },
     { key: "site", icon: MapPin, label: "Sites" },
     { key: "annotation", icon: ScanLine, label: "Annotations" },
     { key: "review", icon: ClipboardCheck, label: "Reviews" },

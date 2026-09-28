@@ -20,6 +20,38 @@ describe("UserPermissionDrawer", () => {
         vi.clearAllMocks()
     })
 
+    it("shows the Media icon and permission label", async () => {
+        mocks.getUserPermissionConfig.mockResolvedValue({
+            data: {
+                is_admin: false,
+                can_manage_admin_role: false,
+                projects: [{
+                    project_id: 1,
+                    project_name: "Project One",
+                    can_manage_project: true,
+                    stored_permissions: [],
+                    effective_permissions: [],
+                    assigned_role: "custom",
+                    collections: [],
+                }],
+            },
+        })
+        mocks.listAccessRoles.mockResolvedValue({ data: [] })
+
+        render(
+            <MemoryRouter>
+                <UserPermissionDrawer open userId={2} onClose={vi.fn()} />
+            </MemoryRouter>,
+        )
+
+        await screen.findByText("Project One")
+        const mediaHeader = screen.getByLabelText("Media")
+        expect(mediaHeader.querySelector("svg circle")).not.toBeNull()
+        expect(mediaHeader.querySelector("svg path")).not.toBeNull()
+        const mediaPermission = document.querySelector('.upd-project-row [data-resource="media"]')
+        expect(mediaPermission).toHaveAttribute("aria-label", "Media (Audios, Photos): None")
+    })
+
     it("assigns annotation read-own permission at collection scope", async () => {
         mocks.getUserPermissionConfig.mockResolvedValue({
             data: {

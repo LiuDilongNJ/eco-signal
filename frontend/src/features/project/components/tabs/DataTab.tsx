@@ -21,7 +21,6 @@ import {
     ScrollText,
     AudioLines,
     Image,
-    Images,
     ChevronDown,
     ChevronRight,
 } from "lucide-react"
@@ -29,6 +28,7 @@ import type { LucideIcon } from "lucide-react"
 import { useProjectStore } from "../../stores/useProjectStore"
 import { usersApi } from "@/api/endpoints/users"
 import { getApiData } from "@/api/utils"
+import { MediaIcon } from "../MediaIcon"
 
 // ---- 各数据页面组件 ----
 import { ProjectsPage } from "../data/pages/ProjectsPage"
@@ -153,7 +153,7 @@ function buildNavTree(items: NavItem[]): NavNode[] {
 
     for (const slot of topLevelOrder) {
         if (slot === "media") {
-            takeGroup("media", "Media", Images, MEDIA_GROUP_CHILD_KEYS)
+            takeGroup("media", "Media", MediaIcon, MEDIA_GROUP_CHILD_KEYS)
             continue
         }
         if (slot === "annotation-group") {
