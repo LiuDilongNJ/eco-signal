@@ -660,8 +660,8 @@ class TestAnalysisService:
                 "1 detections were skipped because their time bounds were outside the audio duration."
             )
 
-    def test_merge_annotations_confidence_is_mean_with_existing_comments(self, service, mock_session):
-        """Merged confidence uses arithmetic mean; original comments are preserved."""
+    def test_merge_annotations_confidence_is_mean(self, service, mock_session):
+        """Merged confidence uses arithmetic mean and comments contain merge info."""
         with patch("app.services.analysis_service.annotation_repository") as mock_repo:
             ann_a = MagicMock(spec=Annotation, annotation_id=1, taxon_id=5, min_x=0, max_x=2, min_y=1, max_y=10000, confidence=0.6, creator_id=1, creator_type="BirdNET-Analyzer 2.4", sound_id=6, media_id=1, comments="Some species")
             ann_b = MagicMock(spec=Annotation, annotation_id=2, taxon_id=5, min_x=1, max_x=3, min_y=1, max_y=10000, confidence=0.8, creator_id=1, creator_type="BirdNET-Analyzer 2.4", sound_id=6, media_id=1, comments="Some species")
@@ -673,9 +673,8 @@ class TestAnalysisService:
             merged_anns = mock_repo.create_batch.call_args[0][1]
             assert len(merged_anns) == 1
             assert merged_anns[0].confidence == pytest.approx(0.7, abs=1e-4)
-            # original comment preserved and merge info appended
-            assert "Some species" in merged_anns[0].comments
-            assert "merged 2 BirdNET tags" in merged_anns[0].comments
+            assert "Some species" not in merged_anns[0].comments
+            assert merged_anns[0].comments == "merged 2 BirdNET tags with confidence scores: 0.6, 0.8"
 
     def test_merge_annotations(self, service, mock_session):
         """merge_annotations merges close annotations of same taxon."""
@@ -797,7 +796,7 @@ class TestAnalysisService:
             assert count == 1
             merged_anns = mock_repo.create_batch.call_args[0][1]
             assert len(merged_anns) == 1
-            assert merged_anns[0].comments.startswith("Species A")
+            assert merged_anns[0].comments == "merged 2 T1 tags with confidence scores: 0.5, 0.7"
 
     def test_merge_annotations_does_not_merge_unknown_rows_with_different_comments(self, service, mock_session):
         """Unknown comment text remains part of the merge key."""
@@ -818,12 +817,31 @@ class TestAnalysisService:
         """Merged comments must fit the current annotation.comments column size."""
         with patch("app.services.analysis_service.annotation_repository") as mock_repo, \
              patch.object(service, "_find_local_taxon", return_value=MagicMock(taxon_id=999)):
-            long_comment = "Species A " + ("x" * 480)
-            ann_a = Annotation(annotation_id=1, media_id=10, creator_id=1, sound_id=6, taxon_id=1, min_x=0, max_x=2, min_y=1, max_y=10, confidence=0.5, reference=False, comments=long_comment)
-            ann_b = Annotation(annotation_id=2, media_id=10, creator_id=1, sound_id=6, taxon_id=1, min_x=2, max_x=4, min_y=1, max_y=10, confidence=0.7, reference=False, comments=long_comment)
-            mock_session.exec.return_value.all.return_value = [ann_a, ann_b]
+            anns = [
+                Annotation(
+                    annotation_id=i + 1,
+                    media_id=10,
+                    creator_id=1,
+                    sound_id=6,
+                    taxon_id=1,
+                    min_x=i * 0.1,
+                    max_x=(i * 0.1) + 0.1,
+                    min_y=1,
+                    max_y=10,
+                    confidence=0.1234,
+                    reference=False,
+                )
+                for i in range(70)
+            ]
+            mock_session.exec.return_value.all.return_value = anns
 
-            service.merge_annotations(mock_session, 10, "BirdNET-Analyzer 2.4", max_gap=0.5, annotation_ids=[1, 2])
+            service.merge_annotations(
+                mock_session,
+                10,
+                "BirdNET-Analyzer 2.4",
+                max_gap=0.5,
+                annotation_ids=[a.annotation_id for a in anns],
+            )
 
             merged = mock_repo.create_batch.call_args[0][1]
             assert len(merged[0].comments) == 500

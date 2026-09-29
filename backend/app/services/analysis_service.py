@@ -1444,16 +1444,11 @@ class AnalysisService:
             confs = [float(a.confidence) for a in buffer if a.confidence is not None]
             merged_confidence = round(sum(confs) / len(confs), 4) if confs else None
             conf_scores = ", ".join(str(round(c, 4)) for c in confs)
-            original_comment = representative.comments or ""
             merge_info = (
                 f"merged {len(buffer)} {self._merge_model_name(creator_type)} tags with confidence scores: "
                 f"{conf_scores}"
             )
-            merged_comments = (
-                f"{original_comment}, {merge_info}"
-                if original_comment
-                else merge_info
-            )
+            merged_comments = merge_info
             merged_results.append((
                 Annotation(
                     media_id=representative.media_id,
