@@ -2,13 +2,14 @@
 from datetime import datetime
 from typing import Any, Literal, Optional
 
-from fastapi import APIRouter, File, Form, Query, UploadFile
+from fastapi import APIRouter, Body, File, Form, Query, UploadFile
 
 from app.api.deps import CurrentUser, CurrentUserOptional, SessionDep
 from app.api.responses import csv_response
 from app.csv_import import attach_import_metadata, parse_import_upload
 from app.enums import MediaType
 from app.schemas.annotation import (
+    AnnotationBatchDelete,
     AnnotationCreate,
     AnnotationCreateResponse,
     AnnotationNavigation,
@@ -403,6 +404,34 @@ def update_annotation(
         data=data,
     )
     return api_success()
+
+
+@router.delete(
+    "",
+    response_model=ApiResponse[dict],
+    summary="批量删除标注 / Batch Delete Annotations",
+)
+def delete_annotations(
+    session: SessionDep,
+    current_user: CurrentUser,
+    body: AnnotationBatchDelete = Body(..., description="要删除的标注 ID 列表 / List of annotation IDs to delete"),
+    project_id: int = Query(..., description="项目 ID / Project ID"),
+) -> Any:
+    """
+    批量删除标注记录。 / Batch delete annotation records.
+    仅创建者(且拥有集合 read 权限) 或 拥有集合 annotation:write 权限的管理者 可删除。
+    Only creator or manager can delete.
+    """
+    deleted_count = annotation_service.delete_annotations(
+        session,
+        current_user=current_user,
+        project_id=project_id,
+        annotation_ids=body.annotation_ids,
+    )
+    return api_success(
+        data={"deleted_count": deleted_count},
+        message=f"Successfully deleted {deleted_count} annotations",
+    )
 
 
 @router.delete(

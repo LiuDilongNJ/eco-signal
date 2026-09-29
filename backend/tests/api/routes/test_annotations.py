@@ -769,6 +769,126 @@ def test_delete_annotation(
     assert get_resp.status_code == 200
 
 
+def test_batch_delete_annotations(
+    client: TestClient, superuser_token_headers: dict[str, str], db: Session
+) -> None:
+    media, col, project = create_test_media(db)
+    ann_ids = []
+    for i in range(3):
+        create_resp = client.post(
+            f"{settings.API_V1_STR}/annotations",
+            headers=superuser_token_headers,
+            json={
+                "project_id": project.project_id,
+                "media_id": media.media_id,
+                "sound_id": 1,
+                "min_x": float(i),
+                "max_x": float(i + 1),
+                "min_y": 0.0,
+                "max_y": 500.0,
+            },
+        )
+        assert create_resp.status_code == 201
+        ann_ids.append(create_resp.json()["data"]["annotation_id"])
+
+    response = client.request(
+        "DELETE",
+        f"{settings.API_V1_STR}/annotations",
+        headers=superuser_token_headers,
+        params={"project_id": project.project_id},
+        json={"annotation_ids": ann_ids},
+    )
+    assert response.status_code == 200
+    res_data = response.json()
+    assert res_data["code"] == 0
+    assert res_data["data"]["deleted_count"] == 3
+
+    # Verify they no longer exist in DB
+    remaining = db.exec(
+        select(Annotation).where(Annotation.annotation_id.in_(ann_ids))
+    ).all()
+    assert len(remaining) == 0
+
+
+def test_batch_delete_annotations_forbidden(
+    client: TestClient, normal_user_token_headers: dict[str, str], db: Session
+) -> None:
+    media, col, project = create_test_media(db, public_access=False)
+    ann = Annotation(
+        media_id=media.media_id,
+        sound_id=1,
+        min_x=0.0,
+        max_x=2.0,
+        min_y=0.0,
+        max_y=500.0,
+        creator_type="user",
+        creator_id=1,
+    )
+    db.add(ann)
+    db.commit()
+    db.refresh(ann)
+
+    response = client.request(
+        "DELETE",
+        f"{settings.API_V1_STR}/annotations",
+        headers=normal_user_token_headers,
+        params={"project_id": project.project_id},
+        json={"annotation_ids": [ann.annotation_id]},
+    )
+    assert response.status_code == 403
+
+
+def test_batch_delete_annotations_validation(
+    client: TestClient, superuser_token_headers: dict[str, str], db: Session
+) -> None:
+    media, col, project = create_test_media(db)
+    # Empty annotation_ids -> 422
+    response = client.request(
+        "DELETE",
+        f"{settings.API_V1_STR}/annotations",
+        headers=superuser_token_headers,
+        params={"project_id": project.project_id},
+        json={"annotation_ids": []},
+    )
+    assert response.status_code == 422
+
+    # Non-existent IDs -> 0 deleted
+    response2 = client.request(
+        "DELETE",
+        f"{settings.API_V1_STR}/annotations",
+        headers=superuser_token_headers,
+        params={"project_id": project.project_id},
+        json={"annotation_ids": [99999999]},
+    )
+    assert response2.status_code == 200
+    assert response2.json()["data"]["deleted_count"] == 0
+
+    # Annotation belongs to media from another project
+    other_media, other_col, other_project = create_test_media(db)
+    create_resp = client.post(
+        f"{settings.API_V1_STR}/annotations",
+        headers=superuser_token_headers,
+        json={
+            "project_id": other_project.project_id,
+            "media_id": other_media.media_id,
+            "sound_id": 1,
+            "min_x": 0.0,
+            "max_x": 1.0,
+            "min_y": 0.0,
+            "max_y": 500.0,
+        },
+    )
+    other_ann_id = create_resp.json()["data"]["annotation_id"]
+    response3 = client.request(
+        "DELETE",
+        f"{settings.API_V1_STR}/annotations",
+        headers=superuser_token_headers,
+        params={"project_id": project.project_id},
+        json={"annotation_ids": [other_ann_id]},
+    )
+    assert response3.status_code == 400
+
+
 def test_export_annotations(
     client: TestClient, superuser_token_headers: dict[str, str], db: Session
 ) -> None:

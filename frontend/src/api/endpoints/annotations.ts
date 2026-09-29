@@ -232,6 +232,21 @@ export const annotationsApi = {
         }
     },
 
+    /** §4.4 DELETE /v1/annotations — 批量删除标注 */
+    async deleteBatch(annotationIds: number[], projectId: number): Promise<{ deleted_count: number }> {
+        const res = await apiClient.delete<{ code: number; message: string; data: { deleted_count: number } }>(
+            "/v1/annotations",
+            {
+                params: { project_id: projectId },
+                body: { annotation_ids: annotationIds },
+            },
+        )
+        if (res.code !== 0) {
+            throw new Error(res.message || `Request failed (code ${String(res.code)})`)
+        }
+        return res.data ?? { deleted_count: 0 }
+    },
+
     /**
      * §4.7 GET /v1/annotations/exports — 流式 CSV；可按媒体 + 当前声谱视窗（时间与频率重叠）过滤。
      */

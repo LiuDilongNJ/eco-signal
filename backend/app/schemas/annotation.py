@@ -152,3 +152,8 @@ class AnnotationNavigation(SQLModel):
     """Navigation response for prev/next annotation within the same media."""
     prev_annotation_id: Optional[int] = None
     next_annotation_id: Optional[int] = None
+
+
+class AnnotationBatchDelete(SQLModel):
+    """Schema for batch deleting annotations."""
+    annotation_ids: list[int] = Field(..., min_length=1, max_length=2000, description="List of annotation IDs to delete")

@@ -2443,8 +2443,14 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                 message.error("Missing project context.")
                 return
             }
-            await Promise.all(ids.map((id) => annotationsApi.delete(id, currentProjectId)))
-            updateMessageSuccess(loadingId, `Deleted ${ids.length} annotation(s).`)
+            const CHUNK_SIZE = 1000
+            let totalDeleted = 0
+            for (let i = 0; i < ids.length; i += CHUNK_SIZE) {
+                const chunk = ids.slice(i, i + CHUNK_SIZE)
+                const res = await annotationsApi.deleteBatch(chunk, currentProjectId)
+                totalDeleted += res.deleted_count
+            }
+            updateMessageSuccess(loadingId, `Deleted ${totalDeleted} annotation(s).`)
             setSelectedAnnotationKeys([])
             setAnnotationListTick((n) => n + 1)
         } catch (e: unknown) {

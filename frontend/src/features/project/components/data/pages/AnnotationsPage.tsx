@@ -272,11 +272,16 @@ export function AnnotationsPage() {
             return
         }
         const hide = message.loading(`Deleting ${selectedRowKeys.length} annotation(s)...`, 0)
-        let successCount = 0
         try {
-            for (const id of selectedRowKeys) {
-                await annotationsApi.delete(id, Number(currentProjectId))
-                successCount++
+            const numericKeys = selectedRowKeys
+                .map((k) => Number(k))
+                .filter((k) => Number.isFinite(k) && k > 0)
+            const CHUNK_SIZE = 1000
+            let successCount = 0
+            for (let i = 0; i < numericKeys.length; i += CHUNK_SIZE) {
+                const chunk = numericKeys.slice(i, i + CHUNK_SIZE)
+                const res = await annotationsApi.deleteBatch(chunk, Number(currentProjectId))
+                successCount += res.deleted_count
             }
             message.success(`Successfully deleted ${successCount} annotation(s)`)
             if (tableState) {
