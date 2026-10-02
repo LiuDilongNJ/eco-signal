@@ -138,6 +138,10 @@ export const analysisApi = {
         annotation_ids: number[]
         fft_size: number
     }) {
-        return apiClient.download("/v1/acoustic-band-levels", { method: "POST", body: payload })
+        return apiClient.download("/v1/acoustic-band-levels", {
+            method: "POST",
+            body: payload,
+            headers: { "Content-Type": "application/json" },
+        })
     },
 }
