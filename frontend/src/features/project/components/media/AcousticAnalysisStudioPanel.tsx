@@ -4,6 +4,7 @@ import { Button, InputNumber, Radio, message } from "@/components/ui"
 import { ArrowLeft, ExternalLink } from "lucide-react"
 
 import { analysisApi, type AcousticIndexSelection } from "../../../../api/endpoints/analysis"
+import { downloadFile } from "@/utils/download"
 import { CustomScrollArea } from "@/components/ui"
 import { AnalysisResultModal, type AnalysisResultItem } from "../modals/AnalysisResultModal"
 import { isAbortError, pollAnalysisQueues } from "../modals/utils/analysisQueuePolling"
@@ -15,12 +16,14 @@ interface AcousticAnalysisStudioPanelProps {
     selection: AcousticIndexSelection | null
     isFullTimeWindow: boolean
     channel: "mono" | "left" | "right"
+    selectedAnnotationIds?: number[]
+    fftSize?: number
     onBack: () => void
     onSuccess?: () => void
     onProcessingChange?: (processing: boolean) => void
 }
 
-type AcousticAnalysisType = "template_matching" | "max_frequency"
+type AcousticAnalysisType = "template_matching" | "max_frequency" | "band_levels"
 
 interface AcousticAnalysisOption {
     type: AcousticAnalysisType
@@ -44,6 +47,13 @@ const ACOUSTIC_ANALYSIS_OPTIONS: readonly AcousticAnalysisOption[] = [
         description: "Return the maximum of an array or maximum along an axis.",
         documentationUrl: "https://numpy.org/doc/stable/reference/generated/numpy.max.html",
         documentationLabel: "Frequency of Maximum Energy documentation",
+    },
+    {
+        type: "band_levels",
+        title: "Sound Level by Frequency Band",
+        description: "Export a CSV with the relative level (dB) of the selected annotations in 1000 Hz bands, using the left channel and the current FFT size.",
+        documentationUrl: "",
+        documentationLabel: "",
     },
 ]
 
@@ -103,6 +113,8 @@ export function AcousticAnalysisStudioPanel({
     selection,
     isFullTimeWindow,
     channel,
+    selectedAnnotationIds = [],
+    fftSize = 1024,
     onBack,
     onSuccess,
     onProcessingChange,
@@ -140,6 +152,34 @@ export function AcousticAnalysisStudioPanel({
     }, [])
 
     const handleRun = async () => {
+        if (analysisType === "band_levels") {
+            if (!projectId) {
+                message.warning("Project context is missing")
+                return
+            }
+            if (selectedAnnotationIds.length === 0) {
+                message.warning("Select at least one annotation in the table first.")
+                return
+            }
+            setRunning(true)
+            processingChangeRef.current?.(true)
+            try {
+                const download = await analysisApi.exportAnnotationBandLevels({
+                    project_id: projectId,
+                    media_id: mediaId,
+                    annotation_ids: selectedAnnotationIds,
+                    fft_size: fftSize,
+                })
+                downloadFile(download)
+                message.success("CSV downloaded.")
+            } catch (error) {
+                message.error(error instanceof Error ? error.message : "Sound level export failed")
+            } finally {
+                processingChangeRef.current?.(false)
+                if (mountedRef.current) setRunning(false)
+            }
+            return
+        }
         if (!selection) {
             message.warning("Please select a valid time and frequency range")
             return
@@ -258,16 +298,18 @@ export function AcousticAnalysisStudioPanel({
                                                 <Radio disabled={running} checked={analysisType === option.type} onChange={() => setAnalysisType(option.type)}>
                                                     <span className="ai-model-title">{option.title}</span>
                                                 </Radio>
-                                                <a
-                                                    href={option.documentationUrl}
-                                                    target="_blank"
-                                                    rel="noreferrer"
-                                                    className="ai-model-doc-link"
-                                                    title={option.documentationLabel}
-                                                    aria-label={option.documentationLabel}
-                                                >
-                                                    <ExternalLink size={16} color="var(--brand)" />
-                                                </a>
+                                                {option.documentationUrl ? (
+                                                    <a
+                                                        href={option.documentationUrl}
+                                                        target="_blank"
+                                                        rel="noreferrer"
+                                                        className="ai-model-doc-link"
+                                                        title={option.documentationLabel}
+                                                        aria-label={option.documentationLabel}
+                                                    >
+                                                        <ExternalLink size={16} color="var(--brand)" />
+                                                    </a>
+                                                ) : null}
                                             </div>
                                             <div className="ai-model-desc">{option.description}</div>
                                             {option.type === "template_matching" && analysisType === option.type ? (
@@ -292,7 +334,7 @@ export function AcousticAnalysisStudioPanel({
                 <div className="studio-analysis-embed-foot">
                     <div className="ai-models-footer">
                         <Button onClick={onBack} className="ai-models-btn-cancel" disabled={running}>Cancel</Button>
-                        <Button type="primary" onClick={() => void handleRun()} loading={running} disabled={!selection} className="ai-models-btn-save">Run</Button>
+                        <Button type="primary" onClick={() => void handleRun()} loading={running} disabled={analysisType === "band_levels" ? selectedAnnotationIds.length === 0 : !selection} className="ai-models-btn-save">Run</Button>
                     </div>
                 </div>
             </div>

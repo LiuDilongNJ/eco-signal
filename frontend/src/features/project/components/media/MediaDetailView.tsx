@@ -8101,6 +8101,8 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                             selection={acousticIndexSelection}
                             isFullTimeWindow={acousticAnalysisIsFullTimeWindow}
                             channel={isMonoRecording ? "mono" : audioChannel === 2 ? "right" : "left"}
+                            selectedAnnotationIds={selectedAnnotationKeys.map((key) => Number(key))}
+                            fftSize={Number(fftValue)}
                             onProcessingChange={handleAnalysisProcessingChange}
                             onSuccess={() => setAnnotationListTick((n) => n + 1)}
                             onBack={() => setRightPanel("info")}

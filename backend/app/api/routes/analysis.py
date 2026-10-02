@@ -6,12 +6,14 @@ from fastapi import APIRouter, HTTPException
 from fastapi.concurrency import run_in_threadpool
 
 from app.api.deps import CurrentUser, SessionDep, TaskPublisherDep
+from app.api.responses import csv_response
 from app.models.index import IndexType
 from app.repositories import index_type_repository
 from app.schemas.analysis import (
     AcousticIndexPreviewRequest,
     AcousticIndexPreviewResponse,
     AcousticIndicesResponse,
+    AnnotationBandLevelsRequest,
     RunAcousticIndicesRequest,
     RunAnalysisRequest,
     RunAnalysisResponse,
@@ -19,6 +21,8 @@ from app.schemas.analysis import (
 from app.schemas.index_type import IndexTypeParameterRead, IndexTypeRead
 from app.schemas.response import ApiResponse, api_success
 from app.services.analysis_service import analysis_service
+from app.services.band_level_service import build_band_levels_csv
+from app.spectrogram import WINDOW_FUNCTIONS
 
 logger = logging.getLogger(__name__)
 
@@ -165,3 +169,33 @@ async def preview_acoustic_index(
         current_user,
     )
     return api_success(data=result)
+
+
+@router.post(
+    "/acoustic-band-levels",
+    summary="导出标注频带声级 / Export Annotation Band Levels",
+)
+async def export_annotation_band_levels(
+    request: AnnotationBandLevelsRequest,
+    session: SessionDep,
+    current_user: CurrentUser,
+):
+    """
+    计算所选标注在 1 kHz 频带内的相对声级（dB，左声道）并返回 CSV。 / Compute relative dB per 1 kHz band (left channel) for the selected annotations and return a CSV.
+    """
+    if request.window not in WINDOW_FUNCTIONS:
+        raise HTTPException(status_code=422, detail="Invalid window function")
+    try:
+        content = await run_in_threadpool(
+            build_band_levels_csv,
+            session,
+            project_id=request.project_id,
+            media_id=request.media_id,
+            annotation_ids=request.annotation_ids,
+            fft_size=request.fft_size,
+            window=request.window,
+            current_user=current_user,
+        )
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return csv_response(content, f"media_{request.media_id}_band_levels.csv")

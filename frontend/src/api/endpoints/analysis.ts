@@ -130,5 +130,14 @@ export const analysisApi = {
     /** 预览声学指数结果 */
     previewAcousticIndex(payload: AcousticIndexPreviewRequest) {
         return apiClient.post<{ code: number; message: string; data: AcousticIndexPreviewResponse }>("/v1/acoustic-index-previews", payload)
-    }
+    },
+
+    exportAnnotationBandLevels(payload: {
+        project_id: number
+        media_id: number
+        annotation_ids: number[]
+        fft_size: number
+    }) {
+        return apiClient.download("/v1/acoustic-band-levels", { method: "POST", body: payload })
+    },
 }

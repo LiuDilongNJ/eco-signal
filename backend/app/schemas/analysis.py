@@ -135,6 +135,16 @@ class RunAcousticIndicesRequest(SQLModel):
             raise ValueError("At least one index must be selected")
         return value
 
+class AnnotationBandLevelsRequest(SQLModel):
+    """Request body for per-band relative sound levels of annotations."""
+
+    project_id: int
+    media_id: int
+    annotation_ids: list[int] = Field(..., min_length=1, max_length=500)
+    fft_size: Literal[128, 256, 512, 1024, 2048, 4096] = 1024
+    window: str = "hanning"
+
+
 class AcousticIndexPreviewRequest(SQLModel):
     """Request body for one acoustic index preview calculation."""
 
