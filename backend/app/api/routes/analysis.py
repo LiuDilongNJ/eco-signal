@@ -4,9 +4,10 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException
 from fastapi.concurrency import run_in_threadpool
+from fastapi.responses import Response
 
 from app.api.deps import CurrentUser, SessionDep, TaskPublisherDep
-from app.api.responses import csv_response
+from app.api.responses import build_download_content_disposition
 from app.models.index import IndexType
 from app.repositories import index_type_repository
 from app.schemas.analysis import (
@@ -198,4 +199,12 @@ async def export_annotation_band_levels(
         )
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    return csv_response(content, f"media_{request.media_id}_band_levels.csv")
+    return Response(
+        content=("\ufeff" + content).encode("utf-8"),
+        media_type="text/csv; charset=utf-8",
+        headers={
+            "Content-Disposition": build_download_content_disposition(
+                f"media_{request.media_id}_band_levels.csv"
+            )
+        },
+    )
