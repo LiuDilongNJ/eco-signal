@@ -209,8 +209,8 @@ export function AcousticAnalysisStudioPanel({
                 selection,
                 channel,
                 indices: [{
-                    analysis_type: submittedAnalysis.type,
-                    params: submittedAnalysis.type === "template_matching"
+                    analysis_type: analysisType,
+                    params: analysisType === "template_matching"
                         ? { peak_th: peakThreshold ?? 0.5, peak_distance: peakDistance }
                         : {},
                 }],
