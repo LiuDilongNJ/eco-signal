@@ -57,9 +57,13 @@ def compute_band_levels(
     for band in range(first_band, last_band):
         band_lo = band * BAND_WIDTH_HZ
         band_hi = band_lo + BAND_WIDTH_HZ
-        mask = (freqs >= max(band_lo, min_frequency)) & (freqs < min(band_hi, max_frequency))
+        lo = max(band_lo, min_frequency)
+        hi = min(band_hi, max_frequency)
+        mask = (freqs >= lo) & (freqs < hi)
         if not mask.any():
-            continue
+            # Range narrower than the FFT bin spacing: use the bin nearest to its center.
+            mask = np.zeros_like(freqs, dtype=bool)
+            mask[int(np.argmin(np.abs(freqs - (lo + hi) / 2.0)))] = True
         level = 10.0 * math.log10(float(mean_power[mask].mean()) + _POWER_FLOOR)
         results.append((f"{band_lo}-{band_hi} Hz", level))
     return results
@@ -96,6 +100,7 @@ def build_band_levels_csv(
     output = io.StringIO()
     writer = csv.writer(output)
     writer.writerow(CSV_COLUMNS)
+    row_count = 0
     with sf.SoundFile(str(audio_path), "r") as audio_file:
         sample_rate = audio_file.samplerate
         nyquist = sample_rate / 2.0
@@ -116,4 +121,10 @@ def build_band_levels_csv(
                 max_frequency=min(annotation.max_y, nyquist),
             ):
                 writer.writerow([annotation.annotation_id, label, f"{level:.2f}", _csv_safe(annotation.comments)])
+                row_count += 1
+    if row_count == 0:
+        raise HTTPException(
+            status_code=422,
+            detail="No band levels could be computed: selected annotations lie outside the audio duration or frequency range",
+        )
     return output.getvalue()
