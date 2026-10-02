@@ -15,7 +15,13 @@ from app.services.analysis_service import analysis_service
 from app.spectrogram import _select_channel, _window_values, normalize_window_name
 
 BAND_WIDTH_HZ = 1000
-CSV_COLUMNS = ["annotation_id", "frequency_band", "dB_relative", "annotation_comment"]
+CSV_COLUMNS = [
+    "annotation_id",
+    "frequency_low_kHz",
+    "frequency_high_kHz",
+    "dB_relative",
+    "annotation_comment",
+]
 _LEFT_CHANNEL = 1
 _POWER_FLOOR = 1e-30
 _CSV_FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
@@ -29,9 +35,10 @@ def compute_band_levels(
     window: str,
     min_frequency: float,
     max_frequency: float,
-) -> list[tuple[str, float]]:
-    """Return (band label, relative dB) for each 1 kHz band overlapping the frequency range.
+) -> list[tuple[int, int, float]]:
+    """Return (low kHz, high kHz, relative dB) for each 1 kHz band overlapping the frequency range.
 
+    Band edges are integer kHz; the highest edge is clipped to the recording's Nyquist frequency.
     Uses the spectrogram renderer's normalization (windowed FFT magnitude / fft_size),
     averages power over frames and bins in the band, then converts to dB.
     """
@@ -51,7 +58,7 @@ def compute_band_levels(
     mean_power = power_sum / max(frame_count, 1)
     freqs = np.fft.rfftfreq(fft_size, d=1.0 / sample_rate)
 
-    results: list[tuple[str, float]] = []
+    results: list[tuple[int, int, float]] = []
     first_band = int(math.floor(min_frequency / BAND_WIDTH_HZ))
     last_band = int(math.ceil(max_frequency / BAND_WIDTH_HZ))
     for band in range(first_band, last_band):
@@ -65,7 +72,11 @@ def compute_band_levels(
             mask = np.zeros_like(freqs, dtype=bool)
             mask[int(np.argmin(np.abs(freqs - (lo + hi) / 2.0)))] = True
         level = 10.0 * math.log10(float(mean_power[mask].mean()) + _POWER_FLOOR)
-        results.append((f"{band_lo}-{band_hi} Hz", level))
+        results.append((
+            band_lo // BAND_WIDTH_HZ,
+            round(min(band_hi, sample_rate / 2.0) / BAND_WIDTH_HZ),
+            level,
+        ))
     return results
 
 
@@ -112,7 +123,7 @@ def build_band_levels_csv(
             audio_file.seek(frame_start)
             raw = audio_file.read(frame_stop - frame_start, dtype="float64", always_2d=False)
             samples = _select_channel(np.asarray(raw), _LEFT_CHANNEL)
-            for label, level in compute_band_levels(
+            for low_khz, high_khz, level in compute_band_levels(
                 samples,
                 sample_rate,
                 fft_size=fft_size,
@@ -120,7 +131,13 @@ def build_band_levels_csv(
                 min_frequency=max(0.0, annotation.min_y),
                 max_frequency=min(annotation.max_y, nyquist),
             ):
-                writer.writerow([annotation.annotation_id, label, f"{level:.2f}", _csv_safe(annotation.comments)])
+                writer.writerow([
+                    annotation.annotation_id,
+                    low_khz,
+                    high_khz,
+                    f"{level:.2f}",
+                    _csv_safe(annotation.comments),
+                ])
                 row_count += 1
     if row_count == 0:
         raise HTTPException(
