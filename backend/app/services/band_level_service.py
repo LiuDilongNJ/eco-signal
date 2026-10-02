@@ -10,6 +10,7 @@ from fastapi import HTTPException
 from sqlmodel import Session, select
 
 from app.models.annotation import Annotation
+from app.models.taxon import SoundClassification
 from app.models.user import User
 from app.services.analysis_service import analysis_service
 from app.spectrogram import _select_channel, _window_values, normalize_window_name
@@ -21,6 +22,8 @@ CSV_COLUMNS = [
     "frequency_high_kHz",
     "dB_relative",
     "annotation_comment",
+    "soundscape_component",
+    "sound_type",
 ]
 _LEFT_CHANNEL = 1
 _POWER_FLOOR = 1e-30
@@ -106,6 +109,13 @@ def build_band_levels_csv(
         raise HTTPException(status_code=404, detail="Annotation not found for this media")
 
     audio_path = Path(analysis_service._resolve_audio_path(session, media, media_id))
+    sound_ids = {a.sound_id for a in annotations if a.sound_id is not None}
+    sounds = {
+        s.sound_id: s
+        for s in session.exec(
+            select(SoundClassification).where(SoundClassification.sound_id.in_(sound_ids))  # type: ignore[attr-defined]
+        ).all()
+    } if sound_ids else {}
     normalized_window = normalize_window_name(window)
 
     output = io.StringIO()
@@ -122,6 +132,7 @@ def build_band_levels_csv(
                 continue
             audio_file.seek(frame_start)
             raw = audio_file.read(frame_stop - frame_start, dtype="float64", always_2d=False)
+            sound = sounds.get(annotation.sound_id) if annotation.sound_id is not None else None
             samples = _select_channel(np.asarray(raw), _LEFT_CHANNEL)
             for low_khz, high_khz, level in compute_band_levels(
                 samples,
@@ -137,6 +148,8 @@ def build_band_levels_csv(
                     high_khz,
                     f"{level:.2f}",
                     _csv_safe(annotation.comments),
+                    _csv_safe(sound.soundscape_component if sound else None),
+                    _csv_safe(sound.sound_type if sound else None),
                 ])
                 row_count += 1
     if row_count == 0:
