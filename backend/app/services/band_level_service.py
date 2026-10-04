@@ -17,6 +17,8 @@ from app.spectrogram import _select_channel, _window_values, normalize_window_na
 
 BAND_WIDTH_HZ = 1000
 CSV_COLUMNS = [
+    "recording_id",
+    "recording_name",
     "annotation_id",
     "frequency_low_kHz",
     "frequency_high_kHz",
@@ -143,6 +145,8 @@ def build_band_levels_csv(
                 max_frequency=min(annotation.max_y, nyquist),
             ):
                 writer.writerow([
+                    media.media_id,
+                    _csv_safe(media.name or media.filename),
                     annotation.annotation_id,
                     low_khz,
                     high_khz,
