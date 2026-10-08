@@ -1,4 +1,4 @@
-import { Input as ESInput, Button as ESButton, Label } from "@/components/ui"
+import { Input as ESInput, Button as ESButton, FormHelpIcon, Label, Tooltip } from "@/components/ui"
 import { LoadingState } from "@/components/ui"
 import { useCallback, useEffect, useState } from "react"
 import { message, Modal, Switch } from "@/components/ui"
@@ -17,6 +17,33 @@ import "../style/settings-forms.css"
 import { formatStorageBytes, storageHealthLabel } from "../../utils/storageStatus"
 
 type FederationField = "server_name" | "app_url" | "host_url" | "latStr" | "lonStr"
+
+const FEDERATION_HELP = {
+    server_name:
+        "Display name of this instance, shown on the network map and in the node lists of other instances.",
+    app_url:
+        "Public address of this instance, without a trailing path (for example https://my-server.example.org). It identifies this node on the network, so it must match the URL users actually open.",
+    host_url:
+        "Address of the main (hub) server this instance reports to, for example https://hub.example.org. Leave empty if this instance is the hub. Do not include /index or /api.",
+    latitude:
+        "Position of this instance on the network map, in decimal degrees (-90 to 90). Required when Public is on.",
+    longitude:
+        "Position of this instance on the network map, in decimal degrees (-180 to 180). Required when Public is on.",
+    public:
+        "When on, this instance is listed for everyone on the hub's map and node list. When off, the hub still keeps a record but does not display it. Only name, location and aggregate counts are shared, never data, media or users.",
+    secret:
+        "Shared password between the hub and its child instances. It is used to sign registration requests and is never sent over the network. Use the same value on every instance. Generating a new secret on the hub immediately blocks children until they receive the new value.",
+} as const
+
+function FieldHelp({ text }: { text: string }) {
+    return (
+        <Tooltip title={text}>
+            <button type="button" className="settings-form__help" aria-label={text}>
+                <FormHelpIcon size={15} />
+            </button>
+        </Tooltip>
+    )
+}
 
 function parseOptionalCoord(s: string): number | null {
     const t = s.trim()
@@ -259,9 +286,12 @@ export function FederationSettingsTab() {
             </section>
 
             <div className="settings-form__field">
-                <Label className="settings-form__label" htmlFor="fed-server-name">
-                    {renderRequiredLabel("Server name")}
-                </Label>
+                <div className="settings-form__label-row">
+                    <Label className="settings-form__label" htmlFor="fed-server-name">
+                        {renderRequiredLabel("Server name")}
+                    </Label>
+                    <FieldHelp text={FEDERATION_HELP.server_name} />
+                </div>
                 <ESInput appearance="unstyled"
                     id="fed-server-name"
                     className={`settings-form__input${
@@ -278,9 +308,12 @@ export function FederationSettingsTab() {
             </div>
 
             <div className="settings-form__field">
-                <Label className="settings-form__label" htmlFor="fed-app-url">
-                    {renderRequiredLabel("App URL")}
-                </Label>
+                <div className="settings-form__label-row">
+                    <Label className="settings-form__label" htmlFor="fed-app-url">
+                        {renderRequiredLabel("App URL")}
+                    </Label>
+                    <FieldHelp text={FEDERATION_HELP.app_url} />
+                </div>
                 <ESInput appearance="unstyled"
                     id="fed-app-url"
                     className={`settings-form__input${fieldErrors.app_url ? " settings-form__input--error" : ""}`}
@@ -293,9 +326,12 @@ export function FederationSettingsTab() {
             </div>
 
             <div className="settings-form__field">
-                <Label className="settings-form__label" htmlFor="fed-host-url">
-                    Host URL
-                </Label>
+                <div className="settings-form__label-row">
+                    <Label className="settings-form__label" htmlFor="fed-host-url">
+                        Host URL
+                    </Label>
+                    <FieldHelp text={FEDERATION_HELP.host_url} />
+                </div>
                 <ESInput appearance="unstyled"
                     id="fed-host-url"
                     className={`settings-form__input${fieldErrors.host_url ? " settings-form__input--error" : ""}`}
@@ -308,9 +344,12 @@ export function FederationSettingsTab() {
 
             <div className="settings-form__grid-2">
                 <div className="settings-form__field">
-                    <Label className="settings-form__label" htmlFor="fed-lat">
-                        {form.shared ? renderRequiredLabel("Latitude") : "Latitude"}
-                    </Label>
+                    <div className="settings-form__label-row">
+                        <Label className="settings-form__label" htmlFor="fed-lat">
+                            {form.shared ? renderRequiredLabel("Latitude") : "Latitude"}
+                        </Label>
+                        <FieldHelp text={FEDERATION_HELP.latitude} />
+                    </div>
                     <ESInput appearance="unstyled"
                         id="fed-lat"
                         className={`settings-form__input${fieldErrors.latStr ? " settings-form__input--error" : ""}`}
@@ -326,9 +365,12 @@ export function FederationSettingsTab() {
                     {fieldErrors.latStr ? <div className="settings-form__error">{fieldErrors.latStr}</div> : null}
                 </div>
                 <div className="settings-form__field">
-                    <Label className="settings-form__label" htmlFor="fed-lon">
-                        {form.shared ? renderRequiredLabel("Longitude") : "Longitude"}
-                    </Label>
+                    <div className="settings-form__label-row">
+                        <Label className="settings-form__label" htmlFor="fed-lon">
+                            {form.shared ? renderRequiredLabel("Longitude") : "Longitude"}
+                        </Label>
+                        <FieldHelp text={FEDERATION_HELP.longitude} />
+                    </div>
                     <ESInput appearance="unstyled"
                         id="fed-lon"
                         className={`settings-form__input${fieldErrors.lonStr ? " settings-form__input--error" : ""}`}
@@ -347,15 +389,21 @@ export function FederationSettingsTab() {
 
             <div className="settings-form__field">
                 <div className="settings-form__switch-row">
-                    <span className="settings-form__label">Public</span>
+                    <span className="settings-form__label-row">
+                        <span className="settings-form__label">Public</span>
+                        <FieldHelp text={FEDERATION_HELP.public} />
+                    </span>
                     <Switch checked={form.shared} onChange={(checked) => updateField("shared", checked)} />
                 </div>
             </div>
 
             <div className="settings-form__field">
-                <Label className="settings-form__label" htmlFor="fed-secret">
-                    Federation secret
-                </Label>
+                <div className="settings-form__label-row">
+                    <Label className="settings-form__label" htmlFor="fed-secret">
+                        Federation secret
+                    </Label>
+                    <FieldHelp text={FEDERATION_HELP.secret} />
+                </div>
                 <ESInput appearance="unstyled"
                     id="fed-secret"
                     className="settings-form__input settings-form__input--mono"
@@ -365,9 +413,6 @@ export function FederationSettingsTab() {
                     value={form.federation_secret}
                     onChange={(e) => updateField("federation_secret", e.target.value)}
                 />
-                <p className="settings-form__hint">
-                    Used for HMAC registration headers. You can paste a shared secret or generate a new one.
-                </p>
             </div>
 
             <div className="settings-form__actions">

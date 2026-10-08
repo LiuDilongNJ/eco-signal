@@ -153,6 +153,48 @@
     margin-bottom: 6px;
 }
 
+.settings-form__label-row {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 6px;
+    max-width: 100%;
+}
+
+.settings-form__label-row .settings-form__label {
+    display: inline-flex;
+    align-items: center;
+    margin-bottom: 0;
+    line-height: 1;
+}
+
+.settings-form__label-row .form-drawer-required-suffix {
+    display: inline-flex;
+    align-items: center;
+    line-height: 1;
+    transform: translateY(3px);
+}
+
+.settings-form__help {
+    display: inline-flex;
+    align-items: center;
+    flex-shrink: 0;
+    padding: 0;
+    border: none;
+    background: none;
+    color: var(--text-muted);
+    cursor: help;
+}
+
+.settings-form__help:hover,
+.settings-form__help:focus-visible {
+    color: var(--brand);
+}
+
+.settings-form__switch-row .settings-form__label-row {
+    margin-bottom: 0;
+}
+
 .settings-form__error {
     margin-top: 4px;
     font-size: 14px;
