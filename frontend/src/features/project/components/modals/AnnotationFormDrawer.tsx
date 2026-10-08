@@ -505,12 +505,19 @@ export function AnnotationFormDrawer({
         )
     }
 
+    const editingAnnotationId = Number(initialData?.annotation_id)
+    const title = mode === "edit"
+        ? (Number.isFinite(editingAnnotationId) && editingAnnotationId > 0
+            ? `Edit Annotation #${editingAnnotationId}`
+            : "Edit Annotation")
+        : "New Annotation"
+
     return (
         <ConfigProvider theme={drawerTheme}>
             <FormDrawer
                 maskClosable={false}
                 closable={false}
-                title={<span className="form-drawer-title">{mode === "edit" ? "Edit Annotation" : "New Annotation"}</span>}
+                title={<span className="form-drawer-title">{title}</span>}
                 placement="right"
                 onClose={onClose}
                 open={open}

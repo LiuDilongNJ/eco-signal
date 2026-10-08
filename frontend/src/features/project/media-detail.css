@@ -1072,6 +1072,7 @@
 
 .studio-annotation-header .header-title {
     flex: 1;
+    min-width: 0;
     font-weight: 700;
     font-size: 1.02rem;
     letter-spacing: -0.02em;

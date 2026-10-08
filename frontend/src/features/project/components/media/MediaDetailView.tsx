@@ -7086,7 +7086,9 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                                     <ArrowLeft size={18} strokeWidth={2.25} />
                                 </ESButton>
                                 <span className="header-title">
-                                    {editingAnnotationId != null ? "Edit Annotation" : "New Annotation"}
+                                    {editingAnnotationId != null
+                                        ? `Edit Annotation #${editingAnnotationId}`
+                                        : "New Annotation"}
                                 </span>
                                 {editingAnnotationId != null ? (
                                     <div className="studio-annotation-header-actions">
