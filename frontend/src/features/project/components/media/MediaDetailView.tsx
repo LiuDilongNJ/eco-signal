@@ -5605,7 +5605,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
     if (loading) {
         return (
             <div className="media-detail-loading">
-                <LoadingState label="Loading media detail..." variant="page" size="lg" />
+                <LoadingState label="Loading player" variant="page" size="lg" />
             </div>
         )
     }
