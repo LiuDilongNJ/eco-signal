@@ -842,19 +842,14 @@ def resolve_site_enrichment(
 
 
 def _detect_remote_taxon_table(geo_conn) -> str:
-    for table_name in ("col_xr_taxon_species", "geo_col_xr_taxon_species"):
-        row = pg_fetchone(
-            geo_conn,
-            """
-            SELECT 1
-            FROM information_schema.tables
-            WHERE table_schema = 'public' AND table_name = %s
-            """,
-            (table_name,),
-        )
-        if row:
-            return table_name
-    raise RuntimeError("XR taxon dictionary table is unavailable")
+    row = pg_fetchone(
+        geo_conn,
+        "SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = %s",
+        ("col_xr_taxon_species",),
+    )
+    if not row:
+        raise RuntimeError("Taxon dictionary table is unavailable")
+    return "col_xr_taxon_species"
 
 
 def _chunked(values: list[str], size: int) -> list[list[str]]:

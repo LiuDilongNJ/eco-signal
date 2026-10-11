@@ -3,6 +3,9 @@ import importlib.util
 import sys
 from pathlib import Path
 
+import pytest
+from sqlalchemy import text
+
 
 def _load_script_module():
     script_path = Path(__file__).resolve().parents[2] / "scripts" / "import_col_xr_to_geo.py"
@@ -252,3 +255,93 @@ def test_import_normalized_assigns_best_vernacular_name(tmp_path, monkeypatch):
 
     assert stats.vernacular_assigned_rows == 1
     assert captured["stage_rows"][0]["cached_common_name"] == "Preferred Species One"
+
+
+def _lookup_indexes(connection) -> dict[str, tuple[str, bool]]:
+    rows = connection.execute(text("""
+        SELECT c.relname, pg_get_indexdef(i.indexrelid), i.indisvalid
+        FROM pg_index i JOIN pg_class c ON c.oid = i.indexrelid
+        WHERE i.indrelid = 'public.col_xr_taxon_species'::regclass AND c.relname LIKE 'idx_col_xr_%_name_norm'
+    """)).all()
+    return {name: (definition, valid) for name, definition, valid in rows}
+
+
+@pytest.mark.parametrize("concurrently", [False, True])
+def test_ensure_lookup_indexes_is_repeatable(geo_test_engine, taxon_dictionary, concurrently):
+    module = _load_script_module()
+    engine = geo_test_engine.execution_options(isolation_level="AUTOCOMMIT")
+    with engine.connect() as connection:
+        module.ensure_lookup_indexes(connection, concurrently=concurrently)
+        module.ensure_lookup_indexes(connection, concurrently=concurrently)
+        indexes = _lookup_indexes(connection)
+    assert set(indexes) == {f"idx_col_xr_{rank}_name_norm" for rank in module.LOOKUP_NAME_COLUMNS}
+    for rank, column in module.LOOKUP_NAME_COLUMNS.items():
+        definition, valid = indexes[f"idx_col_xr_{rank}_name_norm"]
+        assert f"lower(TRIM(BOTH FROM {column}))" in definition
+        assert valid
+
+
+def test_ensure_lookup_indexes_collects_expression_statistics(geo_test_engine, taxon_dictionary):
+    module = _load_script_module()
+    taxon_dictionary.exec(text("""
+        INSERT INTO col_xr_taxon_species (col_species_id, cached_scientific_name, col_genus_name, col_family_name, col_order_name, col_class_name)
+        VALUES ('S1', 'Species one', 'Genus', 'Family', 'Order', 'Class')
+    """))
+    taxon_dictionary.commit()
+    engine = geo_test_engine.execution_options(isolation_level="AUTOCOMMIT")
+    with engine.connect() as connection:
+        module.ensure_lookup_indexes(connection, concurrently=True)
+        analyzed = set(connection.execute(text(
+            "SELECT tablename FROM pg_stats WHERE schemaname = 'public' AND tablename LIKE 'idx_col_xr_%_name_norm'"
+        )).scalars())
+    assert analyzed == {f"idx_col_xr_{rank}_name_norm" for rank in module.LOOKUP_NAME_COLUMNS}
+
+
+def test_ensure_lookup_indexes_rebuilds_invalid_index(geo_test_engine, taxon_dictionary):
+    module = _load_script_module()
+    engine = geo_test_engine.execution_options(isolation_level="AUTOCOMMIT")
+    with engine.connect() as connection:
+        module.ensure_lookup_indexes(connection)
+        connection.execute(text("""
+            UPDATE pg_index SET indisvalid = false
+            WHERE indexrelid = 'public.idx_col_xr_genus_name_norm'::regclass
+        """))
+        module.ensure_lookup_indexes(connection, concurrently=True)
+        assert _lookup_indexes(connection)["idx_col_xr_genus_name_norm"][1]
+
+
+def _load_setup_module():
+    _load_script_module()
+    script_path = Path(__file__).resolve().parents[2] / "scripts" / "setup_geo_data.py"
+    spec = importlib.util.spec_from_file_location("setup_geo_data", script_path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_setup_ensures_lookup_indexes_without_auto_import(geo_test_engine, taxon_dictionary, monkeypatch):
+    module = _load_setup_module()
+    monkeypatch.setenv("GEO_DB_AUTO_DOWNLOAD", "false")
+    monkeypatch.setattr(module, "get_geo_db_url", lambda: geo_test_engine.url)
+    module.main()
+    with geo_test_engine.connect() as connection:
+        assert len(_lookup_indexes(connection)) == 5
+
+
+def test_setup_skips_lookup_indexes_without_dictionary_table(geo_test_engine, taxon_dictionary, monkeypatch, caplog):
+    module = _load_setup_module()
+    with geo_test_engine.connect() as connection:
+        connection.execute(text("DROP TABLE col_xr_taxon_species"))
+        connection.commit()
+    monkeypatch.setattr(module, "get_geo_db_url", lambda: geo_test_engine.url)
+    with caplog.at_level("INFO"):
+        module._ensure_taxon_lookup_indexes()
+    assert "skip lookup indexes" in caplog.text
+
+
+def test_setup_lookup_index_failure_does_not_stop_startup(monkeypatch, caplog):
+    module = _load_setup_module()
+    monkeypatch.setattr(module, "get_geo_db_url", lambda: "postgresql+psycopg://postgres:unused@127.0.0.1:1/unavailable")
+    with caplog.at_level("WARNING"):
+        module._ensure_taxon_lookup_indexes()
+    assert "Could not ensure taxon lookup indexes" in caplog.text

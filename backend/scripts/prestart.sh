@@ -14,7 +14,3 @@ python app/initial_data.py
 
 # Auto-import GADM into geo_db if ADM tables are missing/empty
 python scripts/setup_geo_data.py
-
-# Set up postgres_fdw connection from main db to geo_db
-# This is idempotent - safe to run on every startup
-python scripts/setup_fdw.py

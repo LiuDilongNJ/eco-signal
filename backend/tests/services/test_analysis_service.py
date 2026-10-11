@@ -383,9 +383,7 @@ class TestAnalysisService:
         with patch("app.services.analysis_service.annotation_repository") as mock_repo, \
              patch.object(service, "_find_local_taxon") as mock_find_local_taxon:
             unknown_taxon = MagicMock(taxon_id=999)
-            remote_taxon = MagicMock(taxon_id=1234)
             mock_find_local_taxon.side_effect = lambda _session, scientific_name: unknown_taxon if scientific_name == "Unknown" else None
-            mock_repo.find_taxon.return_value = remote_taxon
             mock_repo.create_batch.return_value = [MagicMock()]
 
             result = service.analyze_and_store_birdnet(
@@ -399,7 +397,6 @@ class TestAnalysisService:
             assert annotations[0].taxon_id == 999
             assert annotations[0].comments == "Dryocopus martius"
             assert result["unmatched_species"] == ["Dryocopus martius"]
-            mock_repo.find_taxon.assert_not_called()
 
     def test_find_local_taxon_matches_scientific_name_case_insensitively(self, service, db):
         """BirdNET taxon lookup should tolerate casing differences in local scientific names."""
@@ -516,7 +513,6 @@ class TestAnalysisService:
              patch.object(service, "_find_local_taxon") as mock_find_local_taxon:
             unknown_taxon = MagicMock(taxon_id=999)
             mock_find_local_taxon.side_effect = lambda _session, scientific_name: unknown_taxon if scientific_name == "Unknown" else None
-            mock_repo.find_taxon.return_value = MagicMock(taxon_id=123)
             mock_repo.create_batch.return_value = [MagicMock()]
 
             result = service.analyze_and_store_batdetect(mock_session, Path("test.wav"), 10, 1)
@@ -526,7 +522,6 @@ class TestAnalysisService:
             assert annotations[0].comments == "BatX"
             assert result["unmatched_species"] == ["BatX"]
             assert result["unmatched_species_count"] == 1
-            mock_repo.find_taxon.assert_not_called()
 
     def test_analyze_and_store_insects(self, service, mock_session):
         """analyze_and_store_insects creates annotations."""
@@ -613,7 +608,6 @@ class TestAnalysisService:
              patch.object(service, "_find_local_taxon") as mock_find_local_taxon:
             unknown_taxon = MagicMock(taxon_id=999)
             mock_find_local_taxon.side_effect = lambda _session, scientific_name: unknown_taxon if scientific_name == "Unknown" else None
-            mock_repo.find_taxon.return_value = MagicMock(taxon_id=123)
             mock_repo.create_batch.return_value = [MagicMock()]
 
             result = service.analyze_and_store_insects(mock_session, Path("test.wav"), 10, 1)
@@ -623,7 +617,6 @@ class TestAnalysisService:
             assert annotations[0].comments == "InsectX"
             assert result["unmatched_species"] == ["InsectX"]
             assert result["unmatched_species_count"] == 1
-            mock_repo.find_taxon.assert_not_called()
 
     def test_analyze_and_store_insects_warns_for_invalid_time_bounds(self, service, mock_session):
         """Invalid insect detections are skipped and reported as a warning."""
@@ -665,7 +658,6 @@ class TestAnalysisService:
         with patch("app.services.analysis_service.annotation_repository") as mock_repo:
             ann_a = MagicMock(spec=Annotation, annotation_id=1, taxon_id=5, min_x=0, max_x=2, min_y=1, max_y=10000, confidence=0.6, creator_id=1, creator_type="BirdNET-Analyzer 2.4", sound_id=6, media_id=1, comments="Some species")
             ann_b = MagicMock(spec=Annotation, annotation_id=2, taxon_id=5, min_x=1, max_x=3, min_y=1, max_y=10000, confidence=0.8, creator_id=1, creator_type="BirdNET-Analyzer 2.4", sound_id=6, media_id=1, comments="Some species")
-            mock_repo.find_taxon.return_value = MagicMock(taxon_id=999)
             mock_session.exec.return_value.all.return_value = [ann_a, ann_b]
 
             service.merge_annotations(mock_session, 1, "BirdNET-Analyzer 2.4", max_gap=5.0, annotation_ids=[1, 2])
@@ -688,7 +680,6 @@ class TestAnalysisService:
             ann_c = MagicMock(spec=Annotation, annotation_id=3, taxon_id=1, min_x=10, max_x=13, min_y=100, max_y=500, confidence=0.7, creator_id=1, creator_type="T1", sound_id=1, media_id=10, comments=None)
             ann_d = MagicMock(spec=Annotation, annotation_id=4, taxon_id=2, min_x=0, max_x=4, min_y=200, max_y=600, confidence=0.6, creator_id=1, creator_type="T1", sound_id=1, media_id=10, comments=None)
             
-            mock_repo.find_taxon.return_value = MagicMock(taxon_id=999)
             mock_session.exec.return_value.all.return_value = [ann_a, ann_b, ann_c, ann_d]
             
             count = service.merge_annotations(mock_session, 10, "T1", max_gap=1.0, annotation_ids=[1, 2, 3, 4])
@@ -741,7 +732,6 @@ class TestAnalysisService:
                 sound_distance_m=84,
                 animal_sound_type="song",
             )
-            mock_repo.find_taxon.return_value = MagicMock(taxon_id=999)
             mock_session.exec.return_value.all.return_value = [ann_a, ann_b]
             
             service.merge_annotations(mock_session, 10, "T1", max_gap=0, keep_merged_only=True, annotation_ids=[1, 2])

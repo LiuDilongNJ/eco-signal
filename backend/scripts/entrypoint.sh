@@ -7,10 +7,10 @@ if [ "${PROMETHEUS_MULTIPROC_CLEANUP:-false}" = "true" ]; then
     find "$PROMETHEUS_MULTIPROC_DIR" -mindepth 1 -maxdepth 1 -type f -delete
 fi
 
-# Run prestart script (migrations, initial data, fdw setup)
+# Run prestart script (migrations, initial data, geographical data)
 # This is now part of the container startup instead of a separate service
 if [ "$SKIP_PRESTART" != "true" ]; then
-    echo "🚀 Running prestart script (migrations, initial data, FDW setup)..."
+    echo "🚀 Running prestart script (migrations, initial data, geographical data)..."
     bash /app/scripts/prestart.sh
 else
     echo "⏭️ Skipping prestart script (SKIP_PRESTART is set to true)"

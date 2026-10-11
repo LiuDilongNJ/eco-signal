@@ -1,13 +1,21 @@
 from datetime import datetime
 
+import pytest
+from sqlalchemy import create_engine
+from sqlalchemy.exc import SQLAlchemyError
+
 from fastapi.testclient import TestClient
 from sqlmodel import Session, select, text
 
+from app.core import geo_db
 from app.core.config import settings
 from app.models.annotation import Annotation
 from app.models.media import AudioSetting, Media
 from app.models.taxon import SoundClassification, Taxon, TaxonSoundType
+from app.repositories import taxon_repository as taxon_module
 from tests.utils.csv import read_csv_rows
+
+pytestmark = pytest.mark.usefixtures("taxon_dictionary")
 
 
 def create_test_taxon(db: Session, **kwargs) -> Taxon:
@@ -66,34 +74,11 @@ def create_test_annotation_with_taxon(db: Session, taxon_id: int) -> Annotation:
     return annotation
 
 
-def seed_remote_taxon_dictionary(db: Session) -> None:
-    db.exec(
+def seed_taxon_dictionary(taxon_dictionary: Session) -> None:
+    taxon_dictionary.exec(
         text(
             """
-            DROP TABLE IF EXISTS geo_col_xr_taxon_species;
-            CREATE TABLE geo_col_xr_taxon_species (
-                col_species_id VARCHAR(64),
-                cached_scientific_name VARCHAR(255),
-                cached_common_name VARCHAR(255),
-                col_genus_id VARCHAR(64),
-                col_genus_name VARCHAR(255),
-                col_family_id VARCHAR(64),
-                col_family_name VARCHAR(255),
-                col_order_id VARCHAR(64),
-                col_order_name VARCHAR(255),
-                col_class_id VARCHAR(64),
-                col_class_name VARCHAR(255),
-                taxonomy_source VARCHAR(50),
-                run_id VARCHAR(64),
-                imported_at TIMESTAMP
-            );
-            """
-        )
-    )
-    db.exec(
-        text(
-            """
-            INSERT INTO geo_col_xr_taxon_species (
+            INSERT INTO col_xr_taxon_species (
                 col_species_id, cached_scientific_name, cached_common_name,
                 col_genus_id, col_genus_name,
                 col_family_id, col_family_name,
@@ -120,7 +105,7 @@ def seed_remote_taxon_dictionary(db: Session) -> None:
             """
         )
     )
-    db.commit()
+    taxon_dictionary.commit()
 
 
 def taxon_csv_upload(content: str) -> dict[str, tuple[str, str, str]]:
@@ -128,11 +113,11 @@ def taxon_csv_upload(content: str) -> dict[str, tuple[str, str, str]]:
 
 
 class TestTaxonsAPI:
-    """Test cases for the taxonomic local dictionary search API."""
+    """Test cases for the taxon suggestion API."""
 
     def test_search_taxons_empty_query(self, client: TestClient, db: Session) -> None:
         """Search without query returns default list limit."""
-        create_test_taxon(db)
+        create_test_taxon(db, taxonomy_source="custom")
         r = client.get(f"{settings.API_V1_STR}/taxons/suggestions")
         assert r.status_code == 200
         data = r.json()["data"]
@@ -140,8 +125,8 @@ class TestTaxonsAPI:
 
     def test_search_taxons_with_query(self, client: TestClient, db: Session) -> None:
         """Search using a specific keyword."""
-        create_test_taxon(db, cached_scientific_name="Canis lupus", cached_common_name="Wolf")
-        create_test_taxon(db, cached_scientific_name="Felis catus", cached_common_name="Cat")
+        create_test_taxon(db, taxonomy_source="custom", cached_scientific_name="Canis lupus", cached_common_name="Wolf")
+        create_test_taxon(db, taxonomy_source="custom", cached_scientific_name="Felis catus", cached_common_name="Cat")
 
         # By scientific name part
         r = client.get(f"{settings.API_V1_STR}/taxons/suggestions?q=cani")
@@ -164,11 +149,13 @@ class TestTaxonsAPI:
     ) -> None:
         create_test_taxon(
             db,
+            taxonomy_source="custom",
             cached_scientific_name="Offset alpha",
             cached_common_name="Offset first",
         )
         create_test_taxon(
             db,
+            taxonomy_source="custom",
             cached_scientific_name="Offset beta",
             cached_common_name="Offset second",
         )
@@ -185,6 +172,143 @@ class TestTaxonsAPI:
         assert first.status_code == 200
         assert second.status_code == 200
         assert first.json()["data"][0]["taxon_id"] != second.json()["data"][0]["taxon_id"]
+
+
+class TestDictionarySuggestions:
+    URL = f"{settings.API_V1_STR}/taxons/suggestions"
+
+    def test_search_dictionary_without_local_species(self, client, db, taxon_dictionary):
+        seed_taxon_dictionary(taxon_dictionary)
+        response = client.get(self.URL)
+        assert response.status_code == 200
+        rows = response.json()["data"]
+        assert {row["col_species_id"] for row in rows} == {"SP1", "SP2"}
+        assert all(row["taxon_id"] for row in rows)
+        assert db.exec(select(Taxon).where(Taxon.col_species_id.in_(["SP1", "SP2"]))).all()
+        assert taxon_dictionary.exec(text("SELECT current_database()")).one()[0] != settings.POSTGRES_DB
+
+    @pytest.mark.parametrize("q,name", [("granulosa", "Potamocypris granulosa"), ("common seed", "Cypridopsis vidua")])
+    def test_search_dictionary_by_scientific_or_common_name(self, client, taxon_dictionary, q, name):
+        seed_taxon_dictionary(taxon_dictionary)
+        response = client.get(self.URL, params={"q": q})
+        assert response.status_code == 200
+        assert [row["cached_scientific_name"] for row in response.json()["data"]] == [name]
+
+    def test_search_reuses_local_species_id(self, client, db, taxon_dictionary):
+        seed_taxon_dictionary(taxon_dictionary)
+        original = create_test_taxon(db, col_species_id="SP1", cached_scientific_name="Potamocypris granulosa")
+        first = client.get(self.URL, params={"q": "granulosa"})
+        second = client.get(self.URL, params={"q": "granulosa"})
+        assert first.json()["data"][0]["taxon_id"] == original.taxon_id
+        assert second.json()["data"][0]["taxon_id"] == original.taxon_id
+        assert len(db.exec(select(Taxon).where(Taxon.col_species_id == "SP1")).all()) == 1
+
+    def test_search_custom_and_dictionary_pages_do_not_overlap(self, client, db, taxon_dictionary):
+        seed_taxon_dictionary(taxon_dictionary)
+        custom = create_test_taxon(db, taxonomy_source="custom", cached_scientific_name="Customus")
+        pages = [client.get(self.URL, params={"limit": 1, "offset": offset}) for offset in range(4)]
+        assert all(page.status_code == 200 for page in pages)
+        ids = [page.json()["data"][0]["taxon_id"] for page in pages[:3]]
+        assert ids[0] == custom.taxon_id
+        assert len(set(ids)) == 3
+        assert pages[3].json()["data"] == []
+        mixed = client.get(self.URL, params={"limit": 2})
+        assert [row["taxon_id"] for row in mixed.json()["data"]] == ids[:2]
+
+    def test_search_no_match_returns_empty_result(self, client, db, taxon_dictionary):
+        seed_taxon_dictionary(taxon_dictionary)
+        create_test_taxon(db, cached_scientific_name="Local-only match")
+        response = client.get(self.URL, params={"q": "Local-only"})
+        assert response.status_code == 200
+        assert response.json()["data"] == []
+
+    def test_search_missing_dictionary_returns_customs_only(self, client, db, taxon_dictionary):
+        custom = create_test_taxon(db, taxonomy_source="custom", cached_scientific_name="Customus missing")
+        taxon_dictionary.exec(text("DROP TABLE col_xr_taxon_species"))
+        taxon_dictionary.commit()
+        response = client.get(self.URL, params={"q": "Customus missing"})
+        assert response.status_code == 200
+        assert [row["taxon_id"] for row in response.json()["data"]] == [custom.taxon_id]
+
+    def test_search_unreachable_dictionary_returns_customs_only(self, client, db, monkeypatch, taxon_dictionary):
+        custom = create_test_taxon(db, taxonomy_source="custom", cached_scientific_name="Customus unreachable")
+        unavailable = create_engine("postgresql+psycopg://postgres:unused@127.0.0.1:1/unavailable", connect_args={"connect_timeout": 1})
+        monkeypatch.setattr(geo_db, "get_geo_engine", lambda: unavailable)
+        try:
+            response = client.get(self.URL, params={"q": "Customus unreachable"})
+            assert response.status_code == 200
+            assert [row["taxon_id"] for row in response.json()["data"]] == [custom.taxon_id]
+        finally:
+            unavailable.dispose()
+
+    def test_search_missing_dictionary_beyond_customs_returns_empty(self, client, db, taxon_dictionary):
+        create_test_taxon(db, taxonomy_source="custom", cached_scientific_name="Customus beyond")
+        taxon_dictionary.exec(text("DROP TABLE col_xr_taxon_species"))
+        taxon_dictionary.commit()
+        response = client.get(self.URL, params={"q": "Customus beyond", "offset": 1})
+        assert response.status_code == 200
+        assert response.json()["data"] == []
+
+    def test_search_main_database_failure_rolls_back_and_propagates(self, db, taxon_dictionary, monkeypatch):
+        seed_taxon_dictionary(taxon_dictionary)
+        error = SQLAlchemyError("business write failed")
+        def fail_commit():
+            raise error
+        monkeypatch.setattr(db, "commit", fail_commit)
+        with pytest.raises(SQLAlchemyError, match="business write failed"):
+            taxon_module.taxon_repository.search(db)
+        assert db.exec(select(Taxon).where(Taxon.col_species_id.in_(["SP1", "SP2"]))).all() == []
+
+    @pytest.mark.parametrize("params", [{"limit": 0}, {"limit": 101}, {"offset": -1}])
+    def test_search_rejects_invalid_pagination(self, client, params):
+        assert client.get(self.URL, params=params).status_code == 422
+
+
+class TestDictionaryAdministrationFailures:
+    URL = f"{settings.API_V1_STR}/taxons"
+
+    @pytest.mark.parametrize("path", ["/options?rank=class", "/exports?order_by=col_genus_name"])
+    def test_dictionary_dependent_queries_return_503(self, client, db, taxon_dictionary, superuser_token_headers, path):
+        create_test_taxon(db, col_genus_id="G1")
+        taxon_dictionary.exec(text("DROP TABLE col_xr_taxon_species"))
+        taxon_dictionary.commit()
+        response = client.get(self.URL + path, headers=superuser_token_headers)
+        assert response.status_code == 503
+        assert response.json()["message"] == "Taxon dictionary is unavailable"
+
+    @pytest.mark.parametrize("name,code", [("", 400), ("A" * 201, 400), ("Existing custom", 409)])
+    def test_custom_update_rejection_preserves_taxon(self, client, db, superuser_token_headers, name, code):
+        create_test_taxon(db, taxonomy_source="custom", cached_scientific_name="Existing custom")
+        original = create_test_taxon(db, taxonomy_source="custom", cached_scientific_name="Original custom")
+        response = client.put(self.URL + f"/{original.taxon_id}", headers=superuser_token_headers, json={"cached_scientific_name": name})
+        assert response.status_code == code
+        db.refresh(original)
+        assert original.cached_scientific_name == "Original custom"
+
+    @pytest.mark.parametrize("payload", [{}, {"taxonomy_source": "custom", "cached_scientific_name": "A" * 201}])
+    def test_invalid_creation_does_not_create_taxon(self, client, db, superuser_token_headers, payload):
+        before = len(db.exec(select(Taxon)).all())
+        response = client.post(self.URL, headers=superuser_token_headers, json=payload)
+        assert response.status_code == 400
+        assert len(db.exec(select(Taxon)).all()) == before
+
+    def test_duplicate_dictionary_id_rejected_on_create_and_update(self, client, db, superuser_token_headers):
+        create_test_taxon(db, col_species_id="DUP1")
+        original = create_test_taxon(db, col_species_id="DUP2")
+        payload = {"col_species_id": "DUP1"}
+        assert client.post(self.URL, headers=superuser_token_headers, json=payload).status_code == 409
+        assert client.put(self.URL + f"/{original.taxon_id}", headers=superuser_token_headers, json=payload).status_code == 409
+        db.refresh(original)
+        assert original.col_species_id == "DUP2"
+
+    @pytest.mark.parametrize("ambiguous", [False, True])
+    def test_unresolvable_dictionary_id_does_not_create_taxon(self, client, db, taxon_dictionary, superuser_token_headers, ambiguous):
+        if ambiguous:
+            taxon_dictionary.exec(text("INSERT INTO col_xr_taxon_species (col_species_id, cached_scientific_name) VALUES ('BAD1', 'First'), ('BAD1', 'Second')"))
+            taxon_dictionary.commit()
+        response = client.post(self.URL, headers=superuser_token_headers, json={"col_species_id": "BAD1"})
+        assert response.status_code == 400
+        assert db.exec(select(Taxon).where(Taxon.col_species_id == "BAD1")).all() == []
 
 
 class TestSoundClassificationsAPI:
@@ -309,10 +433,10 @@ class TestTaxonAdminAPI:
         assert body["page_info"]["total"] >= 2
 
     def test_list_taxons_ignores_remote_dictionary(
-        self, client: TestClient, superuser_token_headers: dict, db: Session
+        self, taxon_dictionary: Session, client: TestClient, superuser_token_headers: dict, db: Session
     ) -> None:
         """The admin list only includes locally created taxon rows."""
-        seed_remote_taxon_dictionary(db)
+        seed_taxon_dictionary(taxon_dictionary)
         local_taxon = create_test_taxon(
             db,
             cached_scientific_name="Localus onlyensis",
@@ -465,9 +589,9 @@ class TestTaxonAdminAPI:
         assert body["page_info"]["total"] >= 5
 
     def test_list_taxons_returns_hierarchy_names_without_rank(
-        self, client: TestClient, superuser_token_headers: dict, db: Session
+        self, taxon_dictionary: Session, client: TestClient, superuser_token_headers: dict, db: Session
     ) -> None:
-        seed_remote_taxon_dictionary(db)
+        seed_taxon_dictionary(taxon_dictionary)
         taxon = create_test_taxon(
             db,
             col_species_id="SP1",
@@ -497,9 +621,9 @@ class TestTaxonAdminAPI:
         assert "lowest_rank" not in item
 
     def test_list_taxons_filters_and_sorts_hierarchy_before_pagination(
-        self, client: TestClient, superuser_token_headers: dict, db: Session
+        self, taxon_dictionary: Session, client: TestClient, superuser_token_headers: dict, db: Session
     ) -> None:
-        seed_remote_taxon_dictionary(db)
+        seed_taxon_dictionary(taxon_dictionary)
         create_test_taxon(
             db,
             col_species_id="SP1",
@@ -530,9 +654,9 @@ class TestTaxonAdminAPI:
         assert response.json()["data"][0]["col_genus_name"] == "Potamocypris"
 
     def test_list_taxons_filters_by_species_name(
-        self, client: TestClient, superuser_token_headers: dict, db: Session
+        self, taxon_dictionary: Session, client: TestClient, superuser_token_headers: dict, db: Session
     ) -> None:
-        seed_remote_taxon_dictionary(db)
+        seed_taxon_dictionary(taxon_dictionary)
         create_test_taxon(
             db,
             col_species_id="SP1",
@@ -562,9 +686,9 @@ class TestTaxonAdminAPI:
         assert response.json()["data"][0]["col_species_name"] == "Potamocypris granulosa"
 
     def test_list_taxons_sorts_by_species_name(
-        self, client: TestClient, superuser_token_headers: dict, db: Session
+        self, taxon_dictionary: Session, client: TestClient, superuser_token_headers: dict, db: Session
     ) -> None:
-        seed_remote_taxon_dictionary(db)
+        seed_taxon_dictionary(taxon_dictionary)
         create_test_taxon(
             db,
             col_species_id="SP1",
@@ -595,10 +719,10 @@ class TestTaxonAdminAPI:
         assert response.json()["data"][0]["col_species_name"] == "Potamocypris granulosa"
 
     def test_list_taxons_species_sort_requires_dictionary(
-        self, client: TestClient, superuser_token_headers: dict, db: Session
+        self, taxon_dictionary: Session, client: TestClient, superuser_token_headers: dict, db: Session
     ) -> None:
-        db.exec(text("DROP TABLE IF EXISTS geo_col_xr_taxon_species"))
-        db.commit()
+        taxon_dictionary.exec(text("DROP TABLE IF EXISTS col_xr_taxon_species"))
+        taxon_dictionary.commit()
         create_test_taxon(db, cached_scientific_name="Local only")
 
         response = client.get(
@@ -609,10 +733,10 @@ class TestTaxonAdminAPI:
         assert response.status_code == 503
 
     def test_list_taxons_hierarchy_sort_requires_dictionary(
-        self, client: TestClient, superuser_token_headers: dict, db: Session
+        self, taxon_dictionary: Session, client: TestClient, superuser_token_headers: dict, db: Session
     ) -> None:
-        db.exec(text("DROP TABLE IF EXISTS geo_col_xr_taxon_species"))
-        db.commit()
+        taxon_dictionary.exec(text("DROP TABLE IF EXISTS col_xr_taxon_species"))
+        taxon_dictionary.commit()
         create_test_taxon(db, cached_scientific_name="Local only")
 
         response = client.get(
@@ -662,9 +786,9 @@ class TestTaxonAdminAPI:
         assert any(row[0] == str(taxon.taxon_id) for row in rows[1:])
 
     def test_export_taxons_matches_list_hierarchy_fields(
-        self, client: TestClient, superuser_token_headers: dict, db: Session
+        self, taxon_dictionary: Session, client: TestClient, superuser_token_headers: dict, db: Session
     ) -> None:
-        seed_remote_taxon_dictionary(db)
+        seed_taxon_dictionary(taxon_dictionary)
         taxon = create_test_taxon(
             db,
             col_species_id="SP1",
@@ -705,9 +829,9 @@ class TestTaxonAdminAPI:
         assert row[14:16] == ["2026-03-17 14:30:00", "2026-04-19 08:15:30"]
 
     def test_import_taxons_infers_all_supported_ranks(
-        self, client: TestClient, superuser_token_headers: dict, db: Session
+        self, taxon_dictionary: Session, client: TestClient, superuser_token_headers: dict, db: Session
     ) -> None:
-        seed_remote_taxon_dictionary(db)
+        seed_taxon_dictionary(taxon_dictionary)
         content = (
             "cached_scientific_name,cached_common_name,col_genus_name,col_family_name,col_order_name,col_class_name,taxonomy_source\n"
             "Potamocypris granulosa,Species common,Potamocypris,Cyprididae,Podocopida,Ostracoda,CatalogueOfLife-XR\n"
@@ -751,12 +875,12 @@ class TestTaxonAdminAPI:
         } == {"SP1", "GEN1", "FAM1", "ORD1", "CLS1"}
 
     def test_import_taxons_tolerates_exported_columns_and_order(
-        self, client: TestClient, superuser_token_headers: dict, db: Session
+        self, taxon_dictionary: Session, client: TestClient, superuser_token_headers: dict, db: Session
     ) -> None:
         # An exported taxon CSV carries extra columns (ID, Species, Created,
         # Last synced) in a different order; re-importing it must ignore the
         # extras and map the rest by name.
-        seed_remote_taxon_dictionary(db)
+        seed_taxon_dictionary(taxon_dictionary)
         content = (
             "taxon_id,cached_scientific_name,cached_common_name,col_species_id,col_genus_id,col_family_id,col_order_id,col_class_id,col_species_name,col_genus_name,col_family_name,col_order_name,col_class_name,taxonomy_source,creation_date,last_synced\n"
             "1,Potamocypris granulosa,Common,SP1,GEN1,FAM1,ORD1,CLS1,Potamocypris granulosa,Potamocypris,Cyprididae,Podocopida,Ostracoda,CatalogueOfLife-XR,2026-03-17 14:30:00,2026-04-19 08:15:30\n"
@@ -786,9 +910,9 @@ class TestTaxonAdminAPI:
         assert empty_response.json()["data"]["skipped"] == 1
 
     def test_import_taxons_rejects_unknown_and_rolls_back(
-        self, client: TestClient, superuser_token_headers: dict, db: Session
+        self, taxon_dictionary: Session, client: TestClient, superuser_token_headers: dict, db: Session
     ) -> None:
-        seed_remote_taxon_dictionary(db)
+        seed_taxon_dictionary(taxon_dictionary)
         before = len(db.exec(select(Taxon)).all())
         content = (
             "cached_scientific_name,cached_common_name,col_genus_name,col_family_name,col_order_name,col_class_name,taxonomy_source\n"
@@ -811,9 +935,9 @@ class TestTaxonAdminAPI:
         assert len(db.exec(select(Taxon)).all()) == before
 
     def test_import_taxons_rejects_hierarchy_mismatch(
-        self, client: TestClient, superuser_token_headers: dict, db: Session
+        self, taxon_dictionary: Session, client: TestClient, superuser_token_headers: dict, db: Session
     ) -> None:
-        seed_remote_taxon_dictionary(db)
+        seed_taxon_dictionary(taxon_dictionary)
         content = (
             "cached_scientific_name,cached_common_name,col_genus_name,col_family_name,col_order_name,col_class_name,taxonomy_source\n"
             "Potamocypris granulosa,Common,Wrong genus,Cyprididae,Podocopida,Ostracoda,CatalogueOfLife-XR\n"
@@ -831,13 +955,13 @@ class TestTaxonAdminAPI:
         assert "Taxonomic hierarchy does not match" in response.json()["data"]["rows"][0]["reason"]
 
     def test_import_taxons_rejects_ambiguous_name(
-        self, client: TestClient, superuser_token_headers: dict, db: Session
+        self, taxon_dictionary: Session, client: TestClient, superuser_token_headers: dict, db: Session
     ) -> None:
-        seed_remote_taxon_dictionary(db)
-        db.exec(
+        seed_taxon_dictionary(taxon_dictionary)
+        taxon_dictionary.exec(
             text(
                 """
-                INSERT INTO geo_col_xr_taxon_species
+                INSERT INTO col_xr_taxon_species
                     (col_species_id, cached_scientific_name, col_genus_id,
                      col_genus_name, col_family_id, col_family_name,
                      col_order_id, col_order_name, col_class_id, col_class_name)
@@ -847,7 +971,7 @@ class TestTaxonAdminAPI:
                 """
             )
         )
-        db.commit()
+        taxon_dictionary.commit()
         content = (
             "cached_scientific_name,cached_common_name,col_genus_name,col_family_name,col_order_name,col_class_name,taxonomy_source\n"
             "Potamocypris granulosa,Common,Potamocypris,Cyprididae,Podocopida,Ostracoda,CatalogueOfLife-XR\n"
@@ -865,9 +989,9 @@ class TestTaxonAdminAPI:
         assert "Ambiguous binomial" in response.json()["data"]["rows"][0]["reason"]
 
     def test_import_taxons_rejects_file_and_database_duplicates(
-        self, client: TestClient, superuser_token_headers: dict, db: Session
+        self, taxon_dictionary: Session, client: TestClient, superuser_token_headers: dict, db: Session
     ) -> None:
-        seed_remote_taxon_dictionary(db)
+        seed_taxon_dictionary(taxon_dictionary)
         header = "cached_scientific_name,cached_common_name,col_genus_name,col_family_name,col_order_name,col_class_name,taxonomy_source\n"
         row = "Potamocypris granulosa,Common,Potamocypris,Cyprididae,Podocopida,Ostracoda,CatalogueOfLife-XR\n"
         duplicate_response = client.post(
@@ -927,9 +1051,9 @@ class TestTaxonAdminAPI:
         assert anonymous_response.status_code == 401
 
     def test_export_taxons_ignores_filter_parameters(
-        self, client: TestClient, superuser_token_headers: dict, db: Session
+        self, taxon_dictionary: Session, client: TestClient, superuser_token_headers: dict, db: Session
     ) -> None:
-        seed_remote_taxon_dictionary(db)
+        seed_taxon_dictionary(taxon_dictionary)
         taxon = create_test_taxon(
             db,
             cached_scientific_name="Exportus localis",
@@ -955,9 +1079,9 @@ class TestTaxonAdminAPI:
         )
 
     def test_get_taxon_options_returns_id_and_name_only(
-        self, client: TestClient, superuser_token_headers: dict, db: Session
+        self, taxon_dictionary: Session, client: TestClient, superuser_token_headers: dict, db: Session
     ) -> None:
-        seed_remote_taxon_dictionary(db)
+        seed_taxon_dictionary(taxon_dictionary)
         r = client.get(
             f"{settings.API_V1_STR}/taxons/options?rank=class",
             headers=superuser_token_headers,
@@ -967,9 +1091,9 @@ class TestTaxonAdminAPI:
         assert data == [{"id": "CLS1", "name": "Ostracoda"}]
 
     def test_get_taxon_options_filters_hierarchy(
-        self, client: TestClient, superuser_token_headers: dict, db: Session
+        self, taxon_dictionary: Session, client: TestClient, superuser_token_headers: dict, db: Session
     ) -> None:
-        seed_remote_taxon_dictionary(db)
+        seed_taxon_dictionary(taxon_dictionary)
         r = client.get(
             f"{settings.API_V1_STR}/taxons/options?rank=genus&class_id=CLS1&order_id=ORD1&family_id=FAM1&q=cypridop",
             headers=superuser_token_headers,
@@ -978,9 +1102,9 @@ class TestTaxonAdminAPI:
         assert r.json()["data"] == [{"id": "GEN2", "name": "Cypridopsis"}]
 
     def test_get_taxon_options_species_rank_with_full_hierarchy_filters(
-        self, client: TestClient, superuser_token_headers: dict, db: Session
+        self, taxon_dictionary: Session, client: TestClient, superuser_token_headers: dict, db: Session
     ) -> None:
-        seed_remote_taxon_dictionary(db)
+        seed_taxon_dictionary(taxon_dictionary)
         r = client.get(
             f"{settings.API_V1_STR}/taxons/options?rank=species&class_id=CLS1&order_id=ORD1&family_id=FAM1&genus_id=GEN1&q=gran",
             headers=superuser_token_headers,
@@ -989,10 +1113,10 @@ class TestTaxonAdminAPI:
         assert r.json()["data"] == [{"id": "SP1", "name": "Potamocypris granulosa"}]
 
     def test_create_taxon_success(
-        self, client: TestClient, superuser_token_headers: dict, db: Session
+        self, taxon_dictionary: Session, client: TestClient, superuser_token_headers: dict, db: Session
     ) -> None:
         """Admin can create a new taxon and the response contains the new record."""
-        seed_remote_taxon_dictionary(db)
+        seed_taxon_dictionary(taxon_dictionary)
         payload = {
             "cached_common_name": "Eurasian Lynx",
             "col_genus_id": "GEN1",
@@ -1016,9 +1140,9 @@ class TestTaxonAdminAPI:
         assert "taxon_id" in data
 
     def test_create_taxon_with_species_lowest_fills_full_hierarchy(
-        self, client: TestClient, superuser_token_headers: dict, db: Session
+        self, taxon_dictionary: Session, client: TestClient, superuser_token_headers: dict, db: Session
     ) -> None:
-        seed_remote_taxon_dictionary(db)
+        seed_taxon_dictionary(taxon_dictionary)
         payload = {
             "cached_common_name": "Seed shrimp alias",
             "col_species_id": "SP1",
@@ -1161,10 +1285,10 @@ class TestTaxonAdminAPI:
         assert r.status_code == 401
 
     def test_get_taxon_detail_success(
-        self, client: TestClient, superuser_token_headers: dict, db: Session
+        self, taxon_dictionary: Session, client: TestClient, superuser_token_headers: dict, db: Session
     ) -> None:
         """Admin can fetch a single taxon by ID."""
-        seed_remote_taxon_dictionary(db)
+        seed_taxon_dictionary(taxon_dictionary)
         taxon = create_test_taxon(
             db,
             cached_scientific_name="Potamocypris granulosa",
@@ -1203,10 +1327,10 @@ class TestTaxonAdminAPI:
         assert r.status_code == 403
 
     def test_update_taxon_success(
-        self, client: TestClient, superuser_token_headers: dict, db: Session
+        self, taxon_dictionary: Session, client: TestClient, superuser_token_headers: dict, db: Session
     ) -> None:
         """Admin can update taxon fields; unset fields are unchanged."""
-        seed_remote_taxon_dictionary(db)
+        seed_taxon_dictionary(taxon_dictionary)
         taxon = create_test_taxon(db, cached_scientific_name="Old Name", cached_common_name="Old Common")
         r = client.put(
             f"{self.BASE}/{taxon.taxon_id}",
@@ -1228,9 +1352,9 @@ class TestTaxonAdminAPI:
         assert "lowest_rank" not in data
 
     def test_update_taxon_to_species_recomputes_all_levels(
-        self, client: TestClient, superuser_token_headers: dict, db: Session
+        self, taxon_dictionary: Session, client: TestClient, superuser_token_headers: dict, db: Session
     ) -> None:
-        seed_remote_taxon_dictionary(db)
+        seed_taxon_dictionary(taxon_dictionary)
         taxon = create_test_taxon(
             db,
             cached_scientific_name="Old Name",
@@ -1287,9 +1411,9 @@ class TestTaxonAdminAPI:
         assert "lowest_rank" not in data
 
     def test_update_taxon_clears_optional_text_and_rebuilds_from_remaining_level(
-        self, client: TestClient, superuser_token_headers: dict, db: Session
+        self, taxon_dictionary: Session, client: TestClient, superuser_token_headers: dict, db: Session
     ) -> None:
-        seed_remote_taxon_dictionary(db)
+        seed_taxon_dictionary(taxon_dictionary)
         taxon = create_test_taxon(
             db,
             cached_scientific_name="Potamocypris granulosa",

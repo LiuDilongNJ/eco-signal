@@ -17,6 +17,8 @@ from app.main import app
 from tests.utils.user import authentication_token_from_email
 from tests.utils.utils import get_superuser_token_headers
 
+pytest_plugins = ["tests.utils.task_navigation", "tests.utils.taxon_dictionary"]
+
 
 @pytest.fixture(scope="session", autouse=True)
 def _isolate_auth_environment() -> Generator[None, None, None]:
@@ -91,7 +93,7 @@ def db_engine():
     engine = create_engine(str(settings.sqlalchemy_database_uri))
     
     # Initialize DB (create admin user etc)
-    # creates any tables models define that Alembic didn't create (e.g. foreign table IhoSeaArea)
+    # Reference-data models also provide transaction-local fixtures for repository tests.
     SQLModel.metadata.create_all(engine)
 
     with Session(engine) as session:

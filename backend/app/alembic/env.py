@@ -24,7 +24,7 @@ target_metadata = SQLModel.metadata
 # ... etc.
 
 def include_object(object, name, type_, reflected, compare_to):
-    # Ignore foreign tables mapped via postgres_fdw
+    # Reference tables and permission views are managed separately.
     if type_ == "table" and name in [
         "iho_sea_area", "iucn_get", "user_effective_permissions",
         "spatial_ref_sys", "topology", "layer"

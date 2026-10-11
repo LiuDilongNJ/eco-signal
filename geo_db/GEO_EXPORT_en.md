@@ -2,7 +2,7 @@
 
 ### Purpose
 
-Export the **geo_db** tables used by the app and FDW to a SQL file and a ZIP archive, so others can restore them in their environment.
+Export the **geo_db** tables used by the app to a SQL file and a ZIP archive, so others can restore them in their environment.
 
 **Default tables (`public` schema):** `adm_0`, `adm_1`, `adm_2`, `iho_sea_area`.
 

@@ -1601,7 +1601,7 @@ def test_migrate_taxon_uses_xr_enrichment_fields(monkeypatch):
             "last_synced": "2026-05-04 00:00:00",
         },
     )
-    monkeypatch.setattr(module, "_detect_remote_taxon_table", lambda conn: "geo_col_xr_taxon_species")
+    monkeypatch.setattr(module, "_detect_remote_taxon_table", lambda conn: "col_xr_taxon_species")
     monkeypatch.setattr(module, "build_taxon_lookup_cache", lambda *args, **kwargs: {})
 
     migrated = module.migrate_taxon(mysql_conn, pg_conn, dry_run=False, geo_conn=object())
@@ -1646,7 +1646,7 @@ def test_build_taxon_lookup_cache_batches_names_once_per_rank(monkeypatch):
     module = _load_script_module()
     calls = []
 
-    monkeypatch.setattr(module, "_detect_remote_taxon_table", lambda _conn: "geo_col_xr_taxon_species")
+    monkeypatch.setattr(module, "_detect_remote_taxon_table", lambda _conn: "col_xr_taxon_species")
 
     def fake_query(_conn, table_name, rank, values):
         calls.append((table_name, rank, tuple(values)))
@@ -1681,7 +1681,7 @@ def test_build_taxon_lookup_cache_batches_names_once_per_rank(monkeypatch):
 
     assert cache["species"]["specius example"][0]["col_species_id"] == "SP1"
     assert len(calls) == 5
-    assert calls[0][0] == "geo_col_xr_taxon_species"
+    assert calls[0][0] == "col_xr_taxon_species"
     assert calls[0][1] == "species"
 
 

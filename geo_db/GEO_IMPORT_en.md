@@ -76,10 +76,6 @@ See `backend/scripts/import_geo_data.py` for flags and Python dependencies.
 
 ---
 
-### 3. FDW on the main database after import
-
-The main DB uses `postgres_fdw` to reference tables in geo_db. After loading data, ensure FDW is refreshed (typically via backend prestart / `setup_fdw.py`) so foreign table names match what exists in geo_db (e.g. `iho_sea_area`, `adm_0`, `adm_1`, `adm_2`).
-
 ### Chinese version
 
 See [GEO_IMPORT_zh.md](./GEO_IMPORT_zh.md).

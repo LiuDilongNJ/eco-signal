@@ -43,12 +43,7 @@ class IucnGet(SQLModel, table=True):
 
 
 class IhoSeaArea(SQLModel, table=True):
-    """IHO Sea Areas - foreign table mapped from geo_db via postgres_fdw.
-
-    This table is not managed by alembic (it is a foreign table).
-    Data comes from the IHO Sea Areas v3 (2018) Shapefile loaded into geo_db.
-    All source columns are preserved as-is (lowercased).
-    """
+    """Sea-area reference data queried through the geographical database connection."""
     __tablename__ = "iho_sea_area"
 
     id: Optional[int] = Field(default=None, primary_key=True)

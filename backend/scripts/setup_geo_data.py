@@ -6,6 +6,7 @@ It is idempotent:
 - If adm_0, adm_1, adm_2, and iho_sea_area all exist and contain data,
   geo setup is skipped.
 - Otherwise, it imports the missing geo base data from local files.
+- Taxon dictionary lookup indexes are ensured on every run, regardless of auto import.
 """
 
 from __future__ import annotations
@@ -19,11 +20,13 @@ from pathlib import Path
 
 from sqlalchemy import create_engine, text
 
+from import_col_xr_to_geo import ensure_lookup_indexes
 from import_geo_data import get_geo_db_url, import_gadm, import_iho
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 log = logging.getLogger(__name__)
 
+_TAXON_DICTIONARY_TABLE = "col_xr_taxon_species"
 _GADM_TABLES: tuple[str, ...] = ("adm_0", "adm_1", "adm_2")
 _IHO_TABLES: tuple[str, ...] = ("iho_sea_area",)
 _GEO_BASE_TABLES: tuple[str, ...] = _GADM_TABLES + _IHO_TABLES
@@ -167,7 +170,25 @@ def _run_iho_import(engine) -> None:
             sys.exit(1)
 
 
+def _ensure_taxon_lookup_indexes() -> None:
+    # Dictionaries restored from seed SQL never pass through the import script, so indexes are ensured here.
+    engine = create_engine(get_geo_db_url(), pool_pre_ping=True, isolation_level="AUTOCOMMIT")
+    try:
+        with engine.connect() as conn:
+            if not _table_exists(conn, _TAXON_DICTIONARY_TABLE):
+                log.info("Table %s does not exist in geo_db, skip lookup indexes.", _TAXON_DICTIONARY_TABLE)
+                return
+            ensure_lookup_indexes(conn, concurrently=True)
+            log.info("Taxon lookup indexes are ready.")
+    except Exception as e:
+        log.warning("Could not ensure taxon lookup indexes: %s", e)
+    finally:
+        engine.dispose()
+
+
 def main() -> None:
+    _ensure_taxon_lookup_indexes()
+
     auto_download = os.getenv("GEO_DB_AUTO_DOWNLOAD", "false").lower() == "true"
     if not auto_download:
         log.info("GEO_DB_AUTO_DOWNLOAD is not true, skipping geo auto import.")

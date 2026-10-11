@@ -1,9 +1,7 @@
 from dataclasses import dataclass
-from datetime import UTC, datetime
 from typing import Any
 
 import sqlalchemy as sa
-from sqlalchemy import text
 from sqlmodel import Session, func, select
 
 from app.models.annotation import Annotation
@@ -160,65 +158,6 @@ class AnnotationRepository(BaseRepository[Annotation, Any, Any]):
         
         statement = statement.order_by(Annotation.min_x)
         return list(session.exec(statement).all())
-
-    def find_taxon(
-        self,
-        session: Session,
-        scientific_name: str,
-    ) -> "Taxon | None":
-        """Find a taxon by scientific name; bridge from XR foreign table when available."""
-        normalized_name = " ".join((scientific_name or "").split()).strip()
-        if not normalized_name:
-            return None
-
-        existing = session.exec(
-            select(Taxon).where(func.lower(Taxon.cached_scientific_name) == normalized_name.lower())
-        ).first()
-        if existing:
-            return existing
-
-        if not bool(session.execute(text("SELECT to_regclass('public.geo_col_xr_taxon_species') IS NOT NULL")).scalar_one()):
-            return None
-
-        remote = session.execute(
-            text(
-                """
-                SELECT
-                  col_species_id,
-                  cached_scientific_name,
-                  cached_common_name,
-                  col_genus_id,
-                  col_family_id,
-                  col_order_id,
-                  col_class_id,
-                  taxonomy_source,
-                  imported_at
-                FROM geo_col_xr_taxon_species
-                WHERE lower(cached_scientific_name) = lower(:scientific_name)
-                LIMIT 1
-                """
-            ),
-            {"scientific_name": normalized_name},
-        ).mappings().first()
-        if remote is None:
-            return None
-
-        bridged = Taxon(
-            col_species_id=remote.get("col_species_id"),
-            col_genus_id=remote.get("col_genus_id"),
-            col_family_id=remote.get("col_family_id"),
-            col_order_id=remote.get("col_order_id"),
-            col_class_id=remote.get("col_class_id"),
-            cached_scientific_name=remote.get("cached_scientific_name"),
-            cached_common_name=remote.get("cached_common_name"),
-            taxonomy_source=remote.get("taxonomy_source") or "CatalogueOfLife-XR",
-            last_synced=remote.get("imported_at") or datetime.now(UTC),
-            creation_date=datetime.now(UTC),
-        )
-        session.add(bridged)
-        session.commit()
-        session.refresh(bridged)
-        return bridged
 
     def get_by_media_and_creator_type(
         self,

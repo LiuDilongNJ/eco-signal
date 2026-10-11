@@ -1,13 +1,12 @@
-import os
 from dataclasses import dataclass
-from functools import lru_cache
 from typing import Any, Literal
 
-from sqlalchemy import create_engine, text
+from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import Session, func, select
 
 from app.core.config import settings
+from app.core.geo_db import fetch_geo_rows
 from app.models.site import IhoSeaArea, IucnGet
 from app.repositories.query_helpers import apply_pagination
 
@@ -35,18 +34,6 @@ class CoordinateMatches:
     iho: GeoOptionMatch | None
 
 
-def _geo_db_url() -> str:
-    host = os.getenv("GEO_DB_SERVER", "geo_db")
-    port = os.getenv("GEO_DB_PORT", "5432")
-    database = os.getenv("GEO_DB_NAME", "geo_db")
-    return f"postgresql+psycopg://{settings.POSTGRES_USER}:{settings.POSTGRES_PASSWORD}@{host}:{port}/{database}"
-
-
-@lru_cache(maxsize=1)
-def _geo_engine():
-    return create_engine(_geo_db_url(), pool_pre_ping=True, connect_args={"connect_timeout": 3})
-
-
 class GeoRepository:
     """Direct geo_db reads in production; transaction-local fixtures in tests."""
 
@@ -57,9 +44,7 @@ class GeoRepository:
     @staticmethod
     def _remote_rows(sql: str, params: dict[str, Any]) -> list[dict[str, Any]]:
         try:
-            with _geo_engine().connect() as connection:
-                connection.execute(text("SET LOCAL statement_timeout = '3000ms'"))
-                return [dict(row) for row in connection.execute(text(sql), params).mappings().all()]
+            return fetch_geo_rows(sql, params)
         except SQLAlchemyError as exc:
             raise GeoDataUnavailableError("Geo data is temporarily unavailable") from exc
 

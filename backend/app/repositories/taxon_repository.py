@@ -1,6 +1,6 @@
 import itertools
+import logging
 from datetime import UTC, datetime
-from functools import lru_cache
 from time import monotonic
 from typing import Any
 
@@ -9,15 +9,15 @@ from sqlalchemy import (
     bindparam,
     case,
     column,
-    create_engine,
     literal,
     text,
     values,
 )
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.sql.elements import TextClause
 from sqlmodel import Session, func, or_, select
 
-from app.core.config import settings
+from app.core.geo_db import DEFAULT_STATEMENT_TIMEOUT_MS, fetch_geo_rows
 from app.models.annotation import Annotation
 from app.models.taxon import SoundClassification, Taxon, TaxonSoundType
 from app.repositories.query_helpers import (
@@ -28,6 +28,8 @@ from app.repositories.query_helpers import (
     apply_pagination,
 )
 from app.schemas.taxon import TaxonCreate, TaxonImportRow, TaxonRank, TaxonUpdate
+
+logger = logging.getLogger(__name__)
 
 _TAXON_FILTER_SPECS: list[FilterSpec] = [
     ("taxon_id", Taxon.taxon_id, FilterOp.EQ),
@@ -88,23 +90,8 @@ _option_cache: dict[tuple[Any, ...], tuple[float, list[dict[str, str]], int]] = 
 
 # Keep IN-clause bind params well under the PostgreSQL wire-protocol limit (65535).
 _IMPORT_IN_CLAUSE_BATCH = 30_000
-
-
-def _get_geo_db_url() -> str:
-    import os
-
-    geo_host = os.getenv("GEO_DB_SERVER", "geo_db")
-    geo_port = os.getenv("GEO_DB_PORT", "5432")
-    geo_db_name = os.getenv("GEO_DB_NAME", "geo_db")
-    return (
-        f"postgresql+psycopg://{settings.POSTGRES_USER}:{settings.POSTGRES_PASSWORD}"
-        f"@{geo_host}:{geo_port}/{geo_db_name}"
-    )
-
-
-@lru_cache(maxsize=1)
-def _get_geo_engine():
-    return create_engine(_get_geo_db_url(), pool_pre_ping=True)
+# Batched import lookups scan several name columns at once and need more time than interactive reads.
+_IMPORT_STATEMENT_TIMEOUT_MS = 60_000
 
 
 class RemoteTaxonLookupError(Exception):
@@ -115,16 +102,20 @@ class RemoteTaxonLookupError(Exception):
 
 
 class TaxonRepository:
-    def _use_direct_geo_lookup(self) -> bool:
-        return not settings.POSTGRES_DB.endswith("_test")
-
-    def _fetch_geo_rows(self, sql: str, params: dict[str, Any]) -> list[dict[str, Any]]:
-        with _get_geo_engine().connect() as conn:
-            return [dict(row) for row in conn.execute(text(sql), params).mappings().all()]
+    def _fetch_geo_rows(
+        self,
+        sql: str | TextClause,
+        params: dict[str, Any],
+        timeout_ms: int = DEFAULT_STATEMENT_TIMEOUT_MS,
+    ) -> list[dict[str, Any]]:
+        try:
+            return fetch_geo_rows(sql, params, timeout_ms)
+        except SQLAlchemyError as exc:
+            raise RemoteTaxonLookupError("Taxon dictionary is unavailable", status_code=503) from exc
 
     def _fetch_geo_scalar(self, sql: str, params: dict[str, Any]) -> int:
-        with _get_geo_engine().connect() as conn:
-            return int(conn.execute(text(sql), params).scalar_one())
+        rows = self._fetch_geo_rows(sql, params)
+        return int(next(iter(rows[0].values())))
 
     def _get_cached_option_page(self, cache_key: tuple[Any, ...]) -> tuple[list[dict[str, str]], int] | None:
         cached = _option_cache.get(cache_key)
@@ -139,13 +130,8 @@ class TaxonRepository:
     def _set_cached_option_page(self, cache_key: tuple[Any, ...], rows: list[dict[str, str]], total: int) -> None:
         _option_cache[cache_key] = (monotonic() + _OPTION_CACHE_TTL_SECONDS, rows, total)
 
-    def _remote_table_available(self, session: Session) -> bool:
-        stmt = text("SELECT to_regclass('public.geo_col_xr_taxon_species') IS NOT NULL")
-        return bool(session.execute(stmt).scalar_one())
-
     def _rows_from_remote_search(
         self,
-        session: Session,
         q: str | None,
         limit: int,
         offset: int,
@@ -159,14 +145,13 @@ class TaxonRepository:
         sql = text(
             f"""
             SELECT {", ".join(_REMOTE_COLUMNS)}
-            FROM geo_col_xr_taxon_species
+            FROM public.col_xr_taxon_species
             {where_sql}
             ORDER BY cached_scientific_name ASC, col_species_id ASC
             LIMIT :limit OFFSET :offset
             """
         )
-        rows = session.execute(sql, params).mappings().all()
-        return [dict(r) for r in rows]
+        return self._fetch_geo_rows(sql, params)
 
     def _bridge_local_taxon_ids(
         self,
@@ -210,10 +195,14 @@ class TaxonRepository:
                 created = True
 
         if created:
-            session.commit()
-            for taxon in existing_map.values():
-                if taxon.taxon_id is None:
-                    session.refresh(taxon)
+            try:
+                session.commit()
+                for taxon in existing_map.values():
+                    if taxon.taxon_id is None:
+                        session.refresh(taxon)
+            except SQLAlchemyError:
+                session.rollback()
+                raise
 
         for row in rows:
             species_id = row.get("col_species_id")
@@ -223,22 +212,13 @@ class TaxonRepository:
             row["last_synced"] = row.get("imported_at")
         return rows
 
-    def _ensure_remote_taxon_dictionary(self, session: Session) -> None:
-        if self._use_direct_geo_lookup():
-            try:
-                self._fetch_geo_rows("SELECT 1 FROM public.col_xr_taxon_species LIMIT 1", {})
-                return
-            except Exception as exc:
-                raise RemoteTaxonLookupError("XR taxon dictionary is unavailable", status_code=503) from exc
+    def _ensure_remote_taxon_dictionary(self) -> None:
+        self._fetch_geo_rows("SELECT 1 FROM public.col_xr_taxon_species LIMIT 1", {})
 
-        if not self._remote_table_available(session):
-            raise RemoteTaxonLookupError("XR taxon dictionary is unavailable", status_code=503)
-
-    def _resolve_lowest_col_match(self, session: Session, lowest_col_id: str) -> dict[str, Any]:
-        self._ensure_remote_taxon_dictionary(session)
-        source_table = "col_xr_taxon_species" if self._use_direct_geo_lookup() else "geo_col_xr_taxon_species"
+    def _resolve_lowest_col_match(self, lowest_col_id: str) -> dict[str, Any]:
+        self._ensure_remote_taxon_dictionary()
         sql = text(
-            f"""
+            """
             SELECT *
             FROM (
                 SELECT DISTINCT
@@ -250,7 +230,7 @@ class TaxonRepository:
                     col_order_id,
                     col_family_id,
                     col_genus_id
-                FROM {source_table}
+                FROM public.col_xr_taxon_species
                 WHERE col_species_id = :lowest_col_id
 
                 UNION ALL
@@ -264,7 +244,7 @@ class TaxonRepository:
                     col_order_id,
                     col_family_id,
                     col_genus_id
-                FROM {source_table}
+                FROM public.col_xr_taxon_species
                 WHERE col_genus_id = :lowest_col_id
 
                 UNION ALL
@@ -278,7 +258,7 @@ class TaxonRepository:
                     col_order_id,
                     col_family_id,
                     NULL AS col_genus_id
-                FROM {source_table}
+                FROM public.col_xr_taxon_species
                 WHERE col_family_id = :lowest_col_id
 
                 UNION ALL
@@ -292,7 +272,7 @@ class TaxonRepository:
                     col_order_id,
                     NULL AS col_family_id,
                     NULL AS col_genus_id
-                FROM {source_table}
+                FROM public.col_xr_taxon_species
                 WHERE col_order_id = :lowest_col_id
 
                 UNION ALL
@@ -306,15 +286,12 @@ class TaxonRepository:
                     NULL AS col_order_id,
                     NULL AS col_family_id,
                     NULL AS col_genus_id
-                FROM {source_table}
+                FROM public.col_xr_taxon_species
                 WHERE col_class_id = :lowest_col_id
             ) AS resolved
             """
         )
-        if self._use_direct_geo_lookup():
-            rows = self._fetch_geo_rows(str(sql), {"lowest_col_id": lowest_col_id})
-        else:
-            rows = [dict(row) for row in session.execute(sql, {"lowest_col_id": lowest_col_id}).mappings().all()]
+        rows = self._fetch_geo_rows(sql, {"lowest_col_id": lowest_col_id})
         if not rows:
             raise RemoteTaxonLookupError(f"Unknown lowest_col_id: {lowest_col_id}", status_code=400)
 
@@ -339,8 +316,8 @@ class TaxonRepository:
 
         return dict(rows[0])
 
-    def _build_taxon_values_from_lowest(self, session: Session, lowest_col_id: str) -> dict[str, Any]:
-        resolved = self._resolve_lowest_col_match(session, lowest_col_id)
+    def _build_taxon_values_from_lowest(self, lowest_col_id: str) -> dict[str, Any]:
+        resolved = self._resolve_lowest_col_match(lowest_col_id)
         return {
             "col_species_id": resolved.get("col_species_id"),
             "col_class_id": resolved.get("col_class_id"),
@@ -350,13 +327,12 @@ class TaxonRepository:
             "cached_scientific_name": resolved.get("lowest_name"),
         }
 
-    def ensure_import_dictionary(self, session: Session) -> None:
+    def ensure_import_dictionary(self) -> None:
         """Probe remote dictionary availability once per import instead of per row."""
-        self._ensure_remote_taxon_dictionary(session)
+        self._ensure_remote_taxon_dictionary()
 
     def prefetch_import_candidates(
         self,
-        session: Session,
         binomials: set[str],
     ) -> dict[str, list[dict[str, Any]]]:
         """Fetch all COL candidates for the given binomials in one grouped query.
@@ -368,11 +344,6 @@ class TaxonRepository:
         keys = {value.strip().casefold() for value in binomials if value and value.strip()}
         if not keys:
             return grouped
-        source_table = (
-            "col_xr_taxon_species"
-            if self._use_direct_geo_lookup()
-            else "geo_col_xr_taxon_species"
-        )
         rank_columns = {
             "species": "cached_scientific_name",
             "genus": "col_genus_name",
@@ -419,21 +390,16 @@ class TaxonRepository:
                     {names['family']} AS col_family_name,
                     {names['order']} AS col_order_name,
                     {names['class']} AS col_class_name
-                FROM {source_table}
+                FROM public.col_xr_taxon_species
                 WHERE lower(trim({name_column})) IN :binomials
                 """
             )
         stmt = text(" UNION ALL ".join(selects)).bindparams(
             bindparam("binomials", expanding=True)
         )
-        use_geo = self._use_direct_geo_lookup()
         for batch in itertools.batched(sorted(keys), _IMPORT_IN_CLAUSE_BATCH):
             params = {"binomials": list(batch)}
-            if use_geo:
-                with _get_geo_engine().connect() as conn:
-                    rows = [dict(row) for row in conn.execute(stmt, params).mappings().all()]
-            else:
-                rows = [dict(row) for row in session.execute(stmt, params).mappings().all()]
+            rows = self._fetch_geo_rows(stmt, params, timeout_ms=_IMPORT_STATEMENT_TIMEOUT_MS)
             for row in rows:
                 grouped.setdefault(row["matched_key"], []).append(row)
         return grouped
@@ -534,7 +500,6 @@ class TaxonRepository:
 
     def get_hierarchy_options(
         self,
-        session: Session,
         rank: TaxonRank,
         page: int = 1,
         page_size: int = 20,
@@ -544,7 +509,7 @@ class TaxonRepository:
         genus_id: str | None = None,
         q: str | None = None,
     ) -> tuple[list[dict[str, str]], int]:
-        self._ensure_remote_taxon_dictionary(session)
+        self._ensure_remote_taxon_dictionary()
         cache_key = ("taxon_options", rank, class_id, order_id, family_id, genus_id, q or "", page, page_size)
         cached = self._get_cached_option_page(cache_key)
         if cached is not None:
@@ -571,57 +536,30 @@ class TaxonRepository:
             conditions.append(f"{name_col} ILIKE :q")
 
         where_sql = f"WHERE {' AND '.join(conditions)}"
-        if self._use_direct_geo_lookup():
-            total = self._fetch_geo_scalar(
-                f"""
-                SELECT COUNT(*)
-                FROM (
-                    SELECT DISTINCT {id_col}, {name_col}
-                    FROM col_xr_taxon_species
-                    {where_sql}
-                ) AS options
-                """,
-                params,
-            )
-            data_params = dict(params)
-            data_params["limit"] = page_size
-            data_params["offset"] = (page - 1) * page_size
-            rows = self._fetch_geo_rows(
-                f"""
-                SELECT DISTINCT {id_col} AS id, {name_col} AS name
-                FROM col_xr_taxon_species
+        total = self._fetch_geo_scalar(
+            f"""
+            SELECT COUNT(*)
+            FROM (
+                SELECT DISTINCT {id_col}, {name_col}
+                FROM public.col_xr_taxon_species
                 {where_sql}
-                ORDER BY name ASC, id ASC
-                LIMIT :limit OFFSET :offset
-                """,
-                data_params,
-            )
-        else:
-            total_sql = text(
-                f"""
-                SELECT COUNT(*)
-                FROM (
-                    SELECT DISTINCT {id_col}, {name_col}
-                    FROM geo_col_xr_taxon_species
-                    {where_sql}
-                ) AS options
-                """
-            )
-            total = int(session.execute(total_sql, params).scalar_one())
-            data_params = dict(params)
-            data_params["limit"] = page_size
-            data_params["offset"] = (page - 1) * page_size
-            data_sql = text(
-                f"""
-                SELECT DISTINCT {id_col} AS id, {name_col} AS name
-                FROM geo_col_xr_taxon_species
-                {where_sql}
-                ORDER BY name ASC, id ASC
-                LIMIT :limit OFFSET :offset
-                """
-            )
-            rows = [dict(row) for row in session.execute(data_sql, data_params).mappings().all()]
-
+            ) AS options
+            """,
+            params,
+        )
+        data_params = dict(params)
+        data_params["limit"] = page_size
+        data_params["offset"] = (page - 1) * page_size
+        rows = self._fetch_geo_rows(
+            f"""
+            SELECT DISTINCT {id_col} AS id, {name_col} AS name
+            FROM public.col_xr_taxon_species
+            {where_sql}
+            ORDER BY name ASC, id ASC
+            LIMIT :limit OFFSET :offset
+            """,
+            data_params,
+        )
         result = [{"id": row["id"], "name": row["name"]} for row in rows]
         self._set_cached_option_page(cache_key, result, total)
         return result, total
@@ -648,12 +586,8 @@ class TaxonRepository:
         q: str | None = None,
         limit: int = 10,
         offset: int = 0,
-        *,
-        custom_only: bool = False,
     ) -> list[Taxon]:
-        stmt = select(Taxon)
-        if custom_only:
-            stmt = stmt.where(Taxon.taxonomy_source == "custom")
+        stmt = select(Taxon).where(Taxon.taxonomy_source == "custom")
         name_clause = self._local_name_match_clause(q)
         if name_clause is not None:
             stmt = stmt.where(name_clause)
@@ -670,53 +604,26 @@ class TaxonRepository:
         limit: int = 10,
         offset: int = 0,
     ) -> list[Taxon] | list[dict[str, Any]]:
-        """Search local + remote COL dictionary.
+        """Merge custom taxons before dictionary suggestions using one pagination window.
 
-        Custom taxons live only in the local table, so they are merged into
-        remote suggestion pages; otherwise they would be invisible whenever the
-        XR dictionary is available.
+        When the dictionary is unavailable, only custom taxons are returned.
         """
-        if self._remote_table_available(session):
-            try:
-                custom_count = self._count_local_custom(session, q=q)
+        custom_count = self._count_local_custom(session, q=q)
+        customs_page: list[Taxon] = []
+        if offset < custom_count:
+            customs_page = self._search_local(session, q=q, limit=limit, offset=offset)
+            remote_limit, remote_offset = limit - len(customs_page), 0
+        else:
+            remote_limit, remote_offset = limit, offset - custom_count
+        if remote_limit <= 0:
+            return customs_page
 
-                if offset < custom_count:
-                    customs_page = self._search_local(
-                        session,
-                        q=q,
-                        limit=limit,
-                        offset=offset,
-                        custom_only=True,
-                    )
-                    remote_limit = max(0, limit - len(customs_page))
-                    remote_rows: list[dict[str, Any]] = []
-                    if remote_limit > 0:
-                        remote_rows = self._bridge_local_taxon_ids(
-                            session=session,
-                            rows=self._rows_from_remote_search(
-                                session=session,
-                                q=q,
-                                limit=remote_limit,
-                                offset=0,
-                            ),
-                        )
-                    return [*customs_page, *remote_rows]
-
-                remote_offset = offset - custom_count
-                remote_rows = self._bridge_local_taxon_ids(
-                    session=session,
-                    rows=self._rows_from_remote_search(
-                        session=session,
-                        q=q,
-                        limit=limit,
-                        offset=remote_offset,
-                    ),
-                )
-                return remote_rows
-            except SQLAlchemyError:
-                pass
-
-        return self._search_local(session, q=q, limit=limit, offset=offset)
+        try:
+            remote_rows = self._rows_from_remote_search(q, remote_limit, remote_offset)
+        except RemoteTaxonLookupError:
+            logger.warning("Taxon dictionary is unavailable; returning custom taxon suggestions only", exc_info=True)
+            return customs_page
+        return [*customs_page, *self._bridge_local_taxon_ids(session, remote_rows)]
 
     def get_all_sound_classifications(self, session: Session) -> list[SoundClassification]:
         stmt = select(SoundClassification).order_by(
@@ -740,7 +647,6 @@ class TaxonRepository:
 
     def _fetch_hierarchy_names(
         self,
-        session: Session,
         ids_by_rank: dict[str, set[str]],
         name_filters: dict[str, str] | None = None,
     ) -> dict[str, dict[str, str]]:
@@ -750,11 +656,6 @@ class TaxonRepository:
         if not active_ranks:
             return maps
 
-        source_table = (
-            "col_xr_taxon_species"
-            if self._use_direct_geo_lookup()
-            else "geo_col_xr_taxon_species"
-        )
         params: dict[str, Any] = {}
         clauses: list[str] = []
         for rank in active_ranks:
@@ -779,7 +680,7 @@ class TaxonRepository:
                     FROM unnest(CAST(:{ids_key} AS varchar[])) AS ids(hierarchy_id)
                     CROSS JOIN LATERAL (
                         SELECT {name_column} AS hierarchy_name
-                        FROM {source_table}
+                        FROM public.col_xr_taxon_species
                         WHERE {id_column} = ids.hierarchy_id
                           AND {name_column} IS NOT NULL
                         LIMIT 1
@@ -790,26 +691,7 @@ class TaxonRepository:
             )
 
         sql = " UNION ALL ".join(clauses)
-        try:
-            if self._use_direct_geo_lookup():
-                rows = self._fetch_geo_rows(sql, params)
-            else:
-                if not self._remote_table_available(session):
-                    raise RemoteTaxonLookupError(
-                        "XR taxon dictionary is unavailable", status_code=503
-                    )
-                rows = [
-                    dict(row)
-                    for row in session.execute(text(sql), params).mappings().all()
-                ]
-        except RemoteTaxonLookupError:
-            raise
-        except Exception as exc:
-            if not self._use_direct_geo_lookup():
-                session.rollback()
-            raise RemoteTaxonLookupError(
-                "XR taxon dictionary is unavailable", status_code=503
-            ) from exc
+        rows = self._fetch_geo_rows(sql, params)
 
         for row in rows:
             maps[row["rank"]][row["hierarchy_id"]] = row["hierarchy_name"]
@@ -837,7 +719,7 @@ class TaxonRepository:
         filters: dict[str, Any],
     ) -> Any:
         if any(filters.get(key) for key in _HIERARCHY_FILTER_KEYS):
-            self._ensure_remote_taxon_dictionary(session)
+            self._ensure_remote_taxon_dictionary()
         for key, rank in _HIERARCHY_KEY_TO_RANK.items():
             term = filters.get(key)
             if not term:
@@ -846,7 +728,6 @@ class TaxonRepository:
             if not local_ids:
                 return stmt.where(Taxon.taxon_id == -1)
             maps = self._fetch_hierarchy_names(
-                session,
                 {rank: local_ids},
                 {rank: term},
             )
@@ -900,14 +781,13 @@ class TaxonRepository:
         maps = {rank: {} for rank in _HIERARCHY_RANKS}
         if order_by not in _HIERARCHY_SORT_KEYS:
             return maps
-        self._ensure_remote_taxon_dictionary(session)
+        self._ensure_remote_taxon_dictionary()
         rank = _HIERARCHY_KEY_TO_RANK[order_by]
         local_ids = self._distinct_hierarchy_ids(session, stmt, rank)
-        return self._fetch_hierarchy_names(session, {rank: local_ids})
+        return self._fetch_hierarchy_names({rank: local_ids})
 
     def _enrich_taxons(
         self,
-        session: Session,
         taxons: list[Taxon],
         preloaded_maps: dict[str, dict[str, str]] | None = None,
         complete_ranks: set[str] | None = None,
@@ -926,7 +806,7 @@ class TaxonRepository:
             if rank not in complete_ranks
         }
         try:
-            fetched = self._fetch_hierarchy_names(session, ids_to_fetch)
+            fetched = self._fetch_hierarchy_names(ids_to_fetch)
         except RemoteTaxonLookupError:
             fetched = {rank: {} for rank in _HIERARCHY_RANKS}
         for rank in _HIERARCHY_RANKS:
@@ -987,7 +867,6 @@ class TaxonRepository:
             else set()
         )
         return self._enrich_taxons(
-            session,
             taxons,
             preloaded_maps=hierarchy_maps,
             complete_ranks=sorted_rank,
@@ -1022,7 +901,6 @@ class TaxonRepository:
             else set()
         )
         return self._enrich_taxons(
-            session,
             taxons,
             preloaded_maps=hierarchy_maps,
             complete_ranks=sorted_rank,
@@ -1039,7 +917,7 @@ class TaxonRepository:
         taxon = self.get_by_id(session, taxon_id)
         if taxon is None:
             return None
-        return self._enrich_taxons(session, [taxon])[0]
+        return self._enrich_taxons([taxon])[0]
 
     def has_lowest_col_id(self, session: Session, lowest_col_id: str, exclude_id: int | None = None) -> bool:
         stored_lowest_id = case(
@@ -1141,7 +1019,7 @@ class TaxonRepository:
         lowest_col_id = self._extract_lowest_col_id(payload)
         if self.has_lowest_col_id(session, lowest_col_id):
             raise RemoteTaxonLookupError("Taxon already exists", status_code=409)
-        values = self._build_taxon_values_from_lowest(session, lowest_col_id)
+        values = self._build_taxon_values_from_lowest(lowest_col_id)
         taxon = Taxon(
             **values,
             cached_common_name=data.cached_common_name,
@@ -1163,7 +1041,7 @@ class TaxonRepository:
         if lowest_col_id:
             if self.has_lowest_col_id(session, lowest_col_id, exclude_id=taxon.taxon_id):
                 raise RemoteTaxonLookupError("Taxon already exists", status_code=409)
-            for field, value in self._build_taxon_values_from_lowest(session, lowest_col_id).items():
+            for field, value in self._build_taxon_values_from_lowest(lowest_col_id).items():
                 setattr(taxon, field, value)
 
         if "cached_scientific_name" in changes:

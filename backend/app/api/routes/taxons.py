@@ -46,7 +46,7 @@ def list_taxon_suggestions(
     offset: int = Query(0, ge=0, description="跳过的结果数 / Number of results to skip"),
 ) -> Any:
     """
-    根据科学名称或常用名称搜索本地分类群字典。 / Search local taxon dictionary by scientific or common name.
+    根据学名或俗名搜索分类字典及自定义分类群。 / Search the dictionary and custom taxons by scientific or common name.
     """
     taxons = taxon_repository.search(session, q=q, limit=limit, offset=offset)
     return api_success(data=[TaxonPublic.model_validate(t) for t in taxons])
@@ -104,7 +104,6 @@ def get_animal_sound_types(
     summary="获取分类层级选项 / Get Taxon Hierarchy Options",
 )
 def list_taxon_options(
-    session: SessionDep,
     rank: TaxonRank = Query(..., description="层级：class|order|family|genus|species / Rank: class|order|family|genus|species"),
     class_id: Optional[str] = Query(None, description="按纲 ID 过滤 / Filter by class ID"),
     order_id: Optional[str] = Query(None, description="按目 ID 过滤 / Filter by order ID"),
@@ -121,7 +120,6 @@ def list_taxon_options(
     """
     try:
         items, total = taxon_repository.get_hierarchy_options(
-            session=session,
             rank=rank,
             class_id=class_id,
             order_id=order_id,

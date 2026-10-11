@@ -15,7 +15,7 @@ Usage:
         --gadm-file /app/data/gadm_410-levels.gpkg \
         --gadm-if-exists replace
 
-    # Only ADM_0 .. ADM_2 (skip ADM_3+ to save time and space; matches FDW usage)
+    # Only ADM_0 .. ADM_2 (skip ADM_3+ to save time and space; covers the supported administrative levels)
     docker compose exec backend python scripts/import_geo_data.py \
         --gadm-only \
         --gadm-file /app/data/gadm_410-levels.gpkg \

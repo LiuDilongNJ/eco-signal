@@ -82,7 +82,7 @@ docker compose exec backend python scripts/import_geo_data.py \
   --iho-dir /app/data/World_Seas_IHO_v3 \
   --gadm-file /app/data/gadm_410-levels.gpkg
 
-# 仅 GADM；仅导入 ADM_0～ADM_2（与主库 FDW 常用表一致，可省空间）
+# 仅 GADM；仅导入应用所需的 ADM_0～ADM_2，可省空间
 docker compose exec backend python scripts/import_geo_data.py \
   --gadm-only \
   --gadm-file /app/data/gadm_410-levels.gpkg \
@@ -102,10 +102,6 @@ docker compose exec backend python scripts/import_geo_data.py \
 依赖：容器内需有 `geopandas`、`fiona`、`sqlalchemy` 等（见 `backend/scripts/import_geo_data.py` 文件头注释）。
 
 ---
-
-### 三、导入后主库 FDW
-
-主库通过 `postgres_fdw` 引用 geo_db 中的表。导入完成后重启或触发后端的 `setup_fdw`（通常在 `prestart` 流程中），确保外键表与 geo_db 实际表名一致（例如 `iho_sea_area`、`adm_0`、`adm_1`、`adm_2`）。详见 `backend/scripts/setup_fdw.py`。
 
 ### 英文版
 

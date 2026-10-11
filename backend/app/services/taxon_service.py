@@ -111,9 +111,9 @@ def import_taxons_csv(session: Session, text: str, *, dry_run: bool = False) -> 
     # Probe the remote dictionary and fetch all COL candidates once, instead of one
     # remote lookup per row. / 一次性探测远端字典并批量拉取候选，替代逐行远程查询。
     try:
-        taxon_repository.ensure_import_dictionary(session)
+        taxon_repository.ensure_import_dictionary()
         candidates = taxon_repository.prefetch_import_candidates(
-            session, {row.binomial for _, row in rows}
+            {row.binomial for _, row in rows}
         )
     except RemoteTaxonLookupError as exc:
         report.global_errors.append(exc.detail)

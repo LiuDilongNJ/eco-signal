@@ -421,6 +421,60 @@ def _ensure_geo_tables(conn) -> None:
     conn.execute(text("CREATE INDEX IF NOT EXISTS idx_col_xr_order_id ON col_xr_taxon_species (col_order_id)"))
     conn.execute(text("CREATE INDEX IF NOT EXISTS idx_col_xr_family_id ON col_xr_taxon_species (col_family_id)"))
     conn.execute(text("CREATE INDEX IF NOT EXISTS idx_col_xr_genus_id ON col_xr_taxon_species (col_genus_id)"))
+    ensure_lookup_indexes(conn)
+
+
+# Expressions must match the normalized-name lookups used by taxon CSV imports.
+LOOKUP_NAME_COLUMNS: dict[str, str] = {
+    "species": "cached_scientific_name",
+    "genus": "col_genus_name",
+    "family": "col_family_name",
+    "order": "col_order_name",
+    "class": "col_class_name",
+}
+
+
+def ensure_lookup_indexes(conn, *, concurrently: bool = False) -> None:
+    """Create normalized-name indexes; ``concurrently`` requires an AUTOCOMMIT connection."""
+    mode = "CONCURRENTLY " if concurrently else ""
+    for rank, column in LOOKUP_NAME_COLUMNS.items():
+        index_name = f"idx_col_xr_{rank}_name_norm"
+        # An interrupted concurrent build leaves an invalid index that IF NOT EXISTS would keep.
+        invalid = conn.execute(
+            text(
+                """
+                SELECT 1 FROM pg_index i JOIN pg_class c ON c.oid = i.indexrelid
+                JOIN pg_namespace n ON n.oid = c.relnamespace
+                WHERE n.nspname = 'public' AND c.relname = :name AND NOT i.indisvalid
+                """
+            ),
+            {"name": index_name},
+        ).first()
+        if invalid:
+            conn.execute(text(f"DROP INDEX {mode}public.{index_name}"))
+        conn.execute(
+            text(
+                f"CREATE INDEX {mode}IF NOT EXISTS {index_name} "
+                f"ON public.col_xr_taxon_species (lower(trim({column})))"
+            )
+        )
+
+    # Expression statistics only exist after ANALYZE; without them the planner
+    # misestimates large IN lists and falls back to sequential scans. A static
+    # dictionary table never triggers autoanalyze once its indexes are added.
+    missing_stats = conn.execute(
+        text(
+            """
+            SELECT COUNT(*) FROM unnest(CAST(:names AS text[])) AS idx(name)
+            WHERE NOT EXISTS (
+                SELECT 1 FROM pg_stats s WHERE s.schemaname = 'public' AND s.tablename = idx.name
+            )
+            """
+        ),
+        {"names": [f"idx_col_xr_{rank}_name_norm" for rank in LOOKUP_NAME_COLUMNS]},
+    ).scalar_one()
+    if missing_stats:
+        conn.execute(text("ANALYZE public.col_xr_taxon_species"))
 
 
 def import_normalized(
