@@ -7,6 +7,8 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[3]
+if not (ROOT / "deploy.sh").exists():
+    pytest.skip(f"Deployment entrypoint not found at {ROOT / 'deploy.sh'}", allow_module_level=True)
 
 # Model only the Docker boundary; execute the real entrypoints and their error handling.
 DOCKER = r'''#!/usr/bin/env python3

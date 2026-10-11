@@ -9,6 +9,10 @@ from app.models import User
 from app.models.annotation import Annotation
 from app.models.media import Media, MediaCollection
 from app.repositories import permission_repository, task_repository
+from app.repositories.annotation_repository import annotation_repository
+from app.repositories.media_repository import media_repository
+from app.repositories.task_repository import TaskNavigationAccess
+from app.schemas.task import TaskNavigationResponse
 from app.services import access_scope_service, authorization_service, permission_service
 from app.services.authorization_policy import AuthorizationAction
 
@@ -22,6 +26,42 @@ _TASK_EXPORT_COLUMNS = [
         lambda row: row.get("datetime") or "",
     ),
 ]
+
+
+def get_navigation_items(
+    session: Session, access: TaskNavigationAccess,
+    media_id: int, annotation: Annotation | None,
+) -> TaskNavigationResponse:
+    previous, following = task_repository.get_navigation_items(session, access, media_id, annotation)
+    return TaskNavigationResponse(previous=previous, next=following)
+
+
+def get_navigation_anchor(
+    session: Session, project_id: int, collection_id: int | None,
+    media_id: int, annotation_id: int | None,
+) -> tuple[Annotation | None, set[int]]:
+    if collection_id is not None:
+        access_scope_service.resolve_collection_project_id(session, collection_id, project_id)
+    media = media_repository.get(session, media_id)
+    if media is None:
+        raise HTTPException(status_code=404, detail="Media not found")
+    paths = authorization_service.media_collection_map(session, {media_id}, project_id).get(media_id, set())
+    if collection_id is not None:
+        paths &= {collection_id}
+    if not paths:
+        raise HTTPException(status_code=400, detail="Media does not belong to the requested scope")
+    annotation = None
+    if annotation_id is not None:
+        annotation = annotation_repository.get(session, annotation_id)
+        if annotation is None:
+            raise HTTPException(status_code=404, detail="Annotation not found")
+        if annotation.media_id != media_id:
+            raise HTTPException(status_code=400, detail="Annotation does not belong to the requested media")
+    return annotation, paths
+
+
+def navigation_anchor_visible(session: Session, annotation_id: int, access: TaskNavigationAccess) -> bool:
+    return task_repository.navigation_anchor_visible(session, annotation_id, access)
 
 
 def _format_task_datetime(value) -> str | None:

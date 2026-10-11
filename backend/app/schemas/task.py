@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 
 from pydantic import ConfigDict, Field, field_validator
 from sqlmodel import SQLModel
@@ -55,6 +55,20 @@ class TaskAssignmentItem(SQLModel):
 class TaskListItem(TaskPublic):
     """Schema for Task list read, includes extra resolved fields."""
     media_name: Optional[str] = None
+
+
+class TaskNavigationItem(SQLModel):
+    task_id: int = Field(gt=0)
+    project_id: int = Field(gt=0)
+    collection_id: int = Field(gt=0)
+    media_id: int = Field(gt=0)
+    media_type: Literal["audio", "photo"]
+    annotation_id: int = Field(gt=0)
+
+
+class TaskNavigationResponse(SQLModel):
+    previous: TaskNavigationItem | None = None
+    next: TaskNavigationItem | None = None
 
 
 class TaskAssignmentRequest(SQLModel):

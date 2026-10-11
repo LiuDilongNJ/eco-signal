@@ -3,18 +3,21 @@ import logging
 from datetime import datetime
 from typing import Any
 
-from fastapi import APIRouter, File, Form, Query, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
 
 from app.api.deps import CurrentUser, SessionDep
 from app.api.responses import csv_response
 from app.csv_import import attach_import_metadata, parse_import_upload
 from app.enums import MediaType
+from app.repositories.permission_repository import permission_repository
+from app.repositories.task_repository import TaskNavigationAccess
 from app.schemas.response import ApiResponse, PagedApiResponse, api_page, api_success
 from app.schemas.task import (
     AssignableUserPublic,
     TaskAssignmentRequest,
     TaskAssignmentResult,
     TaskListItem,
+    TaskNavigationResponse,
     TaskPublic,
 )
 from app.services import authorization_service, tabular_import_service, task_service
@@ -119,6 +122,53 @@ def assign_tasks(
     return api_success(data=result)
 
 router_tasks = APIRouter(prefix="/tasks", tags=["任务列表 / task management"])
+
+
+@router_tasks.get(
+    "/navigation-items", response_model=ApiResponse[TaskNavigationResponse],
+    summary="获取未审核标注任务导航 / Get pending annotation task navigation",
+)
+def get_task_navigation(
+    session: SessionDep,
+    current_user: CurrentUser,
+    project_id: int = Query(..., gt=0, description="项目路径 / Project path"),
+    media_id: int = Query(..., gt=0, description="当前媒体 / Current media"),
+    collection_id: int | None = Query(None, gt=0, description="限定集合 / Collection scope"),
+    annotation_id: int | None = Query(None, gt=0, description="当前位置标注 / Anchor annotation"),
+) -> ApiResponse[TaskNavigationResponse]:
+    """只返回本人可读取的未审核标注任务。 / Return own readable pending annotation tasks.
+
+    媒体与标注必须在同一项目集合路径可读，公开读取与显式权限合并。
+    Media and annotations must be readable on the same project/collection path;
+    public read access is merged with effective permissions.
+    """
+    annotation, paths = task_service.get_navigation_anchor(
+        session, project_id, collection_id, media_id, annotation_id,
+    )
+    admin = authorization_service.is_admin(current_user)
+
+    def read_ids(resource: str, own: bool = False) -> frozenset[int]:
+        ids = set(permission_repository.get_accessible_collection_ids(
+            session, current_user.user_id, resource_type=resource,
+            action="read_own" if own else "read", project_id=project_id,
+        ))
+        if not own:
+            ids.update(cid for _, cid in permission_repository.get_public_collection_scopes(
+                session, project_id=project_id, require_public_tags=resource == "annotation",
+            ))
+        return frozenset(ids)
+
+    access = TaskNavigationAccess(
+        project_id=project_id, user_id=current_user.user_id, collection_id=collection_id,
+        is_admin=admin, media_read_ids=read_ids("media") if not admin else frozenset(),
+        annotation_read_ids=read_ids("annotation") if not admin else frozenset(),
+        annotation_read_own_ids=read_ids("annotation", own=True) if not admin else frozenset(),
+    )
+    if not admin and not paths.intersection(access.media_read_ids):
+        raise HTTPException(status_code=403, detail="No media read permission in the requested scope")
+    if annotation is not None and not task_service.navigation_anchor_visible(session, annotation.annotation_id, access):
+        raise HTTPException(status_code=403, detail="No annotation read permission in the requested scope")
+    return api_success(data=task_service.get_navigation_items(session, access, media_id, annotation))
 
 
 @router_tasks.post("/imports", summary="导入任务 / Import Tasks")

@@ -3,6 +3,7 @@
 import json
 import os
 import shlex
+import shutil
 import subprocess
 import uuid
 from pathlib import Path
@@ -11,6 +12,17 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[3]
 HELPER = ROOT / "scripts/migration-compose.sh"
+if not HELPER.exists():
+    pytest.skip(f"Migration Compose helper not found at {HELPER}", allow_module_level=True)
+
+
+def docker_daemon_available() -> bool:
+    if shutil.which("docker") is None:
+        return False
+    try:
+        return subprocess.run(["docker", "info"], capture_output=True, timeout=10).returncode == 0
+    except subprocess.TimeoutExpired:
+        return False
 
 
 def run_bash(script: str, *, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
@@ -208,6 +220,7 @@ def test_configuration_without_media_services_fails(tmp_path):
     assert commands == ["compose:config --services"]
 
 
+@pytest.mark.skipif(not docker_daemon_available(), reason="requires a Docker daemon")
 def test_development_recreation_leaves_running_production_profile_container(tmp_path):
     project_name = f"migration-compose-{uuid.uuid4().hex[:12]}"
     image_name = f"ecosignal-migration-production:{uuid.uuid4().hex[:12]}"

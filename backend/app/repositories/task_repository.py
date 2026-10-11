@@ -1,13 +1,15 @@
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import and_
+from sqlalchemy import and_, tuple_
 from sqlalchemy.orm import aliased
 from sqlmodel import Session, func, or_, select
 
 from app.core.config import settings
 from app.enums.task import AssignmentTaskType, TaskStatus
 from app.models import Media, MediaCollection, Role, Task, User
+from app.models.annotation import Annotation
 from app.models.effective_permission import UserEffectivePermission
 from app.models.project import ProjectCollection
 from app.repositories.base import BaseRepository
@@ -22,6 +24,17 @@ from app.repositories.query_helpers import (
 # Using the same alias objects in both JOIN and ORDER BY keeps SQL consistent.
 _AssignerUser = aliased(User)
 _AssigneeUser = aliased(User)
+
+
+@dataclass(frozen=True)
+class TaskNavigationAccess:
+    project_id: int
+    user_id: int
+    collection_id: int | None = None
+    is_admin: bool = False
+    media_read_ids: frozenset[int] = frozenset()
+    annotation_read_ids: frozenset[int] = frozenset()
+    annotation_read_own_ids: frozenset[int] = frozenset()
 
 _FILTER_SPECS: list[FilterSpec] = [
     ("task_id",       Task.task_id,       FilterOp.EQ),
@@ -65,6 +78,82 @@ class TaskRepository(BaseRepository[Task, Any, Any]):
 
     def __init__(self):
         super().__init__(Task)
+
+    def _navigation_paths(self, access: TaskNavigationAccess):
+        paths = select(MediaCollection.collection_id).join(
+            ProjectCollection,
+            ProjectCollection.collection_id == MediaCollection.collection_id,
+        ).where(
+            ProjectCollection.project_id == access.project_id,
+            MediaCollection.media_id == Annotation.media_id,
+        )
+        if access.collection_id is not None:
+            paths = paths.where(MediaCollection.collection_id == access.collection_id)
+        if not access.is_admin:
+            paths = paths.where(
+                MediaCollection.collection_id.in_(access.media_read_ids),
+                or_(
+                    MediaCollection.collection_id.in_(access.annotation_read_ids),
+                    and_(
+                        MediaCollection.collection_id.in_(access.annotation_read_own_ids),
+                        Annotation.creator_id == access.user_id,
+                    ),
+                ),
+            )
+        return paths.correlate(Annotation)
+
+    def navigation_anchor_visible(
+        self, session: Session, annotation_id: int, access: TaskNavigationAccess,
+    ) -> bool:
+        return session.exec(select(Annotation.annotation_id).where(
+            Annotation.annotation_id == annotation_id,
+            self._navigation_paths(access).exists(),
+        )).first() is not None
+
+    def get_navigation_items(
+        self, session: Session, access: TaskNavigationAccess,
+        media_id: int, annotation: Annotation | None,
+    ) -> tuple[dict | None, dict | None]:
+        # The authorized path is selected before LIMIT, so hidden rows cannot
+        # mask a later accessible task or combine grants from different paths.
+        path = self._navigation_paths(access).order_by(MediaCollection.collection_id).limit(1)
+        stmt = select(Task, Media.media_type, path.scalar_subquery().label("collection_id")).join(
+            Annotation, Annotation.annotation_id == Task.annotation_id,
+        ).join(Media, Media.media_id == Annotation.media_id).where(
+            Task.media_id == Annotation.media_id,
+            self._navigation_paths(access).exists(),
+        )
+        stmt = apply_filters(stmt, {
+            "assignee_id": access.user_id,
+        }, _FILTER_SPECS).where(
+            Task.type == AssignmentTaskType.ANNOTATION.value,
+            Task.status == TaskStatus.ASSIGNED.value,
+            Media.media_type.in_(("audio", "photo")),
+        )
+        columns = (Annotation.media_id, Annotation.min_x, Annotation.min_y, Annotation.annotation_id)
+        if annotation is not None:
+            anchor = (media_id, annotation.min_x, annotation.min_y, annotation.annotation_id)
+            previous_filter = tuple_(*columns) < anchor
+            next_filter = tuple_(*columns) > anchor
+        else:
+            previous_filter = Annotation.media_id < media_id
+            next_filter = Annotation.media_id >= media_id
+
+        def item(condition, descending: bool) -> dict | None:
+            ordering = (*columns, Task.task_id)
+            row = session.exec(stmt.where(condition).order_by(
+                *(column.desc() if descending else column.asc() for column in ordering),
+            ).limit(1)).first()
+            if row is None:
+                return None
+            task, media_type, collection_id = row
+            return {
+                "task_id": task.task_id, "project_id": access.project_id,
+                "collection_id": collection_id, "media_id": task.media_id,
+                "media_type": media_type, "annotation_id": task.annotation_id,
+            }
+
+        return item(previous_filter, True), item(next_filter, False)
 
     def get_assignable_users(
         self,

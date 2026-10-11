@@ -3,6 +3,7 @@
 from datetime import UTC, datetime
 
 import pytest
+from sqlalchemy import event
 from sqlmodel import Session
 
 from app.models import (
@@ -15,7 +16,7 @@ from app.models import (
     Task,
     User,
 )
-from app.repositories.task_repository import task_repository
+from app.repositories.task_repository import TaskNavigationAccess, task_repository
 
 
 @pytest.fixture
@@ -158,3 +159,50 @@ class TestTaskRepository:
 
         assert total == 1
         assert [row["task_id"] for row in rows] == [selected.task_id]
+
+
+@pytest.fixture
+def navigation_graph(navigation_setup):
+    return navigation_setup
+
+
+def test_navigation_queries_adjacent_tasks_without_pagination(db, navigation_graph):
+    s = navigation_graph
+    media = s.media()
+    annotations = [s.annotation(media, float(i)) for i in range(130)]
+    tasks = [s.task(annotation) for annotation in annotations]
+    access = TaskNavigationAccess(project_id=s.project.project_id, user_id=s.owner.user_id, is_admin=True)
+    statements = []
+    connection = db.get_bind()
+
+    def record(_connection, _cursor, statement, _parameters, _context, _many):
+        statements.append(statement)
+
+    event.listen(connection, "before_cursor_execute", record)
+    try:
+        previous, following = task_repository.get_navigation_items(db, access, media.media_id, annotations[115])
+    finally:
+        event.remove(connection, "before_cursor_execute", record)
+    assert previous["task_id"] == tasks[114].task_id
+    assert following["task_id"] == tasks[116].task_id
+    assert len(statements) == 2
+    assert all("LIMIT" in statement for statement in statements)
+
+
+def test_navigation_scope_rejects_foreign_creator_with_own_read_only(db, navigation_graph):
+    s = navigation_graph
+    media = s.media()
+    anchor = s.annotation(media)
+    hidden = s.annotation(media, 1, creator=s.other)
+    target = s.annotation(media, 2)
+    s.task(hidden)
+    s.task(target)
+    access = TaskNavigationAccess(
+        project_id=s.project.project_id, user_id=s.owner.user_id,
+        media_read_ids=frozenset({s.first.collection_id}),
+        annotation_read_own_ids=frozenset({s.first.collection_id}),
+    )
+    assert task_repository.navigation_anchor_visible(db, anchor.annotation_id, access)
+    assert not task_repository.navigation_anchor_visible(db, hidden.annotation_id, access)
+    _, next_item = task_repository.get_navigation_items(db, access, media.media_id, anchor)
+    assert next_item["annotation_id"] == target.annotation_id
