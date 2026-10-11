@@ -58,6 +58,28 @@ def tool(target, *args, directory=None):
     subprocess.run(command, capture_output=True, text=True, check=True)
 
 
+@pytest.mark.parametrize('days,expected', [(90, 0), (10, 2), (-1, 1)])
+def test_check_command_reads_installed_certificate_without_source(stack, certificate_factory, days, expected):
+    _, directory, _ = stack
+    shutil.copy(ROOT / 'deploy.sh', directory)
+    shutil.copytree(ROOT / 'scripts/tls', directory / 'scripts/tls')
+    (directory / 'docker-compose.yml').write_text('services:\n  frontend:\n    image: nginx:alpine\n')
+    (directory / '.env').write_text('DOMAIN=app.test\nENABLE_HTTPS=true\nHTTPS_MODE=static\n')
+    installed = directory / '.deploy/tls'
+    installed.mkdir(parents=True)
+    cert, _ = certificate_factory(start=-90, end=days)
+    shutil.copy(cert, installed / 'cert.pem')
+    before = {str(path.relative_to(directory)): path.read_bytes() for path in directory.rglob('*') if path.is_file()}
+    result = subprocess.run(['bash', str(directory / 'deploy.sh'), '--check-certs'],
+                            env={**os.environ, 'DOMAIN': 'app.test', 'ENABLE_HTTPS': 'true', 'HTTPS_MODE': 'static'}, capture_output=True, text=True)
+    assert result.returncode == expected, result.stdout + result.stderr
+    assert (('OK:' if expected == 0 else 'WARNING:') if expected != 1 else 'ERROR:') in result.stdout + result.stderr
+    after = {str(path.relative_to(directory)): path.read_bytes() for path in directory.rglob('*') if path.is_file()}
+    assert before == after
+    assert not (directory / '.deploy/deploy.lock').exists()
+    assert not (directory / 'maintenance').exists()
+
+
 def test_static_container_reload_preserves_id(stack, certificate_factory):
     name, directory, run = stack
     services = base_services(directory)

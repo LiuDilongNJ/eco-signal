@@ -10,11 +10,13 @@ build_geo_db=false
 dry_run=false
 force_unlock=false
 reload_certs=false
+check_certs=false
 
 usage() {
     cat <<'EOF'
-Usage: ./deploy.sh [--pull] [--geo-db] [--dry-run] [--force-unlock] [--maintenance <on|off|status>] [--reload-certs]
+Usage: ./deploy.sh [--pull] [--geo-db] [--dry-run] [--force-unlock] [--maintenance <on|off|status>] [--reload-certs|--check-certs]
 
+  --check-certs           Check installed static certificates without changing deployment state.
   --reload-certs          Validate and hot-reload a running static HTTPS frontend.
   --pull                  Pull newer base images before building.
   --geo-db                Rebuild the geo_db image explicitly.
@@ -28,6 +30,7 @@ maintenance_action=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
+        --check-certs) check_certs=true ;;
         --reload-certs) reload_certs=true ;;
         --pull) pull=true ;;
         --geo-db) build_geo_db=true ;;
@@ -51,6 +54,7 @@ while [[ $# -gt 0 ]]; do
     shift
 done
 
+if [[ "$check_certs" == true ]]; then trap 'exit 1' ERR; fi
 environment="$(docker compose -f "$compose_file" config --environment)"
 environment_value() {
     awk -F= -v key="$1" '$1 == key { sub("^[^=]*=", ""); print; exit }' <<<"$environment"
@@ -76,6 +80,17 @@ tls_cert_file="${TLS_CERT_FILE:-$(environment_value TLS_CERT_FILE)}"
 tls_key_file="${TLS_KEY_FILE:-$(environment_value TLS_KEY_FILE)}"
 media_storage_mode="${MEDIA_STORAGE_MODE:-$(environment_value MEDIA_STORAGE_MODE)}"
 media_storage_mode="${media_storage_mode:-managed}"
+
+source scripts/tls/deploy.sh
+if [[ "$check_certs" == true ]]; then
+    if [[ "$reload_certs" == true || "$pull" == true || "$build_geo_db" == true || "$dry_run" == true || "$force_unlock" == true || -n "$maintenance_action" ]]; then
+        echo "ERROR: --check-certs cannot be combined with deployment actions" >&2
+        exit 1
+    fi
+    status=0
+    check_installed_certs || status=$?
+    exit "$status"
+fi
 
 if [[ ! "$domain" =~ ^[a-zA-Z0-9]([a-zA-Z0-9.-]*[a-zA-Z0-9])?$ ]]; then
     echo "DOMAIN must be a hostname without a scheme, port or path" >&2
@@ -208,7 +223,6 @@ run_compose() {
     DOMAIN="$domain" STACK_NAME="$project_name" "${compose[@]}" "$@"
 }
 
-source scripts/tls/deploy.sh
 export DOMAIN="$domain" STACK_NAME="$project_name" EMAIL="$email"
 if [[ "$reload_certs" == true && ( "$https_enabled" != true || "$https_mode" != static || -n "$maintenance_action" || "$dry_run" == true || "$pull" == true || "$build_geo_db" == true ) ]]; then
     echo "--reload-certs requires static HTTPS and cannot be combined with deployment actions" >&2

@@ -274,3 +274,75 @@ def test_cli_reports_validation_error():
     result = subprocess.run([sys.executable, str(ROOT / "scripts/tls/certificates.py"), "validate", "--domain", "invalid;"], capture_output=True, text=True)
     assert result.returncode == 1
     assert "ERROR:" in result.stderr
+
+
+@pytest.mark.parametrize("days,expected", [(90, 0), (30, 2), (10, 2)])
+def test_check_expiry_reports_status_and_preserves_file(certificate_factory, capsys, days, expected):
+    cert, key = certificate_factory(end=days)
+    before = cert.read_bytes()
+    key.unlink()
+    assert tls.check_expiry(cert, "app.test") == expected
+    output = capsys.readouterr()
+    message = output.err if expected else output.out
+    assert "DOMAIN=app.test" in message
+    assert "UTC" in message and "remaining=" in message
+    assert ("WARNING" if expected else "OK") in message
+    assert cert.read_bytes() == before
+
+
+@pytest.mark.parametrize("offset,expected", [(-1, 0), (0, 2), (1, 2)])
+def test_check_expiry_uses_exact_thirty_day_boundary(certificate_factory, monkeypatch, offset, expected):
+    cert, _ = certificate_factory(end=90)
+    expires_at = tls.certificate_details(cert)[1]
+    monkeypatch.setattr(tls.time, "time", lambda: expires_at - 30 * 86400 + offset)
+    assert tls.check_expiry(cert, "app.test") == expected
+
+
+def test_check_expiry_uses_earliest_chain_expiry(certificate_factory, capsys):
+    leaf, _ = certificate_factory(end=90)
+    intermediate, _ = certificate_factory("ca.test", end=10)
+    leaf.write_bytes(leaf.read_bytes() + intermediate.read_bytes())
+    assert tls.check_expiry(leaf, "app.test") == 2
+    assert "remaining=10.00 days" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("kwargs,domain,message", [
+    ({"start": -90, "end": -1}, "app.test", "expired"),
+    ({"start": 2}, "app.test", "not yet valid"),
+    ({}, "other.test", "does not cover"),
+])
+def test_check_expiry_rejects_unusable_certificate(certificate_factory, kwargs, domain, message):
+    cert, _ = certificate_factory(**kwargs)
+    with pytest.raises(ValueError, match=message):
+        tls.check_expiry(cert, domain)
+
+
+def test_check_expiry_rejects_expired_intermediate(certificate_factory):
+    leaf, _ = certificate_factory()
+    intermediate, _ = certificate_factory("ca.test", start=-90, end=-1)
+    leaf.write_bytes(leaf.read_bytes() + intermediate.read_bytes())
+    with pytest.raises(ValueError, match="expired"):
+        tls.check_expiry(leaf, "app.test")
+
+
+@pytest.mark.parametrize("content", [b"", b"garbage", b"-----BEGIN CERTIFICATE-----\ninvalid\n-----END CERTIFICATE-----"])
+def test_check_expiry_cli_rejects_corrupt_certificate(tmp_path, content):
+    cert = tmp_path / "cert.pem"
+    cert.write_bytes(content)
+    result = subprocess.run([sys.executable, str(cert_script), "check-expiry", "--domain", "app.test", "--cert", str(cert)], capture_output=True, text=True)
+    assert result.returncode == 1
+    assert "ERROR:" in result.stderr
+
+
+def test_check_expiry_cli_rejects_missing_certificate(tmp_path):
+    result = subprocess.run([sys.executable, str(cert_script), "check-expiry", "--domain", "app.test", "--cert", str(tmp_path / "missing")], capture_output=True, text=True)
+    assert result.returncode == 1
+    assert "ERROR:" in result.stderr
+
+
+@pytest.mark.parametrize("days,expected", [(90, 0), (10, 2)])
+def test_check_expiry_cli_returns_status_without_key(certificate_factory, days, expected):
+    cert, key = certificate_factory(end=days)
+    key.unlink()
+    result = subprocess.run([sys.executable, str(cert_script), "check-expiry", "--domain", "app.test", "--cert", str(cert)], capture_output=True, text=True)
+    assert result.returncode == expected

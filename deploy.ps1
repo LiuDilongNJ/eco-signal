@@ -1,5 +1,6 @@
 [CmdletBinding()]
 param(
+    [switch]$CheckCerts,
     [switch]$ReloadCerts,
     [switch]$Pull,
     [switch]$GeoDb,
@@ -49,6 +50,20 @@ $tlsCertFile = if ($env:TLS_CERT_FILE) { $env:TLS_CERT_FILE } else { Get-Compose
 $tlsKeyFile = if ($env:TLS_KEY_FILE) { $env:TLS_KEY_FILE } else { Get-ComposeEnvironmentValue 'TLS_KEY_FILE' }
 $mediaStorageMode = if ($env:MEDIA_STORAGE_MODE) { $env:MEDIA_STORAGE_MODE } else { Get-ComposeEnvironmentValue 'MEDIA_STORAGE_MODE' }
 if (-not $mediaStorageMode) { $mediaStorageMode = 'managed' }
+
+. ./scripts/tls/deploy.ps1
+if ($CheckCerts) {
+    try {
+        if ($ReloadCerts -or $Pull -or $GeoDb -or $DryRun -or $ForceUnlock -or $Maintenance) {
+            throw '-CheckCerts cannot be combined with deployment actions'
+        }
+        if ($httpsValue -notin @('true', 'false')) { throw 'ENABLE_HTTPS must be true or false' }
+        exit (Test-InstalledCertificates)
+    } catch {
+        [Console]::Error.WriteLine("ERROR: $_")
+        exit 1
+    }
+}
 
 if ($domain -notmatch '^[a-zA-Z0-9]([a-zA-Z0-9.-]*[a-zA-Z0-9])?$') { throw 'DOMAIN must be a hostname without a scheme, port or path' }
 if ($httpsValue -notin @('true', 'false')) { throw 'ENABLE_HTTPS must be true or false' }
@@ -122,7 +137,6 @@ try {
 }
 Set-Content -LiteralPath (Join-Path $lockDir 'owner') -Value "pid=$PID`nhost=$env:COMPUTERNAME`nstarted_at=$([DateTime]::UtcNow.ToString('o'))" -NoNewline
 
-. ./scripts/tls/deploy.ps1
 try {
     if ($ReloadCerts -and (-not $httpsEnabled -or $httpsMode -ne 'static' -or $Maintenance -or $DryRun -or $Pull -or $GeoDb)) {
         throw '-ReloadCerts requires static HTTPS and cannot be combined with deployment actions'

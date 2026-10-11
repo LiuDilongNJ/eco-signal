@@ -38,16 +38,17 @@ def valid_domain(domain: str) -> None:
         raise ValueError("DOMAIN must be a hostname without a scheme, port or path")
 
 
-def check_certificate(path: Path, domain: str | None = None) -> str:
+def certificate_details(path: Path, domain: str | None = None, *, now: float | None = None, warn: bool = True) -> tuple[str, float]:
     dates = dict(line.split("=", 1) for line in openssl("x509", "-in", str(path), "-noout", "-dates").splitlines())
-    now = time.time()
+    now = time.time() if now is None else now
     if ssl.cert_time_to_seconds(dates["notBefore"]) > now:
         raise ValueError("TLS certificate is not yet valid")
-    remaining = ssl.cert_time_to_seconds(dates["notAfter"]) - now
+    expires_at = ssl.cert_time_to_seconds(dates["notAfter"])
+    remaining = expires_at - now
     if remaining <= 0:
         raise ValueError("TLS certificate has expired")
-    if remaining < 30 * 86400:
-        expiry = datetime.fromtimestamp(ssl.cert_time_to_seconds(dates["notAfter"]), UTC).strftime("%Y-%m-%d %H:%M:%S")
+    if warn and remaining < 30 * 86400:
+        expiry = datetime.fromtimestamp(expires_at, UTC).strftime("%Y-%m-%d %H:%M:%S")
         print(f"WARNING: TLS certificate expires within 30 days ({expiry} UTC)", file=sys.stderr)
     if domain:
         valid_domain(domain)
@@ -63,14 +64,42 @@ def check_certificate(path: Path, domain: str | None = None) -> str:
         if "does match certificate" not in match:
             raise ValueError("TLS certificate does not cover DOMAIN")
     der = ssl.PEM_cert_to_DER_cert(CERTIFICATE.search(path.read_bytes())[0].decode())
-    return hashlib.sha256(der).hexdigest()
+    return hashlib.sha256(der).hexdigest(), expires_at
 
 
-def validate(cert: Path, key: Path, domain: str) -> str:
+def check_certificate(path: Path, domain: str | None = None) -> str:
+    return certificate_details(path, domain)[0]
+
+
+def certificate_blocks(cert: Path) -> list[bytes]:
     data = cert.read_bytes()
     blocks = CERTIFICATE.findall(data)
     if not blocks or CERTIFICATE.sub(b"", data).strip():
         raise ValueError("TLS certificate must contain only PEM certificates")
+    return blocks
+
+
+def check_expiry(cert: Path, domain: str) -> int:
+    now = time.time()
+    expirations = []
+    with tempfile.TemporaryDirectory() as directory:
+        for index, block in enumerate(certificate_blocks(cert)):
+            part = Path(directory) / f"{index}.pem"
+            part.write_bytes(block)
+            _, expires_at = certificate_details(part, domain if index == 0 else None, now=now, warn=False)
+            expirations.append(expires_at)
+    earliest = min(expirations)
+    remaining_days = (earliest - now) / 86400
+    expiry = datetime.fromtimestamp(earliest, UTC).strftime("%Y-%m-%d %H:%M:%S")
+    expiring = earliest - now <= 30 * 86400
+    status = "WARNING" if expiring else "OK"
+    print(f"{status}: DOMAIN={domain}; earliest certificate expiry={expiry} UTC; remaining={remaining_days:.2f} days",
+          file=sys.stderr if expiring else sys.stdout)
+    return 2 if expiring else 0
+
+
+def validate(cert: Path, key: Path, domain: str) -> str:
+    blocks = certificate_blocks(cert)
     with tempfile.TemporaryDirectory() as directory:
         for index, block in enumerate(blocks):
             part = Path(directory) / f"{index}.pem"
@@ -176,7 +205,7 @@ def wait_ready(domain: str, host: str, port: int, cert: Path | None, timeout: in
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("action", choices=["validate", "install", "restore", "probe"])
+    parser.add_argument("action", choices=["validate", "install", "restore", "probe", "check-expiry"])
     parser.add_argument("--cert", type=Path, default=Path("/source/cert.pem"))
     parser.add_argument("--key", type=Path, default=Path("/source/key.pem"))
     parser.add_argument("--directory", type=Path, default=Path("/state"))
@@ -189,7 +218,9 @@ def main() -> None:
     parser.add_argument("--path", action="append", default=[])
     args = parser.parse_args()
     valid_domain(args.domain)
-    if args.action == "validate":
+    if args.action == "check-expiry":
+        sys.exit(check_expiry(args.cert, args.domain))
+    elif args.action == "validate":
         print(validate(args.cert, args.key, args.domain))
     elif args.action == "install":
         install(args.cert, args.key, args.directory, args.domain)

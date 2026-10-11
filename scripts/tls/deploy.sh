@@ -6,6 +6,33 @@ prepare_tls_tool() {
     docker build -q -t "$tls_image" scripts/tls >/dev/null
 }
 
+check_installed_certs() {
+    if [[ "$https_enabled" != true || "$https_mode" != static ]]; then
+        echo "ERROR: --check-certs requires static HTTPS" >&2
+        return 1
+    fi
+    if [[ -e "$lock_dir" ]]; then
+        echo "ERROR: Deployment is in progress; retry the certificate check later" >&2
+        return 1
+    fi
+    if [[ ! -f "$state_dir/tls/cert.pem" ]]; then
+        echo "ERROR: Installed TLS certificate not found: $state_dir/tls/cert.pem" >&2
+        return 1
+    fi
+    if ! docker image inspect "$tls_image" >/dev/null 2>&1; then
+        echo "ERROR: TLS tool image is missing; run: docker build -t $tls_image scripts/tls" >&2
+        return 1
+    fi
+    local status=0
+    docker run --rm --network none \
+        --mount "type=bind,source=$(pwd)/$state_dir/tls,target=/state,readonly" \
+        "$tls_image" check-expiry --cert /state/cert.pem --domain "$domain" || status=$?
+    case "$status" in
+        0|2) return "$status" ;;
+        *) return 1 ;;
+    esac
+}
+
 tls_source() {
     docker run --rm --network none \
         --mount "type=bind,source=$tls_cert_file,target=/source/cert.pem,readonly" \

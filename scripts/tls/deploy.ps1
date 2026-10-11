@@ -6,6 +6,21 @@ function Invoke-Docker([string[]]$Arguments) {
     if ($LASTEXITCODE -ne 0) { throw "Docker operation failed: $($Arguments[0])" }
 }
 
+function Test-InstalledCertificates {
+    if (-not $httpsEnabled -or $httpsMode -ne 'static') { throw '-CheckCerts requires static HTTPS' }
+    if (Test-Path -LiteralPath $lockDir) { throw 'Deployment is in progress; retry the certificate check later' }
+    if (-not (Test-Path -LiteralPath "$stateDir/tls/cert.pem" -PathType Leaf)) {
+        throw "Installed TLS certificate not found: $stateDir/tls/cert.pem"
+    }
+    & docker image inspect $script:tlsImage *> $null
+    if ($LASTEXITCODE -ne 0) { throw "TLS tool image is missing; run: docker build -t $script:tlsImage scripts/tls" }
+    & docker run --rm --network none `
+        --mount "type=bind,source=$((Get-Location).Path)/$stateDir/tls,target=/state,readonly" `
+        $script:tlsImage check-expiry --cert /state/cert.pem --domain $domain | Out-Host
+    if ($LASTEXITCODE -in @(0, 2)) { return $LASTEXITCODE }
+    return 1
+}
+
 function Invoke-TlsSource([string]$Action) {
     Invoke-Docker @('run', '--rm', '--network', 'none',
         '--mount', "type=bind,source=$tlsCertFile,target=/source/cert.pem,readonly",

@@ -16,6 +16,8 @@ args = sys.argv[1:]
 with open('commands.jsonl', 'a') as log:
     log.write(json.dumps(args) + '\n')
 if '--environment' in args:
+    if os.getenv('FAIL_CONFIG'):
+        sys.exit(15)
     print('STACK_NAME=tls-test\nDOMAIN=app.test\nENABLE_HTTPS=' + os.getenv('ENABLE_HTTPS', 'true') + '\nHTTPS_MODE=' + os.getenv('HTTPS_MODE', 'static') + '\nTLS_CERT_FILE=' + os.getcwd() + '/cert.pem\nTLS_KEY_FILE=' + os.getcwd() + '/key.pem')
 elif args[0] == 'inspect':
     if '-f' in args:
@@ -38,6 +40,10 @@ if 'nginx' in args and '-t' in args and os.getenv('FAIL_NGINX') and not Path('fa
 if 'probe' in args and os.getenv('FAIL_PROBE') and not Path('failed').exists():
     Path('failed').touch()
     sys.exit(1)
+if args[:2] == ['image', 'inspect'] and os.getenv('FAIL_IMAGE'):
+    sys.exit(1)
+if 'check-expiry' in args:
+    sys.exit(int(os.getenv('CHECK_EXIT', '0')))
 '''
 
 
@@ -45,7 +51,7 @@ if 'probe' in args and os.getenv('FAIL_PROBE') and not Path('failed').exists():
 def entrypoint(request, tmp_path):
     shutil.copy(ROOT / 'deploy.sh', tmp_path)
     shutil.copy(ROOT / 'deploy.ps1', tmp_path)
-    (tmp_path / 'test-entry.ps1').write_text('$env:PATH = "$PSScriptRoot/bin" + [IO.Path]::PathSeparator + $env:PATH\n& "$PSScriptRoot/deploy.ps1" @args\n')
+    (tmp_path / 'test-entry.ps1').write_text('$env:PATH = "$PSScriptRoot/bin" + [IO.Path]::PathSeparator + $env:PATH\n& "$PSScriptRoot/deploy.ps1" @args\nexit $LASTEXITCODE\n')
     shutil.copytree(ROOT / 'scripts/tls', tmp_path / 'scripts/tls')
     (tmp_path / 'cert.pem').write_text('source certificate')
     (tmp_path / 'key.pem').write_text('source key')
@@ -54,18 +60,95 @@ def entrypoint(request, tmp_path):
     docker = tmp_path / 'bin/docker'
     docker.write_text(DOCKER)
     docker.chmod(0o755)
-    def run(action='reload', **extra):
-        arguments = {'reload': '--reload-certs', 'dry': '--dry-run', 'maintenance': '--maintenance'} if request.param == 'bash' else {'reload': '-ReloadCerts', 'dry': '-DryRun', 'maintenance': '-Maintenance'}
+    def run(action='reload', flags=(), **extra):
+        arguments = {'reload': '--reload-certs', 'check': '--check-certs', 'dry': '--dry-run', 'maintenance': '--maintenance'} if request.param == 'bash' else {'reload': '-ReloadCerts', 'check': '-CheckCerts', 'dry': '-DryRun', 'maintenance': '-Maintenance'}
         command = ['bash', str(tmp_path / 'deploy.sh')] if request.param == 'bash' else ['pwsh', '-NoProfile', '-File', str(tmp_path / 'test-entry.ps1')]
         if action != "deploy":
             command.append(arguments[action])
         if action == 'maintenance':
             command.append('status')
+        options = {'pull': ['--pull'], 'geo': ['--geo-db'], 'unlock': ['--force-unlock']} if request.param == 'bash' else {'pull': ['-Pull'], 'geo': ['-GeoDb'], 'unlock': ['-ForceUnlock']}
+        for flag in flags:
+            command.extend(options[flag] if flag in options else [arguments[flag]])
+            if flag == 'maintenance':
+                command.append('status')
         result = subprocess.run(command, cwd=tmp_path, env={**os.environ, 'PATH': str(tmp_path / 'bin') + ':' + os.environ['PATH'], **extra}, capture_output=True, text=True)
         assert (tmp_path / 'commands.jsonl').exists(), result.stdout + result.stderr
         commands = [json.loads(line) for line in (tmp_path / 'commands.jsonl').read_text().splitlines()]
         return result, commands
     return tmp_path, run
+
+
+@pytest.fixture
+def installed_entrypoint(entrypoint):
+    path, run = entrypoint
+    (path / '.deploy/tls').mkdir(parents=True)
+    (path / '.deploy/tls/cert.pem').write_text('installed certificate')
+    (path / 'cert.pem').unlink()
+    (path / 'key.pem').unlink()
+    return path, run
+
+
+@pytest.mark.parametrize('status,expected', [(0, 0), (2, 2), (1, 1), (125, 1)])
+def test_check_returns_status_without_deployment_changes(installed_entrypoint, status, expected):
+    path, run = installed_entrypoint
+    before = (path / '.deploy/tls/cert.pem').read_bytes()
+    result, commands = run('check', CHECK_EXIT=str(status))
+    assert result.returncode == expected, result.stdout + result.stderr
+    check = next(command for command in commands if 'check-expiry' in command)
+    assert check[check.index('--network') + 1] == 'none'
+    assert any('target=/state,readonly' in part for part in check)
+    assert not any('key.pem' in part or '/source' in part for part in check)
+    assert not any(any(action in command for action in ['build', 'install', 'restore', 'validate', 'probe', 'up', 'stop', 'reload']) for command in commands)
+    assert (path / '.deploy/tls/cert.pem').read_bytes() == before
+    assert not (path / '.deploy/deploy.lock').exists()
+    assert not (path / 'maintenance/maintenance.flag').exists()
+
+
+def test_check_does_not_create_state_when_certificate_missing(entrypoint):
+    path, run = entrypoint
+    result, commands = run('check')
+    assert result.returncode == 1
+    assert 'Installed TLS certificate not found' in result.stderr
+    assert not any('run' in command for command in commands)
+    assert not (path / '.deploy').exists()
+
+
+def test_check_rejects_missing_tool_without_building(installed_entrypoint):
+    _, run = installed_entrypoint
+    result, commands = run('check', FAIL_IMAGE='true')
+    assert result.returncode == 1
+    assert 'TLS tool image is missing' in result.stderr
+    assert not any('build' in command or 'run' in command for command in commands)
+
+
+def test_check_keeps_existing_deployment_lock(installed_entrypoint):
+    path, run = installed_entrypoint
+    lock = path / '.deploy/deploy.lock'
+    lock.mkdir()
+    (lock / 'owner').write_text('running deployment')
+    result, commands = run('check')
+    assert result.returncode == 1
+    assert 'Deployment is in progress' in result.stderr
+    assert (lock / 'owner').read_text() == 'running deployment'
+    assert not any('run' in command for command in commands)
+
+
+@pytest.mark.parametrize('flag', ['reload', 'dry', 'pull', 'geo', 'unlock', 'maintenance'])
+def test_check_rejects_combined_deployment_actions(installed_entrypoint, flag):
+    path, run = installed_entrypoint
+    result, commands = run('check', flags=(flag,))
+    assert result.returncode == 1
+    assert not any('run' in command or 'build' in command for command in commands)
+    assert not (path / '.deploy/deploy.lock').exists()
+
+
+@pytest.mark.parametrize('env', [{'ENABLE_HTTPS': 'false'}, {'HTTPS_MODE': 'letsencrypt'}, {'ENABLE_HTTPS': 'invalid'}, {'FAIL_CONFIG': 'true'}])
+def test_check_returns_error_for_invalid_configuration(installed_entrypoint, env):
+    _, run = installed_entrypoint
+    result, commands = run('check', **env)
+    assert result.returncode == 1
+    assert not any('run' in command or 'build' in command for command in commands)
 
 
 def test_reload_only_touches_certificate_service(entrypoint):

@@ -55,6 +55,85 @@ To update certificates only, replace the configured source files, then run:
 
 Updates share the deployment lock, back up and install the pair, run `nginx -t`, then `nginx -s reload`. New TLS connections must return the expected fingerprint and hostname within 30 seconds. Failure restores the previous pair, verifies recovery, and returns a nonzero status. This operation does not enable maintenance, restart containers, or rebuild the application; old workers finish existing requests. Full application releases may still require a maintenance window.
 
+#### Independent expiry checks
+
+Static HTTPS supports an independent check of the installed `.deploy/tls/cert.pem`:
+
+```bash
+./deploy.sh --check-certs
+# Windows PowerShell:
+./deploy.ps1 -CheckCerts
+```
+
+The check validates PEM format, the leaf hostname and every certificate's validity period. It reports `DOMAIN`, the earliest expiry in the chain (`YYYY-MM-DD HH:mm:ss UTC`) and remaining days. Private CAs are supported without a system trust-store requirement. The configured source certificate and private key need not exist. This checks the installed file, not a remote TLS handshake.
+
+| Exit code | Result |
+|---|---|
+| `0` | Valid, with more than 30 days remaining |
+| `2` | Valid, with 30 days or less remaining; warning on stderr |
+| `1` | Expired, not yet valid, invalid/missing certificate, unsupported mode or check failure |
+
+The command uses a short-lived Docker container with networking disabled and the certificate directory mounted read-only. It does not acquire/delete deployment locks, enter maintenance, build images, install/reload certificates or start/stop application services. An existing deployment lock returns `1`; retry after deployment finishes. Do not combine the check with other deployment options. It requires static HTTPS and an existing TLS tool image. After updating the tool code, or if the image is missing, prepare it once from the project directory:
+
+```bash
+docker build -t ecosignal-tls-tools:local scripts/tls
+```
+
+#### Daily checks with cron or systemd
+
+Choose one scheduler. Replace `/opt/ecosignal`, the deployment account `ecosignal` and the Docker binary directory with the server's values. The account must read the project configuration and installed certificate and have access to Docker. These examples assume Docker is available at `/usr/bin/docker`; use `command -v docker` to confirm. The check does not automatically configure a scheduler or send email/webhook notifications. Configure existing monitoring to alert on nonzero results, distinguishing warning `2` from failure `1`.
+
+For cron, create `/var/log/ecosignal` and a writable `certificate-check.log` for the deployment account, then add this to that account's crontab. It runs daily at 08:15 in the host timezone and records both output and the exit code. Cron alone does not turn the exit code into a notification; have monitoring collect this log.
+
+```cron
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+15 8 * * * cd /opt/ecosignal && (/bin/bash ./deploy.sh --check-certs; status=$?; echo "certificate-check exit=$status"; exit "$status") >> /var/log/ecosignal/certificate-check.log 2>&1
+```
+
+Alternatively, save `/etc/systemd/system/ecosignal-certificate-check.service`:
+
+```ini
+[Unit]
+Description=ecoSignal certificate expiry check
+After=docker.service
+
+[Service]
+Type=oneshot
+User=ecosignal
+WorkingDirectory=/opt/ecosignal
+Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+ExecStart=/bin/bash /opt/ecosignal/deploy.sh --check-certs
+```
+
+Save `/etc/systemd/system/ecosignal-certificate-check.timer`:
+
+```ini
+[Unit]
+Description=Daily ecoSignal certificate expiry check
+
+[Timer]
+OnCalendar=*-*-* 08:15:00
+RandomizedDelaySec=10m
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+```
+
+Enable and inspect it:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now ecosignal-certificate-check.timer
+systemctl list-timers ecosignal-certificate-check.timer
+sudo systemctl start ecosignal-certificate-check.service
+journalctl -u ecosignal-certificate-check.service --since today
+systemctl status ecosignal-certificate-check.service
+```
+
+Both exit `1` and `2` mark the service failed; connect existing systemd monitoring to this state and inspect the process exit status for severity. After a warning, obtain replacement certificates, update the configured source files, run `./deploy.sh --reload-certs` (or `./deploy.ps1 -ReloadCerts`), then run the independent check again. Source replacement alone does not update the installed certificate.
+
 ### 2. Automated certificates: Traefik + Let's Encrypt
 
 ```ini

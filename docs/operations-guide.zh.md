@@ -55,6 +55,85 @@ BACKEND_CORS_ORIGINS="https://ecosignal.example.org"
 
 更新与部署共用锁。工具备份并安装新证书，执行 `nginx -t` 后 `nginx -s reload`，在 30 秒内用新 TLS 连接检查证书指纹与域名。失败恢复上一组证书并验证恢复结果，命令返回非零。更新不启用维护模式、不重启容器、不构建应用；已有请求由旧 worker 完成。常规应用发布仍可能有维护窗口。
 
+#### 独立到期检查
+
+静态 HTTPS 支持独立检查已安装的 `.deploy/tls/cert.pem`：
+
+```bash
+./deploy.sh --check-certs
+# Windows PowerShell:
+./deploy.ps1 -CheckCerts
+```
+
+命令校验 PEM 格式、站点证书域名及证书链中每张证书的有效期，输出 `DOMAIN`、链中最早到期时间（`YYYY-MM-DD HH:mm:ss UTC`）和剩余天数。支持内部 CA，无需加入系统信任库。检查不要求配置指向的源证书和私钥文件仍然存在。检查对象是已安装文件，不验证远端 TLS 握手。
+
+| 退出码 | 结果 |
+|---|---|
+| `0` | 校验通过，距离到期超过 30 天 |
+| `2` | 校验通过，距离到期不超过 30 天；提醒输出至 stderr |
+| `1` | 已过期、尚未生效、证书损坏或缺失、模式不支持，或检查无法完成 |
+
+命令使用短生命周期 Docker 容器，禁用网络，证书目录只读挂载。不创建或删除部署锁，不进入维护模式，不构建镜像，不安装或热加载证书，不启动或停止应用服务。存在部署锁时返回 `1`，应在部署完成后重试。不要与其他部署选项组合。检查仅支持静态 HTTPS，且需要已有 TLS 工具镜像。更新工具代码后，或镜像缺失时，在项目目录中执行一次准备命令：
+
+```bash
+docker build -t ecosignal-tls-tools:local scripts/tls
+```
+
+#### 使用 cron 或 systemd 每日检查
+
+选择一种定时方式。将 `/opt/ecosignal`、部署账户 `ecosignal` 和 Docker 命令目录替换为服务器实际值。执行账户需要读取项目配置和已安装证书，并有权限使用 Docker。示例假设 Docker 位于 `/usr/bin/docker`，可用 `command -v docker` 确认。检查命令不自动安装定时任务，也不发送邮件或 webhook 通知；由现有监控接收非零结果，区分提醒 `2` 和故障 `1`。
+
+使用 cron 时，先创建 `/var/log/ecosignal`，并确保部署账户可写其中的 `certificate-check.log`，再将以下配置加入该账户的 crontab。按宿主机时区每天 08:15 执行，记录输出和退出码。cron 本身不会将退出码转为通知，应由监控采集日志。
+
+```cron
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+15 8 * * * cd /opt/ecosignal && (/bin/bash ./deploy.sh --check-certs; status=$?; echo "certificate-check exit=$status"; exit "$status") >> /var/log/ecosignal/certificate-check.log 2>&1
+```
+
+也可以保存 `/etc/systemd/system/ecosignal-certificate-check.service`：
+
+```ini
+[Unit]
+Description=ecoSignal certificate expiry check
+After=docker.service
+
+[Service]
+Type=oneshot
+User=ecosignal
+WorkingDirectory=/opt/ecosignal
+Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+ExecStart=/bin/bash /opt/ecosignal/deploy.sh --check-certs
+```
+
+保存 `/etc/systemd/system/ecosignal-certificate-check.timer`：
+
+```ini
+[Unit]
+Description=Daily ecoSignal certificate expiry check
+
+[Timer]
+OnCalendar=*-*-* 08:15:00
+RandomizedDelaySec=10m
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+```
+
+启用并检查：
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now ecosignal-certificate-check.timer
+systemctl list-timers ecosignal-certificate-check.timer
+sudo systemctl start ecosignal-certificate-check.service
+journalctl -u ecosignal-certificate-check.service --since today
+systemctl status ecosignal-certificate-check.service
+```
+
+退出码 `1` 和 `2` 均使 service 标记为失败。将现有 systemd 监控接入此状态，并根据进程退出码区分严重程度。收到提醒后，获取新证书、更新配置指向的源文件，执行 `./deploy.sh --reload-certs`（或 `./deploy.ps1 -ReloadCerts`），再运行独立检查。只替换源文件不会更新已安装证书。
+
 ### 2. 自动证书：Traefik + Let's Encrypt
 
 ```ini
