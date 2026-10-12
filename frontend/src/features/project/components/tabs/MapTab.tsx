@@ -58,6 +58,11 @@ interface Site {
     topography_m: number
     freshwater_depth_m: number | null
     sensors: string[]
+    latitude: number | null
+    longitude: number | null
+    gadm0: string | null
+    gadm1: string | null
+    gadm2: string | null
 }
 
 interface FilterState {
@@ -253,7 +258,26 @@ function mapMarkerToSite(
         topography_m: 0,
         freshwater_depth_m: null,
         sensors: [],
+        latitude: finiteCoordinate(m.latitude),
+        longitude: finiteCoordinate(m.longitude),
+        gadm0: m.gadm0 ?? null,
+        gadm1: m.gadm1 ?? null,
+        gadm2: m.gadm2 ?? null,
     }
+}
+
+function finiteCoordinate(value: number | null | undefined): number | null {
+    return typeof value === "number" && Number.isFinite(value) ? value : null
+}
+
+function formatSiteCoordinate(value: number | null): string {
+    if (value == null) return "-"
+    return String(Number(value.toFixed(6)))
+}
+
+function hasSiteInfoValue(value: string): boolean {
+    const text = value.trim()
+    return text !== "" && text !== "-"
 }
 
 /** 圆内数字压缩展示，避免千万级仍占满一行撑破圆环 */
@@ -1448,6 +1472,16 @@ function SiteSidebar({
     mediaTypeFilter: MediaTypeFilter
 }) {
     const color = getRealmColor(site.realm)
+    const detailRows = [
+        hasSiteInfoValue(site.realm) ? { label: "Realm", value: site.realm, color } : null,
+        hasSiteInfoValue(site.biome) ? { label: "Biome", value: site.biome } : null,
+        hasSiteInfoValue(site.functional_type) ? { label: "Group", value: site.functional_type } : null,
+        site.latitude != null ? { label: "Latitude", value: formatSiteCoordinate(site.latitude) } : null,
+        site.longitude != null ? { label: "Longitude", value: formatSiteCoordinate(site.longitude) } : null,
+        site.gadm0?.trim() ? { label: "GADM0", value: site.gadm0.trim() } : null,
+        site.gadm1?.trim() ? { label: "GADM1", value: site.gadm1.trim() } : null,
+        site.gadm2?.trim() ? { label: "GADM2", value: site.gadm2.trim() } : null,
+    ].filter((row): row is { label: string; value: string; color?: string } => row != null)
     const currentProjectId = useProjectStore((s) => s.currentProjectId)
     const currentCollectionId = useProjectStore((s) => s.currentCollectionId)
     const [expanded, setExpanded] = useState(false)
@@ -1613,24 +1647,26 @@ function SiteSidebar({
             </div>
 
             <div className="site-sidebar-body site-sidebar-body--detail">
-                <div className="site-sidebar-fixed-info">
-                    <div className="site-sidebar-info-block">
-                        <div className="site-sidebar-info-row">
-                            <span className="site-sidebar-info-label">Realm</span>
-                            <span className="site-sidebar-info-value" style={{ color }}>{site.realm}</span>
-                        </div>
-                        <div className="site-sidebar-info-divider" />
-                        <div className="site-sidebar-info-row">
-                            <span className="site-sidebar-info-label">Biome</span>
-                            <span className="site-sidebar-info-value">{site.biome}</span>
-                        </div>
-                        <div className="site-sidebar-info-divider" />
-                        <div className="site-sidebar-info-row">
-                            <span className="site-sidebar-info-label">Group</span>
-                            <span className="site-sidebar-info-value">{site.functional_type}</span>
+                {detailRows.length > 0 ? (
+                    <div className="site-sidebar-fixed-info">
+                        <div className="site-sidebar-info-block">
+                            {detailRows.map((row, index) => (
+                                <div key={row.label}>
+                                    {index > 0 ? <div className="site-sidebar-info-divider" /> : null}
+                                    <div className="site-sidebar-info-row">
+                                        <span className="site-sidebar-info-label">{row.label}</span>
+                                        <span
+                                            className="site-sidebar-info-value"
+                                            style={row.color ? { color: row.color } : undefined}
+                                        >
+                                            {row.value}
+                                        </span>
+                                    </div>
+                                </div>
+                            ))}
                         </div>
                     </div>
-                </div>
+                ) : null}
 
                 <CustomScrollArea
                     variant="fill"

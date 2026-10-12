@@ -594,6 +594,8 @@
 
 .site-sidebar-info-value {
   color: var(--text-main);
+  min-width: 0;
+  overflow-wrap: anywhere;
   text-align: right;
 }
 
