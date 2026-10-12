@@ -46,7 +46,7 @@ export const SOUND_NAME_PREFIX_HELP_TEXT =
     "Add some custom text at the beginning of the uploaded media names"
 
 export const DATE_TIME_FIELD_HELP_TEXT =
-    "Local date and time when each media file was created. This can be extracted from individual filenames when coded in these common formats: YYYYMMDD_..."
+    "Local date and time when each media file was created. When using From filename, filenames must contain a valid date and time with seconds, for example 20260825_125959, 20260825T125959, 2026-08-25T12:59:59, or 2026_08_25-125959. Date parts may be written together or separated with - or _. The date and time may be separated with _, -, or T. Time parts may be written together or separated with :, -, or _."
 
 export const LICENSE_CHOOSER_URL = "https://creativecommons.org/chooser/"
 
