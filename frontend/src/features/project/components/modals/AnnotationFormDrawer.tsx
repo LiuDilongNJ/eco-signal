@@ -486,8 +486,7 @@ export function AnnotationFormDrawer({
 
     const renderMainFields = () => {
         const bboxFields = fields.filter((field) => BBOX_FIELD_KEYS.has(field.key))
-        const taxonField = fields.find((field) => field.key === "taxon")
-        const otherFields = fields.filter((field) => !BBOX_FIELD_KEYS.has(field.key) && field.key !== "taxon")
+        const otherFields = fields.filter((field) => !BBOX_FIELD_KEYS.has(field.key))
         return (
             <>
                 {bboxFields.length > 0 ? (
@@ -499,7 +498,6 @@ export function AnnotationFormDrawer({
                         ))}
                     </Row>
                 ) : null}
-                {taxonField ? renderFieldItem(taxonField) : null}
                 {otherFields.map((field) => renderFieldItem(field))}
             </>
         )

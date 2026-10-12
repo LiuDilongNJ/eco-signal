@@ -7193,8 +7193,75 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                                                                     </Form.Item>
                                                                 </Col>
                                                             </Row>
+                                                            {isPhoto ? (
+                                                                <Row gutter={[14, 0]} className="studio-annot-photo-flow-row">
+                                                                    <Col xs={24} sm={12}>
+                                                                        <Form.Item label={renderStudioRequiredLabel("Object Type")} className="studio-annot-form-item">
+                                                                            <Select className="form-drawer-select" options={[{ value: "organism", label: "Organism" }, { value: "other", label: "Other" }]} value={formObjectType ?? undefined} onChange={(value) => setFormObjectType(value ?? null)} />
+                                                                        </Form.Item>
+                                                                    </Col>
+                                                                </Row>
+                                                            ) : null}
+                                                            <Row gutter={[14, 0]} style={isPhoto ? { display: "none" } : undefined}>
+                                                                <Col xs={24} sm={12}>
+                                                                    <Form.Item label={renderStudioRequiredLabel("Soundscape")} className="studio-annot-form-item">
+                                                                        <Select
+                                                                            className="form-drawer-select"
+                                                                            classNames={{ popup: { root: "form-drawer-select-popup" } }}
+                                                                            allowClear
+                                                                            showSearch
+                                                                            optionFilterProp="label"
+                                                                            options={soundscapeSelectOptions}
+                                                                            value={formSoundscape === null ? undefined : formSoundscape}
+                                                                            onChange={(v) => {
+                                                                                const next = v === undefined ? null : String(v)
+                                                                                setFormSoundscape(next)
+                                                                                setFormSoundTypeSoundId(null)
+                                                                                if (editingAnnotationId == null && next !== null) {
+                                                                                    writeLastAnnotationSound({
+                                                                                        soundscape: next,
+                                                                                        soundId: null,
+                                                                                    })
+                                                                                }
+                                                                            }}
+                                                                            filterOption={selectSearchFilter}
+                                                                        />
+                                                                    </Form.Item>
+                                                                </Col>
+                                                                <Col xs={24} sm={12}>
+                                                                    <Form.Item label={renderStudioRequiredLabel("Sound Type")} className="studio-annot-form-item">
+                                                                        <Select
+                                                                            className="form-drawer-select"
+                                                                            classNames={{ popup: { root: "form-drawer-select-popup" } }}
+                                                                            allowClear
+                                                                            showSearch
+                                                                            optionFilterProp="label"
+                                                                            options={soundTypeSelectOptions}
+                                                                            value={formSoundTypeSoundId ?? undefined}
+                                                                            disabled={formSoundscape === null || soundTypeSelectOptions.length === 0}
+                                                                            onChange={(v) => {
+                                                                                const next =
+                                                                                    typeof v === "number" && !Number.isNaN(v) ? v : null
+                                                                                setFormSoundTypeSoundId(next)
+                                                                                if (
+                                                                                    editingAnnotationId == null &&
+                                                                                    formSoundscape !== null &&
+                                                                                    next != null
+                                                                                ) {
+                                                                                    writeLastAnnotationSound({
+                                                                                        soundscape: formSoundscape,
+                                                                                        soundId: next,
+                                                                                    })
+                                                                                }
+                                                                            }}
+                                                                            filterOption={selectSearchFilter}
+                                                                        />
+                                                                    </Form.Item>
+                                                                </Col>
+                                                            </Row>
                                                             {(isPhoto ? formObjectType === "organism" : isBiophonyAnnotationForm) ? (
-                                                                    <Row gutter={[14, 0]} className={isPhoto ? "studio-annot-photo-taxon-row" : "studio-annot-taxon-row"}>
+                                                                <>
+                                                                    <Row gutter={[14, 0]} className={isPhoto ? "studio-annot-photo-taxon-row" : undefined}>
                                                                         <Col span={24}>
                                                                             <Form.Item
                                                                                 label={
@@ -7344,75 +7411,6 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                                                                             </Form.Item>
                                                                         </Col>
                                                                     </Row>
-                                                            ) : null}
-                                                            {isPhoto ? (
-                                                                <Row gutter={[14, 0]} className="studio-annot-photo-flow-row">
-                                                                    <Col xs={24} sm={12}>
-                                                                        <Form.Item label={renderStudioRequiredLabel("Object Type")} className="studio-annot-form-item">
-                                                                            <Select className="form-drawer-select" options={[{ value: "organism", label: "Organism" }, { value: "other", label: "Other" }]} value={formObjectType ?? undefined} onChange={(value) => setFormObjectType(value ?? null)} />
-                                                                        </Form.Item>
-                                                                    </Col>
-                                                                </Row>
-                                                            ) : null}
-                                                            <Row gutter={[14, 0]} style={isPhoto ? { display: "none" } : undefined}>
-                                                                <Col xs={24} sm={12}>
-                                                                    <Form.Item label={renderStudioRequiredLabel("Soundscape")} className="studio-annot-form-item">
-                                                                        <Select
-                                                                            className="form-drawer-select"
-                                                                            classNames={{ popup: { root: "form-drawer-select-popup" } }}
-                                                                            allowClear
-                                                                            showSearch
-                                                                            optionFilterProp="label"
-                                                                            options={soundscapeSelectOptions}
-                                                                            value={formSoundscape === null ? undefined : formSoundscape}
-                                                                            onChange={(v) => {
-                                                                                const next = v === undefined ? null : String(v)
-                                                                                setFormSoundscape(next)
-                                                                                setFormSoundTypeSoundId(null)
-                                                                                if (editingAnnotationId == null && next !== null) {
-                                                                                    writeLastAnnotationSound({
-                                                                                        soundscape: next,
-                                                                                        soundId: null,
-                                                                                    })
-                                                                                }
-                                                                            }}
-                                                                            filterOption={selectSearchFilter}
-                                                                        />
-                                                                    </Form.Item>
-                                                                </Col>
-                                                                <Col xs={24} sm={12}>
-                                                                    <Form.Item label={renderStudioRequiredLabel("Sound Type")} className="studio-annot-form-item">
-                                                                        <Select
-                                                                            className="form-drawer-select"
-                                                                            classNames={{ popup: { root: "form-drawer-select-popup" } }}
-                                                                            allowClear
-                                                                            showSearch
-                                                                            optionFilterProp="label"
-                                                                            options={soundTypeSelectOptions}
-                                                                            value={formSoundTypeSoundId ?? undefined}
-                                                                            disabled={formSoundscape === null || soundTypeSelectOptions.length === 0}
-                                                                            onChange={(v) => {
-                                                                                const next =
-                                                                                    typeof v === "number" && !Number.isNaN(v) ? v : null
-                                                                                setFormSoundTypeSoundId(next)
-                                                                                if (
-                                                                                    editingAnnotationId == null &&
-                                                                                    formSoundscape !== null &&
-                                                                                    next != null
-                                                                                ) {
-                                                                                    writeLastAnnotationSound({
-                                                                                        soundscape: formSoundscape,
-                                                                                        soundId: next,
-                                                                                    })
-                                                                                }
-                                                                            }}
-                                                                            filterOption={selectSearchFilter}
-                                                                        />
-                                                                    </Form.Item>
-                                                                </Col>
-                                                            </Row>
-                                                            {(isPhoto ? formObjectType === "organism" : isBiophonyAnnotationForm) ? (
-                                                                <>
                                                                     {!isPhoto ? <Row gutter={[14, 0]}>
                                                                         <Col xs={24} sm={12}>
                                                                             <Form.Item label="Animal Sound" className="studio-annot-form-item">
