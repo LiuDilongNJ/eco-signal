@@ -6582,8 +6582,8 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                                 active={navAutoZoomToAnnotation}
                                 label={
                                     navAutoZoomToAnnotation
-                                        ? "Annotation zoom ON. When ON, Previous/Next zoom and select annotations. When OFF, they only select annotations."
-                                        : "Annotation zoom OFF. When ON, Previous/Next zoom and select annotations. When OFF, they only select annotations."
+                                        ? "Annotation zoom ON. When ON, Previous/Next buttons select and zoom into annotations. When OFF, these buttons only select annotations."
+                                        : "Annotation zoom OFF. When ON, Previous/Next buttons select and zoom into annotations. When OFF, these buttons only select annotations."
                                 }
                                 icon={<AnnotationNavAutoZoomIcon size={20} strokeWidth={2} />}
                                 onClick={() => setNavAutoZoomToAnnotation((v) => !v)}
@@ -6593,8 +6593,8 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                                 active={navOnlyTaskTagged}
                                 label={
                                     navOnlyTaskTagged
-                                        ? "Task toggle ON. When ON, Previous/Next navigate to annotations you are tasked to review (even in other media). When OFF, they go to adjacent annotations."
-                                        : "Task toggle OFF. When ON, Previous/Next navigate to annotations you are tasked to review (even in other media). When OFF, they go to adjacent annotations."
+                                        ? "Task toggle ON. When ON, Previous/Next buttons navigate to annotations you are tasked to review (even in other media). When OFF, they select adjacent annotations."
+                                        : "Task toggle OFF. When ON, Previous/Next buttons navigate to annotations you are tasked to review (even in other media). When OFF, they select adjacent annotations."
                                 }
                                 icon={<ListChecks size={20} strokeWidth={2} />}
                                 onClick={() => setNavOnlyTaskTagged((v) => !v)}
