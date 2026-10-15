@@ -98,6 +98,8 @@ const MAP_SHOW_REGION_ZOOM = 11
 
 /** Biome / Group 下拉项圆点（无 realm 色谱时统一用 slate） */
 const FILTER_DOT_LIST = "var(--text-muted)"
+/** IHO sea areas use a saturated blue so they stay distinct from the gray basemap and land regions. */
+const IHO_SEA_COLOR = "#2563eb"
 
 // ----- 获取 Realm 颜色 -----
 function getRealmColor(realm: string): string {
@@ -685,7 +687,6 @@ function SiteRegionPolygons({
 
 function SiteIhoPolygons({ site }: { site: Site | null }) {
     if (!site || site.hasCoordinates) return null
-    const color = getRealmColor(site.realm)
     return (
         <>
             {site.ihoPolygons.map((ring, idx) => (
@@ -693,11 +694,11 @@ function SiteIhoPolygons({ site }: { site: Site | null }) {
                     key={`site-iho-${site.id}-${idx}`}
                     positions={ring}
                     pathOptions={{
-                        color,
+                        color: IHO_SEA_COLOR,
                         weight: 2.5,
-                        opacity: 0.8,
-                        fillColor: color,
-                        fillOpacity: 0.12,
+                        opacity: 1,
+                        fillColor: IHO_SEA_COLOR,
+                        fillOpacity: 0.34,
                         dashArray: "6, 8",
                         interactive: false,
                     }}

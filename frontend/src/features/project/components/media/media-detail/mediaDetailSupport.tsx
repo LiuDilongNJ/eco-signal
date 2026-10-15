@@ -509,7 +509,7 @@ export const STUDIO_ANNOTATION_COLUMNS: ColumnDef[] = [
     { key: "max_x", label: "Max X (s)", type: "number", sortable: true, filterable: true, filterType: "numberRange", width: 280 },
     { key: "min_y", label: "Min Y (Hz)", type: "number", sortable: true, filterable: true, filterType: "numberRange", width: 280 },
     { key: "max_y", label: "Max Y (Hz)", type: "number", sortable: true, filterable: true, filterType: "numberRange", width: 280 },
-    { key: "creator_type", label: "Creator", type: "text", sortable: true, filterable: true, filterSearch: true, width: 140 },
+    { key: "creator_name", label: "Creator", type: "text", sortable: true, filterable: true, filterSearch: true, width: 140 },
     { key: "soundscape_component", label: "Soundscape", type: "text", sortable: true, filterable: true, width: 140 },
     { key: "sound_type", label: "Sound Type", type: "text", sortable: true, filterable: true, width: 140 },
     { key: "taxon_name", label: "Taxon", type: "number", sortable: true, filterable: true, width: 120 },
@@ -532,7 +532,7 @@ export const PHOTO_STUDIO_ANNOTATION_COLUMNS: ColumnDef[] = [
     { key: "min_y", label: "Min Y (px)", type: "number", sortable: true, filterable: true, filterType: "numberRange", width: 280 },
     { key: "max_y", label: "Max Y (px)", type: "number", sortable: true, filterable: true, filterType: "numberRange", width: 280 },
     { key: "object_type", label: "Object Type", type: "text", sortable: true, filterable: true, filterOptions: ["organism", "other"], width: 160 },
-    { key: "creator_type", label: "Creator", type: "text", sortable: true, filterable: true, filterSearch: true, width: 140 },
+    { key: "creator_name", label: "Creator", type: "text", sortable: true, filterable: true, filterSearch: true, width: 140 },
     { key: "taxon_name", label: "Taxon", type: "text", sortable: true, filterable: true, width: 180 },
     { key: "uncertain", label: "Uncertain", type: "boolean", sortable: true, filterable: true, filterOptions: ["true", "false"], width: 120 },
     { key: "individual_num", label: "Indiv. Num", type: "number", sortable: true, filterable: true, filterType: "numberRange", width: 180 },
@@ -549,7 +549,7 @@ export type StudioAnnotationRow = {
     max_y: number
     sound_id: number | null
     object_type: "organism" | "other" | null
-    creator_type: string
+    creator_name: string
     soundscape_component: string
     sound_type: string
     taxon_id: number | null
@@ -590,7 +590,7 @@ export function annotationPublicToStudioRow(
         max_y: a.max_y,
         sound_id: a.sound_id ?? null,
         object_type: a.object_type ?? null,
-        creator_type: a.creator_type ?? "",
+        creator_name: a.creator_name?.trim() || "",
         soundscape_component: a.soundscape_component ?? "",
         sound_type: a.sound_type ?? "",
         taxon_id: a.taxon_id ?? null,

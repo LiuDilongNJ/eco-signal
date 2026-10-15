@@ -861,7 +861,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
 
     const annotationColumnsMeta = useMemo(() => {
         const creatorOpts = Array.from(
-            new Set(annotationTableRows.map((r) => r.creator_type).filter(Boolean)),
+            new Set(annotationTableRows.map((r) => r.creator_name).filter(Boolean)),
         ) as string[]
         const soundTypeOpts = soundClassifications.map((r) => ({
             label: r.sound_type?.trim() ? r.sound_type : "General",
@@ -2021,11 +2021,11 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
 
         const columnsForMedia = isPhoto ? PHOTO_STUDIO_ANNOTATION_COLUMNS : STUDIO_ANNOTATION_COLUMNS
         const cols = columnsForMedia.map((col) => {
-            const useTextFilter = col.key === "creator_type" || col.key === "soundscape_component" || col.key === "sound_type"
+            const useTextFilter = col.key === "creator_name" || col.key === "soundscape_component" || col.key === "sound_type"
             const filterOptionsResolved =
                 useTextFilter
                     ? undefined
-                    : col.key === "creator_type"
+                    : col.key === "creator_name"
                     ? annotationColumnsMeta.creatorOptions
                     : col.key === "sound_type"
                         ? annotationColumnsMeta.soundTypeOptions
