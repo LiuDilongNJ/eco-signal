@@ -39,6 +39,7 @@ TLS_KEY_FILE=/etc/ssl/private/ecosignal.key
 BACKEND_CORS_ORIGINS="https://ecosignal.example.org"
 ```
 
+- Certificate files may contain blank lines and `subject=` / `issuer=` annotation lines outside PEM blocks. Deployment automatically removes these annotations from the installed copy and reports this on stderr; source files remain unchanged. Certificate order is preserved. Unknown text, other PEM types, incomplete boundaries, and invalid certificates are rejected. The same parsing applies to configuration checks, certificate reloads, and expiry checks.
 - Supply a PEM certificate chain in leaf-first order followed by intermediate certificates, and a matching private key without an interactive password. The certificate must cover `DOMAIN` and be currently valid. Restrict private-key source access to the deployment account and administrators.
 - Frontend Nginx publishes host ports 80/443, redirects HTTP to the configured `https://DOMAIN`, proxies `/api/` to the backend, and serves `/sounds/` directly from mounted files. The backend does not publish a host port.
 - A Docker tool container checks certificate format, validity, hostname and key matching. Expiry within 30 days produces a warning; invalid material blocks deployment. Host OpenSSL is not required.

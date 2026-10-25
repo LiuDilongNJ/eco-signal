@@ -60,6 +60,84 @@ def test_validate_rejects_corrupt_certificate(certificate_factory, content):
         tls.validate(cert, key, "app.test")
 
 
+@pytest.mark.parametrize("newline", [b"\n", b"\r\n"])
+@pytest.mark.parametrize("chain", [False, True])
+def test_annotations_preserve_chain_and_source(certificate_factory, tmp_path, capsys, newline, chain):
+    cert, key = certificate_factory()
+    blocks = [cert.read_bytes()]
+    if chain:
+        intermediate, _ = certificate_factory("ca.test")
+        blocks.append(intermediate.read_bytes())
+    expected = b"".join(blocks)
+    annotated = b"\n  subject=CN=app.test\n" + b"issuer=CN=ca.test\n".join(blocks) + b"\tissuer=CN=ca.test\n"
+    cert.write_bytes(annotated.replace(b"\n", newline))
+    original = cert.read_bytes()
+    fingerprint = tls.validate(cert, key, "app.test")
+    assert fingerprint == hashlib.sha256(ssl.PEM_cert_to_DER_cert(blocks[0].decode())).hexdigest()
+    assert tls.check_expiry(cert, "app.test") == 0
+    state = tmp_path / "state"
+    tls.install(cert, key, state, "app.test")
+    assert (state / "cert.pem").read_bytes() == expected
+    assert cert.read_bytes() == original
+    output = capsys.readouterr()
+    assert "Ignored subject=" in output.err
+    assert "CN=" not in output.err
+
+
+def test_plain_certificate_does_not_report_cleaning(certificate_factory, capsys):
+    cert, key = certificate_factory()
+    tls.validate(cert, key, "app.test")
+    assert not capsys.readouterr().err
+
+
+@pytest.mark.parametrize("extra", [
+    b"unknown text\n",
+    b"-----BEGIN PRIVATE KEY-----\nsecret\n-----END PRIVATE KEY-----\n",
+    b"-----END CERTIFICATE-----\n",
+    b"-----BEGIN CERTIFICATE-----\n",
+    b"-----BEGIN CERTIFICATE-----\n-----BEGIN CERTIFICATE-----\n",
+    b"-----BEGIN CERTIFICATE-----\n-----BEGIN PRIVATE KEY-----\n",
+])
+def test_invalid_annotated_install_preserves_active_pair_and_backups(certificate_factory, tmp_path, extra):
+    state = tmp_path / "state"
+    tls.install(*certificate_factory(), state, "app.test")
+    tls.install(*certificate_factory(), state, "app.test")
+    before = {path.name: path.read_bytes() for path in state.iterdir()}
+    cert, key = certificate_factory()
+    cert.write_bytes(b"subject=CN=app.test\n" + cert.read_bytes() + extra)
+    with pytest.raises(ValueError):
+        tls.install(cert, key, state, "app.test")
+    assert {path.name: path.read_bytes() for path in state.iterdir()} == before
+
+
+@pytest.mark.parametrize("kwargs,domain,wrong_key", [
+    ({"start": -90, "end": -1}, "app.test", False),
+    ({"start": 2}, "app.test", False),
+    ({}, "other.test", False),
+    ({}, "app.test", True),
+])
+def test_annotated_certificate_still_requires_valid_matching_material(certificate_factory, kwargs, domain, wrong_key):
+    cert, key = certificate_factory(**kwargs)
+    cert.write_bytes(b"subject=CN=app.test\n" + cert.read_bytes())
+    if wrong_key:
+        _, key = certificate_factory()
+    with pytest.raises((ValueError, ssl.SSLError)):
+        tls.validate(cert, key, domain)
+
+
+def test_annotated_cli_keeps_fingerprint_on_stdout(certificate_factory):
+    cert, key = certificate_factory()
+    expected = tls.validate(cert, key, "app.test")
+    cert.write_bytes(b"subject=CN=app.test\n" + cert.read_bytes())
+    result = subprocess.run([
+        sys.executable, str(cert_script), "validate", "--domain", "app.test",
+        "--cert", str(cert), "--key", str(key),
+    ], capture_output=True, text=True)
+    assert result.returncode == 0
+    assert result.stdout.strip() == expected
+    assert "Ignored subject=" in result.stderr
+
+
 def test_validate_rejects_missing_files(tmp_path):
     with pytest.raises(FileNotFoundError):
         tls.validate(tmp_path / "missing", tmp_path / "key", "app.test")
@@ -219,7 +297,9 @@ def test_nginx_reload_changes_certificate_without_interrupting_request(nginx_ser
     response.begin()
     assert response.read(1) == b"a"
     pid = process.pid
-    tls.install(*certificate_factory(), state, "app.test")
+    cert, key = certificate_factory()
+    cert.write_bytes(b"subject=CN=app.test\n" + cert.read_bytes() + b"issuer=CN=app.test\n")
+    tls.install(cert, key, state, "app.test")
     subprocess.run(["nginx", "-t", "-c", str(config)], check=True)
     subprocess.run(["nginx", "-s", "reload", "-c", str(config)], check=True)
     tls.wait_ready("app.test", "127.0.0.1", port, state / "cert.pem", 5, ["/api/v1/health"], True)

@@ -39,6 +39,7 @@ TLS_KEY_FILE=/etc/ssl/private/ecosignal.key
 BACKEND_CORS_ORIGINS="https://ecosignal.example.org"
 ```
 
+- 证书文件允许在 PEM 块外包含空白行及 `subject=` / `issuer=` 说明行。部署自动从安装副本中清理说明行，并向 stderr 输出提示，源文件保持不变，证书顺序保持不变。未知文本、其他 PEM 类型、不完整边界及无效证书仍会被拒绝。配置预检、证书热加载及到期检查使用相同解析规则。
 - 提供 PEM 格式的完整证书链，顺序为站点证书、中间证书；私钥必须匹配且无需交互密码。证书必须覆盖 `DOMAIN`，处于有效期内。私钥源文件只允许部署账户和管理员读取。
 - 前端 Nginx 直接监听宿主机 80/443，将 HTTP 重定向至 `https://DOMAIN`；反向代理 `/api/` 至后端，并直接读取挂载目录提供 `/sounds/`。后端不发布宿主机端口。
 - 脚本通过 Docker 工具容器校验证书格式、有效期、域名及私钥匹配；临期 30 天告警，校验失败终止。无需在宿主机安装 OpenSSL。

@@ -72,10 +72,37 @@ def check_certificate(path: Path, domain: str | None = None) -> str:
 
 
 def certificate_blocks(cert: Path) -> list[bytes]:
-    data = cert.read_bytes()
-    blocks = CERTIFICATE.findall(data)
-    if not blocks or CERTIFICATE.sub(b"", data).strip():
-        raise ValueError("TLS certificate must contain only PEM certificates")
+    blocks = []
+    current = None
+    cleaned = False
+    for line in cert.read_bytes().splitlines():
+        marker = line.strip()
+        if marker == b"-----BEGIN CERTIFICATE-----":
+            if current is not None:
+                raise ValueError("TLS certificate contains nested PEM certificate boundaries")
+            current = [line]
+        elif marker == b"-----END CERTIFICATE-----":
+            if current is None:
+                raise ValueError("TLS certificate contains an unmatched PEM certificate boundary")
+            current.append(line)
+            blocks.append(b"\n".join(current) + b"\n")
+            current = None
+        elif current is not None:
+            if b"-----BEGIN " in line or b"-----END " in line:
+                raise ValueError("TLS certificate contains an unexpected PEM boundary")
+            current.append(line)
+        elif not marker:
+            continue
+        elif line.lstrip().startswith((b"subject=", b"issuer=")):
+            cleaned = True
+        else:
+            raise ValueError("TLS certificate contains unsupported text or PEM material; only certificates, subject= and issuer= lines are accepted")
+    if current is not None:
+        raise ValueError("TLS certificate is missing its END CERTIFICATE boundary")
+    if not blocks:
+        raise ValueError("TLS certificate must contain at least one PEM certificate")
+    if cleaned:
+        print("INFO: Ignored subject= and issuer= certificate annotations; source file unchanged", file=sys.stderr)
     return blocks
 
 
@@ -107,11 +134,13 @@ def validate(cert: Path, key: Path, domain: str) -> str:
             fingerprint = check_certificate(part, domain if index == 0 else None)
             if index == 0:
                 leaf_fingerprint = fingerprint
-    if b"ENCRYPTED" in key.read_bytes():
-        raise ValueError("TLS private key must not require a password")
-    # OpenSSL checks key parsing and the leaf/public-key match without prompting.
-    context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-    context.load_cert_chain(cert, key, password="")
+        if b"ENCRYPTED" in key.read_bytes():
+            raise ValueError("TLS private key must not require a password")
+        normalized = Path(directory) / "chain.pem"
+        normalized.write_bytes(b"".join(blocks))
+        # Match the key against the same certificate chain that passed validation.
+        context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        context.load_cert_chain(normalized, key, password="")
     return leaf_fingerprint
 
 
@@ -133,7 +162,9 @@ def install(cert: Path, key: Path, directory: Path, domain: str) -> None:
         candidate = Path(temporary)
         atomic_copy(cert, candidate / "cert.pem")
         atomic_copy(key, candidate / "key.pem")
-        validate(candidate / "cert.pem", candidate / "key.pem", domain)
+        certificate = candidate / "cert.pem"
+        certificate.write_bytes(b"".join(certificate_blocks(certificate)))
+        validate(certificate, candidate / "key.pem", domain)
         for name in ("cert.pem", "key.pem"):
             backup = directory / (name + ".previous")
             if (directory / name).is_file():

@@ -3,6 +3,7 @@
 import base64
 import json
 import os
+import re
 import shutil
 import subprocess
 import time
@@ -84,8 +85,25 @@ def test_static_container_reload_preserves_id(stack, certificate_factory):
     name, directory, run = stack
     services = base_services(directory)
     cert, key = certificate_factory()
-    shutil.copy(cert, directory / "cert.pem")
-    shutil.copy(key, directory / "key.pem")
+    def install_annotated(source_cert, source_key):
+        original = b"subject=CN=app.test\n" + source_cert.read_bytes() + b"issuer=CN=app.test\n"
+        source_cert = directory / "source-cert.pem"
+        source_cert.write_bytes(original)
+        copied_key = directory / "source-key.pem"
+        shutil.copy(source_key, copied_key)
+        subprocess.run([
+            "docker", "run", "--rm", "--network", "none",
+            "--mount", f"type=bind,source={source_cert},target=/source/cert.pem,readonly",
+            "--mount", f"type=bind,source={copied_key},target=/source/key.pem,readonly",
+            "--mount", f"type=bind,source={directory},target=/state",
+            "ecosignal-tls-tools:local", "install", "--domain", "app.test",
+        ], capture_output=True, text=True, check=True)
+        assert source_cert.read_bytes() == original
+        assert (directory / "cert.pem").read_bytes() == b"".join(
+            re.findall(rb"-----BEGIN CERTIFICATE-----.*?-----END CERTIFICATE-----", original, re.DOTALL)
+        ) + b"\n"
+
+    install_annotated(cert, key)
     frontend = services["frontend"]
     frontend["environment"] = {"DOMAIN": "app.test", "NGINX_ENVSUBST_FILTER": "^DOMAIN$"}
     frontend["volumes"] += [f"{directory}:/etc/nginx/tls:ro", f"{ROOT}/frontend/nginx/https.conf.template:/etc/nginx/templates/default.conf.template:ro"]
@@ -96,11 +114,7 @@ def test_static_container_reload_preserves_id(stack, certificate_factory):
     tool(target, *args, directory=directory)
     before = run("exec", "-T", "frontend", "cat", "/var/run/nginx.pid")
     second_cert, second_key = certificate_factory()
-    # Atomic file replacement exercises the whole-directory bind mount.
-    shutil.copy(second_cert, directory / "next-cert.pem")
-    shutil.copy(second_key, directory / "next-key.pem")
-    (directory / "next-cert.pem").replace(directory / "cert.pem")
-    (directory / "next-key.pem").replace(directory / "key.pem")
+    install_annotated(second_cert, second_key)
     run("exec", "-T", "frontend", "nginx", "-t")
     run("exec", "-T", "frontend", "nginx", "-s", "reload")
     tool(target, *args, directory=directory)
