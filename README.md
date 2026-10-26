@@ -52,6 +52,8 @@ cp .env.example .env
 
 Review at least `SECRET_KEY`, `FIRST_SUPERUSER`, `FIRST_SUPERUSER_PASSWORD`, and `POSTGRES_PASSWORD`. `.env.example` is the committed template; `.env` is environment-specific and must not be committed.
 
+Insects model preparation supports `INSECTS_MODEL_MODE=download|local|disabled`; see the [operations guide](docs/operations-guide.md#insects-model-preparation) for offline model files and deployment instructions.
+
 Start the development stack:
 
 ```bash

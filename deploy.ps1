@@ -237,6 +237,9 @@ try {
     try { Test-Endpoint 'application' } catch { Enable-Maintenance; throw }
     $script:maintenanceStartedByDeploy = $false
 
+    if ((Get-ComposeEnvironmentValue 'INSECTS_MODEL_MODE') -eq 'disabled') {
+        Write-Warning "Insects recognition is disabled"
+    }
     Write-Host "Deployment succeeded: $domain"
     Invoke-Compose @('ps')
 } catch {

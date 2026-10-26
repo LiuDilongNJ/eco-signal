@@ -332,5 +332,8 @@ if ! verify_endpoint application; then
 fi
 maintenance_started_by_deploy=false
 
+if [[ "${INSECTS_MODEL_MODE:-$(environment_value INSECTS_MODEL_MODE)}" == disabled ]]; then
+    echo "WARNING: Insects recognition is disabled" >&2
+fi
 echo "Deployment succeeded: ${domain}"
 run_compose ps

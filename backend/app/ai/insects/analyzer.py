@@ -6,7 +6,11 @@ from pathlib import Path
 from typing import Any
 
 from app.core.task_cancellation import CancellationToken
-from scripts.setup_insects_model import check_insects_files, prepare_insects_model
+from scripts.setup_insects_model import (
+    check_insects_files,
+    installed_model_mode,
+    prepare_insects_model,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +65,11 @@ class InsectAnalyzer:
 
     def _resolve_model_path(self) -> str:
         """Resolve the local model directory path, automatically preparing it if missing."""
+        mode = installed_model_mode()
+        if mode == "disabled":
+            raise RuntimeError("Insects recognition is disabled; contact an administrator")
+        if mode == "local" and not check_insects_files(CACHED_MODEL_PATHS[0]):
+            raise RuntimeError("Insects model is unavailable; contact an administrator to check the model files")
         for candidate in CACHED_MODEL_PATHS:
             if check_insects_files(candidate):
                 return str(candidate)
@@ -79,7 +88,7 @@ class InsectAnalyzer:
                 return str(candidate)
 
         raise RuntimeError(
-            "Insects model files are unavailable and automatic preparation failed. "
+            "Insects model is unavailable and automatic preparation failed; contact an administrator. "
             "Check the analysis worker logs for the download or file validation error."
         )
 

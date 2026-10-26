@@ -15,3 +15,5 @@ ecoSound-web
 .deploy/
 .cursor
 AGENTS.md
+/backend/model-assets/insects/*
+!/backend/model-assets/insects/.gitkeep

@@ -45,7 +45,10 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-install-project --no-dev
 
 COPY ./scripts/setup_insects_model.py /app/scripts/setup_insects_model.py
-RUN INSECTS_MODEL_DIR=/app/models/insects .venv/bin/python /app/scripts/setup_insects_model.py
+ARG INSECTS_MODEL_MODE=download
+RUN --mount=type=bind,source=model-assets/insects,target=/source/insects,readonly \
+    INSECTS_MODEL_MODE=${INSECTS_MODEL_MODE} INSECTS_MODEL_DIR=/app/models/insects \
+    .venv/bin/python /app/scripts/setup_insects_model.py
 
 # Download and validate the BirdNET model while the dependency layer is built.
 RUN --mount=type=cache,id=birdnet-v2.4-model,target=/root/.cache/birdnet-model,sharing=locked \

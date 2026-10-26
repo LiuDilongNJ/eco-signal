@@ -5,6 +5,22 @@
 **适用对象：** 部署、维护、迁移或恢复共享 ecoSignal 环境的运维人员。  
 **开始前：** 请准备 Docker 主机、安全的环境变量值，并在变更已部署系统前确认备份可用。
 
+## 昆虫模型准备
+
+构建前在 `.env` 中设置 `INSECTS_MODEL_MODE`：
+
+| 值 | 行为 |
+|---|---|
+| `download`（默认） | 构建镜像时下载并校验模型，失败终止构建。 |
+| `local` | 从 `backend/model-assets/insects/` 复制完整模型，不访问 Hugging Face；缺失或空文件终止构建。 |
+| `disabled` | 跳过模型准备，并警告昆虫识别已关闭；其他功能仍可使用。 |
+
+使用 `local` 时，提供 `model.yaml`、`file_handler.yaml`、`target_transform.yaml`、`inference_transform.yaml` 和 `_best/model.pt`，保留相对路径及配置引用的其他文件。模型文件已排除 Git 提交。然后运行 `./deploy.sh` 或 `./deploy.ps1`；直接构建镜像时须传入 `--build-arg INSECTS_MODEL_MODE=local`。
+
+准备模式记录在镜像内，单独修改 `.env` 不会改变现有镜像。切换模式后需要重新构建并部署。模型安装在 `/app/models/insects`。本地模式下，已安装文件缺失会直接导致分析失败，不触发下载；关闭模式直接拒绝昆虫分析，不搜索缓存或下载。原因通过现有任务错误信息展示。
+
+下载模式会在准备错误及日志中保留连接重置、超时等底层原因。重试前先检查构建环境到 Hugging Face 的网络连通性。下载失败不会自动关闭模型。也可在可联网机器构建镜像，再用 `docker save` / `docker load` 转移。本地模式仅保证昆虫模型准备不联网，依赖、基础镜像及其他模型仍可能需要网络。
+
 ## 目录
 
 - [配置生产环境](#配置生产环境)

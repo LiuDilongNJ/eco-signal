@@ -52,6 +52,8 @@ cp .env.example .env
 
 至少检查 `SECRET_KEY`、`FIRST_SUPERUSER`、`FIRST_SUPERUSER_PASSWORD` 和 `POSTGRES_PASSWORD`。`.env.example` 是可提交的模板；`.env` 是环境专属文件，不能提交。
 
+昆虫模型准备支持 `INSECTS_MODEL_MODE=download|local|disabled`；离线模型文件与部署说明见[运维指南](docs/operations-guide.zh.md#昆虫模型准备)。
+
 启动开发运行栈：
 
 ```bash

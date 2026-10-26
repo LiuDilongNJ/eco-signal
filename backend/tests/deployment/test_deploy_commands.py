@@ -20,6 +20,7 @@ with open('commands.jsonl', 'a') as log:
 if '--environment' in args:
     if os.getenv('FAIL_CONFIG'):
         sys.exit(15)
+    print('INSECTS_MODEL_MODE=' + os.getenv('INSECTS_MODEL_MODE', 'download'))
     print('STACK_NAME=tls-test\nDOMAIN=app.test\nENABLE_HTTPS=' + os.getenv('ENABLE_HTTPS', 'true') + '\nHTTPS_MODE=' + os.getenv('HTTPS_MODE', 'static') + '\nTLS_CERT_FILE=' + os.getcwd() + '/cert.pem\nTLS_KEY_FILE=' + os.getcwd() + '/key.pem')
 elif args[0] == 'inspect':
     if '-f' in args:
@@ -231,3 +232,10 @@ def test_failed_full_deployment_retains_maintenance(entrypoint):
     assert (path / 'maintenance/maintenance.flag').exists()
     assert any('restore' in command for command in commands)
     assert 'Deployment succeeded' not in result.stdout
+
+
+def test_deployment_warns_when_insects_disabled(entrypoint):
+    _, run = entrypoint
+    result, _ = run('deploy', INSECTS_MODEL_MODE='disabled')
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert 'Insects recognition is disabled' in result.stdout + result.stderr

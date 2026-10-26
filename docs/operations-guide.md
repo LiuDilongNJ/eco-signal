@@ -5,6 +5,22 @@
 **For:** operators who deploy, maintain, migrate, or recover a shared ecoSignal environment.  
 **Before you begin:** prepare a Docker host, secure environment values, and verified backups before changing a deployed system.
 
+## Insects model preparation
+
+Set `INSECTS_MODEL_MODE` in `.env` before building:
+
+| Value | Behavior |
+|---|---|
+| `download` (default) | Download and validate the model during image build. Failure stops the build. |
+| `local` | Copy a complete model from `backend/model-assets/insects/` without contacting Hugging Face. Missing or empty files stop the build. |
+| `disabled` | Skip model preparation and warn that insects recognition is disabled. Other features remain available. |
+
+For `local`, supply `model.yaml`, `file_handler.yaml`, `target_transform.yaml`, `inference_transform.yaml`, and `_best/model.pt`, preserving their relative paths and any additional files referenced by the configuration. Model files are excluded from Git. Then run `./deploy.sh` or `./deploy.ps1`; direct image builds must pass `--build-arg INSECTS_MODEL_MODE=local`.
+
+The mode is stored inside the image; changing `.env` alone does not change an existing image. Rebuild and deploy after changing modes. Models are installed at `/app/models/insects`. In local mode, missing installed files cause analysis to fail without downloading; disabled mode rejects insects analysis without searching caches or downloading. Existing task error messages display the reason.
+
+Download mode preserves the underlying network error, including connection resets and timeouts, in preparation errors and logs. Check outbound access to Hugging Face from the build environment before retrying. A download failure never automatically disables the model. You can build the image on a connected machine and transfer it with `docker save` / `docker load`. Local mode avoids network access for the insects model only; dependencies, base images and other models may still need network access.
+
 ## Contents
 
 - [Configure production](#configure-production)

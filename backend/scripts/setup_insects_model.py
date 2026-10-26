@@ -12,6 +12,9 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 DEFAULT_MODEL_DIR = Path("/models/insects")
+MODEL_MODE_FILE = Path("/app/models/insects/.mode")
+LOCAL_MODEL_DIR = Path("/source/insects")
+MODEL_MODES = {"download", "local", "disabled"}
 DEFAULT_ATTEMPTS = 3
 DEFAULT_RETRY_DELAY_SECONDS = 5.0
 
@@ -36,6 +39,38 @@ class InsectsModelSetupError(RuntimeError):
     """Raised when insects model files cannot be prepared or validated."""
 
 
+def error_reason(error: BaseException) -> str:
+    seen = set()
+    while id(error) not in seen:
+        seen.add(id(error))
+        cause = error.__cause__ or error.__context__
+        if cause is None or id(cause) in seen:
+            break
+        error = cause
+    return f"{type(error).__name__}: {error}"
+
+
+def installed_model_mode() -> str:
+    return MODEL_MODE_FILE.read_text().strip() if MODEL_MODE_FILE.is_file() else "download"
+
+
+def prepare_image_model(model_dir: Path, mode: str, source: Path = LOCAL_MODEL_DIR) -> None:
+    if mode not in MODEL_MODES:
+        raise InsectsModelSetupError("INSECTS_MODEL_MODE must be download, local or disabled")
+    model_dir.mkdir(parents=True, exist_ok=True)
+    if mode == "disabled":
+        logger.warning("Insects recognition is disabled")
+    elif mode == "local":
+        if not check_insects_files(source):
+            raise InsectsModelSetupError("Local insects model is incomplete; provide all required non-empty files in backend/model-assets/insects")
+        shutil.copytree(source, model_dir, dirs_exist_ok=True)
+        if not check_insects_files(model_dir):
+            raise InsectsModelSetupError("Local insects model file validation failed")
+    else:
+        prepare_insects_model(model_dir)
+    (model_dir / ".mode").write_text(mode + "\n")
+
+
 @contextmanager
 def model_setup_lock(model_dir: Path) -> Iterator[None]:
     """Serialize model preparation across worker processes sharing a volume."""
@@ -53,7 +88,10 @@ def check_insects_files(model_dir: Path = DEFAULT_MODEL_DIR) -> bool:
     """Check if all required model files exist in model_dir."""
     if not model_dir.is_dir():
         return False
-    return all((model_dir / rel_path).is_file() for rel_path in REQUIRED_FILES)
+    return all(
+        (model_dir / rel_path).is_file() and (model_dir / rel_path).stat().st_size > 0
+        for rel_path in REQUIRED_FILES
+    )
 
 
 def _copy_from_cache(target_dir: Path) -> bool:
@@ -126,17 +164,19 @@ def prepare_insects_model(
             except Exception as exc:
                 last_error = exc
                 if attempt < attempts:
-                    logger.warning("Insects model preparation failed; retrying: %s", exc)
+                    logger.warning("Insects model preparation failed; retrying: %s", error_reason(exc))
                     sleep(retry_delay_seconds * attempt)
 
-        raise InsectsModelSetupError("Insects model files could not be prepared") from last_error
+        raise InsectsModelSetupError(
+            f"Insects model download or validation failed: {error_reason(last_error)}"
+        ) from last_error
 
 
 def main() -> int:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
     model_dir = Path(os.environ.get("INSECTS_MODEL_DIR", DEFAULT_MODEL_DIR))
     try:
-        prepare_insects_model(model_dir)
+        prepare_image_model(model_dir, os.environ.get("INSECTS_MODEL_MODE", "download"))
     except (InsectsModelSetupError, OSError):
         logger.exception("Insects model preparation failed")
         return 1

@@ -344,3 +344,21 @@ class TestResolveModelPath:
 
                     assert "automatic preparation failed" in str(exc_info.value)
                     assert "analysis worker logs" in str(exc_info.value)
+
+
+@pytest.mark.parametrize("mode", ["disabled", "local"])
+def test_unavailable_model_mode_never_downloads(tmp_path, mode):
+    with patch("app.ai.insects.analyzer.installed_model_mode", return_value=mode), \
+         patch("app.ai.insects.analyzer.CACHED_MODEL_PATHS", [tmp_path]), \
+         patch("app.ai.insects.analyzer.prepare_insects_model") as prepare:
+        with pytest.raises(RuntimeError, match="disabled" if mode == "disabled" else "unavailable"):
+            InsectAnalyzer()._resolve_model_path()
+        prepare.assert_not_called()
+
+
+def test_disabled_mode_ignores_complete_cache(tmp_path):
+    create_model_files(tmp_path)
+    with patch("app.ai.insects.analyzer.installed_model_mode", return_value="disabled"), \
+         patch("app.ai.insects.analyzer.CACHED_MODEL_PATHS", [tmp_path]):
+        with pytest.raises(RuntimeError, match="disabled"):
+            InsectAnalyzer()._resolve_model_path()
