@@ -281,6 +281,18 @@ S3_REGION=us-east-1
 MEDIA_CACHE_TTL=300
 ```
 
+### Local development (bundled MinIO)
+
+`docker-compose.yml` ships a local MinIO server (`minio`) plus a one-shot
+`minio-init` that creates the media bucket on first start. The compose S3
+defaults already point at it (`http://minio:9000`, bucket `ecosignal-media`,
+credentials `minioadmin`/`minioadmin`), so to test hybrid storage locally just
+set `MEDIA_S3_MODE=s3` in `.env` and start the stack. The S3 API is reachable
+on `127.0.0.1:9000` and the web console on `127.0.0.1:9001` (both bound to
+localhost only). Override `MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD` in `.env`
+to change the credentials; the app's `S3_ACCESS_KEY` / `S3_SECRET_KEY` must
+match them.
+
 `MEDIA_S3_MODE=local` (the default) keeps the previous local-disk behavior and
 makes every S3 operation a no-op. Note this is distinct from the
 `MEDIA_STORAGE_MODE` (`managed`/`direct-mount`) flag used by the migration

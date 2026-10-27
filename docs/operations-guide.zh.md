@@ -294,6 +294,17 @@ S3_REGION=us-east-1
 MEDIA_CACHE_TTL=300
 ```
 
+### 本地开发（内置 MinIO）
+
+`docker-compose.yml` 自带一个本地 MinIO 服务（`minio`），以及一个一次性任务
+`minio-init`，用于在首次启动时创建媒体存储桶。compose 中的 S3 默认值已经指向
+它（`http://minio:9000`，存储桶 `ecosignal-media`，凭据
+`minioadmin`/`minioadmin`），因此要在本地测试混合存储，只需在 `.env` 中设置
+`MEDIA_S3_MODE=s3` 并启动整个栈即可。S3 API 可通过 `127.0.0.1:9000` 访问，
+Web 控制台在 `127.0.0.1:9001`（均仅绑定到本机）。可在 `.env` 中通过
+`MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD` 修改凭据；应用的
+`S3_ACCESS_KEY` / `S3_SECRET_KEY` 必须与之一致。
+
 `MEDIA_S3_MODE=local`（默认值）保持原有的本地磁盘行为，所有 S3 操作变为空操作。注意它与迁移工具使用的 `MEDIA_STORAGE_MODE`（`managed`/`direct-mount`）标志不同。
 
 每个服务使用各自的缓存卷（`app-media-cache-backend`、`app-media-cache-worker`、`app-media-cache-worker-analysis`），因此没有卷在服务之间共享。缓存是可丢弃的：删除后下次访问会从 S3 完整重新拉取。
