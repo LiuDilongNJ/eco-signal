@@ -70,9 +70,29 @@ class Settings(BaseSettings):
     ENVIRONMENT: Literal["local", "staging", "production"] = "local"
     APP_VERSION: str = "1.0"
     MEDIA_ROOT: str = "/app/sounds"
+    # Media storage mode: "local" keeps media on the local disk only (current
+    # behavior, useful for local dev without an S3 endpoint). "s3" uses an
+    # S3-compatible bucket as the source of truth with a per-service local cache.
+    # (Distinct from the deploy-level MEDIA_STORAGE_MODE managed/direct-mount
+    # flag used by the migration tooling.)
+    MEDIA_S3_MODE: Literal["local", "s3"] = "local"
+    # S3-compatible endpoint (MinIO, Cloudflare R2, etc.). Leave empty for AWS.
+    S3_ENDPOINT: str = ""
+    S3_ACCESS_KEY: str = ""
+    S3_SECRET_KEY: str = ""
+    S3_BUCKET: str = ""
+    S3_REGION: str = "us-east-1"
+    # How long (seconds) a locally cached media file is considered fresh before
+    # re-checking S3. Set to 0 to always re-check.
+    MEDIA_CACHE_TTL: int = 300
     BACKEND_CORS_ORIGINS: Annotated[
         list[AnyUrl] | str, BeforeValidator(parse_cors)
     ] = []
+
+    @property
+    def media_storage_is_s3(self) -> bool:
+        """Whether media is backed by an S3-compatible bucket (hybrid mode)."""
+        return self.MEDIA_S3_MODE == "s3"
 
     @computed_field  # type: ignore[prop-decorator]
     @property

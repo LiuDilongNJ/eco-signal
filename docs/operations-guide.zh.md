@@ -28,6 +28,7 @@
 - [部署和验证](#部署和验证)
 - [使用 GitHub Actions](#使用-github-actions)
 - [迁移数据](#迁移数据)
+- [媒体存储（S3）](#媒体存储s3)
 - [恢复数据](#恢复数据)
 
 ## 配置生产环境
@@ -272,6 +273,31 @@ sudo ./migrate-data.sh <source-project-dir> [options]
 
 来源地址按第一个非空值优先：命令行 `--legacy-app-url <url>`、shell 或 `.env` 中的 `LEGACY_APP_URL`、来源 `src/config/config.ini` 中的 `APP_URL`、来源数据库保存的 `app_url`，最后是在已知联邦节点中根据服务器名称和坐标得到的唯一匹配。`LEGACY_HOST_URL` 同样遵循环境变量优先于配置的规则，并默认使用来源 `HOST_URL`。解析失败时，preflight 会报告服务器名称、坐标和候选地址，不会留下部分迁移数据。
 
+## 媒体存储（S3）
+
+默认情况下 ecoSignal 将媒体存储在各服务自己的磁盘上。在无法在不同服务之间共享持久卷的平台上，可以启用**混合 S3 存储**：以 S3 兼容存储桶（AWS S3、MinIO、Cloudflare R2 等）作为唯一数据源，每个服务（backend、worker、worker-analysis）各自在 `MEDIA_ROOT`（`/app/sounds`）下维护一个独立的持久本地缓存。
+
+- **读取**走本地缓存；缺失或过期的条目会从 S3 拉取。文件在 `MEDIA_CACHE_TTL` 秒内（默认 `300`）视为新鲜。
+- **写入**先写本地（转码与原子重命名保持不变），随后上传到 S3。
+- **删除**同时移除本地副本和 S3 对象。
+- 前端不再挂载媒体卷；nginx 将 `/sounds/` 反向代理到 backend，由 backend 从缓存中提供。
+
+在 `.env` 中设置以下变量即可启用（作用于 backend、worker 和 worker-analysis）：
+
+```dotenv
+MEDIA_S3_MODE=s3
+S3_ENDPOINT=https://s3.example.com   # 使用 AWS 时留空
+S3_ACCESS_KEY=...
+S3_SECRET_KEY=...
+S3_BUCKET=ecosignal-media
+S3_REGION=us-east-1
+MEDIA_CACHE_TTL=300
+```
+
+`MEDIA_S3_MODE=local`（默认值）保持原有的本地磁盘行为，所有 S3 操作变为空操作。注意它与迁移工具使用的 `MEDIA_STORAGE_MODE`（`managed`/`direct-mount`）标志不同。
+
+每个服务使用各自的缓存卷（`app-media-cache-backend`、`app-media-cache-worker`、`app-media-cache-worker-analysis`），因此没有卷在服务之间共享。缓存是可丢弃的：删除后下次访问会从 S3 完整重新拉取。
+
 ## 恢复数据
 
 使用以下命令恢复迁移备份：
@@ -307,6 +333,8 @@ staging 工作流为 `.github/workflows/deploy-staging.yml`，在推送到 `main
 | `POSTGRES_USER` / `POSTGRES_DB` | `postgres` / `ecosignal` |
 | `DOCKER_IMAGE_BACKEND` / `DOCKER_IMAGE_FRONTEND` | `backend` / `frontend` |
 | `MEDIA_STORAGE_MODE` | `managed`；仅在持续挂载来源媒体时使用 `direct-mount` |
+| `MEDIA_S3_MODE` | `local`；设为 `s3` 启用混合 S3 媒体存储（见[媒体存储（S3）](#媒体存储s3)） |
+| `S3_ENDPOINT` / `S3_ACCESS_KEY` / `S3_SECRET_KEY` / `S3_BUCKET` / `S3_REGION` | `MEDIA_S3_MODE=s3` 时使用的 S3 兼容存储桶配置 |
 | `ENABLE_HTTPS` | 示例中为 `false`；Actions 默认 `true` |
 | `ACME_CA_SERVER` | 默认使用 Let's Encrypt 生产目录；测试 CA 数据需隔离 |
 | `HTTPS_MODE` | `letsencrypt`；自备静态证书时设为 `static` |

@@ -17,7 +17,7 @@ from app.core.task_cancellation import (
 from app.enums import QueueStatus
 from app.media_paths import media_root
 from app.models import CollectionBundleExport, Queue
-from app.services import collection_bundle_export_service, offline_bundle_service
+from app.services import collection_bundle_export_service, media_storage, offline_bundle_service
 
 logger = logging.getLogger(__name__)
 
@@ -86,6 +86,8 @@ async def export_collection_bundle(
                 raise TaskCancelledError("Task cancellation requested")
 
             temporary_path.replace(final_path)
+            # Sync the bundle to S3 so the backend can serve the download.
+            media_storage.upload(final_path)
             completed_at = _now()
             record.status = "completed"
             record.filename = filename

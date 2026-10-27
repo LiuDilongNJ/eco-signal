@@ -13,6 +13,8 @@ from app.media_paths import logical_chunk_dir_path, media_root
 from app.models import FileUpload
 from app.repositories import collection_bundle_export_repository
 from app.services.data_import_service import data_import_service
+from app.services.media_storage import delete as media_delete
+from app.services.media_storage import delete_dir as media_delete_dir
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +52,7 @@ async def cleanup_expired_chunks(
                     mtime = file_dir.stat().st_mtime
                     if now - mtime > max_age_seconds:
                         shutil.rmtree(file_dir)
+                        media_delete_dir(file_dir)
                         deleted_count += 1
                         logger.info(f"Deleted expired chunk directory: {file_dir}")
             
@@ -88,6 +91,7 @@ async def cleanup_expired_offline_imports(ctx: dict[str, Any]) -> dict[str, Any]
                         if bundle_path.exists():
                             bundle_path.unlink()
                             deleted += 1
+                        media_delete(bundle_path)
                         file_upload.path = ""
                         session.add(file_upload)
                         session.commit()
@@ -111,6 +115,7 @@ async def cleanup_expired_collection_bundle_exports(ctx: dict[str, Any]) -> dict
                 if target.is_relative_to(root) and target.is_file():
                     target.unlink()
                     deleted += 1
+                media_delete(target)
             record.status = "expired"
             record.path = None
             session.add(record)

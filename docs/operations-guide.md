@@ -28,6 +28,7 @@ Download mode preserves the underlying network error, including connection reset
 - [Deploy and verify](#deploy-and-verify)
 - [Use GitHub Actions](#use-github-actions)
 - [Migrate data](#migrate-data)
+- [Media storage (S3)](#media-storage-s3)
 - [Recover data](#recover-data)
 
 ## Configure production
@@ -251,6 +252,45 @@ If the source public address cannot be detected, pass `--legacy-app-url <url>` o
 
 The first non-empty source address wins in this order: `--legacy-app-url <url>`, `LEGACY_APP_URL` from the shell or `.env`, `APP_URL` in the source `src/config/config.ini`, then the source database's stored `app_url` or a unique match on server name and coordinates among known federation nodes. `LEGACY_HOST_URL` follows the same environment-over-configuration precedence and defaults to the source `HOST_URL`. When resolution fails, preflight reports the server name, coordinates, and candidates and leaves no partially migrated data.
 
+## Media storage (S3)
+
+By default ecoSignal stores media on each service's own disk. On platforms that
+cannot share a persistent volume between services, enable **hybrid S3 storage**:
+an S3-compatible bucket (AWS S3, MinIO, Cloudflare R2, ...) becomes the source
+of truth, and each service (backend, worker, worker-analysis) keeps its own
+persistent local cache under `MEDIA_ROOT` (`/app/sounds`).
+
+- **Reads** go through the local cache; a missing or stale entry is fetched from
+  S3. A file is considered fresh for `MEDIA_CACHE_TTL` seconds (default `300`).
+- **Writes** happen locally first (so transcoding and atomic renames are
+  unchanged) and are then uploaded to S3.
+- **Deletes** remove both the local copy and the S3 object.
+- The frontend no longer mounts the media volume; nginx proxies `/sounds/` to
+  the backend, which serves from its cache.
+
+Enable it by setting these in `.env` (applied to backend, worker, and
+worker-analysis):
+
+```dotenv
+MEDIA_S3_MODE=s3
+S3_ENDPOINT=https://s3.example.com   # empty for AWS
+S3_ACCESS_KEY=...
+S3_SECRET_KEY=...
+S3_BUCKET=ecosignal-media
+S3_REGION=us-east-1
+MEDIA_CACHE_TTL=300
+```
+
+`MEDIA_S3_MODE=local` (the default) keeps the previous local-disk behavior and
+makes every S3 operation a no-op. Note this is distinct from the
+`MEDIA_STORAGE_MODE` (`managed`/`direct-mount`) flag used by the migration
+tooling.
+
+Each service uses its own cache volume (`app-media-cache-backend`,
+`app-media-cache-worker`, `app-media-cache-worker-analysis`), so no volume is
+shared between services. The cache is disposable: deleting it forces a full
+re-fetch from S3 on next access.
+
 ## Recover data
 
 Restore migration backups with:
@@ -284,6 +324,8 @@ Optional GitHub variables include:
 | `POSTGRES_USER` / `POSTGRES_DB` | `postgres` / `ecosignal` |
 | `DOCKER_IMAGE_BACKEND` / `DOCKER_IMAGE_FRONTEND` | `backend` / `frontend` |
 | `MEDIA_STORAGE_MODE` | `managed`; use `direct-mount` only when source media remains mounted |
+| `MEDIA_S3_MODE` | `local`; set `s3` for hybrid S3-backed media storage (see [Media storage (S3)](#media-storage-s3)) |
+| `S3_ENDPOINT` / `S3_ACCESS_KEY` / `S3_SECRET_KEY` / `S3_BUCKET` / `S3_REGION` | S3-compatible bucket settings used when `MEDIA_S3_MODE=s3` |
 | `ENABLE_HTTPS` | `false` in the example; Actions defaults to `true` |
 | `ACME_CA_SERVER` | Production Let's Encrypt directory by default; isolate test CA data |
 | `HTTPS_MODE` | `letsencrypt`; set `static` for Bring-Your-Own-Certificate HTTPS |

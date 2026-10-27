@@ -71,6 +71,9 @@ from app.services.annotation_service import _normalize_annotation_fields
 from app.repositories.label_repository import label_repository
 from app.services import permission_service
 from app.services.media_preview_service import generate_media_previews
+from app.services.media_storage import delete as media_delete
+from app.services.media_storage import ensure_local as media_ensure_local
+from app.services.media_storage import upload as media_upload
 from app.services.upload_validation_service import validate_filename
 
 BUNDLE_SCHEMA = "offline-bundle"
@@ -1390,6 +1393,8 @@ def import_collection_bundle_from_file_upload(
         raise HTTPException(status_code=400, detail="Offline import file must be a .zip bundle")
 
     zip_path = media_root() / file_upload.path
+    # The bundle zip may have been merged by the backend; pull it from S3 if needed.
+    media_ensure_local(zip_path)
     if not zip_path.is_file():
         raise HTTPException(status_code=400, detail="Uploaded bundle file is missing")
 
@@ -1445,6 +1450,9 @@ def import_collection_bundle_from_file_upload(
             commit=queue_id is None,
         )
         result.signature_verified = signature_verified
+        # Sync imported media + previews to S3 (source of truth).
+        for created in created_files:
+            media_upload(created)
         if not signature_verified:
             if manifest.get("signature_algorithm") == SIGNATURE_ALGORITHM:
                 result.warnings.append(
@@ -1485,11 +1493,13 @@ def import_collection_bundle_from_file_upload(
             session.commit()
         if zip_path.exists():
             zip_path.unlink()
+            media_delete(zip_path)
         return result
     except Exception:
         session.rollback()
         for target in reversed(created_files):
             target.unlink(missing_ok=True)
+            media_delete(target)
         raise
     finally:
         if extract_root.exists():

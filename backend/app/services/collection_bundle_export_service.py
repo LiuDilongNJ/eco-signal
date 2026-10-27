@@ -12,6 +12,7 @@ from app.media_paths import media_root
 from app.models import CollectionBundleExport, Queue, User
 from app.repositories import collection_bundle_export_repository
 from app.schemas.collection_bundle_export import CollectionBundleExportPublic
+from app.services import media_storage
 from app.workers.publisher import TaskPublisher
 
 EXPORT_RETENTION_HOURS = 24
@@ -33,6 +34,7 @@ def _remove_artifact_file(record: CollectionBundleExport) -> None:
     target = (root / record.path).resolve()
     if target.is_relative_to(root) and target.is_file():
         target.unlink()
+    media_storage.delete(target)
     parent = target.parent
     if parent.is_relative_to(root) and parent != root:
         try:
@@ -148,6 +150,8 @@ def get_download_path(record: CollectionBundleExport) -> Path:
     target = (root / record.path).resolve()
     if not target.is_relative_to(root):
         raise HTTPException(status_code=500, detail="Invalid collection bundle export path")
+    # The bundle may have been written by the worker; pull it from S3 if needed.
+    media_storage.ensure_local(target)
     if not target.is_file():
         raise HTTPException(status_code=410, detail="Collection bundle export file is missing")
     return target

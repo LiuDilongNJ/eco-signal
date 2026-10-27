@@ -71,7 +71,7 @@ services:
         - path: ./backend/uv.lock
           action: rebuild
     volumes:
-      - app-media-data:/app/sounds
+      - app-media-cache-backend:/app/sounds
       - birdnet-model-data:/models/birdnet:ro
       - insects-model-data:/models/insects:ro
       - ./data:/app/data # Mount raw geo data files for one-time import
@@ -104,7 +104,7 @@ services:
             - "**/__pycache__"
             - "**/*.pyc"
     volumes:
-      - app-media-data:/app/sounds
+      - app-media-cache-worker:/app/sounds
       - birdnet-model-data:/models/birdnet
       - insects-model-data:/models/insects
 
@@ -141,5 +141,7 @@ services:
             - "**/.DS_Store"
 
 volumes:
+  app-media-cache-backend:
+  app-media-cache-worker:
   birdnet-model-data:
   insects-model-data:

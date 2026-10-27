@@ -207,6 +207,13 @@ def resolve_existing_media_path(value: str | Path) -> Path | None:
         return None
 
     primary = media_root() / relative
+    # Hybrid storage: ensure the file is present and fresh in this service's
+    # local cache, fetching from S3 on a miss or stale entry (another service
+    # may have rewritten or deleted it). No-op when S3 mode is disabled, so
+    # local-only deployments behave exactly as before.
+    from app.services import media_storage
+
+    media_storage.ensure_local(primary)
     if primary.exists():
         return primary
     return None

@@ -33,6 +33,7 @@ from app.models import (
     Queue,
 )
 from app.services import annotation_service
+from app.services import media_storage
 from app.services.file_service import file_service
 from app.services.media_preview_service import (
     generate_media_previews,
@@ -237,6 +238,8 @@ async def process_media(
 
             actual_media_type = media_type or "audio"
             file_path = primary_media_path(file_upload.path)
+            # The pending file may live in S3 (written by another service); pull it in.
+            media_storage.ensure_local(file_path)
             if not file_path.is_file():
                 raise FileNotFoundError(f"File not found or is a directory: {file_path}")
 
@@ -384,6 +387,9 @@ async def process_media(
 
             shutil.move(str(file_path), str(target_path))
 
+            # Sync the permanent file to S3 (source of truth).
+            media_storage.upload(target_path)
+
             preview_result = generate_media_previews(
                 session,
                 media=media,
@@ -396,6 +402,8 @@ async def process_media(
             )
             for preview_warning in preview_result.warnings:
                 logger.warning("Preview generation failed for media %s: %s", media.media_id, preview_warning)
+            for created_preview in preview_result.created_paths:
+                media_storage.upload(created_preview)
 
             # Update file_upload record
             file_upload.status = 3  # completed
@@ -650,6 +658,8 @@ async def process_audio_resampling(
                     target_sampling_rate_hz=target_sampling_rate_hz,
                     file_metadata=media.audio_setting.file_metadata or {},
                 )
+                # The stored file was rewritten in place; sync it back to S3.
+                media_storage.upload(path)
                 stored = updated_metadata.get("stored") or {}
                 media.audio_setting.file_metadata = updated_metadata
                 media.audio_setting.sampling_rate_hz = int(stored.get("sampling_rate_hz") or media.audio_setting.sampling_rate_hz)
@@ -672,11 +682,13 @@ async def process_audio_resampling(
                     )
                 for preview in session.exec(select(Preview).where(Preview.media_id == media_id)).all():
                     session.delete(preview)
-                generate_media_previews(
+                resample_preview_result = generate_media_previews(
                     session, media=media, collection_id=link.collection_id, source_path=path,
                     thumbnail_generator=generate_thumbnail, player_generator=generate_player_spectrogram,
                     photo_generator=_generate_photo_thumbnail, atomic=False,
                 )
+                for created_preview in resample_preview_result.created_paths:
+                    media_storage.upload(created_preview)
                 session.add(media)
                 session.commit()
                 if adjustment_warning:

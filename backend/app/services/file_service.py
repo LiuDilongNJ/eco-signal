@@ -19,6 +19,7 @@ from app.media_paths import (
 )
 from app.models import User
 from app.repositories import project_repository
+from app.services import media_storage
 from app.services.upload_validation_service import (
     sanitize_image,
     validate_audio_file,
@@ -346,9 +347,10 @@ class FileService:
         except Exception:
             target_path.unlink(missing_ok=True)
             raise
+        media_storage.upload(target_path)
         for old_file in target_dir.glob(f"{filename}.*"):
             if old_file != target_path:
-                old_file.unlink()
+                media_storage.delete(old_file)
         
         return full_filename
 
@@ -406,6 +408,7 @@ class FileService:
             project.picture_id = picture_id
             session.add(project)
             session.commit()
+            media_storage.upload(target_path)
         except Exception:
             session.rollback()
             project.picture_id = previous_picture_id
@@ -421,7 +424,7 @@ class FileService:
         if previous_picture_id and previous_picture_id != picture_id:
             try:
                 previous_filename = validate_filename(previous_picture_id)
-                (target_dir / previous_filename).unlink(missing_ok=True)
+                media_storage.delete(target_dir / previous_filename)
             except HTTPException:
                 logger.warning("Skipped unsafe previous project picture filename for project %s", project_id)
 
@@ -443,7 +446,7 @@ class FileService:
         """
         file_path = self.base_dir / directory / filename
         if file_path.exists():
-            file_path.unlink()
+            media_storage.delete(file_path)
             return True
         return False
     
@@ -503,6 +506,7 @@ class FileService:
             max_size=settings.MAX_CHUNK_SIZE,
             label="Chunk",
         )
+        media_storage.upload(chunk_path)
         
         # Count uploaded chunks
         uploaded_chunks = len(list(chunk_dir.glob("*")))
@@ -538,6 +542,9 @@ class FileService:
         chunk_dir = self.get_chunk_dir(filename, batch_id)
         
         if not chunk_dir.exists():
+            # Chunks may live in S3 (written by another service); pull them in.
+            media_storage.ensure_local(chunk_dir)
+        if not chunk_dir.exists():
             raise FileNotFoundError(f"No chunks found for {filename}")
         
         # Prepare target path
@@ -572,8 +579,11 @@ class FileService:
             target_path.unlink(missing_ok=True)
             raise
         
-        # Cleanup chunk directory
-        shutil.rmtree(chunk_dir)
+        media_storage.upload(target_path)
+
+        # Cleanup chunk directory (local + S3)
+        media_storage.delete_dir(chunk_dir)
+        shutil.rmtree(chunk_dir, ignore_errors=True)
         
         # Cleanup empty batch_id parent directory if exists
         if batch_id:
@@ -615,6 +625,9 @@ class FileService:
         """Get the upload status for a file."""
         chunk_dir = self.get_chunk_dir(filename, batch_id)
         
+        if not chunk_dir.exists():
+            # Chunks may live in S3 (written by another service); pull them in.
+            media_storage.ensure_local(chunk_dir)
         if not chunk_dir.exists():
             return {
                 "filename": filename, 
