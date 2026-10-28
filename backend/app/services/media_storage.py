@@ -18,6 +18,7 @@ import logging
 import time
 from pathlib import Path
 from typing import Any
+import os
 
 from app.core.config import settings
 from app.media_paths import media_root
@@ -26,6 +27,7 @@ from app.media_paths import media_root
 logging.basicConfig()
 
 logger = logging.getLogger(__name__)
+logger.setLevel(os.environ.get("LOG_LEVEL", "INFO").upper())
 
 # Sidecar directory (hidden) that stores per-file S3 metadata (etag + mtime).
 # Kept out of the media tree's normal listings so chunk counting and globs are
