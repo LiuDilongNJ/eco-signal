@@ -121,6 +121,16 @@ def ensure_local(local_path: Path) -> Path:
     return local_path
 
 
+def ensure_local_dir(local_path: Path) -> Path:
+    """Make sure a directory and all objects under its S3 prefix are cached locally."""
+    if not _s3_enabled():
+        return local_path
+
+    local_path = local_path.resolve()
+    _ensure_dir(local_path)
+    return local_path
+
+
 def _s3_object_missing(exc: Exception) -> bool:
     """True when the S3 error means the object does not exist (404/NoSuchKey),
     as opposed to a transient network/auth error."""
@@ -164,19 +174,24 @@ def _ensure_file(local_path: Path) -> None:
 
 
 def _ensure_dir(local_path: Path) -> None:
+    logger.debug(f"Ensuring local directory {local_path} is up-to-date with S3")
     client = _client()
     prefix = _key_for(local_path) + "/"
+    logger.debug(f"Listing S3 objects under prefix {prefix}")
     remote_keys: set[str] = set()
     paginator = client.get_paginator("list_objects_v2")
     for page in paginator.paginate(Bucket=settings.S3_BUCKET, Prefix=prefix):
         for obj in page.get("Contents", []):
             key = obj["Key"]
+            logger.debug(f"Found S3 object {key}")
             if key.endswith("/"):
                 continue
             remote_keys.add(key)
             rel = key[len(prefix):]
+            logger.debug(f"Ensuring local file {local_path / rel} is up-to-date with S3")
             _ensure_file(local_path / rel)
     # Remove local files that no longer exist in S3 (best-effort cleanup).
+    logger.debug(f"Cleaning up local files under {local_path} that no longer exist in S3")
     for local_file in local_path.rglob("*"):
         if local_file.is_file():
             key = _key_for(local_file)

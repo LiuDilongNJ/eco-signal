@@ -10,6 +10,7 @@ from app.core.config import settings
 from app.models import Project, User
 from app.repositories import project_repository
 from app.services.file_service import FileService
+from app.services import media_storage
 from app.services import permission_service
 
 
@@ -50,6 +51,20 @@ def test_merge_chunks_streams_in_order(tmp_path):
 
     assert result.read_bytes() == b"hello world"
     assert not chunk_dir.exists()
+
+
+def test_merge_chunks_fetches_chunks_from_s3_on_cold_cache(tmp_path, monkeypatch):
+    service = FileService(str(tmp_path))
+
+    def populate_chunk_dir(chunk_dir):
+        chunk_dir.mkdir(parents=True)
+        (chunk_dir / "00000").write_bytes(b"from s3")
+
+    monkeypatch.setattr(media_storage, "ensure_local_dir", populate_chunk_dir)
+
+    result = service.merge_chunks("audio.wav", "tmp/merged", "batch")
+
+    assert result.read_bytes() == b"from s3"
 
 
 def test_merge_chunks_rejects_oversized_content(tmp_path):

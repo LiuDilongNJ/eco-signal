@@ -543,7 +543,7 @@ class FileService:
         
         if not chunk_dir.exists():
             # Chunks may live in S3 (written by another service); pull them in.
-            media_storage.ensure_local(chunk_dir)
+            media_storage.ensure_local_dir(chunk_dir)
         if not chunk_dir.exists():
             raise FileNotFoundError(f"No chunks found for {filename}")
         
@@ -627,7 +627,7 @@ class FileService:
         
         if not chunk_dir.exists():
             # Chunks may live in S3 (written by another service); pull them in.
-            media_storage.ensure_local(chunk_dir)
+            media_storage.ensure_local_dir(chunk_dir)
         if not chunk_dir.exists():
             return {
                 "filename": filename, 
