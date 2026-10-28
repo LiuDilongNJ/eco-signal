@@ -3,10 +3,11 @@ import logging
 from sqlalchemy import Engine
 from sqlmodel import Session, select
 from tenacity import after_log, before_log, retry, stop_after_attempt, wait_fixed
+import os
 
 from app.core.db import engine
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO").upper())
 logger = logging.getLogger(__name__)
 
 max_tries = 60 * 5  # 5 minutes

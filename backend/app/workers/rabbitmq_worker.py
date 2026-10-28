@@ -10,6 +10,7 @@ from pathlib import Path
 from time import monotonic
 from typing import Any
 
+import os
 import aio_pika
 import soundfile as sf
 from aio_pika import DeliveryMode, Message
@@ -67,6 +68,9 @@ from app.workers.tasks import (
 )
 
 logger = logging.getLogger(__name__)
+logger.setLevel(os.environ.get("LOG_LEVEL", "INFO").upper())
+
+logger.info("Worker has log level %s", logging.getLevelName(logger.level))
 
 WORKER_TASKS_TOTAL = Counter(
     "ecosignal_worker_tasks_total",
@@ -99,7 +103,9 @@ def _headers(message: AbstractIncomingMessage) -> dict[str, Any]:
     return dict(message.headers or {})
 
 
-def _queue_id_from_payload(payload: dict[str, Any] | None, headers: dict[str, Any]) -> int | None:
+def _queue_id_from_payload(
+    payload: dict[str, Any] | None, headers: dict[str, Any]
+) -> int | None:
     raw = headers.get(HEADER_QUEUE_ID)
     if raw is None and payload is not None:
         raw = payload.get("kwargs", {}).get("queue_id")
@@ -187,7 +193,9 @@ def _task_lane(headers: dict[str, Any]) -> str:
     return lane
 
 
-async def process_message(message: AbstractIncomingMessage, channel: AbstractRobustChannel) -> None:
+async def process_message(
+    message: AbstractIncomingMessage, channel: AbstractRobustChannel
+) -> None:
     headers = _headers(message)
     payload: dict[str, Any] | None = None
     queue_id: int | None = None
@@ -217,7 +225,11 @@ async def process_message(message: AbstractIncomingMessage, channel: AbstractRob
             if queue_status is None:
                 await message.ack()
                 return
-            if queue_status in {QueueStatus.COMPLETED, QueueStatus.ERROR, QueueStatus.WARNING}:
+            if queue_status in {
+                QueueStatus.COMPLETED,
+                QueueStatus.ERROR,
+                QueueStatus.WARNING,
+            }:
                 if cancellation_requested(queue_id):
                     finalize_queue_cancellation(queue_id)
                 await message.ack()
@@ -227,15 +239,21 @@ async def process_message(message: AbstractIncomingMessage, channel: AbstractRob
                 _watch_queue_cancellation(queue_id, cancellation_token)
             )
 
-        audio_duration: float | None = kwargs.get("max_duration") or kwargs.get("recording_duration")
+        audio_duration: float | None = kwargs.get("max_duration") or kwargs.get(
+            "recording_duration"
+        )
         if audio_duration is None:
             audio_path = kwargs.get("audio_path")
             if isinstance(audio_path, str) and Path(audio_path).is_file():
                 try:
                     info = sf.info(audio_path)
-                    audio_duration = info.frames / info.samplerate if info.samplerate else None
+                    audio_duration = (
+                        info.frames / info.samplerate if info.samplerate else None
+                    )
                 except (OSError, RuntimeError, sf.LibsndfileError):
-                    logger.warning("Could not read task audio duration: path=%s", audio_path)
+                    logger.warning(
+                        "Could not read task audio duration: path=%s", audio_path
+                    )
         started_at = monotonic()
         logger.info(
             "Starting RabbitMQ task: task=%s queue_id=%s audio_duration_seconds=%s",
@@ -258,7 +276,9 @@ async def process_message(message: AbstractIncomingMessage, channel: AbstractRob
             monotonic() - started_at,
         )
         lane = _task_lane(headers)
-        WORKER_TASK_DURATION_SECONDS.labels(lane=lane, task=task_name).observe(monotonic() - started_at)
+        WORKER_TASK_DURATION_SECONDS.labels(lane=lane, task=task_name).observe(
+            monotonic() - started_at
+        )
         WORKER_TASKS_TOTAL.labels(lane=lane, status="completed").inc()
         await message.ack()
     except TaskCancelledError:
@@ -351,10 +371,17 @@ async def _start_maintenance() -> list[asyncio.Task[None]]:
         (2, 0, sync_network_nodes, "sync_network_nodes"),
         (3, 0, cleanup_expired_chunks, "cleanup_expired_chunks"),
         (3, 30, cleanup_expired_offline_imports, "cleanup_expired_offline_imports"),
-        (4, 0, cleanup_expired_collection_bundle_exports, "cleanup_expired_collection_bundle_exports"),
+        (
+            4,
+            0,
+            cleanup_expired_collection_bundle_exports,
+            "cleanup_expired_collection_bundle_exports",
+        ),
     )
     return [
-        asyncio.create_task(_run_daily(hour, minute, func, name), name=f"maintenance:{name}")
+        asyncio.create_task(
+            _run_daily(hour, minute, func, name), name=f"maintenance:{name}"
+        )
         for hour, minute, func, name in schedules
     ]
 
