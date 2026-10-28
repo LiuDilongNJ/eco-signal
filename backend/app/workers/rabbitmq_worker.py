@@ -67,6 +67,8 @@ from app.workers.tasks import (
     sync_network_nodes,
 )
 
+logging.basicConfig()
+
 logger = logging.getLogger(__name__)
 logger.setLevel(os.environ.get("LOG_LEVEL", "INFO").upper())
 

@@ -10,6 +10,7 @@ keep working unchanged) then pushed to S3 via :func:`upload`.
 When ``MEDIA_S3_MODE`` is ``local`` (the default), every operation is a
 no-op passthrough and the service behaves exactly as before.
 """
+
 from __future__ import annotations
 
 import json
@@ -20,6 +21,9 @@ from typing import Any
 
 from app.core.config import settings
 from app.media_paths import media_root
+
+# See https://stackoverflow.com/a/79501762/9943464
+logging.basicConfig()
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +60,11 @@ def _root() -> Path:
 
 
 def _meta_path(local_path: Path) -> Path:
-    return _root() / _META_DIRNAME / (str(local_path.resolve().relative_to(_root())) + ".json")
+    return (
+        _root()
+        / _META_DIRNAME
+        / (str(local_path.resolve().relative_to(_root())) + ".json")
+    )
 
 
 def _read_meta(local_path: Path) -> dict[str, object] | None:
@@ -72,9 +80,7 @@ def _read_meta(local_path: Path) -> dict[str, object] | None:
 def _write_meta(local_path: Path, etag: str) -> None:
     meta = _meta_path(local_path)
     meta.parent.mkdir(parents=True, exist_ok=True)
-    meta.write_text(
-        json.dumps({"etag": etag, "mtime": time.time()}), encoding="utf-8"
-    )
+    meta.write_text(json.dumps({"etag": etag, "mtime": time.time()}), encoding="utf-8")
 
 
 def _delete_meta(local_path: Path) -> None:
@@ -156,7 +162,9 @@ def _ensure_file(local_path: Path) -> None:
         if _s3_object_missing(exc) and local_path.is_file():
             # Another service deleted the object; drop the stale local copy so
             # it is not served. Transient errors keep the local state.
-            logger.debug("S3 object %s deleted remotely; dropping stale local copy", key)
+            logger.debug(
+                "S3 object %s deleted remotely; dropping stale local copy", key
+            )
             local_path.unlink(missing_ok=True)
             _delete_meta(local_path)
         else:
@@ -174,24 +182,28 @@ def _ensure_file(local_path: Path) -> None:
 
 
 def _ensure_dir(local_path: Path) -> None:
-    logger.debug(f"Ensuring local directory {local_path} is up-to-date with S3")
+    logger.debug("Ensuring local directory %s is up-to-date with S3", local_path)
     client = _client()
     prefix = _key_for(local_path) + "/"
-    logger.debug(f"Listing S3 objects under prefix {prefix}")
+    logger.debug("Listing S3 objects under prefix %s", prefix)
     remote_keys: set[str] = set()
     paginator = client.get_paginator("list_objects_v2")
     for page in paginator.paginate(Bucket=settings.S3_BUCKET, Prefix=prefix):
         for obj in page.get("Contents", []):
             key = obj["Key"]
-            logger.debug(f"Found S3 object {key}")
+            logger.debug("Found S3 object %s", key)
             if key.endswith("/"):
                 continue
             remote_keys.add(key)
-            rel = key[len(prefix):]
-            logger.debug(f"Ensuring local file {local_path / rel} is up-to-date with S3")
+            rel = key[len(prefix) :]
+            logger.debug(
+                "Ensuring local file %s is up-to-date with S3", local_path / rel
+            )
             _ensure_file(local_path / rel)
     # Remove local files that no longer exist in S3 (best-effort cleanup).
-    logger.debug(f"Cleaning up local files under {local_path} that no longer exist in S3")
+    logger.debug(
+        "Cleaning up local files under %s that no longer exist in S3", local_path
+    )
     for local_file in local_path.rglob("*"):
         if local_file.is_file():
             key = _key_for(local_file)
