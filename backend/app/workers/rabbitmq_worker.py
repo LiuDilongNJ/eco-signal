@@ -256,10 +256,11 @@ async def process_message(
                     )
         started_at = monotonic()
         logger.info(
-            "Starting RabbitMQ task: task=%s queue_id=%s audio_duration_seconds=%s",
+            "Starting RabbitMQ task: task=%s queue_id=%s audio_duration_seconds=%s log_level=%s",
             task_name,
             kwargs.get("queue_id"),
             audio_duration,
+            logging.getLevelName(logger.level)
         )
         await asyncio.wait_for(
             handler({"cancellation_token": cancellation_token}, **kwargs),
@@ -352,9 +353,10 @@ async def _consume(stop_event: asyncio.Event) -> None:
             await queue.consume(callback)
             consumed_queues.append(task_lane_config(lane)["queue"])
         logger.info(
-            "RabbitMQ worker consuming: queues=%s dead_queue=%s",
+            "RabbitMQ worker consuming: queues=%s dead_queue=%s log_level=%s",
             ",".join(consumed_queues),
             TASK_DEAD_QUEUE,
+            logging.getLevelName(logger.level),
         )
         await stop_event.wait()
     finally:
