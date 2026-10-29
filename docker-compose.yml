@@ -296,6 +296,7 @@ services:
       - S3_BUCKET=${S3_BUCKET:-ecosignal-media}
       - S3_REGION=${S3_REGION:-us-east-1}
       - MEDIA_CACHE_TTL=${MEDIA_CACHE_TTL:-300}
+      - LOG_LEVEL=DEBUG
     command: python -m app.workers.rabbitmq_worker
     volumes:
       - app-media-cache-worker:/app/sounds

@@ -77,7 +77,7 @@ services:
       - ./data:/app/data # Mount raw geo data files for one-time import
 
   worker:
-    restart: "on-failure:3"
+    restart: "always"
     pull_policy: never
     image: ecosignal-backend-dev:local
     environment:
@@ -90,14 +90,14 @@ services:
     develop:
       watch:
         - path: ./backend/app
-          action: sync
+          action: sync+restart
           target: /app/app
           ignore:
             - "**/.DS_Store"
             - "**/__pycache__"
             - "**/*.pyc"
         - path: ./backend/scripts
-          action: sync
+          action: sync+restart
           target: /app/scripts
           ignore:
             - "**/.DS_Store"
