@@ -50,6 +50,7 @@ Open a media record to inspect its preview and metadata. Where permitted, create
 An Annotator can create and maintain only their own annotations. A Reviewer can read annotations and reviews, and create and maintain only their own review. Viewer access is read-only; a Manager can work with all objects on the assigned path. These rights are evaluated using the current project and collection together, so access through another project does not apply here.
 
 Analysis actions create background work. Follow their progress in Queue and open the completed media or result records to inspect the output. If an action is unavailable, request the matching collection-scoped permission from a manager.
+The same account can be logged in on multiple machines simultaneously. Each login creates an independent session but this may lead to changes overwriting each other.
 
 ## Import tabular data
 
