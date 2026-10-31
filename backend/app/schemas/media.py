@@ -43,7 +43,7 @@ class AudioFileMetadataPublic(SQLModel):
     media_id: int
     schema_version: int
     source: dict
-    stored: dict
+    stored: dict = Field(description="Stored audio metadata; size_b is the file size in bytes")
     tags: dict[str, dict[str, list[str | int | float | bool]]] = Field(default_factory=dict)
     warnings: list[str] = Field(default_factory=list)
 
@@ -226,7 +226,7 @@ class MediaListPublic(MediaBase):
     uuid: uuid.UUID
     media_type: str
     is_metadata: bool = False
-    size_b: Optional[int] = None  # Python attribute name from model (maps to size_B in DB)
+    size_b: Optional[int] = Field(default=None, description="File size in bytes")
     md5_hash: Optional[str] = None
     uploader_id: Optional[int] = None
     uploader_name: Optional[str] = None
@@ -300,7 +300,7 @@ class MediaBrowseGalleryItem(SQLModel):
     media_type: str
     is_metadata: bool = False
     date_time: Optional[datetime] = None
-    size_b: Optional[int] = None
+    size_b: Optional[int] = Field(default=None, description="File size in bytes")
     duration_s: Optional[float] = None
     sampling_rate_hz: Optional[int] = None
     bit_depth: Optional[int] = None
@@ -344,7 +344,7 @@ class MediaBrowseListItem(SQLModel):
     duty_cycle_recording: Optional[int] = None
     label: Optional[str] = None
     preview_url: Optional[str] = None
-    size_b: Optional[int] = None
+    size_b: Optional[int] = Field(default=None, description="File size in bytes")
     uploader_name: Optional[str] = None
     creator_name: Optional[str] = None
     note: Optional[str] = None

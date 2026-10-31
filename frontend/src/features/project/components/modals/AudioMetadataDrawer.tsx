@@ -28,7 +28,7 @@ export function AudioMetadataDrawer({ open, mediaId, projectId, onClose }: { ope
     }, [open, mediaId, projectId])
     const renderFields = (title: string, fields: Record<string, unknown>) => <section className="audio-metadata-drawer__section">
         <Typography.Text strong>{title}</Typography.Text>
-        {Object.entries(fields).map(([key, value]) => <div className="audio-metadata-drawer__row" key={key}><span>{key}</span><span>{value == null ? "-" : String(value)}</span></div>)}
+        {Object.entries(fields).map(([key, value]) => <div className="audio-metadata-drawer__row" key={key}><span>{key === "size_b" ? "Size (Bytes)" : key}</span><span>{value == null ? "-" : String(value)}</span></div>)}
     </section>
     return <ConfigProvider theme={theme}><FormDrawer title="Audio Metadata" open={open} onClose={onClose} placement="right" styles={{ wrapper: { width: 620 }, body: { padding: 24 } }} extra={<div className="audio-metadata-drawer__footer"><Button onClick={onClose}>Close</Button><Button type="primary" disabled={!data || mediaId == null || projectId == null} onClick={async () => { if (mediaId != null && projectId != null) downloadFile(await mediaApi.downloadAudioMetadata(mediaId, projectId)) }}>Download JSON</Button></div>}>
         {loading ? <LoadingState label="Loading audio metadata..." /> : unavailable ? <Typography.Text type="secondary">Audio metadata is not available</Typography.Text> : data ? <div className="audio-metadata-drawer">
