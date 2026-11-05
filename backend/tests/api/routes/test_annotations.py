@@ -394,6 +394,19 @@ def test_list_annotations(
     assert content["data"][0]["creator_color"] == "#123ABC"
     assert content["data"][0]["media_type"] == "audio"
 
+    update = client.patch(
+        f"{settings.API_V1_STR}/users/{admin.user_id}",
+        headers=superuser_token_headers,
+        json={"color": "#11aa33"},
+    )
+    assert update.status_code == 200
+    response = client.get(
+        f"{settings.API_V1_STR}/annotations?project_id={project.project_id}",
+        headers=superuser_token_headers,
+    )
+    assert response.status_code == 200
+    assert response.json()["data"][0]["creator_color"] == "#11AA33"
+
 
 def test_list_annotations_filters_and_orders_by_media_type(
     client: TestClient, superuser_token_headers: dict[str, str], db: Session

@@ -38,6 +38,12 @@ function reviewBy(reviewerId: number): AnnotationReviewRead {
 }
 
 describe("assigned annotation presentation", () => {
+    it("uses the annotation creator color instead of the viewer color", () => {
+        const annotation = { ...annotationWithTask(), creator_color: "#11aa33" }
+
+        expect(getMediaAnnotationPresentation(annotation, "#FFFFFF").creatorColor).toBe("#11AA33")
+    })
+
     it("removes the current user's Task presentation after they submit a review", () => {
         const annotation = annotationWithTask([reviewBy(7)])
 
