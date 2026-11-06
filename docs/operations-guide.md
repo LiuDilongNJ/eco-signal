@@ -306,6 +306,8 @@ Use the [Observability Guide](observability.md) for metrics, errors, and dashboa
 
 ## Storage protection
 
+Detail audio assets expire after 12 hours and are cleaned at worker startup and every five minutes. The cache defaults to a 10 GiB limit with an 8 GiB cleanup target. New builds run one at a time across API processes and preserve at least 5 GiB or 10% free space, whichever is greater; cached reads remain available. Administrators see a warning at 80% filesystem usage and a critical warning at 90%. Container root and media storage are reported separately.
+
 Configure the following environment variables in `.env`; restart the API and interactive worker together after changes. Values must be positive, and the target must be smaller than the maximum.
 
 | Variable | Default | Meaning |
