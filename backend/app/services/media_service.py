@@ -1,4 +1,3 @@
-import fcntl
 import hashlib
 import itertools
 import json
@@ -8,10 +7,8 @@ import os
 import re
 import shutil
 import subprocess
-import time
 import uuid
-from collections.abc import Iterator
-from contextlib import contextmanager
+from contextlib import ExitStack
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -36,7 +33,6 @@ from app.enums import MediaType, QueueStatus, WorkerTaskType
 from app.media_paths import (
     build_media_public_url,
     logical_photo_media_path,
-    media_root,
     resolve_existing_audio_media_path,
     resolve_existing_media_path,
 )
@@ -66,6 +62,8 @@ from app.repositories import (
 )
 from app.repositories.collection_scope import resolve_project_collection_scope
 from app.schemas.media import (
+    AudioFileMetadataPublic,
+    AudioSettingPublic,
     MediaBatchFailedItem,
     MediaBatchOperationResponse,
     MediaBrowseGalleryItem,
@@ -83,13 +81,12 @@ from app.schemas.media import (
     MediaTimelineRange,
     MediaTimelineResponse,
     MediaUpdate,
-    AudioSettingPublic,
-    AudioFileMetadataPublic,
     PhotoSettingPublic,
     PreviewPublic,
 )
 from app.schemas.response import ApiResponse, PagedApiResponse, api_page
 from app.services import access_scope_service, authorization_service, permission_service
+from app.services import detail_cache_service as detail_cache
 from app.services.authorization_policy import AuthorizationAction
 from app.spectrogram import (
     DETAIL_DEFAULT_FFT_SIZE,
@@ -184,11 +181,7 @@ async def create_audio_resampling_job(
 PLAYER_SPECTROGRAM_TYPE = "spectrogram"
 PLAYER_SPECTROGRAM_FILENAME_RE = re.compile(r"(?:_|-)player_s\.png$", re.IGNORECASE)
 LEGACY_SMALL_SPECTROGRAM_FILENAME_RE = re.compile(r"^\d+-small_s\.png$", re.IGNORECASE)
-_DETAIL_ASSET_DIR = Path("tmp") / "detail"
-_DETAIL_ASSET_TTL = timedelta(hours=12)
-_DETAIL_ASSET_LOCK_TIMEOUT_SECONDS = 60.0
-_DETAIL_ASSET_LOCK_SHARDS = 1024
-_DETAIL_ASSET_MANIFEST_VERSION = 3
+_DETAIL_ASSET_MANIFEST_VERSION = 4
 _DETAIL_ASSET_MANIFEST_FILENAME = "manifest.json"
 _DETAIL_ASSET_ACCESS_FILENAME = ".last_access"
 _DETAIL_PARAM_PRECISION = 4
@@ -1968,91 +1961,6 @@ def get_media(
     return result
 
 
-def _detail_asset_root() -> Path:
-    return media_root() / _DETAIL_ASSET_DIR
-
-
-class _DetailAssetLockTimeoutError(TimeoutError):
-    pass
-
-
-def _detail_asset_lock_path(key: str) -> Path:
-    shard = int(hashlib.sha1(key.encode("utf-8")).hexdigest()[:8], 16) % _DETAIL_ASSET_LOCK_SHARDS
-    return _detail_asset_root() / ".locks" / f"{shard:04d}.lock"
-
-
-@contextmanager
-def _detail_asset_lock(
-    key: str,
-    *,
-    timeout_seconds: float | None = None,
-) -> Iterator[float]:
-    effective_timeout = (
-        _DETAIL_ASSET_LOCK_TIMEOUT_SECONDS
-        if timeout_seconds is None
-        else timeout_seconds
-    )
-    lock_path = _detail_asset_lock_path(key)
-    lock_path.parent.mkdir(parents=True, exist_ok=True)
-    started_at = time.monotonic()
-    with lock_path.open("a+b") as lock_file:
-        while True:
-            try:
-                fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-                break
-            except BlockingIOError:
-                if time.monotonic() - started_at >= effective_timeout:
-                    raise _DetailAssetLockTimeoutError(key)
-                time.sleep(min(0.05, max(0.0, effective_timeout)))
-
-        waited_seconds = time.monotonic() - started_at
-        try:
-            yield waited_seconds
-        finally:
-            fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
-
-
-def _detail_asset_modified_at(bundle_dir: Path) -> datetime | None:
-    manifest_path = bundle_dir / _DETAIL_ASSET_MANIFEST_FILENAME
-    access_path = bundle_dir / _DETAIL_ASSET_ACCESS_FILENAME
-    candidate = access_path if access_path.exists() else manifest_path
-    if not candidate.exists():
-        candidate = bundle_dir
-    try:
-        return datetime.fromtimestamp(candidate.stat().st_mtime)
-    except OSError:
-        return None
-
-
-def _touch_detail_asset(bundle_dir: Path) -> None:
-    access_path = bundle_dir / _DETAIL_ASSET_ACCESS_FILENAME
-    access_path.touch(exist_ok=True)
-
-
-def _cleanup_stale_detail_assets() -> None:
-    root = _detail_asset_root()
-    if not root.exists():
-        return
-
-    cutoff = datetime.now() - _DETAIL_ASSET_TTL
-    for media_dir in root.iterdir():
-        if media_dir.name == ".locks" or not media_dir.is_dir():
-            continue
-        for bundle_dir in media_dir.iterdir():
-            if not bundle_dir.is_dir():
-                continue
-            modified_at = _detail_asset_modified_at(bundle_dir)
-            if modified_at is None or modified_at >= cutoff:
-                continue
-            try:
-                with _detail_asset_lock(bundle_dir.name, timeout_seconds=0.0):
-                    modified_at = _detail_asset_modified_at(bundle_dir)
-                    if modified_at is not None and modified_at < cutoff:
-                        shutil.rmtree(bundle_dir, ignore_errors=True)
-            except _DetailAssetLockTimeoutError:
-                continue
-
-
 def _detail_asset_parameters(
     *,
     media_id: int,
@@ -2060,19 +1968,15 @@ def _detail_asset_parameters(
     end_time: float | None,
     min_freq: float,
     max_freq: float | None,
-    channel: int,
     filter_enabled: bool,
-    fft_size: int,
 ) -> dict[str, Any]:
     return {
         "media_id": media_id,
-        "start_time": round(float(start_time), _DETAIL_PARAM_PRECISION),
-        "end_time": round(float(end_time), _DETAIL_PARAM_PRECISION) if end_time is not None else None,
-        "min_freq": round(float(min_freq), _DETAIL_PARAM_PRECISION),
-        "max_freq": round(float(max_freq), _DETAIL_PARAM_PRECISION) if max_freq is not None else None,
-        "channel": int(channel),
+        "start_time": float(start_time),
+        "end_time": float(end_time) if end_time is not None else None,
         "filter": bool(filter_enabled),
-        "fft_size": int(fft_size),
+        "min_freq": round(float(min_freq), _DETAIL_PARAM_PRECISION) if filter_enabled else None,
+        "max_freq": round(float(max_freq), _DETAIL_PARAM_PRECISION) if filter_enabled and max_freq is not None else None,
     }
 
 
@@ -2083,9 +1987,7 @@ def _detail_asset_key(
     end_time: float | None,
     min_freq: float,
     max_freq: float | None,
-    channel: int,
     filter_enabled: bool,
-    fft_size: int,
 ) -> str:
     payload = _detail_asset_parameters(
         media_id=media_id,
@@ -2093,9 +1995,7 @@ def _detail_asset_key(
         end_time=end_time,
         min_freq=min_freq,
         max_freq=max_freq,
-        channel=channel,
         filter_enabled=filter_enabled,
-        fft_size=fft_size,
     )
     raw = json.dumps(payload, sort_keys=True, separators=(",", ":"))
     return hashlib.sha1(raw.encode("utf-8")).hexdigest()[:24]
@@ -2158,6 +2058,8 @@ def _run_audio_command(command: list[str], *, executable_name: str) -> None:
             result.returncode,
             detail,
         )
+        if "no space left" in detail.lower() or "disk quota exceeded" in detail.lower():
+            detail_cache.reject("low_space")
         raise RuntimeError(f"{executable_name} audio processing failed: {detail}")
 
 
@@ -2367,6 +2269,8 @@ def _rebuild_detail_selection(
     temp_paths = [source_temp_path, filtered_temp_path, spectrogram_temp_path]
 
     try:
+        stage_bytes = max(audio_path.stat().st_size, max(1, duration_sample) * max(1, _read_source_audio_info(audio_path).channels) * 8) + 16 * 1024**2
+        detail_cache.ensure_disk_space(stage_bytes)
         should_trim = start_sample != 0 or duration_sample != total_frames
         if should_trim:
             _run_sox(
@@ -2389,6 +2293,7 @@ def _rebuild_detail_selection(
             }
         }
         if filter_enabled:
+            detail_cache.ensure_disk_space(stage_bytes)
             filter_command = _sox_filter_command(
                 source_temp_path if should_trim else audio_path,
                 filtered_temp_path,
@@ -2404,6 +2309,7 @@ def _rebuild_detail_selection(
                 "size": filtered_temp_path.stat().st_size,
             }
 
+        detail_cache.ensure_disk_space(stage_bytes)
         if render_audio_path.suffix.lower() == ".wav":
             shutil.copyfile(
                 filtered_temp_path if filter_enabled else source_temp_path,
@@ -2457,6 +2363,8 @@ def _write_playback_atomically(
 ) -> None:
     temp_path = _detail_asset_temp_path(target_path)
     try:
+        info = _read_source_audio_info(source_path)
+        detail_cache.ensure_disk_space(max(source_path.stat().st_size, info.frames * info.channels * 8) + 16 * 1024**2)
         if output_format == "mp3":
             _run_lame(
                 [
@@ -2548,11 +2456,7 @@ def get_or_create_detail_asset_bundle(
         raise HTTPException(status_code=404, detail="Audio media not found on server")
 
     audio_info = _read_source_audio_info(audio_path)
-    sample_rate = (
-        int(media.audio_setting.sampling_rate_hz)
-        if media.audio_setting is not None and media.audio_setting.sampling_rate_hz
-        else int(audio_info.samplerate)
-    )
+    sample_rate = int(audio_info.samplerate)
     total_duration = (
         float(audio_info.frames) / float(audio_info.samplerate)
         if audio_info.samplerate
@@ -2569,7 +2473,6 @@ def get_or_create_detail_asset_bundle(
     )
     if actual_end_time < actual_start_time:
         actual_end_time = actual_start_time
-    normalized_end_time = None if end_time is None else actual_end_time
     total_frames = int(audio_info.frames)
     start_sample = min(
         total_frames,
@@ -2579,6 +2482,8 @@ def get_or_create_detail_asset_bundle(
         max(0, total_frames - start_sample),
         _round_sample_half_up((actual_end_time - actual_start_time) * sample_rate),
     )
+    actual_start_time = start_sample / sample_rate
+    normalized_end_time = (start_sample + duration_sample) / sample_rate
     source_suffix = audio_path.suffix.lower() or ".wav"
     freq_lo, freq_hi = _normalize_detail_freq_band(sample_rate, min_freq, max_freq)
     download_basename = _build_detail_download_basename(
@@ -2597,15 +2502,13 @@ def get_or_create_detail_asset_bundle(
         end_time=normalized_end_time,
         min_freq=freq_lo,
         max_freq=freq_hi,
-        channel=channel,
         filter_enabled=filter_enabled,
-        fft_size=fft_size,
     )
     output_format = _detail_output_format(
         sample_rate=sample_rate,
         source_path=audio_path,
     )
-    bundle_dir = _detail_asset_root() / str(media_id) / key
+    bundle_dir = detail_cache.root() / str(media_id) / key
     source_audio_path = bundle_dir / f"zoomed{source_suffix}"
     filtered_audio_path = bundle_dir / f"zoomed_filtered{source_suffix}"
     spectrogram_wav_path = bundle_dir / "spectrogram.wav"
@@ -2615,107 +2518,73 @@ def get_or_create_detail_asset_bundle(
         end_time=normalized_end_time,
         min_freq=freq_lo,
         max_freq=freq_hi,
-        channel=channel,
         filter_enabled=filter_enabled,
-        fft_size=fft_size,
     )
-    _cleanup_stale_detail_assets()
+    def inspect_cache():
+        current_info = _read_source_audio_info(audio_path)
+        fingerprint = _source_audio_fingerprint(audio_path, current_info.samplerate)
+        manifest, reason = _read_valid_detail_manifest(
+            bundle_dir, parameters=parameters, source=fingerprint, filter_enabled=filter_enabled,
+        )
+        render_path = filtered_audio_path if filter_enabled else source_audio_path
+        playback = render_path if not build_playback or output_format == render_path.suffix.lower().lstrip(".") else bundle_dir / f"playback.{output_format}"
+        ready = manifest is not None and (
+            playback == render_path or _validate_cached_playback(playback, bundle_dir / _DETAIL_ASSET_MANIFEST_FILENAME)
+        )
+        return fingerprint, manifest, reason, render_path, playback, ready
+
     try:
-        with _detail_asset_lock(key) as waited_seconds:
-            current_audio_info = _read_source_audio_info(audio_path)
-            source = _source_audio_fingerprint(
-                audio_path,
-                current_audio_info.samplerate,
-            )
-            manifest, cache_status = _read_valid_detail_manifest(
-                bundle_dir,
-                parameters=parameters,
-                source=source,
-                filter_enabled=filter_enabled,
-            )
-            if manifest is None:
-                logger.info(
-                    "Rebuilding detail asset cache",
-                    extra={
-                        "media_id": media_id,
-                        "cache_key": key,
-                        "cache_reason": cache_status,
-                        "lock_wait_seconds": round(waited_seconds, 6),
-                    },
-                )
-                _rebuild_detail_selection(
-                    bundle_dir=bundle_dir,
-                    audio_path=audio_path,
-                    start_sample=start_sample,
-                    duration_sample=duration_sample,
-                    total_frames=total_frames,
-                    source_suffix=source_suffix,
-                    filter_enabled=filter_enabled,
-                    min_freq=freq_lo,
-                    max_freq=freq_hi,
-                    sample_rate=sample_rate,
-                    parameters=parameters,
-                    source=source,
-                )
-                manifest, cache_status = _read_valid_detail_manifest(
-                    bundle_dir,
-                    parameters=parameters,
-                    source=source,
-                    filter_enabled=filter_enabled,
-                )
-                if manifest is None:
-                    raise RuntimeError(
-                        f"Detail asset cache validation failed after rebuild: {cache_status}"
-                    )
-            else:
-                logger.debug(
-                    "Detail asset cache hit",
-                    extra={
-                        "media_id": media_id,
-                        "cache_key": key,
-                        "lock_wait_seconds": round(waited_seconds, 6),
-                    },
-                )
-
-            render_source_path = filtered_audio_path if filter_enabled else source_audio_path
-            manifest_path = bundle_dir / _DETAIL_ASSET_MANIFEST_FILENAME
+        with ExitStack() as leases:
+            lock = leases.enter_context(detail_cache.bundle_lock(key, shared=True))
+            source, manifest, reason, render_source_path, playback_path, ready = inspect_cache()
+            if not ready:
+                leases.close()
+                with detail_cache.build_lock():
+                    lock = leases.enter_context(detail_cache.bundle_lock(key))
+                    source, manifest, reason, render_source_path, playback_path, ready = inspect_cache()
+                    if not ready:
+                        # Account for PCM expansion, compressed outputs, and atomic replacements.
+                        pcm_bytes = max(1, duration_sample) * max(1, audio_info.channels) * 8
+                        encoded_bound = max(audio_path.stat().st_size, pcm_bytes) + 16 * 1024**2
+                        required = encoded_bound * (2 + int(filter_enabled)) + pcm_bytes + 16 * 1024**2
+                        detail_cache.admit(required, exclude=bundle_dir)
+                        if manifest is None:
+                            logger.info("Rebuilding detail asset cache", extra={"media_id": media_id, "cache_key": key, "cache_reason": reason})
+                            _rebuild_detail_selection(
+                                bundle_dir=bundle_dir, audio_path=audio_path, start_sample=start_sample,
+                                duration_sample=duration_sample, total_frames=total_frames,
+                                source_suffix=source_suffix, filter_enabled=filter_enabled,
+                                min_freq=freq_lo, max_freq=freq_hi, sample_rate=sample_rate,
+                                parameters=parameters, source=source,
+                            )
+                            manifest, reason = _read_valid_detail_manifest(
+                                bundle_dir, parameters=parameters, source=source, filter_enabled=filter_enabled,
+                            )
+                            if manifest is None:
+                                raise RuntimeError(f"Detail asset cache validation failed after rebuild: {reason}")
+                        if playback_path != render_source_path:
+                            _write_playback_atomically(render_source_path, playback_path, output_format)
+                        detail_cache.ensure_disk_space()
+                    detail_cache.record_build(bundle_dir)
+                    lock.downgrade()
+            try:
+                (bundle_dir / _DETAIL_ASSET_ACCESS_FILENAME).touch(exist_ok=True)
+            except OSError:
+                logger.warning("Could not update audio cache access time", exc_info=True)
             if not build_playback:
-                playback_path = render_source_path
                 output_format = render_source_path.suffix.lower().lstrip(".") or "wav"
-            elif output_format == render_source_path.suffix.lower().lstrip("."):
-                playback_path = render_source_path
-            else:
-                playback_path = bundle_dir / f"playback.{output_format}"
-                if not _validate_cached_playback(playback_path, manifest_path):
-                    _write_playback_atomically(
-                        render_source_path,
-                        playback_path,
-                        output_format,
-                    )
-            _touch_detail_asset(bundle_dir)
-    except _DetailAssetLockTimeoutError:
-        logger.warning(
-            "Timed out waiting for detail asset cache lock",
-            extra={
-                "media_id": media_id,
-                "cache_key": key,
-                "lock_timeout_seconds": _DETAIL_ASSET_LOCK_TIMEOUT_SECONDS,
-            },
-        )
-        raise HTTPException(
-            status_code=503,
-            detail="Spectrogram audio cache is busy",
-            headers={"Retry-After": "1"},
-        )
-
-    return DetailAssetBundle(
-        source_audio_path=render_source_path,
-        spectrogram_audio_path=spectrogram_wav_path,
-        playback_audio_path=playback_path,
-        playback_format=output_format,
-        download_basename=download_basename,
-        key=key,
-    )
+            detail_cache.retain_read_lock(leases)
+            return DetailAssetBundle(
+                source_audio_path=render_source_path, spectrogram_audio_path=spectrogram_wav_path,
+                playback_audio_path=playback_path, playback_format=output_format,
+                download_basename=download_basename, key=key,
+            )
+    except detail_cache.CacheLockTimeout:
+        detail_cache.reject("busy")
+    except OSError as exc:
+        if exc.errno in (28, 122):
+            detail_cache.reject("low_space")
+        raise
 
 
 def get_audio_stream_payload(
@@ -2788,33 +2657,33 @@ def render_dynamic_spectrogram(
     apply_frequency_filter: bool,
 ) -> bytes:
     """Render a spectrogram PNG from the shared detail-view selection bundle."""
-    # Match legacy svt.py / ImageService default lower bound (f_min=1).
-    render_min_freq = DETAIL_DEFAULT_MIN_FREQ if float(min_freq) <= 0 else float(min_freq)
-    bundle = get_or_create_detail_asset_bundle(
-        session,
-        media_id,
-        start_time=start_time,
-        end_time=end_time,
-        min_freq=render_min_freq,
-        max_freq=max_freq,
-        channel=channel,
-        filter_enabled=apply_frequency_filter,
-        fft_size=fft_size,
-        build_playback=False,
-    )
-    return generate_spectrogram_png(
-        audio_path=str(bundle.spectrogram_audio_path),
-        start_time=0.0,
-        end_time=None,
-        min_freq=render_min_freq,
-        max_freq=max_freq,
-        fft_size=fft_size,
-        window=window,
-        channel=channel,
-        width_px=width_px,
-        height_px=height_px,
-        apply_frequency_filter=False,
-    )
+    with detail_cache.read_scope():
+        render_min_freq = DETAIL_DEFAULT_MIN_FREQ if float(min_freq) <= 0 else float(min_freq)
+        bundle = get_or_create_detail_asset_bundle(
+            session,
+            media_id,
+            start_time=start_time,
+            end_time=end_time,
+            min_freq=render_min_freq,
+            max_freq=max_freq,
+            channel=channel,
+            filter_enabled=apply_frequency_filter,
+            fft_size=fft_size,
+            build_playback=False,
+        )
+        return generate_spectrogram_png(
+            audio_path=str(bundle.spectrogram_audio_path),
+            start_time=0.0,
+            end_time=None,
+            min_freq=render_min_freq,
+            max_freq=max_freq,
+            fft_size=fft_size,
+            window=window,
+            channel=channel,
+            width_px=width_px,
+            height_px=height_px,
+            apply_frequency_filter=False,
+        )
 
 
 def get_spectrogram_download_filename(
@@ -2830,19 +2699,20 @@ def get_spectrogram_download_filename(
     apply_frequency_filter: bool,
 ) -> str:
     """Return the spectrogram download filename for one viewport selection."""
-    bundle = get_or_create_detail_asset_bundle(
-        session,
-        media_id,
-        start_time=start_time,
-        end_time=end_time,
-        min_freq=min_freq,
-        max_freq=max_freq,
-        channel=channel,
-        filter_enabled=apply_frequency_filter,
-        fft_size=fft_size,
-        build_playback=False,
-    )
-    return f"{bundle.download_basename}.png"
+    with detail_cache.read_scope():
+        bundle = get_or_create_detail_asset_bundle(
+            session,
+            media_id,
+            start_time=start_time,
+            end_time=end_time,
+            min_freq=min_freq,
+            max_freq=max_freq,
+            channel=channel,
+            filter_enabled=apply_frequency_filter,
+            fft_size=fft_size,
+            build_playback=False,
+        )
+        return f"{bundle.download_basename}.png"
 
 
 def get_spectrogram(

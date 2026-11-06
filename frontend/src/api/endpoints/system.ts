@@ -46,16 +46,25 @@ export interface GetOperationLogsParams {
     order_dir?: "asc" | "desc"
 }
 
-export type StorageHealth = "healthy" | "warning" | "critical"
+export type StorageHealth = "healthy" | "warning" | "critical" | "unavailable"
 
-/** GET /v1/system/storage — backend container root filesystem status. */
-export interface StorageStatus {
+export interface FilesystemStatus {
+    scope: "container_root" | "media"
     path: string
-    total_bytes: number
-    used_bytes: number
-    free_bytes: number
-    used_percent: number
+    available: boolean
+    total_bytes: number | null
+    used_bytes: number | null
+    free_bytes: number | null
+    used_percent: number | null
     status: StorageHealth
+}
+
+export interface StorageStatus {
+    checked_at: string
+    status: StorageHealth
+    warning_percent: number
+    critical_percent: number
+    filesystems: FilesystemStatus[]
 }
 
 export interface StorageStatusResponse {
@@ -73,8 +82,8 @@ export const systemApi = {
         return apiClient.get<PagedOperationLogResponse>("/v1/system/operation-logs", { params: cleanParams })
     },
 
-    /** 获取后端容器根目录的磁盘状态；仅管理员可访问。 */
-    getStorageStatus() {
-        return apiClient.get<StorageStatusResponse>("/v1/system/storage")
+    /** 获取文件系统容量；仅管理员可访问。 */
+    getStorageStatus(signal?: AbortSignal) {
+        return apiClient.get<StorageStatusResponse>("/v1/system/storage", { signal })
     },
 }

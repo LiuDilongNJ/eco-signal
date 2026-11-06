@@ -1,4 +1,4 @@
-export type StorageHealth = "healthy" | "warning" | "critical"
+export type StorageHealth = "healthy" | "warning" | "critical" | "unavailable"
 
 export function formatStorageBytes(bytes: number): string {
     if (!Number.isFinite(bytes) || bytes < 0) return "-"
@@ -17,6 +17,7 @@ export function formatStorageBytes(bytes: number): string {
 
 export function storageHealthLabel(status: StorageHealth): string {
     return {
+        unavailable: "Unavailable",
         healthy: "Normal",
         warning: "Warning",
         critical: "Critical",

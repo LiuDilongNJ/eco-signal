@@ -324,3 +324,27 @@ staging 工作流为 `.github/workflows/deploy-staging.yml`，在推送到 `main
 - [管理员指南](admin-guide.zh.md)：应用层运维
 - [用户指南](user-guide.zh.md)：日常工作流
 - [文档首页](../README_ZH.md)
+
+## 存储空间保护
+
+在 `.env` 中配置以下变量；变更后同时重启 API 和交互 worker。数值必须大于零，清理目标必须小于上限。
+
+| 变量 | 默认值 | 含义 |
+| --- | --- | --- |
+| `DETAIL_CACHE_TTL_SECONDS` | `43200` | 自最近访问起保留的秒数 |
+| `DETAIL_CACHE_MAX_BYTES` | `10737418240` | 详情缓存容量预算 |
+| `DETAIL_CACHE_TARGET_BYTES` | `8589934592` | 淘汰后的目标水位 |
+| `DETAIL_CACHE_CLEANUP_SECONDS` | `300` | 维护间隔秒数 |
+| `DETAIL_CACHE_MIN_FREE_BYTES` | `5368709120` | 最低可用空间字节数 |
+| `DETAIL_CACHE_MIN_FREE_PERCENT` | `10` | 最低可用空间比例，与字节下限取较大值 |
+| `PENDING_FILE_TTL_SECONDS` | `86400` | 无引用 pending 文件的最短保留秒数 |
+
+只有无引用且未被写入锁保护的 pending 文件才允许删除；有引用的上传和导入文件沿用既有生命周期。清理不会删除媒体原件。容量统计保守考虑文件逻辑大小和已分配大小；释放字节数是缓存记账值，不代表文件系统可用空间一定增加同样数值。构建准入估算音频展开和原子替换的峰值空间，但其他进程仍可能消耗磁盘，不能代替文件系统配额与宿主机监控。
+
+`GET /api/v1/system/storage` 仅管理员可读，返回 UTC 检查时间、总体状态、80%/90% 阈值及 root/media 文件系统列表。每项包含用途、路径、可用性、容量、使用率和状态；采样失败的容量字段为 null，全部失败时返回 503。界面可见时每分钟轮询一次，与设置页存储卡片共享结果。新详情构建在繁忙、超预算或空间不足时返回带 `detail_cache_*` 错误码的 503，保留有效缓存。
+
+部署在构建前检查 Docker daemon 所在文件系统，通过 `alpine:3.22` 小容器只读挂载 daemon 存储目录，要求 daemon 允许该挂载。应用验证成功后，仅清理带当前 `STACK_NAME` 标签的无标签镜像，保留有标签和运行中的镜像及所有卷。此前构建的无项目标识镜像需要运维人员单独核对。
+
+使用 `./deploy.sh --prune-build-cache`、`./deploy.ps1 -PruneBuildCache` 或 `deploy.bat --prune-build-cache` 显式开启构建缓存清理：仅考虑超过七天的未使用缓存，设置 20 GB 保留预算。该操作可能影响共用同一 builder 的其他项目；不保证现有缓存达到 20 GB，也不会删除仍被使用的旧缓存。Docker 不支持过滤或保留参数时跳过；dry-run 不清理。清理失败与部署成功分别报告。
+
+不要让旧 API 与新清理 worker 混用，因为旧 API 没有读取锁。回退时先停止新 worker，再同时恢复 API 和 worker。已有缓存无需转换，由正常维护淘汰。部署后核查五分钟清理日志与 Prometheus 指标，使用缩小的测试预算验证并发下载、频谱渲染和淘汰，再持续观察至少 24 小时后关闭故障。不要通过填满宿主机磁盘测试保护。

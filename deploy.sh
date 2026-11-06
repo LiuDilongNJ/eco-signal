@@ -11,11 +11,13 @@ dry_run=false
 force_unlock=false
 reload_certs=false
 check_certs=false
+prune_build_cache=false
 
 usage() {
     cat <<'EOF'
 Usage: ./deploy.sh [--pull] [--geo-db] [--dry-run] [--force-unlock] [--maintenance <on|off|status>] [--reload-certs|--check-certs]
 
+  --prune-build-cache     Prune builder cache older than 7 days, keeping a 20 GB cache budget.
   --check-certs           Check installed static certificates without changing deployment state.
   --reload-certs          Validate and hot-reload a running static HTTPS frontend.
   --pull                  Pull newer base images before building.
@@ -30,6 +32,7 @@ maintenance_action=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
+        --prune-build-cache) prune_build_cache=true ;;
         --check-certs) check_certs=true ;;
         --reload-certs) reload_certs=true ;;
         --pull) pull=true ;;
@@ -82,8 +85,9 @@ media_storage_mode="${MEDIA_STORAGE_MODE:-$(environment_value MEDIA_STORAGE_MODE
 media_storage_mode="${media_storage_mode:-managed}"
 
 source scripts/tls/deploy.sh
+source scripts/storage/deploy.sh
 if [[ "$check_certs" == true ]]; then
-    if [[ "$reload_certs" == true || "$pull" == true || "$build_geo_db" == true || "$dry_run" == true || "$force_unlock" == true || -n "$maintenance_action" ]]; then
+    if [[ "$prune_build_cache" == true || "$reload_certs" == true || "$pull" == true || "$build_geo_db" == true || "$dry_run" == true || "$force_unlock" == true || -n "$maintenance_action" ]]; then
         echo "ERROR: --check-certs cannot be combined with deployment actions" >&2
         exit 1
     fi
@@ -224,7 +228,7 @@ run_compose() {
 }
 
 export DOMAIN="$domain" STACK_NAME="$project_name" EMAIL="$email"
-if [[ "$reload_certs" == true && ( "$https_enabled" != true || "$https_mode" != static || -n "$maintenance_action" || "$dry_run" == true || "$pull" == true || "$build_geo_db" == true ) ]]; then
+if [[ "$reload_certs" == true && ( "$prune_build_cache" == true || "$https_enabled" != true || "$https_mode" != static || -n "$maintenance_action" || "$dry_run" == true || "$pull" == true || "$build_geo_db" == true ) ]]; then
     echo "--reload-certs requires static HTTPS and cannot be combined with deployment actions" >&2
     exit 2
 fi
@@ -255,6 +259,7 @@ if [[ "$https_enabled" == true && "$https_mode" == letsencrypt ]]; then
     docker compose --project-name ecosignal-traefik -f docker-compose.traefik.yml config -q
     docker compose --project-name "$project_name" -f "$maintenance_compose" config -q
 fi
+if [[ "$dry_run" != true && "$reload_certs" != true ]]; then check_build_space; fi
 if [[ "$dry_run" != true || ( "$https_enabled" == true && "$https_mode" == static ) ]]; then
     prepare_tls_tool
 fi
@@ -335,5 +340,6 @@ maintenance_started_by_deploy=false
 if [[ "${INSECTS_MODEL_MODE:-$(environment_value INSECTS_MODEL_MODE)}" == disabled ]]; then
     echo "WARNING: Insects recognition is disabled" >&2
 fi
+cleanup_deployment_storage
 echo "Deployment succeeded: ${domain}"
 run_compose ps

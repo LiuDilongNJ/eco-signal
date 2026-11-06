@@ -25,6 +25,8 @@ services:
 
   geo_db:
     build:
+      labels:
+        org.ecosignal.project: ${STACK_NAME:-ecosignal}
       context: ./geo_db
       args:
         POSTGIS_BASE_IMAGE: ${POSTGIS_BASE_IMAGE:-imresamu/postgis:17-3.5}
@@ -159,6 +161,8 @@ services:
       start_period: 300s
 
     build:
+      labels:
+        org.ecosignal.project: ${STACK_NAME:-ecosignal}
       context: ./backend
       args:
         PYTHON_BASE_IMAGE: ${PYTHON_BASE_IMAGE:-python:3.12-slim}
@@ -293,6 +297,8 @@ services:
       backend:
         condition: service_started
     build:
+      labels:
+        org.ecosignal.project: ${STACK_NAME:-ecosignal}
       context: ./frontend
       args:
         NODE_BASE_IMAGE: ${NODE_BASE_IMAGE:-node:22-alpine}

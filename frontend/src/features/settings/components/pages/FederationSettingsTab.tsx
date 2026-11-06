@@ -5,7 +5,7 @@ import { message, Modal, Switch } from "@/components/ui"
 import { HardDrive, RefreshCw } from "lucide-react"
 import { ApiError } from "../../../../api/client"
 import { networkApi, type NetworkSettings } from "../../../../api/endpoints/network"
-import { systemApi, type StorageStatus } from "../../../../api/endpoints/system"
+import { useStorageMonitor } from "@/components/storage/StorageMonitor"
 import {
     renderRequiredLabel,
     validateFederationUrl,
@@ -56,9 +56,7 @@ export function FederationSettingsTab() {
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
     const [forbidden, setForbidden] = useState(false)
-    const [storage, setStorage] = useState<StorageStatus | null>(null)
-    const [storageLoading, setStorageLoading] = useState(true)
-    const [storageError, setStorageError] = useState<string | null>(null)
+    const { storage, loading: storageLoading, error: storageError, refresh: loadStorage } = useStorageMonitor()
     const [form, setForm] = useState({
         server_name: "",
         app_url: "",
@@ -106,29 +104,6 @@ export function FederationSettingsTab() {
     useEffect(() => {
         void load()
     }, [load])
-
-    const loadStorage = useCallback(async () => {
-        try {
-            setStorageLoading(true)
-            setStorageError(null)
-            const res = await systemApi.getStorageStatus()
-            if (res.code !== 0 && res.code !== 200) {
-                setStorage(null)
-                setStorageError(res.message || "Storage status is unavailable")
-                return
-            }
-            setStorage(res.data ?? null)
-        } catch {
-            setStorage(null)
-            setStorageError("Storage status is unavailable")
-        } finally {
-            setStorageLoading(false)
-        }
-    }, [])
-
-    useEffect(() => {
-        void loadStorage()
-    }, [loadStorage])
 
     const validateForm = (): boolean => {
         const nextErrors: Partial<Record<FederationField, string>> = {}
@@ -261,26 +236,25 @@ export function FederationSettingsTab() {
                     </div>
                 ) : (
                     <div className="settings-storage__content">
-                        <div className="settings-storage__summary">
-                            <span>Used: {formatStorageBytes(storage.used_bytes)} / {formatStorageBytes(storage.total_bytes)}</span>
-                            <span>Free: {formatStorageBytes(storage.free_bytes)}</span>
-                        </div>
-                        <div className="settings-storage__progress-row">
-                            <div
-                                className={`settings-storage__progress settings-storage__progress--${storage.status}`}
-                                role="progressbar"
-                                aria-label="Container disk usage"
-                                aria-valuemin={0}
-                                aria-valuemax={100}
-                                aria-valuenow={storage.used_percent}
-                            >
-                                <span style={{ width: `${Math.min(Math.max(storage.used_percent, 0), 100)}%` }} />
+                        {storage.filesystems.filter(item => item.scope === "container_root").map(item => (
+                            <div key={item.scope}>
+                                <strong>Container storage</strong>
+                                {item.available ? <>
+                                    <div className="settings-storage__summary">
+                                        <span>Used: {formatStorageBytes(item.used_bytes ?? 0)} / {formatStorageBytes(item.total_bytes ?? 0)}</span>
+                                        <span>Free: {formatStorageBytes(item.free_bytes ?? 0)}</span>
+                                    </div>
+                                    <div className="settings-storage__progress-row">
+                                        <div className={`settings-storage__progress settings-storage__progress--${item.status}`}
+                                            role="progressbar" aria-label={`${item.scope} disk usage`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={item.used_percent ?? 0}>
+                                            <span style={{ width: `${item.used_percent ?? 0}%` }} />
+                                        </div>
+                                        <span className={`settings-storage__status settings-storage__status--${item.status}`}>{storageHealthLabel(item.status)}</span>
+                                    </div>
+                                    <div className="settings-storage__percent">{item.used_percent?.toFixed(1)}% full</div>
+                                </> : <p>Storage status is unavailable</p>}
                             </div>
-                            <span className={`settings-storage__status settings-storage__status--${storage.status}`}>
-                                {storageHealthLabel(storage.status)}
-                            </span>
-                        </div>
-                        <div className="settings-storage__percent">{storage.used_percent.toFixed(1)}% full</div>
+                        ))}
                     </div>
                 )}
             </section>

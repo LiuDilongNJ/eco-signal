@@ -5,6 +5,10 @@ REM Windows CMD compatibility entrypoint. PowerShell contains the deployment log
 set "ARGS="
 :parse
 if "%~1"=="" goto run
+if /I "%~1"=="--prune-build-cache" (
+  set "ARGS=%ARGS% -PruneBuildCache"
+  goto next
+)
 if /I "%~1"=="--pull" (
   set "ARGS=%ARGS% -Pull"
   goto next

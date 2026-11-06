@@ -1,4 +1,4 @@
-"""Container storage status API route."""
+"""存储状态接口 / Storage status API."""
 
 from fastapi import APIRouter, HTTPException, status
 
@@ -16,10 +16,10 @@ router = APIRouter(tags=["系统管理 / system"])
 @router.get(
     "/storage",
     response_model=ApiResponse[StorageStatus],
-    summary="获取后端容器磁盘状态 / Get backend container storage status",
+    summary="获取文件系统容量 / Get filesystem capacity",
 )
 def read_storage_status(_current_user: ActiveAdmin) -> ApiResponse[StorageStatus]:
-    """Return the backend container root filesystem capacity for administrators."""
+    """仅管理员可读；不授予公开访问。 / Administrators only; no public access."""
     try:
         return api_success(data=get_storage_status())
     except StorageStatusUnavailableError as exc:

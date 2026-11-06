@@ -1,3 +1,4 @@
+import { StorageWarningBanner } from "@/components/storage/StorageMonitor"
 import { useEffect, useLayoutEffect, useState } from "react"
 import { AuthLoginHost } from "@/components/auth/AuthLoginHost"
 import { AuthSessionWatcher } from "@/components/auth/AuthSessionWatcher"
@@ -105,7 +106,10 @@ function App() {
                             style={{ zoom: scale }}
                         >
                             <AppProviders>
-                                <AppRouter />
+                                <div className="app-storage-layout">
+                                    <StorageWarningBanner />
+                                    <div className="app-route-content"><AppRouter /></div>
+                                </div>
                                 <AuthLoginHost />
                                 <AuthSessionWatcher />
                                 <PermissionDeniedWatcher />

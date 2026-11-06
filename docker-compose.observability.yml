@@ -7,10 +7,23 @@ services:
       - --storage.tsdb.path=/prometheus
       - --web.enable-lifecycle
     volumes:
+      - ./monitoring/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
       - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus-data:/prometheus
     ports:
       - "29090:9090"
+
+  node-exporter:
+    image: prom/node-exporter:v1.8.2
+    restart: always
+    profiles: ["host-metrics"]
+    command:
+      - --path.rootfs=/host
+      - --path.procfs=/host/proc
+      - --path.sysfs=/host/sys
+      - --collector.filesystem.mount-points-exclude=^/(dev|proc|sys|run/docker/netns)($$|/)
+    volumes:
+      - /:/host:ro,rslave
 
   grafana:
     image: grafana/grafana:11.1.5

@@ -8,18 +8,19 @@ from sqlmodel import Session
 
 from app.api.deps import get_redis_client
 from app.core.db import engine
-from app.enums import QueueStatus, WorkerTaskType
-from app.media_paths import normalize_media_relative_path
-from app.models import FileUpload, Queue
-from app.services.data_import_service import data_import_service
-from app.services.file_service import file_service
-from app.services.upload_validation_service import format_validation_error
-from app.workers.publisher import TaskPublisher
 from app.core.task_cancellation import (
     TASK_CANCELLED_MESSAGE,
     CancellationToken,
     TaskCancelledError,
 )
+from app.enums import QueueStatus, WorkerTaskType
+from app.media_paths import normalize_media_relative_path
+from app.models import FileUpload, Queue
+from app.services.data_import_service import data_import_service
+from app.services.detail_cache_service import pending_lock
+from app.services.file_service import file_service
+from app.services.upload_validation_service import format_validation_error
+from app.workers.publisher import TaskPublisher
 
 logger = logging.getLogger(__name__)
 
@@ -121,16 +122,17 @@ async def merge_file_chunks(
             if data_import is None:
                 raise RuntimeError("Chunk merge task is only available for offline imports")
             logger.info(f"Merging import bundle for {filename} (batch: {batch_id})")
-            merged_path = file_service.merge_and_validate_chunks(
-                filename=filename,
-                user_id=user_id,
-                batch_id=batch_id,
-                media_type="zip",
-            )
-            # Update FileUpload record with actual path and status
-            file_upload.path = str(normalize_media_relative_path(merged_path))
-            file_upload.status = 1  # pending (ready for processing)
-            session.commit()
+            with pending_lock(file_service.base_dir / "tmp" / "pending" / str(user_id) / filename):
+                merged_path = file_service.merge_and_validate_chunks(
+                    filename=filename,
+                    user_id=user_id,
+                    batch_id=batch_id,
+                    media_type="zip",
+                )
+                # Update FileUpload record with actual path and status
+                file_upload.path = str(normalize_media_relative_path(merged_path))
+                file_upload.status = 1  # pending (ready for processing)
+                session.commit()
 
             if cancellation_token is not None:
                 cancellation_token.raise_if_cancelled()

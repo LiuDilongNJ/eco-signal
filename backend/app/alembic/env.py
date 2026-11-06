@@ -8,7 +8,7 @@ from sqlalchemy import engine_from_config, pool
 config = context.config
 
 # Interpret the config file for Python logging.
-fileConfig(config.config_file_name)
+fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 # add your model's MetaData object here
 # for 'autogenerate' support

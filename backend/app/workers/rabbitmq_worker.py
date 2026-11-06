@@ -18,8 +18,8 @@ from aio_pika.abc import (
     AbstractRobustChannel,
     AbstractRobustConnection,
 )
-from sqlmodel import Session
 from prometheus_client import Counter, Histogram
+from sqlmodel import Session
 
 from app.core.config import settings
 from app.core.db import engine
@@ -54,14 +54,15 @@ from app.workers.tasks import (
     analyze_batdetect,
     analyze_birdnet,
     analyze_insects,
+    cleanup_audio_assets,
     cleanup_expired_chunks,
     cleanup_expired_collection_bundle_exports,
     cleanup_expired_offline_imports,
     export_collection_bundle,
     import_collection_bundle,
     merge_file_chunks,
-    process_media_batch,
     process_audio_resampling,
+    process_media_batch,
     startup_sync_network_nodes,
     sync_network_nodes,
 )
@@ -345,6 +346,15 @@ def _runs_maintenance() -> bool:
     return settings.WORKER_QUEUE.strip().lower() in {"interactive", "all"}
 
 
+async def _run_audio_maintenance() -> None:
+    while True:
+        try:
+            await cleanup_audio_assets({})
+        except Exception:
+            logger.exception("Scheduled audio maintenance failed")
+        await asyncio.sleep(settings.DETAIL_CACHE_CLEANUP_SECONDS)
+
+
 async def _start_maintenance() -> list[asyncio.Task[None]]:
     await startup_sync_network_nodes({})
     schedules = (
@@ -353,7 +363,7 @@ async def _start_maintenance() -> list[asyncio.Task[None]]:
         (3, 30, cleanup_expired_offline_imports, "cleanup_expired_offline_imports"),
         (4, 0, cleanup_expired_collection_bundle_exports, "cleanup_expired_collection_bundle_exports"),
     )
-    return [
+    return [asyncio.create_task(_run_audio_maintenance(), name="maintenance:audio_assets")] + [
         asyncio.create_task(_run_daily(hour, minute, func, name), name=f"maintenance:{name}")
         for hour, minute, func, name in schedules
     ]

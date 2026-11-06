@@ -1,0 +1,45 @@
+groups:
+  - name: storage
+    rules:
+      - alert: StorageSpaceWarning
+        expr: ecosignal_storage_used_percent >= 80 and ecosignal_storage_available == 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Filesystem usage is at least 80%"
+      - alert: StorageSpaceCritical
+        expr: ecosignal_storage_used_percent >= 90 and ecosignal_storage_available == 1
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Filesystem usage is at least 90%"
+      - alert: StorageStatusUnavailable
+        expr: ecosignal_storage_available == 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Filesystem capacity cannot be sampled"
+      - alert: DetailCacheMaintenanceStale
+        expr: time() - ecosignal_detail_cache_state{kind="last_success"} > 900
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Audio cache cleanup has not succeeded recently"
+      - alert: HostStorageSpaceWarning
+        expr: 100 * (1 - node_filesystem_avail_bytes{fstype!~"tmpfs|overlay|squashfs"} / node_filesystem_size_bytes) >= 80 and node_filesystem_readonly == 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Host filesystem usage is at least 80%"
+      - alert: HostStorageSpaceCritical
+        expr: 100 * (1 - node_filesystem_avail_bytes{fstype!~"tmpfs|overlay|squashfs"} / node_filesystem_size_bytes) >= 90 and node_filesystem_readonly == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Host filesystem usage is at least 90%"

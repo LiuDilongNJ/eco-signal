@@ -112,7 +112,7 @@ export const usersApi = {
     deleteUser(user_id: number) {
         return apiClient.delete<{ code: number; message: string; data: any }>(`/v1/users/${user_id}`)
     },
-    getMe(config?: { ignoreUnauthorized?: boolean; project_id?: number; collection_id?: number }) {
+    getMe(config?: { signal?: AbortSignal; ignoreUnauthorized?: boolean; project_id?: number; collection_id?: number }) {
         const { project_id, collection_id, ...requestConfig } = config ?? {}
         const params =
             project_id !== undefined && project_id !== null

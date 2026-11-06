@@ -176,3 +176,17 @@ GRAFANA_ADMIN_PASSWORD=admin123
 3. Configure Prometheus to scrape the backend address it can reach.
 4. Configure Grafana to use the Prometheus URL it can reach.
 5. Set `SENTRY_DSN` if Sentry error reporting is needed.
+
+## Filesystem and audio-cache alerts
+
+Storage gauges report `scope=container_root|media`; they are sampled at scrape time without summing the same capacity across API processes. The cache snapshot records bytes, bundle count, checked time, and last successful cleanup. Counters record removed bundles, accounting bytes released, cleanup errors, locked bundles and build rejections, with no media identifiers as labels.
+
+`monitoring/prometheus/alerts.yml` defines 80% for five minutes and 90% for one minute, unavailable capacity, and stale audio maintenance alerts. Rules appear in Prometheus; this configuration does not add an external notification receiver.
+
+On Linux, enable host filesystem metrics with:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.observability.yml --profile host-metrics up -d
+```
+
+The node exporter mounts the host root read-only and exposes metrics only on the Compose network. Omit that profile where host-root mounting is unavailable; the host scrape target will then be down while application metrics remain available. Docker Desktop describes the Docker VM, not the macOS/Windows physical disk. Monitor that physical disk separately. Container root and media storage are different scopes and must not be added together.

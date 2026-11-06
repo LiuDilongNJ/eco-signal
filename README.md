@@ -144,3 +144,9 @@ This project is a refactor of **ecoSound-web**.
 - **License**: Licensed under the [GNU General Public License, v3](https://www.gnu.org/licenses/gpl-3.0.en.html).
 
 The corresponding updatable scientific publication is in [F1000Research](https://f1000research.com/articles/9-1224/v3).
+
+### Storage protection
+
+Detail audio assets expire after 12 hours and are cleaned at worker startup and every five minutes. The cache defaults to a 10 GiB limit with an 8 GiB cleanup target. New builds run one at a time across API processes and preserve at least 5 GiB or 10% free space, whichever is greater; cached reads remain available. Administrators see a warning at 80% filesystem usage and a critical warning at 90%. Container root and media storage are reported separately.
+
+See [storage operations](docs/operations-guide.md#storage-protection) for configuration, bounded deployment cleanup, and host monitoring. No database migration is required.

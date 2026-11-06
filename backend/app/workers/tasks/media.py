@@ -33,6 +33,7 @@ from app.models import (
     Queue,
 )
 from app.services import annotation_service
+from app.services.detail_cache_service import pending_lock
 from app.services.file_service import file_service
 from app.services.media_preview_service import (
     generate_media_previews,
@@ -476,34 +477,35 @@ def _merge_batch_file(
             return {"error": "FileUpload not found"}
         if file_upload.path:
             return {"status": "ready"}
-        try:
-            merged_path = file_service.merge_and_validate_chunks(
-                filename=file_upload.filename,
-                user_id=file_upload.uploader_id,
-                batch_id=str(file_upload.batch_id) if file_upload.batch_id else None,
-                media_type=media_type,
-            )
-        except HTTPException as exc:
-            reason = str(exc.detail) if isinstance(exc.detail, str) else "invalid_file_content"
-            logger.warning("Failed to merge uploaded file %s: %s", file_upload_id, reason)
-            file_upload.status = 4
-            file_upload.error = reason
-            session.add(file_upload)
-            session.commit()
-            return {"error": reason}
-        except Exception:
-            logger.exception("Failed to merge uploaded file %s", file_upload_id)
-            file_upload.status = 4
-            file_upload.error = "invalid_file_content"
-            session.add(file_upload)
-            session.commit()
-            return {"error": file_upload.error}
+        with pending_lock(file_service.base_dir / "tmp" / "pending" / str(file_upload.uploader_id) / file_upload.filename):
+            try:
+                merged_path = file_service.merge_and_validate_chunks(
+                    filename=file_upload.filename,
+                    user_id=file_upload.uploader_id,
+                    batch_id=str(file_upload.batch_id) if file_upload.batch_id else None,
+                    media_type=media_type,
+                )
+            except HTTPException as exc:
+                reason = str(exc.detail) if isinstance(exc.detail, str) else "invalid_file_content"
+                logger.warning("Failed to merge uploaded file %s: %s", file_upload_id, reason)
+                file_upload.status = 4
+                file_upload.error = reason
+                session.add(file_upload)
+                session.commit()
+                return {"error": reason}
+            except Exception:
+                logger.exception("Failed to merge uploaded file %s", file_upload_id)
+                file_upload.status = 4
+                file_upload.error = "invalid_file_content"
+                session.add(file_upload)
+                session.commit()
+                return {"error": file_upload.error}
 
-        file_upload.path = str(normalize_media_relative_path(merged_path))
-        file_upload.status = 1
-        file_upload.error = None
-        session.add(file_upload)
-        session.commit()
+            file_upload.path = str(normalize_media_relative_path(merged_path))
+            file_upload.status = 1
+            file_upload.error = None
+            session.add(file_upload)
+            session.commit()
         return {"status": "ready"}
 
 

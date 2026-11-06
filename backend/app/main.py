@@ -8,9 +8,18 @@ from urllib.parse import parse_qsl, urlencode
 import sentry_sdk
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import FileResponse, JSONResponse, Response as RawResponse
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import Response as RawResponse
 from fastapi.routing import APIRoute
-from prometheus_client import CONTENT_TYPE_LATEST, CollectorRegistry, Counter, Gauge, Histogram, generate_latest, multiprocess
+from prometheus_client import (
+    CONTENT_TYPE_LATEST,
+    CollectorRegistry,
+    Counter,
+    Gauge,
+    Histogram,
+    generate_latest,
+    multiprocess,
+)
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.cors import CORSMiddleware
 
@@ -19,7 +28,6 @@ from app.api.middleware import operation_log_middleware
 from app.core.config import settings
 from app.core.db import engine
 from app.core.exceptions import AppValidationError
-from app.repositories.geo_repository import GeoDataUnavailableError
 from app.core.observability import (
     REQUEST_ID_HEADER,
     bind_request_id,
@@ -35,7 +43,13 @@ from app.media_paths import (
     media_root,
     resolve_existing_media_path,
 )
+from app.repositories.geo_repository import GeoDataUnavailableError
 from app.schemas.response import ApiErrorResponse
+from app.services import detail_cache_service
+from app.services.storage_service import (
+    StorageStatusUnavailableError,
+    get_storage_status,
+)
 
 logger = logging.getLogger(__name__)
 PROM_REGISTRY = CollectorRegistry(auto_describe=True)
@@ -62,6 +76,11 @@ PROM_DB_POOL_CONNECTIONS = Gauge(
     labelnames=("state",),
     registry=_METRIC_REGISTRY,
 )
+
+PROM_STORAGE = Gauge("ecosignal_storage_bytes", "Filesystem capacity", ("scope", "kind"), registry=_METRIC_REGISTRY, multiprocess_mode="livemax")
+PROM_STORAGE_USED = Gauge("ecosignal_storage_used_percent", "Filesystem usage percent", ("scope",), registry=_METRIC_REGISTRY, multiprocess_mode="livemax")
+PROM_STORAGE_AVAILABLE = Gauge("ecosignal_storage_available", "Filesystem capacity sample availability", ("scope",), registry=_METRIC_REGISTRY, multiprocess_mode="livemin")
+PROM_CACHE = Gauge("ecosignal_detail_cache_state", "Audio cache maintenance snapshot", ("kind",), registry=_METRIC_REGISTRY, multiprocess_mode="livemax")
 
 
 def custom_generate_unique_id(route: APIRoute) -> str:
@@ -239,7 +258,23 @@ def metrics() -> RawResponse:
     PROM_DB_POOL_CONNECTIONS.labels(state="checked_out").set(pool.checkedout())
     PROM_DB_POOL_CONNECTIONS.labels(state="checked_in").set(pool.checkedin())
     PROM_DB_POOL_CONNECTIONS.labels(state="overflow").set(max(pool.overflow(), 0))
+    try:
+        storage = get_storage_status()
+        for filesystem in storage.filesystems:
+            PROM_STORAGE_AVAILABLE.labels(filesystem.scope).set(int(filesystem.available))
+            if filesystem.available:
+                PROM_STORAGE_USED.labels(filesystem.scope).set(filesystem.used_bytes / filesystem.total_bytes * 100)
+                for kind in ("total", "used", "free"):
+                    PROM_STORAGE.labels(filesystem.scope, kind).set(getattr(filesystem, f"{kind}_bytes"))
+    except StorageStatusUnavailableError:
+        for scope in ("container_root", "media"):
+            PROM_STORAGE_AVAILABLE.labels(scope).set(0)
+    snapshot = detail_cache_service.read_snapshot()
+    for kind in ("bytes_used", "bundles", "last_success", "checked_at"):
+        PROM_CACHE.labels(kind).set(snapshot.get(kind, 0))
     metrics_body = generate_latest(PROM_REGISTRY)
+    if not _PROM_MULTIPROC_ENABLED:
+        metrics_body += generate_latest(detail_cache_service.METRIC_REGISTRY)
     return RawResponse(content=metrics_body, media_type=CONTENT_TYPE_LATEST)
 
 

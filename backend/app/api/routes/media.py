@@ -1,6 +1,7 @@
 """媒体 API 路由。 / Media API routes."""
 import logging
 import mimetypes
+from contextlib import ExitStack
 from datetime import datetime
 from typing import Any, Literal, Optional
 
@@ -22,6 +23,7 @@ from app.core.config import settings
 from app.csv_import import attach_import_metadata, parse_import_upload
 from app.models import User
 from app.schemas.media import (
+    AudioFileMetadataPublic,
     MediaBatchOperationResponse,
     MediaBrowseGalleryItem,
     MediaBrowseListItem,
@@ -29,7 +31,6 @@ from app.schemas.media import (
     MediaCollectionLinksSyncRequest,
     MediaCreate,
     MediaCreateResponse,
-    AudioFileMetadataPublic,
     MediaListPublic,
     MediaNavigation,
     MediaOption,
@@ -43,8 +44,9 @@ from app.schemas.response import (
     PagedApiResponse,
     api_success,
 )
-from app.services import authorization_service, media_service
+from app.services import authorization_service, detail_cache_service, media_service
 from app.services.authorization_policy import AuthorizationAction
+from app.services.detail_asset_response import DetailAssetFileResponse
 from app.spectrogram import WINDOW_FUNCTIONS
 
 router = APIRouter(prefix="/media", tags=["媒体 / media"])
@@ -569,32 +571,38 @@ def stream_audio(
     # Permission check (reuse get_media which checks permissions)
     media_service.get_media(session, project_id, media_id, current_user)
 
+    leases = ExitStack()
     try:
-        file_path, media_type, download_filename = media_service.get_audio_stream_payload(
-            session,
-            media_id,
-            start_time=start_time,
-            end_time=end_time,
-            min_freq=min_freq if filter else None,
-            max_freq=max_freq if filter else None,
-            channel=channel,
-            filter_enabled=filter,
-            fft_size=(
-                int(fft_size)
-                if fft_size is not None
-                else media_service.resolve_spectrogram_fft_size(session, current_user)
-            ),
-            download=download,
-            original=original,
-        )
-    except Exception as exc:
+        with detail_cache_service.read_scope(leases):
+            file_path, media_type, download_filename = media_service.get_audio_stream_payload(
+                session,
+                media_id,
+                start_time=start_time,
+                end_time=end_time,
+                min_freq=min_freq if filter else None,
+                max_freq=max_freq if filter else None,
+                channel=channel,
+                filter_enabled=filter,
+                fft_size=(
+                    int(fft_size)
+                    if fft_size is not None
+                    else media_service.resolve_spectrogram_fft_size(session, current_user)
+                ),
+                download=download,
+                original=original,
+            )
+    except BaseException as exc:
+        leases.close()
         if isinstance(exc, HTTPException):
+            raise
+        if not isinstance(exc, Exception):
             raise
         logger.error("audio processing failed: %s", exc)
         raise HTTPException(status_code=500, detail="Audio processing failed") from exc
 
-    return FileResponse(
+    return DetailAssetFileResponse(
         str(file_path),
+        leases=leases,
         media_type=media_type,
         headers={
             "Content-Disposition": build_download_content_disposition(download_filename)

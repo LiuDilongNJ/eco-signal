@@ -4,9 +4,13 @@ from fastapi.testclient import TestClient
 
 from app.core.config import settings
 from app.main import app
+from app.schemas.storage import FilesystemStatus, StorageStatus
+from app.services.storage_service import StorageStatusUnavailableError
 
 
-def test_health_response_contains_meta_and_request_id_header(client: TestClient) -> None:
+def test_health_response_contains_meta_and_request_id_header(
+    client: TestClient,
+) -> None:
     response = client.get(f"{settings.API_V1_STR}/health")
 
     assert response.status_code == 200
@@ -51,10 +55,52 @@ def test_unhandled_exception_is_captured_by_sentry(client: TestClient) -> None:
         ),
     ):
         with TestClient(app, raise_server_exceptions=False) as local_client:
-            response = local_client.get(f"{settings.API_V1_STR}/media/1", params={"project_id": 1})
+            response = local_client.get(
+                f"{settings.API_V1_STR}/media/1", params={"project_id": 1}
+            )
 
     assert response.status_code == 500
     body = response.json()
     assert body["message"] == "Internal Server Error"
     assert "meta" in body
     mock_capture.assert_called_once()
+
+
+def test_metrics_reports_storage_and_cache_snapshot(client, monkeypatch):
+    monkeypatch.setattr(
+        "app.main.get_storage_status",
+        lambda: StorageStatus(
+            checked_at="2026-11-05 00:00:00",
+            status="warning",
+            filesystems=[
+                FilesystemStatus(
+                    scope="media",
+                    path="/media",
+                    available=True,
+                    total_bytes=1000,
+                    free_bytes=200,
+                    used_bytes=800,
+                    used_percent=80,
+                    status="warning",
+                )
+            ],
+        ),
+    )
+    monkeypatch.setattr(
+        "app.main.detail_cache_service.read_snapshot",
+        lambda: {"bytes_used": 4096, "bundles": 1, "last_success": 123},
+    )
+    response = client.get("/metrics")
+    assert response.status_code == 200
+    assert 'ecosignal_storage_used_percent{scope="media"} 80.0' in response.text
+    assert 'ecosignal_detail_cache_state{kind="bytes_used"} 4096.0' in response.text
+
+
+def test_metrics_remains_available_when_storage_cannot_be_sampled(client, monkeypatch):
+    def unavailable():
+        raise StorageStatusUnavailableError()
+
+    monkeypatch.setattr("app.main.get_storage_status", unavailable)
+    response = client.get("/metrics")
+    assert response.status_code == 200
+    assert 'ecosignal_storage_available{scope="media"} 0.0' in response.text

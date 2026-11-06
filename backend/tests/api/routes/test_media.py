@@ -3906,7 +3906,7 @@ class TestDetailAudio:
         assert len(bundle_dirs) == 1
         manifest = json.loads((bundle_dirs[0] / "manifest.json").read_text())
         assert manifest["parameters"]["start_time"] == 0.1235
-        assert manifest["parameters"]["end_time"] == 0.5432
+        assert manifest["parameters"]["end_time"] == pytest.approx((5928 + 20146) / 48000)
         assert manifest["parameters"]["min_freq"] == 3810.5678
         assert manifest["parameters"]["max_freq"] == 8121.2198
 

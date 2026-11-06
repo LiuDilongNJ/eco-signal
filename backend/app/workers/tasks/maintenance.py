@@ -1,17 +1,22 @@
 """Maintenance tasks for system cleanup."""
+import asyncio
 import logging
 import shutil
 import time
+from dataclasses import asdict
 from datetime import UTC, datetime
 from typing import Any
 
 from sqlmodel import Session
 
 from app.api.deps import get_redis_client
+from app.core.config import settings
 from app.core.db import engine
 from app.media_paths import logical_chunk_dir_path, media_root
 from app.models import FileUpload
 from app.repositories import collection_bundle_export_repository
+from app.repositories.file_upload_repository import file_upload_repository
+from app.services import detail_cache_service as detail_cache
 from app.services.data_import_service import data_import_service
 
 logger = logging.getLogger(__name__)
@@ -165,3 +170,49 @@ async def startup_sync_network_nodes(ctx: dict[str, Any]) -> dict[str, Any]:
         result.message,
     )
     return {"synced": result.synced, "message": result.message}
+
+
+def _cleanup_pending_files() -> dict[str, int]:
+    pending = media_root() / "tmp" / "pending"
+    result = {"deleted": 0, "freed_bytes": 0, "skipped_locked": 0, "errors": 0}
+    if not detail_cache.safe_directory(pending, media_root()):
+        return result
+    cutoff = time.time() - settings.PENDING_FILE_TTL_SECONDS
+    try:
+        with Session(engine) as session:
+            for user_dir in pending.iterdir():
+                if not detail_cache.safe_directory(user_dir, pending):
+                    continue
+                for path in user_dir.iterdir():
+                    try:
+                        if path.is_symlink() or not path.is_file() or path.stat().st_mtime >= cutoff:
+                            continue
+                        with detail_cache.pending_lock(path, timeout=0):
+                            relative = path.relative_to(media_root()).as_posix()
+                            if file_upload_repository.is_path_referenced(session, relative):
+                                continue
+                            if path.stat().st_mtime >= cutoff:
+                                continue
+                            size = path.stat().st_size
+                            path.unlink()
+                            result["deleted"] += 1
+                            result["freed_bytes"] += size
+                    except detail_cache.CacheLockTimeout:
+                        result["skipped_locked"] += 1
+                    except FileNotFoundError:
+                        continue
+                    except OSError:
+                        result["errors"] += 1
+                        logger.exception("Could not remove pending upload: %s", path)
+    except Exception:
+        result["errors"] += 1
+        logger.exception("Pending upload cleanup unavailable")
+    logger.info("Pending upload cleanup completed: %s", result)
+    return result
+
+
+async def cleanup_audio_assets(ctx: dict[str, Any]) -> dict[str, Any]:
+    del ctx
+    cache_result = await asyncio.to_thread(detail_cache.cleanup)
+    pending_result = await asyncio.to_thread(_cleanup_pending_files)
+    return {"detail": asdict(cache_result), "pending": pending_result}

@@ -144,3 +144,9 @@ docker compose exec -T frontend npm run build
 - **许可证**: 根据 [GNU General Public License, v3](https://www.gnu.org/licenses/gpl-3.0.en.html) 许可。
 
 相应的可更新科学出版物位于 [F1000Research](https://f1000research.com/articles/9-1224/v3)。
+
+### 存储空间保护
+
+详情音频缓存保留 12 小时，worker 启动时及每五分钟清理一次。默认容量上限为 10 GiB，清理目标为 8 GiB。新构建在所有 API 进程间串行执行，至少保留 5 GiB 或文件系统容量的 10% 可用空间，取较大值；缓存命中仍可读取。文件系统使用率达到 80% 时向管理员显示警告，达到 90% 时显示严重警告，容器根目录与媒体存储分别报告。
+
+配置、受限部署清理及宿主机监控见[存储运维说明](docs/operations-guide.zh.md#存储空间保护)。本次无需数据库迁移。

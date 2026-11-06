@@ -1,16 +1,22 @@
 """Tasks package - exports all task functions."""
-from app.workers.tasks.analysis import analyze_birdnet, analyze_batdetect, analyze_insects, analyze_acoustic_index
+from app.workers.tasks.analysis import (
+    analyze_acoustic_index,
+    analyze_batdetect,
+    analyze_birdnet,
+    analyze_insects,
+)
 from app.workers.tasks.files import merge_file_chunks
 from app.workers.tasks.maintenance import (
+    cleanup_audio_assets,
     cleanup_expired_chunks,
-    cleanup_expired_offline_imports,
     cleanup_expired_collection_bundle_exports,
-    sync_network_nodes,
+    cleanup_expired_offline_imports,
     startup_sync_network_nodes,
+    sync_network_nodes,
 )
 from app.workers.tasks.media import process_audio_resampling, process_media_batch
-from app.workers.tasks.offline_imports import import_collection_bundle
 from app.workers.tasks.offline_exports import export_collection_bundle
+from app.workers.tasks.offline_imports import import_collection_bundle
 
 __all__ = [
     "analyze_birdnet",
@@ -19,6 +25,7 @@ __all__ = [
     "analyze_acoustic_index",
     "process_media_batch",
     "process_audio_resampling",
+    "cleanup_audio_assets",
     "cleanup_expired_chunks",
     "cleanup_expired_offline_imports",
     "cleanup_expired_collection_bundle_exports",

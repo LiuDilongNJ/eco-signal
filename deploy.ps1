@@ -1,5 +1,6 @@
 [CmdletBinding()]
 param(
+    [switch]$PruneBuildCache,
     [switch]$CheckCerts,
     [switch]$ReloadCerts,
     [switch]$Pull,
@@ -52,9 +53,10 @@ $mediaStorageMode = if ($env:MEDIA_STORAGE_MODE) { $env:MEDIA_STORAGE_MODE } els
 if (-not $mediaStorageMode) { $mediaStorageMode = 'managed' }
 
 . ./scripts/tls/deploy.ps1
+. ./scripts/storage/deploy.ps1
 if ($CheckCerts) {
     try {
-        if ($ReloadCerts -or $Pull -or $GeoDb -or $DryRun -or $ForceUnlock -or $Maintenance) {
+        if ($PruneBuildCache -or $ReloadCerts -or $Pull -or $GeoDb -or $DryRun -or $ForceUnlock -or $Maintenance) {
             throw '-CheckCerts cannot be combined with deployment actions'
         }
         if ($httpsValue -notin @('true', 'false')) { throw 'ENABLE_HTTPS must be true or false' }
@@ -138,7 +140,7 @@ try {
 Set-Content -LiteralPath (Join-Path $lockDir 'owner') -Value "pid=$PID`nhost=$env:COMPUTERNAME`nstarted_at=$([DateTime]::UtcNow.ToString('o'))" -NoNewline
 
 try {
-    if ($ReloadCerts -and (-not $httpsEnabled -or $httpsMode -ne 'static' -or $Maintenance -or $DryRun -or $Pull -or $GeoDb)) {
+    if ($ReloadCerts -and ($PruneBuildCache -or -not $httpsEnabled -or $httpsMode -ne 'static' -or $Maintenance -or $DryRun -or $Pull -or $GeoDb)) {
         throw '-ReloadCerts requires static HTTPS and cannot be combined with deployment actions'
     }
     if ($DryRun -and $Maintenance) { throw '-DryRun cannot be combined with -Maintenance' }
@@ -178,6 +180,7 @@ try {
         Invoke-Docker @('compose', '--project-name', 'ecosignal-traefik', '-f', 'docker-compose.traefik.yml', 'config', '-q')
         Invoke-Docker @('compose', '--project-name', $projectName, '-f', $maintenanceCompose, 'config', '-q')
     }
+    if (-not $DryRun -and -not $ReloadCerts) { Test-BuildSpace }
     if (-not $DryRun -or ($httpsEnabled -and $httpsMode -eq 'static')) {
         Invoke-Docker @('build', '-q', '-t', $script:tlsImage, 'scripts/tls')
     }
@@ -240,6 +243,7 @@ try {
     if ((Get-ComposeEnvironmentValue 'INSECTS_MODEL_MODE') -eq 'disabled') {
         Write-Warning "Insects recognition is disabled"
     }
+    Clear-DeploymentStorage
     Write-Host "Deployment succeeded: $domain"
     Invoke-Compose @('ps')
 } catch {

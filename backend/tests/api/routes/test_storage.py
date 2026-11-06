@@ -10,10 +10,10 @@ from app.core.config import settings
 @pytest.mark.parametrize(
     ("used_percent", "expected_status"),
     [
-        (69.9, "healthy"),
-        (70.0, "warning"),
-        (84.9, "warning"),
-        (85.0, "critical"),
+        (79.9, "healthy"),
+        (80.0, "warning"),
+        (89.9, "warning"),
+        (90.0, "critical"),
     ],
 )
 def test_get_storage_status_for_admin(
@@ -38,14 +38,13 @@ def test_get_storage_status_for_admin(
     assert response.status_code == 200, response.json()
     payload = response.json()
     assert payload["code"] == 0
-    assert payload["data"] == {
-        "path": "/",
-        "total_bytes": total,
-        "used_bytes": expected_used,
-        "free_bytes": free,
-        "used_percent": round((expected_used / total) * 100, 1),
-        "status": expected_status,
-    }
+    assert payload["data"]["status"] == expected_status
+    assert len(payload["data"]["filesystems"]) == 2
+    for item in payload["data"]["filesystems"]:
+        assert item["used_bytes"] == expected_used
+        assert item["used_percent"] == round((expected_used / total) * 100, 1)
+        assert item["status"] == expected_status
+        assert item["available"] is True
 
 
 def test_get_storage_status_forbidden_for_normal_user(
@@ -80,4 +79,32 @@ def test_get_storage_status_returns_503_when_disk_read_fails(
         )
 
     assert response.status_code == 503
-    assert response.json()["message"] == "Container storage status is unavailable"
+    assert response.json()["message"] == "Storage status is unavailable"
+
+
+def test_get_storage_status_keeps_partial_results(client, superuser_token_headers):
+    with patch(
+        "app.services.storage_service.shutil.disk_usage",
+        side_effect=[OSError(), SimpleNamespace(total=10000, free=2000)],
+    ):
+        response = client.get(
+            f"{settings.API_V1_STR}/system/storage", headers=superuser_token_headers
+        )
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert data["status"] == "warning"
+    assert data["filesystems"][0]["available"] is False
+    assert data["filesystems"][0]["free_bytes"] is None
+
+
+def test_get_storage_status_uses_unrounded_threshold(client, superuser_token_headers):
+    with patch(
+        "app.services.storage_service.shutil.disk_usage",
+        return_value=SimpleNamespace(total=100000, free=20001),
+    ):
+        response = client.get(
+            f"{settings.API_V1_STR}/system/storage", headers=superuser_token_headers
+        )
+    data = response.json()["data"]
+    assert data["filesystems"][0]["used_percent"] == 80.0
+    assert data["status"] == "healthy"

@@ -17,7 +17,14 @@ from pathlib import Path
 args = sys.argv[1:]
 with open('commands.jsonl', 'a') as log:
     log.write(json.dumps(args) + '\n')
-if '--environment' in args:
+if args[:1] == ['info']:
+    print('/var/lib/docker')
+elif args[:1] == ['run'] and 'alpine:3.22' in args:
+    print('/dev/test 100000000 10000000 ' + os.getenv('STORAGE_FREE_KIB', '90000000') + ' 10% /docker')
+elif '--help' in args and 'prune' in args:
+    if not os.getenv('UNSUPPORTED_PRUNE'):
+        print('--filter --keep-storage')
+elif '--environment' in args:
     if os.getenv('FAIL_CONFIG'):
         sys.exit(15)
     print('INSECTS_MODEL_MODE=' + os.getenv('INSECTS_MODEL_MODE', 'download'))
@@ -35,6 +42,8 @@ elif args[0] == 'inspect':
         print(json.dumps([{"Config":{"Labels":{"ecosignal.tls-mode":"static","ecosignal.domain":"app.test","com.docker.compose.project.working_dir":os.getcwd()}}}]))
 elif 'ps' in args and '-q' in args:
     print('frontend-test')
+if 'prune' in args and '--help' not in args and os.getenv('FAIL_PRUNE'):
+    sys.exit(1)
 if 'install' in args and os.getenv('FAIL_INSTALL'):
     sys.exit(1)
 if 'nginx' in args and '-t' in args and os.getenv('FAIL_NGINX') and not Path('failed').exists():
@@ -56,6 +65,7 @@ def entrypoint(request, tmp_path):
     shutil.copy(ROOT / 'deploy.ps1', tmp_path)
     (tmp_path / 'test-entry.ps1').write_text('$env:PATH = "$PSScriptRoot/bin" + [IO.Path]::PathSeparator + $env:PATH\n& "$PSScriptRoot/deploy.ps1" @args\nexit $LASTEXITCODE\n')
     shutil.copytree(ROOT / 'scripts/tls', tmp_path / 'scripts/tls')
+    shutil.copytree(ROOT / 'scripts/storage', tmp_path / 'scripts/storage')
     (tmp_path / 'cert.pem').write_text('source certificate')
     (tmp_path / 'key.pem').write_text('source key')
     (tmp_path / 'bin').mkdir()
@@ -70,12 +80,12 @@ def entrypoint(request, tmp_path):
             command.append(arguments[action])
         if action == 'maintenance':
             command.append('status')
-        options = {'pull': ['--pull'], 'geo': ['--geo-db'], 'unlock': ['--force-unlock']} if request.param == 'bash' else {'pull': ['-Pull'], 'geo': ['-GeoDb'], 'unlock': ['-ForceUnlock']}
+        options = {'pull': ['--pull'], 'geo': ['--geo-db'], 'unlock': ['--force-unlock'], 'prune': ['--prune-build-cache']} if request.param == 'bash' else {'pull': ['-Pull'], 'geo': ['-GeoDb'], 'unlock': ['-ForceUnlock'], 'prune': ['-PruneBuildCache']}
         for flag in flags:
             command.extend(options[flag] if flag in options else [arguments[flag]])
             if flag == 'maintenance':
                 command.append('status')
-        result = subprocess.run(command, cwd=tmp_path, env={**os.environ, 'PATH': str(tmp_path / 'bin') + ':' + os.environ['PATH'], **extra}, capture_output=True, text=True)
+        result = subprocess.run(command, cwd=tmp_path, env={**os.environ, 'PATH': str(tmp_path / 'bin') + ':' + os.environ['PATH'], 'STACK_NAME': 'tls-test', 'DOMAIN': 'app.test', 'ENABLE_HTTPS': 'true', 'HTTPS_MODE': 'static', 'TLS_CERT_FILE': str(tmp_path / 'cert.pem'), 'TLS_KEY_FILE': str(tmp_path / 'key.pem'), 'MEDIA_STORAGE_MODE': 'managed', **extra}, capture_output=True, text=True)
         assert (tmp_path / 'commands.jsonl').exists(), result.stdout + result.stderr
         commands = [json.loads(line) for line in (tmp_path / 'commands.jsonl').read_text().splitlines()]
         return result, commands
@@ -239,3 +249,50 @@ def test_deployment_warns_when_insects_disabled(entrypoint):
     result, _ = run('deploy', INSECTS_MODEL_MODE='disabled')
     assert result.returncode == 0, result.stdout + result.stderr
     assert 'Insects recognition is disabled' in result.stdout + result.stderr
+
+
+def test_deployment_stops_before_build_when_docker_space_is_low(entrypoint):
+    _, run = entrypoint
+    result, commands = run('deploy', STORAGE_FREE_KIB='1000')
+    assert result.returncode != 0
+    assert 'Insufficient Docker storage' in result.stdout + result.stderr
+    assert not any('build' in command for command in commands)
+
+
+def test_deployment_prunes_only_project_dangling_images(entrypoint):
+    _, run = entrypoint
+    result, commands = run('deploy')
+    assert result.returncode == 0, result.stdout + result.stderr
+    prunes = [command for command in commands if 'prune' in command and '--help' not in command]
+    assert len(prunes) == 1
+    assert 'image' in prunes[0] and 'label=org.ecosignal.project=tls-test' in prunes[0]
+    assert '--all' not in prunes[0] and '-a' not in prunes[0]
+
+
+def test_builder_cleanup_requires_explicit_option(entrypoint):
+    _, run = entrypoint
+    result, commands = run('deploy', flags=('prune',))
+    assert result.returncode == 0, result.stdout + result.stderr
+    prune = next(command for command in commands if 'builder' in command and 'prune' in command and '--help' not in command)
+    assert 'until=168h' in prune and '--keep-storage' in prune and '20GB' in prune
+
+
+def test_dry_run_does_not_prune_storage(entrypoint):
+    _, run = entrypoint
+    result, commands = run('dry', flags=('prune',))
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert not any('prune' in command for command in commands)
+
+
+def test_unsupported_prune_is_skipped_without_unbounded_fallback(entrypoint):
+    _, run = entrypoint
+    result, commands = run('deploy', flags=('prune',), UNSUPPORTED_PRUNE='1')
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert not any('prune' in command and '--help' not in command for command in commands)
+
+
+def test_cleanup_failure_keeps_successful_deployment(entrypoint):
+    _, run = entrypoint
+    result, _ = run('deploy', flags=('prune',), FAIL_PRUNE='1')
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert 'cleanup failed' in (result.stdout + result.stderr).lower()

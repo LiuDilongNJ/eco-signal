@@ -9,6 +9,7 @@ from pydantic import (
     AnyUrl,
     BeforeValidator,
     EmailStr,
+    Field,
     HttpUrl,
     PostgresDsn,
     computed_field,
@@ -70,6 +71,19 @@ class Settings(BaseSettings):
     ENVIRONMENT: Literal["local", "staging", "production"] = "local"
     APP_VERSION: str = "1.0"
     MEDIA_ROOT: str = "/app/sounds"
+    DETAIL_CACHE_TTL_SECONDS: int = Field(default=43200, gt=0)
+    DETAIL_CACHE_MAX_BYTES: int = Field(default=10 * 1024**3, gt=0)
+    DETAIL_CACHE_TARGET_BYTES: int = Field(default=8 * 1024**3, gt=0)
+    DETAIL_CACHE_CLEANUP_SECONDS: int = Field(default=300, gt=0)
+    DETAIL_CACHE_MIN_FREE_BYTES: int = Field(default=5 * 1024**3, gt=0)
+    DETAIL_CACHE_MIN_FREE_PERCENT: float = Field(default=10.0, gt=0, lt=100)
+    PENDING_FILE_TTL_SECONDS: int = Field(default=86400, gt=0)
+
+    @model_validator(mode="after")
+    def validate_cache_capacity(self) -> Self:
+        if self.DETAIL_CACHE_TARGET_BYTES >= self.DETAIL_CACHE_MAX_BYTES:
+            raise ValueError("Detail cache target must be smaller than its maximum capacity")
+        return self
     BACKEND_CORS_ORIGINS: Annotated[
         list[AnyUrl] | str, BeforeValidator(parse_cors)
     ] = []

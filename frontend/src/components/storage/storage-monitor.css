@@ -1,0 +1,33 @@
+.app-storage-layout {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+}
+.app-route-content {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+}
+.app-route-content > :first-child {
+    height: 100%;
+    min-height: 0;
+}
+.storage-warning {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px 16px;
+    padding: 8px 20px;
+    color: var(--text-main);
+    background: color-mix(in srgb, var(--warning) 12%, var(--bg-surface));
+    border-bottom: 1px solid color-mix(in srgb, var(--warning) 45%, var(--border-color));
+    font-size: 12px;
+    line-height: 1.5;
+}
+.storage-warning--critical {
+    background: color-mix(in srgb, var(--danger) 12%, var(--bg-surface));
+    border-bottom-color: color-mix(in srgb, var(--danger) 45%, var(--border-color));
+}

@@ -7,6 +7,7 @@
  * - Toast 通知
  */
 
+import { StorageMonitorProvider } from "@/components/storage/StorageMonitor"
 import { QueryClientProvider } from "@tanstack/react-query"
 import { ConfigProvider, EmptyState } from "@/components/ui"
 import { BrowserRouter } from "react-router-dom"
@@ -30,7 +31,7 @@ export function AppProviders({ children }: AppProvidersProps) {
                 getPopupContainer={getStagePopupContainer}
             >
                 <BrowserRouter>
-                    {children}
+                    <StorageMonitorProvider>{children}</StorageMonitorProvider>
                 </BrowserRouter>
             </ConfigProvider>
             {/* <ReactQueryDevtools initialIsOpen={false} buttonPosition="bottom-left" /> */}

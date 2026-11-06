@@ -1,0 +1,56 @@
+rule_files:
+  - alerts.yml
+evaluation_interval: 1m
+tests:
+  - interval: 1m
+    input_series:
+      - series: 'ecosignal_storage_used_percent{scope="media"}'
+        values: '80+0x10'
+      - series: 'ecosignal_storage_available{scope="media"}'
+        values: '1+0x10'
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: StorageSpaceWarning
+        exp_alerts: []
+      - eval_time: 5m
+        alertname: StorageSpaceWarning
+        exp_alerts:
+          - exp_labels: {scope: media, severity: warning}
+            exp_annotations: {summary: "Filesystem usage is at least 80%"}
+  - interval: 1m
+    input_series:
+      - series: 'ecosignal_storage_used_percent{scope="media"}'
+        values: '90+0x5'
+      - series: 'ecosignal_storage_available{scope="media"}'
+        values: '1+0x5'
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: StorageSpaceCritical
+        exp_alerts:
+          - exp_labels: {scope: media, severity: critical}
+            exp_annotations: {summary: "Filesystem usage is at least 90%"}
+  - interval: 1m
+    input_series:
+      - series: 'ecosignal_storage_used_percent{scope="media"}'
+        values: '79.9+0x10'
+      - series: 'ecosignal_storage_available{scope="media"}'
+        values: '1+0x10'
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: StorageSpaceWarning
+        exp_alerts: []
+  - interval: 1m
+    input_series:
+      - series: 'ecosignal_storage_used_percent{scope="media"}'
+        values: '95+0x10'
+      - series: 'ecosignal_storage_available{scope="media"}'
+        values: '0+0x10'
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: StorageSpaceCritical
+        exp_alerts: []
+      - eval_time: 5m
+        alertname: StorageStatusUnavailable
+        exp_alerts:
+          - exp_labels: {scope: media, severity: warning}
+            exp_annotations: {summary: "Filesystem capacity cannot be sampled"}

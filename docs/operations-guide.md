@@ -303,3 +303,27 @@ Use the [Observability Guide](observability.md) for metrics, errors, and dashboa
 - [Administrator Guide](admin-guide.md) for application-level operations
 - [User Guide](user-guide.md) for daily workflows
 - [Documentation home](../README.md)
+
+## Storage protection
+
+Configure the following environment variables in `.env`; restart the API and interactive worker together after changes. Values must be positive, and the target must be smaller than the maximum.
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `DETAIL_CACHE_TTL_SECONDS` | `43200` | Retention since the last cache read |
+| `DETAIL_CACHE_MAX_BYTES` | `10737418240` | Maximum detail-cache budget |
+| `DETAIL_CACHE_TARGET_BYTES` | `8589934592` | Eviction low watermark |
+| `DETAIL_CACHE_CLEANUP_SECONDS` | `300` | Maintenance interval |
+| `DETAIL_CACHE_MIN_FREE_BYTES` | `5368709120` | Minimum free-space reserve |
+| `DETAIL_CACHE_MIN_FREE_PERCENT` | `10` | Percentage reserve; the larger reserve applies |
+| `PENDING_FILE_TTL_SECONDS` | `86400` | Minimum age of unreferenced pending files |
+
+Only an unreferenced, unlocked pending file may be removed. Referenced upload and import files retain their existing lifecycle. Cleanup never deletes media originals. Cache accounting conservatively includes logical and allocated file sizes; released-byte statistics describe cache accounting, not a guaranteed change in filesystem free space. Space admission estimates output expansion and atomic-replacement peaks. Other processes can still consume the filesystem, so this policy does not replace filesystem quotas or host monitoring.
+
+`GET /api/v1/system/storage` is administrator-only and returns `checked_at` (UTC), aggregate `status`, the 80/90 percent thresholds, and root/media `filesystems`. Each filesystem reports scope, path, availability, byte capacities, percentage and health. Unavailable capacity fields are null; a total sampling failure returns 503. The UI polls once per minute while visible and shares the result with the storage settings card. New detail builds return 503 with a machine-readable `detail_cache_*` code when busy, over budget, or low on space; they preserve valid cached files.
+
+Deployment checks the Docker daemon filesystem before building, using a small `alpine:3.22` container with a read-only mount of the daemon's storage directory. The daemon must permit that mount. After successful application verification, only dangling images labeled for the current `STACK_NAME` are pruned. Tagged and running images and all volumes are retained. Previously built unlabeled images require separate operator review.
+
+Opt into shared builder-cache cleanup with `./deploy.sh --prune-build-cache`, `./deploy.ps1 -PruneBuildCache`, or `deploy.bat --prune-build-cache`. This considers unused cache older than seven days with a 20 GB retention budget. It can affect other projects using the same builder, does not guarantee that 20 GB exists, and may leave older in-use cache untouched. Unsupported filtering/retention flags cause cleanup to be skipped. Dry runs never prune. Cleanup failure is reported separately from deployment success.
+
+Do not start an older API alongside the new cleanup worker: the older API does not hold read leases. When rolling back, stop the new worker before restoring the API and worker together. Existing cache directories need no conversion and expire through normal cleanup. After deployment check five-minute maintenance logs and Prometheus samples, exercise concurrent downloads and spectrogram rendering with reduced test cache limits, and observe capacity for at least 24 hours before closing the incident. Never fill a host disk to test protection.

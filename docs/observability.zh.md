@@ -176,3 +176,17 @@ GRAFANA_ADMIN_PASSWORD=admin123
 3. 配置 Prometheus 抓取它能访问到的后端地址。
 4. 配置 Grafana 使用它能访问到的 Prometheus URL。
 5. 如需错误跟踪，配置 `SENTRY_DSN`。
+
+## 文件系统与音频缓存告警
+
+存储 Gauge 按 `scope=container_root|media` 区分，抓取时采样，同一容量不会按 API 进程数累加。缓存快照包含容量、bundle 数量、采样时间和最近成功清理时间；Counter 记录删除数量、记账释放空间、清理错误、锁跳过和构建拒绝，标签不包含媒体标识。
+
+`monitoring/prometheus/alerts.yml` 定义 80% 持续五分钟、90% 持续一分钟，以及容量采样失败、音频维护长时间未成功的规则。告警在 Prometheus 中可见；本配置不增加外部通知接收渠道。
+
+Linux 宿主机可开启文件系统监控：
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.observability.yml --profile host-metrics up -d
+```
+
+node exporter 只读挂载宿主机根目录，仅在 Compose 网络内暴露指标。不支持宿主机根目录挂载时不启用该 profile；宿主机抓取目标将显示 down，但应用指标仍可用。Docker Desktop 反映的是 Docker 虚拟机，不能当作 macOS/Windows 物理磁盘容量，应另行监控物理磁盘。容器根目录和媒体存储是不同观察范围，不得相加。

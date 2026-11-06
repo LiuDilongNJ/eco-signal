@@ -40,6 +40,7 @@ from app.models.label import Label, LabelMedia
 from app.models.media import Preview
 from app.schemas.media import MediaCreate, MediaUpdate
 from app.services import media_service
+from app.services import detail_cache_service as detail_cache
 
 
 def _write_audio_fixture(
@@ -213,7 +214,7 @@ class TestMediaService:
         expected_prefix: list[str],
     ):
         source_path = tmp_path / "source.wav"
-        source_path.write_bytes(b"audio")
+        _write_audio_fixture(source_path, sample_rate=48000)
         target_path = tmp_path / f"playback.{output_format}"
         commands: list[list[str]] = []
 
@@ -1567,7 +1568,8 @@ class TestMediaService:
         tmp_path: Path,
     ):
         monkeypatch.setattr(settings, "MEDIA_ROOT", str(tmp_path))
-        monkeypatch.setattr(media_service, "_DETAIL_ASSET_LOCK_TIMEOUT_SECONDS", 0.05)
+        original_lock = detail_cache.bundle_lock
+        monkeypatch.setattr(detail_cache, "bundle_lock", lambda key, **kwargs: original_lock(key, **(kwargs | {"timeout": 0.05})))
         audio_path = tmp_path / "timeout.wav"
         _write_audio_fixture(audio_path, sample_rate=48_000)
         media = SimpleNamespace(
@@ -1591,15 +1593,13 @@ class TestMediaService:
             end_time=0.5,
             min_freq=1,
             max_freq=24_000,
-            channel=1,
             filter_enabled=False,
-            fft_size=512,
         )
         locked = threading.Event()
         release = threading.Event()
 
         def _hold_lock():
-            with media_service._detail_asset_lock(key):
+            with detail_cache.bundle_lock(key):
                 locked.set()
                 release.wait(timeout=2)
 
@@ -1620,8 +1620,8 @@ class TestMediaService:
                     fft_size=512,
                 )
             assert exc_info.value.status_code == 503
-            assert exc_info.value.detail == "Spectrogram audio cache is busy"
-            assert exc_info.value.headers == {"Retry-After": "1"}
+            assert exc_info.value.detail["code"] == "detail_cache_busy"
+            assert exc_info.value.headers == {"Retry-After": "60"}
         finally:
             release.set()
             holder.join(timeout=2)
@@ -1639,25 +1639,25 @@ class TestMediaService:
         bundle_dir.mkdir(parents=True)
         access_path = bundle_dir / media_service._DETAIL_ASSET_ACCESS_FILENAME
         access_path.touch()
-        stale_at = (datetime.now() - media_service._DETAIL_ASSET_TTL - timedelta(minutes=1)).timestamp()
+        stale_at = (datetime.now() - timedelta(seconds=settings.DETAIL_CACHE_TTL_SECONDS) - timedelta(minutes=1)).timestamp()
         os.utime(access_path, (stale_at, stale_at))
         locked = threading.Event()
         release = threading.Event()
 
         def _hold_lock():
-            with media_service._detail_asset_lock(key):
+            with detail_cache.bundle_lock(key):
                 locked.set()
                 release.wait(timeout=2)
 
         holder = threading.Thread(target=_hold_lock)
         holder.start()
         assert locked.wait(timeout=1)
-        media_service._cleanup_stale_detail_assets()
+        detail_cache.cleanup()
         assert bundle_dir.exists()
         release.set()
         holder.join(timeout=2)
 
-        media_service._cleanup_stale_detail_assets()
+        detail_cache.cleanup()
         assert not bundle_dir.exists()
 
     def test_get_or_create_detail_asset_bundle_sets_download_basename(
@@ -2491,6 +2491,7 @@ from app.models import (
 )
 from app.schemas.media import MediaCreate
 from app.services import media_service
+from app.services import detail_cache_service as detail_cache
 
 
 @pytest.mark.anyio
@@ -2554,6 +2555,7 @@ from app.models import (
 )
 from app.schemas.media import MediaCreate
 from app.services import media_service
+from app.services import detail_cache_service as detail_cache
 from app.services.upload_validation_service import validate_csv_content
 
 
