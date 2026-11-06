@@ -143,12 +143,12 @@ Summer 2027: v1.1 release including:
 - refactored analytical workflows
 - interactive plots
 - [bacpipe]([url](https://github.com/bioacoustic-ai/bacpipe))
-- S3 integration
-- compatibility with mobile devices
-- audio calibration
+- S3 integration (#193)
+- compatibility with mobile devices (#222)
+- audio calibration (#182)
 - first stage [SC1.7-2026]([url](https://webstore.ansi.org/standards/asa/asaansis3sc12026)) implementation
-- streamlined annotation validation
-- audio silencing
+- streamlined annotation validation and AI model logs (#164 #98)
+- waveforms and audio silencing (#218 #232)
 - audio data interoperability via federation
 
 ## Credits and License
