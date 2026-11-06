@@ -135,6 +135,22 @@ Certificate deployment uses one domain: own certificates terminate at Nginx with
 | [Observability Guide](docs/observability.md) | Operations teams | Sentry, Prometheus, and Grafana |
 | [Geographical Data Guides](geo_db/GEO_IMPORT_en.md) | Geodata maintainers | Importing and exporting geographical reference data |
 
+## Roadmap
+
+End of November 2026: v1 release with all [ecoSound-web]([url](https://github.com/ecomontec/ecoSound-web/)) functionalities plus photo integration and collection sync (export/import) feature
+
+Summer 2027: v1.1 release including:
+- refactored analytical workflows
+- interactive plots
+- [bacpipe]([url](https://github.com/bioacoustic-ai/bacpipe))
+- S3 integration
+- compatibility with mobile devices
+- audio calibration
+- first stage [SC1.7-2026]([url](https://webstore.ansi.org/standards/asa/asaansis3sc12026)) implementation
+- streamlined annotation validation
+- audio silencing
+- audio data interoperability via federation
+
 ## Credits and License
 
 This project is a refactor of **ecoSound-web**.
@@ -144,9 +160,4 @@ This project is a refactor of **ecoSound-web**.
 - **License**: Licensed under the [GNU General Public License, v3](https://www.gnu.org/licenses/gpl-3.0.en.html).
 
 The corresponding updatable scientific publication is in [F1000Research](https://f1000research.com/articles/9-1224/v3).
-
-### Storage protection
-
-Detail audio assets expire after 12 hours and are cleaned at worker startup and every five minutes. The cache defaults to a 10 GiB limit with an 8 GiB cleanup target. New builds run one at a time across API processes and preserve at least 5 GiB or 10% free space, whichever is greater; cached reads remain available. Administrators see a warning at 80% filesystem usage and a critical warning at 90%. Container root and media storage are reported separately.
-
 See [storage operations](docs/operations-guide.md#storage-protection) for configuration, bounded deployment cleanup, and host monitoring. No database migration is required.
