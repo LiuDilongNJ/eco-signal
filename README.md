@@ -150,6 +150,7 @@ Summer 2027: v1.1 release including:
 - streamlined annotation validation and AI model logs (#164 #98)
 - waveforms and audio silencing (#218 #232)
 - audio data interoperability via federation
+- third-party app integration via PKCE (#100)
 
 ## Credits and License
 
