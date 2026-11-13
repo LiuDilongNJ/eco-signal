@@ -249,6 +249,77 @@ class TestIndexLogRepositoryCreate:
 class TestIndexLogRepositoryQuery:
     """Tests for _build_list_query filter branches and get_logs_page."""
 
+    @pytest.mark.parametrize("order_dir", ["asc", "desc"])
+    def test_get_logs_page_preserves_input_and_output(self, db: Session, index_setup, order_dir):
+        log_id = index_log_repository.reserve_log_id(db)
+        user_id = index_setup["user"].user_id
+        index_log_repository.create_from_results(
+            db,
+            log_id=log_id,
+            media_id=index_setup["media"].media_id,
+            user_id=user_id,
+            index_id=index_setup["index_type"].index_id,
+            version="1.0",
+            params={"Channel": "Mono"},
+            results={"ACI": 123},
+        )
+
+        rows, total = index_log_repository.get_logs_page(
+            db,
+            user_id=user_id,
+            is_admin=True,
+            accessible_collection_ids=None,
+            log_id=log_id,
+            order_by="variable_type",
+            order_dir=order_dir,
+        )
+
+        expected = [("input", 1, "Channel", "Mono"), ("output", 1, "ACI", "123")]
+        assert total == 2
+        assert [
+            (row["variable_type"], row["variable_order"], row["variable_name"], row["variable_value"])
+            for row in rows
+        ] == (expected if order_dir == "asc" else expected[::-1])
+
+    def test_get_logs_page_preserves_media_and_index_in_batch(self, db: Session, index_setup):
+        log_id = index_log_repository.reserve_log_id(db)
+        user_id = index_setup["user"].user_id
+        second_index = IndexType(name="NDSI_REPO_LOG")
+        db.add(second_index)
+        db.flush()
+        groups = [
+            (index_setup["media"], index_setup["index_type"], 123),
+            (index_setup["second_media"], second_index, 456),
+        ]
+        for media, index_type, value in groups:
+            index_log_repository.create_from_results(
+                db,
+                log_id=log_id,
+                media_id=media.media_id,
+                user_id=user_id,
+                index_id=index_type.index_id,
+                version="1.0",
+                results={index_type.name: value},
+            )
+
+        rows, total = index_log_repository.get_logs_page(
+            db,
+            user_id=user_id,
+            is_admin=True,
+            accessible_collection_ids=None,
+            log_id=log_id,
+        )
+
+        assert total == 2
+        assert {
+            (row["media_id"], row["media_name"], row["index_id"], row["index_name"],
+             row["variable_name"], row["variable_value"])
+            for row in rows
+        } == {
+            (media.media_id, media.name, index_type.index_id, index_type.name, index_type.name, str(value))
+            for media, index_type, value in groups
+        }
+
     def _seed(self, db: Session, setup) -> None:
         index_log_repository.create_from_results(
             db,

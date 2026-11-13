@@ -10,7 +10,8 @@ from app.models.collection import Collection
 from app.models.index import IndexLog, IndexType
 from app.models.media import Media, MediaCollection
 from app.models.project import Project, ProjectCollection
-from tests.utils.csv import read_csv_header
+from app.repositories import index_log_repository
+from tests.utils.csv import read_csv_dict_rows, read_csv_header
 
 
 class TestIndexLogsAPI:
@@ -192,6 +193,71 @@ class TestIndexLogsAPI:
             "media_id": media_id,
             "index_id": index_id,
         }
+
+    @pytest.fixture
+    def input_output_log_id(self, db: Session) -> int:
+        log_id = index_log_repository.reserve_log_id(db)
+        index_log_repository.create_from_results(
+            db,
+            log_id=log_id,
+            media_id=self.log1_media_id,
+            user_id=self.superuser_id,
+            index_id=self.index_type_id,
+            version="1.0",
+            params={"Channel": "Mono"},
+            results={"ACI": 123},
+        )
+        return log_id
+
+    def test_list_returns_each_input_and_output_row(
+        self, client: TestClient, superuser_token_headers: dict, input_output_log_id: int,
+    ) -> None:
+        response = client.get(
+            f"{settings.API_V1_STR}/index-logs",
+            headers=superuser_token_headers,
+            params={"log_id": input_output_log_id, "order_by": "variable_type"},
+        )
+
+        assert response.status_code == HTTPStatus.OK
+        data = response.json()
+        assert data["page_info"]["total"] == 2
+        assert [
+            (row["log_id"], row["variable_type"], row["variable_order"], row["variable_name"], row["variable_value"])
+            for row in data["data"]
+        ] == [
+            (input_output_log_id, "input", 1, "Channel", "Mono"),
+            (input_output_log_id, "output", 1, "ACI", "123"),
+        ]
+
+    def test_list_filters_input_rows_with_matching_total(
+        self, client: TestClient, superuser_token_headers: dict, input_output_log_id: int,
+    ) -> None:
+        response = client.get(
+            f"{settings.API_V1_STR}/index-logs",
+            headers=superuser_token_headers,
+            params={"log_id": input_output_log_id, "var_type": "input", "page_size": 1},
+        )
+
+        assert response.status_code == HTTPStatus.OK
+        data = response.json()
+        assert data["page_info"]["total"] == 1
+        assert [(row["variable_type"], row["variable_name"]) for row in data["data"]] == [("input", "Channel")]
+
+    def test_export_returns_each_input_and_output_row(
+        self, client: TestClient, superuser_token_headers: dict, input_output_log_id: int,
+    ) -> None:
+        response = client.get(
+            f"{settings.API_V1_STR}/index-logs/exports",
+            headers=superuser_token_headers,
+            params={"project_id": self.project_id, "order_by": "variable_type"},
+        )
+
+        assert response.status_code == HTTPStatus.OK
+        rows = [row for row in read_csv_dict_rows(response.text) if row["log_id"] == str(input_output_log_id)]
+        assert [
+            (row["variable_type"], row["variable_order"], row["variable_name"], row["variable_value"])
+            for row in rows
+        ] == [("input", "1", "Channel", "Mono"), ("output", "1", "ACI", "123")]
 
     def test_get_index_logs_as_superuser(self, client: TestClient, superuser_token_headers: dict) -> None:
         response = client.get(

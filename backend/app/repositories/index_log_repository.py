@@ -319,9 +319,10 @@ class IndexLogRepository(BaseRepository[IndexLog, Any, Any]):
         if filters is None:
             filters = {}
 
+        # A batch shares log_id across rows, so materialize columns rather than ORM entities.
         stmt = (
             select(
-                IndexLog,
+                *IndexLog.__table__.c,
                 Media.name.label("media_name"),
                 User.name.label("user_name"),
                 IndexType.name.label("index_name")
@@ -379,16 +380,7 @@ class IndexLogRepository(BaseRepository[IndexLog, Any, Any]):
         stmt = apply_ordering(stmt, order_by, order_dir, _SORT_FIELDS, IndexLog.log_id)
         stmt = apply_pagination(stmt, page, page_size)
 
-        results = session.exec(stmt).all()
-
-        final_results = []
-        for log, m_name, u_name, i_name in results:
-            log_data = log.model_dump()
-            log_data["media_name"] = m_name
-            log_data["user_name"] = u_name
-            log_data["index_name"] = i_name
-            final_results.append(log_data)
-
-        return final_results, total
+        rows = session.exec(stmt).mappings()
+        return [dict(row) for row in rows], total
 
 index_log_repository = IndexLogRepository()
