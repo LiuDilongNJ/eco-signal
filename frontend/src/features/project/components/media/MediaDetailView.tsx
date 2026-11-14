@@ -340,6 +340,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
     const [analysisBlocking, setAnalysisBlocking] = useState(false)
     const [detailError, setDetailError] = useState<string | null>(null)
     const [spectrogramBlobUrl, setSpectrogramBlobUrl] = useState<string | null>(null)
+    const [spectrogramImageReadyUrl, setSpectrogramImageReadyUrl] = useState<string | null>(null)
     const [spectrogramLoading, setSpectrogramLoading] = useState(false)
     const [spectrogramInitialReady, setSpectrogramInitialReady] = useState(false)
     const [spectrogramRetryToken, setSpectrogramRetryToken] = useState(0)
@@ -5723,6 +5724,13 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
             ? `. Your current player width is ${spectrogramPlayerWidthPx} pixels.`
             : "")
     const showSpectrogramLoading = spectrogramLoading || !spectrogramInitialReady
+    const spectrogramImageReady =
+        !showSpectrogramLoading &&
+        (!spectrogramBlobUrl || spectrogramImageReadyUrl === spectrogramBlobUrl)
+    const markSpectrogramImageReady = (event: React.SyntheticEvent<HTMLImageElement>) => {
+        const loadedSrc = event.currentTarget.currentSrc || event.currentTarget.src
+        if (loadedSrc) setSpectrogramImageReadyUrl(loadedSrc)
+    }
     const showAnnotationTableLoading = annotationListLoading || !annotationListInitialReady
     const playheadViewStart = specViewStart
     const playheadWindowSec = specWindowSec
@@ -6343,6 +6351,8 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                                             src={spectrogramBlobUrl}
                                             alt=""
                                             decoding="async"
+                                            onLoad={markSpectrogramImageReady}
+                                            onError={markSpectrogramImageReady}
                                         />
                                     ) : (
                                         <div
@@ -6366,9 +6376,11 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                                     src={spectrogramBlobUrl}
                                     alt=""
                                     decoding="async"
+                                    onLoad={markSpectrogramImageReady}
+                                    onError={markSpectrogramImageReady}
                                 />
                             ) : null}
-                            {annotationsVisible ? (
+                            {annotationsVisible && spectrogramImageReady ? (
                                 <div className="annotations-layer">
                                     {annotationOverlayPx.map((box) => {
                                         const linked =
