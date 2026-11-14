@@ -11,6 +11,8 @@
   --es-color-brand-hover: #72b51b;
   --es-color-brand-active: #609b16;
   --es-color-brand-soft: rgba(var(--es-color-brand-rgb), 0.1);
+  --es-color-annotation-selected: #f5c400;
+  --es-color-annotation-selected-rgb: 245, 196, 0;
   --es-color-bg-page: #f8fafc;
   --es-color-bg-surface: #ffffff;
   --es-color-bg-subtle: #f8fafc;

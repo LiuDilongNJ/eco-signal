@@ -332,7 +332,7 @@
     left: 0;
     top: 0;
     z-index: 11;
-    border: calc(1px / var(--media-overlay-scale, 1)) dashed rgba(var(--es-color-brand-rgb), 0.95);
+    border: calc(1px / var(--media-overlay-scale, 1)) dashed rgba(var(--es-color-annotation-selected-rgb), 0.95);
     background: transparent;
     box-shadow: 0 0 0 calc(1px / var(--media-overlay-scale, 1)) rgba(0, 0, 0, 0.35);
     pointer-events: auto;
@@ -345,7 +345,7 @@
     width: calc(10px / var(--media-overlay-scale, 1));
     height: calc(10px / var(--media-overlay-scale, 1));
     border-radius: 50%;
-    background: var(--es-color-brand);
+    background: var(--es-color-annotation-selected);
     border: calc(2px / var(--media-overlay-scale, 1)) solid rgba(0, 0, 0, 0.45);
     box-sizing: border-box;
     pointer-events: auto;
@@ -465,31 +465,31 @@
 .media-annotation-box--linked {
     z-index: 3;
     border-width: calc(1px / var(--media-overlay-scale, 1));
-    border-color: var(--es-color-brand);
-    --annot-frame-color: var(--es-color-brand);
+    border-color: var(--es-color-annotation-selected);
+    --annot-frame-color: var(--es-color-annotation-selected);
     /* 不做大面积发光：用轻微描边 + 细阴影提升可见性 */
     box-shadow:
-        0 0 0 1px rgba(var(--es-color-brand-rgb), 0.35),
-        0 2px 10px rgba(var(--es-color-brand-rgb), 0.22);
+        0 0 0 1px rgba(var(--es-color-annotation-selected-rgb), 0.45),
+        0 2px 10px rgba(var(--es-color-annotation-selected-rgb), 0.28);
 }
 
 .media-studio--dark .media-annotation-box--linked {
     box-shadow:
-        0 0 0 1px rgba(var(--es-color-brand-rgb), 0.45),
-        0 2px 12px rgba(var(--es-color-brand-rgb), 0.28);
+        0 0 0 1px rgba(var(--es-color-annotation-selected-rgb), 0.55),
+        0 2px 12px rgba(var(--es-color-annotation-selected-rgb), 0.34);
 }
 
 /* 有 task 且联动：与默认 linked 相同阴影，点状边框已标识 task */
 .media-annotation-box--has-task.media-annotation-box--linked {
     box-shadow:
-        0 0 0 1px rgba(var(--es-color-brand-rgb), 0.35),
-        0 2px 10px rgba(var(--es-color-brand-rgb), 0.22);
+        0 0 0 1px rgba(var(--es-color-annotation-selected-rgb), 0.45),
+        0 2px 10px rgba(var(--es-color-annotation-selected-rgb), 0.28);
 }
 
 .media-studio--dark .media-annotation-box--has-task.media-annotation-box--linked {
     box-shadow:
-        0 0 0 1px rgba(var(--es-color-brand-rgb), 0.45),
-        0 2px 12px rgba(var(--es-color-brand-rgb), 0.28);
+        0 0 0 1px rgba(var(--es-color-annotation-selected-rgb), 0.55),
+        0 2px 12px rgba(var(--es-color-annotation-selected-rgb), 0.34);
 }
 
 /* 音频详情页标注表：整行可点选，光标与 Data 表一致 */

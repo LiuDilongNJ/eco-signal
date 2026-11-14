@@ -763,7 +763,7 @@ export function PhotoImageViewer({
                                                 background: "transparent",
                                                 borderColor: linked ? undefined : presentation.creatorColor,
                                                 "--annot-frame-color": linked
-                                                    ? "var(--brand)"
+                                                    ? "var(--es-color-annotation-selected)"
                                                     : presentation.creatorColor,
                                             } as CSSProperties}
                                         />
