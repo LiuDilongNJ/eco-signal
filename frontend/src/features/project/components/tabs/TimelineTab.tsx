@@ -40,6 +40,41 @@ const DETAIL_DEBOUNCE_MS = 250
 const WHEEL_ZOOM_STEP = 1.14
 const MIN_VIEW_SPAN_MS = 60_000
 const TIMELINE_EDGE_PADDING_RATIO = 0.25
+/** Keep the rightmost instant this far from the left edge so its dot stays on screen. */
+const TIMELINE_RIGHT_INSET_PX = 28
+
+/**
+ * Extra time past the last recording that pan may reveal.
+ * Labels sit to the right of each dot, so a zoomed view clamped to the data end
+ * hides the rightmost dot and its name.
+ */
+export function timelineRightGutterMs(span: number, chartTrackPx: number): number {
+    if (!(span > 0)) return 0
+    if (!(chartTrackPx > 0)) return span * 0.65
+    const gutterPx = Math.min(
+        Math.max(0, chartTrackPx - TIMELINE_RIGHT_INSET_PX),
+        Math.max(240, chartTrackPx * 0.65),
+    )
+    return (gutterPx / chartTrackPx) * span
+}
+
+export function clampTimelineViewWindow(
+    start: number,
+    end: number,
+    bounds: { dataMin: number; dataMax: number; dataSpan: number; chartTrackPx: number },
+): { start: number; end: number } {
+    const span = Math.max(end - start, MIN_VIEW_SPAN_MS)
+    const { dataMin, dataMax, dataSpan, chartTrackPx } = bounds
+    if (!(dataSpan > 0)) return { start, end: start + span }
+
+    const gutterMs = timelineRightGutterMs(span, chartTrackPx)
+    const minStart = span >= dataSpan ? dataMax - span : dataMin
+    const maxStart = span >= dataSpan
+        ? Math.max(dataMin, dataMax + gutterMs - span)
+        : dataMax + gutterMs - span
+    const nextStart = Math.max(minStart, Math.min(start, maxStart))
+    return { start: nextStart, end: nextStart + span }
+}
 const MS = 1
 const SECOND = 1000 * MS
 const MINUTE = 60 * SECOND
@@ -714,33 +749,7 @@ export function TimelineTab() {
             start: number,
             end: number,
             s: typeof wheelZoomRef.current,
-        ) => {
-            const span = Math.max(end - start, MIN_VIEW_SPAN_MS)
-            const baseMin = s.dataMin
-            const baseMax = s.dataMax
-            const baseSpan = s.dataSpan
-            if (!(baseSpan > 0)) return { start, end: start + span }
-
-            if (span >= baseSpan) {
-                const minStart = baseMax - span
-                const maxStart = baseMin
-                const nextStart = Math.max(minStart, Math.min(start, maxStart))
-                return {
-                    start: nextStart,
-                    end: nextStart + span,
-                }
-            }
-
-            const minStart = baseMin
-            const maxStart = baseMax - span
-            const nextStart = Math.max(minStart, Math.min(start, maxStart))
-            const nextEnd = nextStart + span
-
-            return {
-                start: nextStart,
-                end: nextEnd,
-            }
-        }
+        ) => clampTimelineViewWindow(start, end, s)
 
         const wheelOpts: AddEventListenerOptions = { passive: false, capture: true }
         const onWheel = (e: WheelEvent) => {
