@@ -7,6 +7,7 @@ export {
     Alert,
     Col,
     Collapse,
+    ColorPicker,
     ConfigProvider,
     Descriptions,
     Divider,

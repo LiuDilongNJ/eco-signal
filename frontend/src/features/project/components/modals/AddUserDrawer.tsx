@@ -1,4 +1,3 @@
-import { Input as ESInput } from "@/components/ui"
 /**
  * AddUserDrawer - 添加用户抽屉组件
  *
@@ -6,7 +5,7 @@ import { Input as ESInput } from "@/components/ui"
  */
 
 import { useEffect, useState } from "react"
-import { Form, Input, Switch, Button, ConfigProvider, Space } from "@/components/ui"
+import { Form, Input, Switch, Button, ColorPicker, ConfigProvider, Space } from "@/components/ui"
 import { FormDrawer } from "@/components/ui"
 import { renderRequiredMark } from "@/components/ui"
 
@@ -201,24 +200,24 @@ export function AddUserDrawer({ open, editId, onClose, onSubmit }: AddUserDrawer
                                     ]}
                                 >
                                     <Input
+                                        className="form-drawer-color-field"
                                         maxLength={7}
                                         prefix={
-                                            <ESInput appearance="unstyled"
-                                                type="color"
+                                            <ColorPicker
                                                 aria-label="User color"
+                                                className="form-drawer-color-picker"
+                                                disabledAlpha
+                                                format="hex"
+                                                size="small"
                                                 value={
                                                     typeof colorValue === "string" && /^#[0-9A-Fa-f]{6}$/.test(colorValue)
                                                         ? colorValue
                                                         : "#FFFFFF"
                                                 }
-                                                onChange={(e) => form.setFieldValue("color", e.target.value.toUpperCase())}
-                                                style={{
-                                                    width: 32,
-                                                    height: 24,
-                                                    padding: 0,
-                                                    border: "none",
-                                                    background: "transparent",
-                                                    cursor: "pointer",
+                                                onChange={(color) => {
+                                                    const digits = color.toHexString().trim().match(/^#?([0-9A-Fa-f]{6})/)?.[1]
+                                                    if (!digits) return
+                                                    form.setFieldValue("color", `#${digits.toUpperCase()}`)
                                                 }}
                                             />
                                         }

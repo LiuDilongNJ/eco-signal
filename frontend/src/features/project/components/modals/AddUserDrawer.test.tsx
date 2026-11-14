@@ -8,10 +8,28 @@ import { AddUserDrawer } from "./AddUserDrawer"
 const { getUser } = vi.hoisted(() => ({ getUser: vi.fn() }))
 
 vi.mock("../../../../api/endpoints/users", () => ({ usersApi: { getUser } }))
-vi.mock("@/components/ui", async (importOriginal) => ({
-    ...await importOriginal<typeof import("@/components/ui")>(),
-    CustomScrollArea: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-}))
+vi.mock("@/components/ui", async (importOriginal) => {
+    const actual = await importOriginal<typeof import("@/components/ui")>()
+    return {
+        ...actual,
+        CustomScrollArea: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+        ColorPicker: ({
+            value,
+            onChange,
+            "aria-label": ariaLabel,
+        }: {
+            value?: string
+            onChange?: (color: { toHexString: () => string }) => void
+            "aria-label"?: string
+        }) => (
+            <input
+                aria-label={ariaLabel}
+                value={typeof value === "string" ? value : ""}
+                onChange={(event) => onChange?.({ toHexString: () => event.target.value })}
+            />
+        ),
+    }
+})
 
 afterEach(cleanup)
 beforeEach(() => {

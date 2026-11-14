@@ -307,6 +307,75 @@
 }
 
 /* Layout classes */
+.shared-drawer-form .form-drawer-color-field.ant-input-affix-wrapper {
+    display: inline-flex;
+    align-items: center;
+    background: var(--es-color-bg-subtle) !important;
+    background-color: var(--es-color-bg-subtle) !important;
+    border: 1px solid var(--es-color-border) !important;
+    border-radius: var(--es-radius-md) !important;
+    box-shadow: none !important;
+    min-height: var(--es-control-height-md) !important;
+}
+
+.shared-drawer-form .form-drawer-color-field .ant-input-prefix {
+    display: inline-flex;
+    align-items: center;
+    align-self: center;
+    line-height: 0;
+}
+
+.shared-drawer-form .form-drawer-color-field.ant-input-affix-wrapper:hover:not(.ant-input-affix-wrapper-disabled),
+.shared-drawer-form .form-drawer-color-field.ant-input-affix-wrapper:focus-within:not(.ant-input-affix-wrapper-disabled) {
+    border-color: var(--brand) !important;
+    background: var(--bg-surface) !important;
+    background-color: var(--bg-surface) !important;
+}
+
+.shared-drawer-form .form-drawer-color-field.ant-input-affix-wrapper:focus-within:not(.ant-input-affix-wrapper-disabled) {
+    box-shadow: var(--es-shadow-focus) !important;
+}
+
+.shared-drawer-form .form-drawer-color-field.ant-input-affix-wrapper .ant-input,
+.shared-drawer-form .form-drawer-color-field.ant-input-affix-wrapper .ant-input:hover,
+.shared-drawer-form .form-drawer-color-field.ant-input-affix-wrapper .ant-input:focus {
+    align-self: center;
+    height: auto;
+    padding-block: 0;
+    line-height: 22px;
+    border: none !important;
+    background: transparent !important;
+    background-color: transparent !important;
+    box-shadow: none !important;
+    outline: none !important;
+}
+
+.shared-drawer-form .form-drawer-color-picker.ant-color-picker-trigger,
+.shared-drawer-form .form-drawer-color-picker.ant-color-picker-trigger:hover,
+.shared-drawer-form .form-drawer-color-picker.ant-color-picker-trigger-active {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 14px;
+    min-width: 14px;
+    height: 14px;
+    min-height: 14px;
+    margin: 0;
+    padding: 0;
+    line-height: 0;
+    border: none !important;
+    border-radius: 2px;
+    background: transparent !important;
+    background-color: transparent !important;
+    box-shadow: none !important;
+}
+
+.shared-drawer-form .form-drawer-color-picker .ant-color-picker-color-block {
+    width: 14px;
+    height: 14px;
+    border-radius: 2px;
+}
+
 .form-drawer-layout {
     display: flex;
     gap: 24px;
