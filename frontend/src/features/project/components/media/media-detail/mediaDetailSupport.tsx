@@ -1055,65 +1055,28 @@ export function resizeDraftPixelRectFromHandle(
     const startRight = startLeft + startWidth
     const startBottom = startTop + startHeight
 
-    if (handle === "n" || handle === "s" || handle === "e" || handle === "w") {
-        let left = startLeft
-        let top = startTop
-        let right = startRight
-        let bottom = startBottom
-        if (handle === "n") {
-            top = clamp(startTop + dy, 0, startBottom - minSizePx)
-        } else if (handle === "s") {
-            bottom = clamp(startBottom + dy, startTop + minSizePx, viewportH)
-        } else if (handle === "w") {
-            left = clamp(startLeft + dx, 0, startRight - minSizePx)
-        } else if (handle === "e") {
-            right = clamp(startRight + dx, startLeft + minSizePx, viewportW)
-        }
-        return {
-            left,
-            top,
-            width: Math.max(minSizePx, right - left),
-            height: Math.max(minSizePx, bottom - top),
-        }
+    let left = startLeft
+    let top = startTop
+    let right = startRight
+    let bottom = startBottom
+    if (handle.includes("w")) {
+        left = clamp(startLeft + dx, 0, startRight - minSizePx)
     }
-
-    const scaleX =
-        handle === "nw" || handle === "sw"
-            ? (startWidth - dx) / startWidth
-            : (startWidth + dx) / startWidth
-    const scaleY =
-        handle === "nw" || handle === "ne"
-            ? (startHeight - dy) / startHeight
-            : (startHeight + dy) / startHeight
-    const dominantScale =
-        Math.abs(scaleX - 1) >= Math.abs(scaleY - 1) ? scaleX : scaleY
-    const minScale = Math.max(minSizePx / startWidth, minSizePx / startHeight)
-
-    let maxScale = Number.POSITIVE_INFINITY
-    if (handle === "nw") {
-        maxScale = Math.min(startRight / startWidth, startBottom / startHeight)
-    } else if (handle === "ne") {
-        maxScale = Math.min((viewportW - startLeft) / startWidth, startBottom / startHeight)
-    } else if (handle === "sw") {
-        maxScale = Math.min(startRight / startWidth, (viewportH - startTop) / startHeight)
-    } else if (handle === "se") {
-        maxScale = Math.min((viewportW - startLeft) / startWidth, (viewportH - startTop) / startHeight)
+    if (handle.includes("e")) {
+        right = clamp(startRight + dx, startLeft + minSizePx, viewportW)
     }
-
-    const scale = clamp(dominantScale, minScale, maxScale)
-    const width = startWidth * scale
-    const height = startHeight * scale
-
-    if (handle === "nw") {
-        return { left: startRight - width, top: startBottom - height, width, height }
+    if (handle.includes("n")) {
+        top = clamp(startTop + dy, 0, startBottom - minSizePx)
     }
-    if (handle === "ne") {
-        return { left: startLeft, top: startBottom - height, width, height }
+    if (handle.includes("s")) {
+        bottom = clamp(startBottom + dy, startTop + minSizePx, viewportH)
     }
-    if (handle === "sw") {
-        return { left: startRight - width, top: startTop, width, height }
+    return {
+        left,
+        top,
+        width: Math.max(minSizePx, right - left),
+        height: Math.max(minSizePx, bottom - top),
     }
-    return { left: startLeft, top: startTop, width, height }
 }
 
 /** 按可见时间窗/频率窗映射到像素 */
