@@ -28,6 +28,7 @@ it("shows the exact file size with an explicit byte label", async () => {
     expect(screen.getByText("153604158")).toBeVisible()
     expect(screen.queryByText("size_b")).not.toBeInTheDocument()
     expect(screen.getByText("codec")).toBeVisible()
+    expect(screen.getByText("No embedded metadata")).toHaveClass("audio-metadata-drawer__empty")
 })
 
 it("downloads the original metadata response without renaming its keys", async () => {
