@@ -470,6 +470,28 @@ export function physBoxFreqBandHz(
     return { lo: snapTimeSec(y0), hi: snapTimeSec(y1) }
 }
 
+/**
+ * Frequency window sent with a spectrogram/audio viewport.
+ * An explicit pending band (annotation open, magnifier, preview) still wins.
+ * After Reset, keep the visible window instead of substituting the open annotation band.
+ */
+export function resolveViewportFreqHz(input: {
+    specMinHz: number
+    specMaxHz: number
+    bandFilter: boolean
+    pendingBand: { lo: number; hi: number } | null
+    annotationBand: { lo: number; hi: number } | null
+    keepVisibleFrequency: boolean
+}): { freqMinHz: number; freqMaxHz: number } {
+    if (input.bandFilter && input.pendingBand) {
+        return { freqMinHz: input.pendingBand.lo, freqMaxHz: input.pendingBand.hi }
+    }
+    if (input.bandFilter && !input.keepVisibleFrequency && input.annotationBand) {
+        return { freqMinHz: input.annotationBand.lo, freqMaxHz: input.annotationBand.hi }
+    }
+    return { freqMinHz: input.specMinHz, freqMaxHz: input.specMaxHz }
+}
+
 export function computeMagnifierLayoutForAnnotation(
     a: AnnotationPublic,
     durationS: number,

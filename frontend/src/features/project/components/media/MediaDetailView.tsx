@@ -240,6 +240,7 @@ import {
     type PrefetchedSpectrogram,
     continuousSegmentKey,
     physBoxFreqBandHz,
+    resolveViewportFreqHz,
     computeMagnifierLayoutForAnnotation,
     STUDIO_ANNOTATION_COLUMNS,
     PHOTO_STUDIO_ANNOTATION_COLUMNS,
@@ -426,6 +427,8 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
     const lastFetchedAudioReloadTokenRef = useRef(-1)
     /** 放大镜/标注放大：下一次音频请求须使用的频段（避免 state 批处理滞后） */
     const pendingAudioBandpassHzRef = useRef<{ lo: number; hi: number } | null>(null)
+    /** Reset 之后沿用可见频段，不再用当前标注框覆盖声谱图纵轴。 */
+    const keepVisibleSpectrogramFreqRef = useRef(false)
     const [audioReloadToken, setAudioReloadToken] = useState(0)
     const pendingZoomSeekTimeRef = useRef<number | null>(null)
     const currentTimeRef = useRef(0)
@@ -1138,6 +1141,8 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
         if (!media) return
         const sr = Number(media.sampling_rate_hz)
         const nyq = !Number.isNaN(sr) && sr > 0 ? Math.round(sr / 2) : 24000
+        keepVisibleSpectrogramFreqRef.current = false
+        pendingAudioBandpassHzRef.current = null
         setSpecFreqMinHz(1)
         setSpecFreqMaxHz(nyq)
     }, [media?.sampling_rate_hz, mediaId])
@@ -1223,22 +1228,19 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
             const stereo = Number(media.channels) === 2
             const sr = Number(media.sampling_rate_hz)
             const nyq = !Number.isNaN(sr) && sr > 0 ? Math.round(sr / 2) : 24000
-            let freqMinHz = specFreqMinHz
-            let freqMaxHz = specFreqMaxHz
-            const pendingBand = pendingAudioBandpassHzRef.current
-            if (audioBandFilterRef.current) {
-                if (pendingBand) {
-                    freqMinHz = pendingBand.lo
-                    freqMaxHz = pendingBand.hi
-                } else {
-                    const draft = annotationDraftRef.current
-                    if (annotationPanelActiveRef.current && draft && !spectrogramMagnifierZoomedRef.current) {
-                        const annotBand = physBoxFreqBandHz(draft, nyq)
-                        freqMinHz = annotBand.lo
-                        freqMaxHz = annotBand.hi
-                    }
-                }
-            }
+            const draft = annotationDraftRef.current
+            const annotationBand =
+                annotationPanelActiveRef.current && draft && !spectrogramMagnifierZoomedRef.current
+                    ? physBoxFreqBandHz(draft, nyq)
+                    : null
+            const { freqMinHz, freqMaxHz } = resolveViewportFreqHz({
+                specMinHz: specFreqMinHz,
+                specMaxHz: specFreqMaxHz,
+                bandFilter: audioBandFilterRef.current,
+                pendingBand: pendingAudioBandpassHzRef.current,
+                annotationBand,
+                keepVisibleFrequency: keepVisibleSpectrogramFreqRef.current,
+            })
             return buildMediaViewportParams({
                 durationS: dur,
                 samplingRateHz: sr || 0,
@@ -3045,6 +3047,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
 
     const openAnnotationEditorForPublic = useCallback(
         (a: AnnotationPublic, reviewsOverride?: AnnotationReviewRead[]) => {
+            keepVisibleSpectrogramFreqRef.current = false
             spectrogramMagnifierBackupRef.current = null
             setSpectrogramMagnifierZoomed(false)
             setAnnotationDraftOverlayVisible(false)
@@ -5759,10 +5762,14 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
 
     /** 时间轴 + 频率轴均恢复为整段 / 全频段（由 Audio Info 旁按钮触发；小地图仅预览不重置） */
     const resetSpectrogramToFullView = () => {
+        keepVisibleSpectrogramFreqRef.current = true
+        pendingAudioBandpassHzRef.current = null
         fitSpectrogramToFullDuration()
         syncPlaybackToSpectrogramViewStart(0)
         setSpecFreqMinHz(1)
         setSpecFreqMaxHz(nyquistHz)
+        setSpectrogramRetryToken((n) => n + 1)
+        setAudioReloadToken((n) => n + 1)
     }
 
     const channelCount = Number(media.audio_setting?.channel_num ?? media.channels)
@@ -5984,12 +5991,16 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
 
         // 从 0 开始重新应用密度，恢复完整频段。
         const nextVs = 0
+        keepVisibleSpectrogramFreqRef.current = true
+        pendingAudioBandpassHzRef.current = null
         spectrogramViewStartRef.current = nextVs
         setSpectrogramZoomPercent(nextZp)
         spectrogramZoomPercentRef.current = nextZp
         setSpectrogramViewStart(nextVs)
         setSpecFreqMinHz(1)
         setSpecFreqMaxHz(nyquistHz)
+        setSpectrogramRetryToken((n) => n + 1)
+        setAudioReloadToken((n) => n + 1)
         storeSpectrogramZoomPercentCookie(nextZp)
         audioPreserveTimeRef.current = nextVs
         syncPlaybackToSpectrogramViewStart(nextVs)
