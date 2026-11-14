@@ -384,14 +384,19 @@
     cursor: help;
 }
 
-.dpl-uuid-toggle {
+button.dpl-uuid-toggle {
     display: inline-flex;
     align-items: center;
     justify-content: center;
     flex: 0 0 auto;
+    box-sizing: border-box;
     width: 18px;
+    min-width: 18px;
     height: 18px;
+    min-height: 18px;
+    margin: 0;
     padding: 0;
+    line-height: 1;
     border: 0;
     border-radius: 4px;
     background: transparent;
