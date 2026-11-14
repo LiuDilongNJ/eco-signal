@@ -32,6 +32,7 @@ import { mediaTypeFilterParam, type MediaTypeFilter } from "./mediaTypeFilter"
 
 const ROW_COLLAPSED_PX = 40
 const BAR_HEIGHT = 22
+const PHOTO_DOT_SIZE = 12
 const BAR_GAP = 4
 const SIDEBAR_W = 200
 const VIRTUAL_ROW_OVERSCAN = 8
@@ -1334,7 +1335,7 @@ export function TimelineTab() {
                                                                 className="ats-cluster"
                                                                 style={barTimeLayout(b.tAnchor, b.tAnchor)}
                                                                 onClick={() => onBucketClick(site)}
-                                                                title={b.count > 1 ? `Open ${b.count} media items for this site` : "Open media for this site"}
+                                                                title={b.count > 1 ? `Expand this site and zoom to ${b.count} media items` : "Expand this site and zoom to its media"}
                                                                 aria-label={
                                                                     b.count > 1
                                                                         ? `${b.count} items`
@@ -1427,8 +1428,8 @@ export function TimelineTab() {
                                                                             type="button"
                                                                             className={`ats-bar${isMeta ? " ats-bar--metadata" : ""}${isPhoto ? " ats-bar--photo" : ""}`}
                                                                             style={{
-                                                                                top: isPhoto ? top + (BAR_HEIGHT - 8) / 2 : top,
-                                                                                height: isPhoto ? 8 : BAR_HEIGHT,
+                                                                                top: isPhoto ? top + (BAR_HEIGHT - PHOTO_DOT_SIZE) / 2 : top,
+                                                                                height: isPhoto ? PHOTO_DOT_SIZE : BAR_HEIGHT,
                                                                                 ...barTimeLayout(x0, isPhoto ? x0 : end),
                                                                                 ...(isMeta
                                                                                     ? metadataBarStyle ?? undefined
@@ -1446,6 +1447,7 @@ export function TimelineTab() {
                                                                             <span
                                                                                 className={`ats-bar-label ${canFitInside ? "ats-bar-label--inside" : ""}`}
                                                                                 style={{ borderColor: canFitInside ? "transparent" : getRealmTheme(it.realm).brand }}
+                                                                                title={`Zoom to ${it.name || "this item"}`}
                                                                                 onClick={(e) => {
                                                                                     e.stopPropagation()
                                                                                     zoomToItem(it)
