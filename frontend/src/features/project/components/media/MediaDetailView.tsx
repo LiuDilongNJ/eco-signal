@@ -224,6 +224,7 @@ import {
     resolveSpectrogramZoomWindow,
     resolveSpectrogramViewStart,
     parseSpectrogramZoomFactor,
+    commitSpectrogramZoomFactorDraft,
     nextWindowByZoomFactor,
     hexColorToRgba,
     SOUNDSCAPE_LABELS,
@@ -5825,7 +5826,13 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
         const dur = totalDuration
         const curWin = specWindowSec
         if (!(dur > 0) || !(curWin > 0)) return
-        const factor = parseSpectrogramZoomFactor(factorRaw)
+        const factor = commitSpectrogramZoomFactorDraft(factorRaw)
+        if (factor == null) {
+            setSpectrogramZoomFactorDraft(
+                String(parseSpectrogramZoomFactor(getCookieValue(SPEC_ZOOM_FACTOR_COOKIE_KEY))),
+            )
+            return
+        }
         const minWin = spectrogramMinWindowSec(dur)
         const nextWin = clamp(nextWindowByZoomFactor(curWin, factor, dir), minWin, dur)
         if (Math.abs(nextWin - curWin) < SPECTROGRAM_ZOOM_MIN_WINDOW_EPSILON_S) return
@@ -6172,14 +6179,21 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                                 title="Zoom in divides the visible width by this factor; zoom out multiplies it"
                                 onChange={(e) => {
                                     const v = e.target.value
-                                    setSpectrogramZoomFactorDraft(v)
-                                    const parsed = Number(v)
-                                    if (Number.isFinite(parsed) && parsed >= SPECTROGRAM_ZOOM_FACTOR_MIN) {
-                                        setCookieValue(
-                                            SPEC_ZOOM_FACTOR_COOKIE_KEY,
-                                            String(parseSpectrogramZoomFactor(v)),
-                                        )
+                                    if (v !== "" && v !== "." && v !== "-") {
+                                        const parsed = Number(v)
+                                        if (Number.isFinite(parsed) && parsed < SPECTROGRAM_ZOOM_FACTOR_MIN) return
                                     }
+                                    setSpectrogramZoomFactorDraft(v)
+                                    const committed = commitSpectrogramZoomFactorDraft(v)
+                                    if (committed != null) {
+                                        setCookieValue(SPEC_ZOOM_FACTOR_COOKIE_KEY, String(committed))
+                                    }
+                                }}
+                                onBlur={() => {
+                                    const committed = commitSpectrogramZoomFactorDraft(spectrogramZoomFactorDraft)
+                                    setSpectrogramZoomFactorDraft(
+                                        String(committed ?? parseSpectrogramZoomFactor(getCookieValue(SPEC_ZOOM_FACTOR_COOKIE_KEY))),
+                                    )
                                 }}
                             />
                             <span className="zoom-control-unit">×</span>
@@ -6197,15 +6211,6 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                                 disabled={isSpectrogramBusy}
                                 onClick={handleSpectrogramZoomIn}
                             />
-                            <ESButton
-                                appearance="unstyled"
-                                type="button"
-                                className="zoom-control-reset-btn"
-                                disabled={isSpectrogramBusy}
-                                onClick={resetSpectrogramToFullView}
-                            >
-                                Reset
-                            </ESButton>
                         </div>
                         <div className="zoom-control-wrapper zoom-control-wrapper--pxs">
                             <MediaViewerToolbarButton

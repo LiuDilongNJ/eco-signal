@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import {
+    commitSpectrogramZoomFactorDraft,
     nextWindowByZoomFactor,
     parseSpectrogramZoomFactor,
     SPECTROGRAM_ZOOM_FACTOR_DEFAULT,
@@ -14,6 +15,12 @@ describe("spectrogram zoom factor", () => {
         expect(parseSpectrogramZoomFactor("1")).toBe(SPECTROGRAM_ZOOM_FACTOR_MIN)
         expect(parseSpectrogramZoomFactor("99")).toBe(SPECTROGRAM_ZOOM_FACTOR_MAX)
         expect(parseSpectrogramZoomFactor("2.5")).toBe(2.5)
+    })
+
+    it("rejects a zoom factor below 1 instead of applying it", () => {
+        expect(commitSpectrogramZoomFactorDraft("0.5")).toBeNull()
+        expect(commitSpectrogramZoomFactorDraft("1")).toBe(1)
+        expect(commitSpectrogramZoomFactorDraft("2")).toBe(2)
     })
 
     it("zooms in by dividing width and out by multiplying width", () => {

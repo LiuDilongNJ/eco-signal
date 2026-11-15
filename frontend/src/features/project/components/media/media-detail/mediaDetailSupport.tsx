@@ -37,7 +37,7 @@ export const SPECTROGRAM_ZOOM_MIN_WINDOW_EPSILON_S = 1e-6
 export const SPECTROGRAM_FREQ_WINDOW_EPSILON_HZ = 1e-6
 export const SPECTROGRAM_ANNOTATION_MIN_VISIBLE_PX = 6
 export const SPECTROGRAM_DRAFT_MIN_SIZE_PX = 12
-export const SPECTROGRAM_ZOOM_FACTOR_MIN = 1.1
+export const SPECTROGRAM_ZOOM_FACTOR_MIN = 1
 export const SPECTROGRAM_ZOOM_FACTOR_MAX = 10
 export const SPECTROGRAM_ZOOM_FACTOR_DEFAULT = 2
 export const SPECTROGRAM_ZOOM_FACTOR_STEP = 0.1
@@ -327,6 +327,13 @@ export function resolveSpectrogramViewStart(durationS: number, centerSec: number
 export function parseSpectrogramZoomFactor(raw: string | null | undefined, fallback = SPECTROGRAM_ZOOM_FACTOR_DEFAULT): number {
     const n = raw != null ? Number(raw) : NaN
     if (!Number.isFinite(n)) return fallback
+    return clamp(n, SPECTROGRAM_ZOOM_FACTOR_MIN, SPECTROGRAM_ZOOM_FACTOR_MAX)
+}
+
+/** 小于 1 的倍数不允许使用；返回 null，调用方应恢复上一次有效值。 */
+export function commitSpectrogramZoomFactorDraft(raw: string | null | undefined): number | null {
+    const n = raw != null ? Number(raw) : NaN
+    if (!Number.isFinite(n) || n < SPECTROGRAM_ZOOM_FACTOR_MIN) return null
     return clamp(n, SPECTROGRAM_ZOOM_FACTOR_MIN, SPECTROGRAM_ZOOM_FACTOR_MAX)
 }
 
