@@ -191,6 +191,10 @@
     border-bottom: 1px dashed var(--border-light);
 }
 
+.link-site-tree .collection-item {
+    padding-left: 46px;
+}
+
 .collection-name {
     color: var(--text-main);
     font-size: 14px;

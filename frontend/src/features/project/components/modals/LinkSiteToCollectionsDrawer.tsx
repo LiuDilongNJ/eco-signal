@@ -305,7 +305,7 @@ export function LinkSiteToCollectionsDrawer({
                                         }}
                                     />
                                 )}
-                                className="link-collapse"
+                                className="link-collapse link-site-tree"
                                 activeKey={activeKeys}
                                 onChange={(keys) => setActiveKeys(Array.isArray(keys) ? keys : [keys])}
                             >
