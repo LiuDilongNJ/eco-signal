@@ -25,7 +25,7 @@ import { NAV_BAR_ICON_SIZE } from '@/features/project/components/nav/navBarIconS
 import { CustomScrollArea } from '@/components/ui';
 import { useProjectStore } from '@/features/project/stores/useProjectStore';
 import { useAppStore } from '@/store/useAppStore';
-import { CARTO_ATTRIBUTION, cartoTileUrl } from '@/utils/mapTiles';
+import { OPENTOPOMAP_ATTRIBUTION, OPENTOPOMAP_MAX_NATIVE_ZOOM, OPENTOPOMAP_TILE_URL } from '@/utils/mapTiles';
 import {
     openCookiePreferences,
 } from '../cookieConsent';
@@ -1012,10 +1012,10 @@ export default function HomePage() {
                                     mapPageActive={activePage === 2}
                                 />
                                 <TileLayer
-                                    url={cartoTileUrl("light_nolabels")}
-                                    attribution={CARTO_ATTRIBUTION}
+                                    url={OPENTOPOMAP_TILE_URL}
+                                    attribution={OPENTOPOMAP_ATTRIBUTION}
+                                    maxNativeZoom={OPENTOPOMAP_MAX_NATIVE_ZOOM}
                                 />
-                                <TileLayer url={cartoTileUrl("light_only_labels")} opacity={0.7} />
                                 {networkNodes
                                     .filter(
                                         (n) => n.latitude != null && n.longitude != null

@@ -96,7 +96,6 @@ src/
 | 变量               | 说明       | 默认值      |
 | ------------------ | ---------- | ----------- |
 | `VITE_APP_TITLE`   | 应用标题   | `ecoSignal` |
-| `VITE_CARTO_BASEMAP_KEY` | CARTO 栅格底图 API Key | — |
 
 若接口大量 **500**，多为后端异常（如数据库未启动）。本地可看后端终端日志；`ENVIRONMENT=local` 时响应体里 `detail` 常带具体错误信息。
 

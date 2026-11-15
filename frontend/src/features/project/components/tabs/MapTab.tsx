@@ -13,7 +13,7 @@ import "leaflet/dist/leaflet.css"
 import "leaflet.markercluster/dist/leaflet.markercluster.js"
 import "leaflet.markercluster/dist/MarkerCluster.css"
 import "leaflet.markercluster/dist/MarkerCluster.Default.css"
-import { CARTO_ATTRIBUTION, cartoTileUrl } from "@/utils/mapTiles"
+import { OPENTOPOMAP_ATTRIBUTION, OPENTOPOMAP_MAX_NATIVE_ZOOM, OPENTOPOMAP_TILE_URL } from "@/utils/mapTiles"
 import "../../map.css"
 import {
     X,
@@ -1401,8 +1401,9 @@ export function MapTab() {
                         style={{ width: "100%", height: "100%" }}
                     >
                         <TileLayer
-                            url={cartoTileUrl("light_all")}
-                            attribution={CARTO_ATTRIBUTION}
+                            url={OPENTOPOMAP_TILE_URL}
+                            attribution={OPENTOPOMAP_ATTRIBUTION}
+                            maxNativeZoom={OPENTOPOMAP_MAX_NATIVE_ZOOM}
                             updateWhenZooming={false}
                             updateWhenIdle={true}
                             keepBuffer={4}

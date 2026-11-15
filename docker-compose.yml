@@ -303,7 +303,6 @@ services:
       args:
         NODE_BASE_IMAGE: ${NODE_BASE_IMAGE:-node:22-alpine}
         NGINX_BASE_IMAGE: ${NGINX_BASE_IMAGE:-nginx:alpine}
-        VITE_CARTO_BASEMAP_KEY: ${VITE_CARTO_BASEMAP_KEY:-}
     ports:
       - "${FRONTEND_PORT:-80}:80"
     volumes:

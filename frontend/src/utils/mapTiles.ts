@@ -1,11 +1,8 @@
-const CARTO_BASEMAP_KEY = import.meta.env.VITE_CARTO_BASEMAP_KEY?.trim()
+/** OpenTopoMap serves free topographic tiles, including ocean depth, with no API key. */
+export const OPENTOPOMAP_TILE_URL = "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png"
 
-export const CARTO_ATTRIBUTION =
-    '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
+export const OPENTOPOMAP_ATTRIBUTION =
+    'Map data: &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, <a href="https://viewfinderpanoramas.org">SRTM</a> | Map style: &copy; <a href="https://opentopomap.org">OpenTopoMap</a> (<a href="https://creativecommons.org/licenses/by-sa/3.0/">CC-BY-SA</a>)'
 
-export function cartoTileUrl(style: string): string {
-    const baseUrl = `https://{s}.basemaps.cartocdn.com/${style}/{z}/{x}/{y}{r}.png`
-    return CARTO_BASEMAP_KEY
-        ? `${baseUrl}?key=${encodeURIComponent(CARTO_BASEMAP_KEY)}`
-        : baseUrl
-}
+/** OpenTopoMap publishes tiles through zoom 17. */
+export const OPENTOPOMAP_MAX_NATIVE_ZOOM = 17
