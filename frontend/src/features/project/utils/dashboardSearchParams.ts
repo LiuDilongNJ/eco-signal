@@ -9,6 +9,7 @@ const TAB_SET = new Set<string>(TAB_ITEMS.map((t) => t.key))
 
 export function parseTabParam(raw: string | null): TabName | null {
     if (raw == null || raw.trim() === "") return null
+    if (raw === "summary") return "desc"
     return TAB_SET.has(raw) ? (raw as TabName) : null
 }
 

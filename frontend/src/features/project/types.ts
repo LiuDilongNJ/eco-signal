@@ -129,4 +129,4 @@ export interface SchemaTable {
 }
 
 /** Tab 名称 */
-export type TabName = "desc" | "summary" | "media" | "map" | "timeline" | "data"
+export type TabName = "desc" | "media" | "map" | "timeline" | "data"

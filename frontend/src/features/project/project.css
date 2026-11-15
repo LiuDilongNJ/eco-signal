@@ -700,11 +700,16 @@ button.dropdown-item {
     width: 100%;
     height: 100%;
     overflow: hidden;
+    display: flex;
+    flex-direction: row;
+    align-items: stretch;
+    gap: var(--gap);
 }
 
 .desc-layout-stage {
-    position: absolute;
-    inset: 0;
+    position: relative;
+    flex: 1 1 0;
+    min-height: 0;
 }
 
 .desc-layout-stage--slide-left {
@@ -740,9 +745,8 @@ button.dropdown-item {
 }
 
 .desc-layout {
-    position: relative;
-    width: 100%;
-    height: 100%;
+    position: absolute;
+    inset: 0;
     overflow: hidden;
 }
 
@@ -1282,6 +1286,91 @@ button.dropdown-item {
     gap: var(--gap);
     height: 100%;
     width: 100%;
+}
+
+.desc-summary {
+    flex: 0 0 38%;
+    width: 38%;
+    max-width: 520px;
+    min-width: 300px;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.desc-summary-stats {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-auto-rows: minmax(72px, auto);
+    gap: 12px;
+    flex: 0 0 auto;
+}
+
+.desc-summary .summary-stat-card {
+    padding: 14px 16px;
+    box-shadow: none;
+}
+
+.desc-summary .summary-stat-val {
+    font-size: 1.6rem;
+    letter-spacing: -0.5px;
+    margin-bottom: 2px;
+}
+
+.desc-summary .summary-stat-label {
+    font-size: 0.72rem;
+    letter-spacing: 0.06em;
+}
+
+.desc-summary .summary-stat-card .bg-icon {
+    width: 52px;
+    height: 52px;
+    bottom: -10px;
+    right: -8px;
+}
+
+.desc-summary .summary-stat-card:hover .bg-icon {
+    bottom: -6px;
+    right: -4px;
+    width: 52px;
+    height: 52px;
+    opacity: 0.16;
+    transform: none;
+}
+
+.desc-summary .summary-contributors-card {
+    flex: 1 1 auto;
+    height: auto;
+    min-height: 0;
+}
+
+.desc-summary .summary-contributors-card .bg-icon-contrib {
+    width: 96px;
+    height: 96px;
+    bottom: -24px;
+    right: -16px;
+}
+
+.desc-summary .summary-contributors-card:hover .bg-icon-contrib {
+    width: 96px;
+    height: 96px;
+    bottom: -16px;
+    right: -8px;
+    opacity: 0.12;
+    transform: none;
+}
+
+.desc-summary .card-header {
+    padding: 8px 14px;
+}
+
+.desc-summary .card-title {
+    font-size: 0.9rem;
+}
+
+.desc-summary .contrib-item {
+    padding: 8px 14px;
 }
 
 .summary-stats-container {

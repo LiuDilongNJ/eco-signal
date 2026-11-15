@@ -36,7 +36,7 @@ describe("TabSwitcher", () => {
         render(<TabSwitcher />)
 
         expect(screen.getByText("Description")).toBeInTheDocument()
-        expect(screen.getByText("Summary")).toBeInTheDocument()
+        expect(screen.queryByText("Summary")).not.toBeInTheDocument()
         expect(screen.getByText("Media")).toBeInTheDocument()
         expect(screen.getByText("Map")).toBeInTheDocument()
         expect(screen.getByText("Timeline")).toBeInTheDocument()
@@ -54,7 +54,7 @@ describe("TabSwitcher", () => {
         render(<TabSwitcher />)
 
         expect(screen.getByText("Description")).toBeInTheDocument()
-        expect(screen.getByText("Summary")).toBeInTheDocument()
+        expect(screen.queryByText("Summary")).not.toBeInTheDocument()
         expect(screen.queryByText("Media")).not.toBeInTheDocument()
         expect(screen.getByText("Map")).toBeInTheDocument()
         expect(screen.queryByText("Timeline")).not.toBeInTheDocument()
@@ -72,7 +72,7 @@ describe("TabSwitcher", () => {
         render(<TabSwitcher />)
 
         expect(screen.getByText("Description")).toBeInTheDocument()
-        expect(screen.getByText("Summary")).toBeInTheDocument()
+        expect(screen.queryByText("Summary")).not.toBeInTheDocument()
         expect(screen.getByText("Media")).toBeInTheDocument()
         expect(screen.queryByText("Map")).not.toBeInTheDocument()
         expect(screen.getByText("Timeline")).toBeInTheDocument()

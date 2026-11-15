@@ -19,6 +19,7 @@ import { collectionsApi } from "../../../../api/endpoints/collections"
 import { CustomScrollArea } from "@/components/ui"
 import { UnifiedImage } from "@/components/ui"
 import { parseRichText } from "@/utils/string"
+import { DescriptionSummary } from "./SummaryTab"
 
 type TaxonChip = { id?: number | null; cached_name?: string | null }
 
@@ -350,6 +351,7 @@ export function DescriptionTab() {
                     </div>
                 </div>
             </div>
+            <DescriptionSummary />
         </div>
     )
 }

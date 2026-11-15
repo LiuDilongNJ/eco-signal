@@ -16,9 +16,9 @@ function getInitialTab(): TabName {
             return "media"
         }
         const tab = new URLSearchParams(window.location.search).get("tab")
+        if (tab === "summary") return "desc"
         if (
             tab === "desc" ||
-            tab === "summary" ||
             tab === "media" ||
             tab === "map" ||
             tab === "timeline" ||

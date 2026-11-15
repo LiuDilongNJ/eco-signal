@@ -25,7 +25,6 @@ export const DEFAULT_BRAND_COLOR = "#83CD20"
 /** Tab 标签定义 */
 export const TAB_ITEMS = [
     { key: "desc", label: "Description" },
-    { key: "summary", label: "Summary" },
     { key: "media", label: "Media" },
     { key: "map", label: "Map" },
     { key: "timeline", label: "Timeline" },

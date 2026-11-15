@@ -1,7 +1,6 @@
 /**
- * SummaryTab - 统计汇总页
- *
- * 包含统计卡片网格 + 贡献者列表
+ * Description 页底部的统计与贡献者。
+ * 原来单独占一整页，数字很少，所以收成一条紧凑区域。
  */
 
 import { useEffect, useRef, useState } from "react"
@@ -53,15 +52,11 @@ function getDisplayEmail(value: string | null | undefined) {
     return email && EMAIL_PATTERN.test(email) ? email : ""
 }
 
-export function SummaryTab() {
+export function DescriptionSummary() {
     const currentProjectId = useProjectStore((s) => s.currentProjectId)
     const currentCollectionId = useProjectStore((s) => s.currentCollectionId)
     const requestSeqRef = useRef(0)
 
-    const project = useProjectStore((s) => {
-        if (!s.currentProjectId) return undefined
-        return s.projects.find(p => String(p.id) === String(s.currentProjectId))
-    })
     const collection = useProjectStore((s) => {
         if (!s.currentCollectionId) return undefined
         return s.collectionOptions.find(c => String(c.id) === String(s.currentCollectionId))
@@ -103,10 +98,7 @@ export function SummaryTab() {
         fetchSummary()
     }, [currentProjectId, currentCollectionId, isCollectionMode])
 
-    if (!project) {
-        // return <div className="tab-placeholder"><p>No project selected</p></div>
-        return null
-    }
+    if (!currentProjectId) return null
 
     const entityType = isCollectionMode ? "Collection" : "Project"
 
@@ -114,9 +106,8 @@ export function SummaryTab() {
     const contributors: Contributor[] = summaryData?.contributors || []
 
     return (
-        <div className="summary-layout">
-            {/* 统计卡片网格 */}
-            <div className={`summary-stats-container block-anim ${loading ? 'loading' : ''}`}>
+        <div className="desc-summary">
+            <div className={`desc-summary-stats block-anim ${loading ? "loading" : ""}`}>
                 {STAT_ORDER.map((key) => {
                     const value = stats ? (stats[key as keyof ProjectStats] ?? 0) : "-"
                     const Icon =

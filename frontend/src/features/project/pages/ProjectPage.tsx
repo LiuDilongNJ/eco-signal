@@ -6,7 +6,6 @@
 
 import { ProjectNavBar } from "../components/nav/ProjectNavBar"
 import { DescriptionTab } from "../components/tabs/DescriptionTab"
-import { SummaryTab } from "../components/tabs/SummaryTab"
 import { MediaTab } from "../components/tabs/MediaTab"
 import { MapTab } from "../components/tabs/MapTab"
 import { TimelineTab } from "../components/tabs/TimelineTab"
@@ -30,7 +29,6 @@ import "../media-detail.css"
 
 const TAB_COMPONENTS: Record<TabName, React.ComponentType> = {
     desc: DescriptionTab,
-    summary: SummaryTab,
     media: MediaTab,
     map: MapTab,
     timeline: TimelineTab,
