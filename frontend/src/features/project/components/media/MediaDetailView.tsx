@@ -1954,19 +1954,6 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
         )
     }
 
-    const toggleAnnotationRowSelection = useCallback((recordId: number) => {
-        setSelectedAnnotationKeys((prev) => {
-            const s = new Set(prev.map((k) => Number(k)))
-            if (s.has(recordId)) s.delete(recordId)
-            else s.add(recordId)
-            const next = Array.from(s)
-            annotationTableSelectedIdsRef.current = next
-                .map((k) => Number(k))
-                .filter((n) => Number.isFinite(n) && n > 0)
-            return next
-        })
-    }, [])
-
     const toggleAnnotationSelectAllCurrentPage = useCallback(() => {
         const pageIds = annotationTableRows.map((r) => r.annotation_id)
         if (pageIds.length === 0) return
@@ -4436,14 +4423,14 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
         draftInteractionRef.current = null
     }, [reviewTaxonOptionsState.reset])
 
-    const closeAnnotationPanel = useCallback(() => {
+    const closeAnnotationPanel = useCallback((options?: { keepSelection?: boolean }) => {
         const closingAnnotationId = editingAnnotationId
         setRightPanel("info")
         setAnnotationDraft(null)
         setEditingAnnotationId(null)
         setEditingAnnotationMeta(null)
         setEditingAnnotationReviews([])
-        if (closingAnnotationId != null) {
+        if (closingAnnotationId != null && !options?.keepSelection) {
             setSelectedAnnotationKeys((prev) => {
                 const next = prev.filter((k) => Number(k) !== closingAnnotationId)
                 annotationTableSelectedIdsRef.current = next
@@ -4451,6 +4438,8 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                     .filter((n) => Number.isFinite(n) && n > 0)
                 return next
             })
+        }
+        if (closingAnnotationId != null) {
             setAnnotationLinkedHighlightId((current) =>
                 current === closingAnnotationId ? null : current,
             )
@@ -4468,6 +4457,12 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
         draftInteractionRef.current = null
         clearSpectrogramMagnifierBackup()
     }, [clearSpectrogramMagnifierBackup, editingAnnotationId, reviewTaxonOptionsState.reset])
+
+    useEffect(() => {
+        if (selectedAnnotationKeys.length === 1 || editingAnnotationId == null) return
+        if (!annotationPanelActiveRef.current) return
+        closeAnnotationPanel({ keepSelection: true })
+    }, [closeAnnotationPanel, editingAnnotationId, selectedAnnotationKeys])
 
     const handleDeleteEditingAnnotation = useCallback(async () => {
         const id = reviewContextAnnotationId
@@ -7039,17 +7034,23 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                                         onRow={(record) => ({
                                             onClick: (e) => {
                                                 if (isAnnotationTableRowSelectIgnoredTarget(e.target)) return
-                                                toggleAnnotationRowSelection(record.annotation_id)
-                                            },
-                                            onDoubleClick: (e) => {
-                                                if (isAnnotationTableRowSelectIgnoredTarget(e.target)) return
+                                                setAnnotationLinkedHighlightId(record.annotation_id)
+                                                setSelectedAnnotationKeys([record.annotation_id])
+                                                annotationTableSelectedIdsRef.current = [record.annotation_id]
                                                 void openAnnotationEditorById(record.annotation_id)
                                             },
                                             onMouseEnter: () => setAnnotationLinkedHighlightId(record.annotation_id),
                                             onMouseLeave: () =>
-                                                setAnnotationLinkedHighlightId((cur) =>
-                                                    cur === record.annotation_id ? null : cur,
-                                                ),
+                                                setAnnotationLinkedHighlightId((cur) => {
+                                                    if (cur !== record.annotation_id) return cur
+                                                    const soleSelected =
+                                                        selectedAnnotationKeys.length === 1 &&
+                                                        Number(selectedAnnotationKeys[0]) === record.annotation_id
+                                                    if (soleSelected || editingAnnotationId === record.annotation_id) {
+                                                        return cur
+                                                    }
+                                                    return null
+                                                }),
                                         })}
                                     onChange={handleAnnotationTableChange}
                                 />
