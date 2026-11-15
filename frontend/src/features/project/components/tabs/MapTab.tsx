@@ -63,6 +63,7 @@ interface Site {
     gadm0: string | null
     gadm1: string | null
     gadm2: string | null
+    iho: string | null
 }
 
 interface FilterState {
@@ -265,6 +266,7 @@ function mapMarkerToSite(
         gadm0: m.gadm0 ?? null,
         gadm1: m.gadm1 ?? null,
         gadm2: m.gadm2 ?? null,
+        iho: m.iho ?? null,
     }
 }
 
@@ -1482,6 +1484,7 @@ function SiteSidebar({
         site.gadm0?.trim() ? { label: "GADM0", value: site.gadm0.trim() } : null,
         site.gadm1?.trim() ? { label: "GADM1", value: site.gadm1.trim() } : null,
         site.gadm2?.trim() ? { label: "GADM2", value: site.gadm2.trim() } : null,
+        site.iho?.trim() ? { label: "IHO", value: site.iho.trim() } : null,
     ].filter((row): row is { label: string; value: string; color?: string } => row != null)
     const currentProjectId = useProjectStore((s) => s.currentProjectId)
     const currentCollectionId = useProjectStore((s) => s.currentCollectionId)
