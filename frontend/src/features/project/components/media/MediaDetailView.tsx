@@ -213,7 +213,9 @@ import {
     formatSpectrogramPxPerSecDisplay,
     roundAnnotationCoord,
     snapVisibleRangeEndSec,
+    annotationAtEdge,
     compareAnnotationByMinTimeAndFrequency,
+    orderedMediaIdsOfType,
     nextAnnotationAfterByTime,
     isLabelSystemProtected,
     spectrogramVisibleWindowSec,
@@ -319,6 +321,9 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
         if (raw == null || raw.trim() === "") return null
         const parsed = Number(raw)
         return Number.isFinite(parsed) && parsed > 0 ? Math.trunc(parsed) : null
+    }, [location.search])
+    const routeAnnotationZoom = useMemo(() => {
+        return new URLSearchParams(location.search).get("annotation_zoom") !== "0"
     }, [location.search])
     const routeTaskMode = useMemo(() => {
         const raw = new URLSearchParams(location.search).get("task_mode")
@@ -3163,8 +3168,11 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
         const key = `${mediaId}:${routeAnnotationId}`
         if (routeAutoOpenedAnnotationKeyRef.current === key) return
         routeAutoOpenedAnnotationKeyRef.current = key
-        void openAnnotationEditorById(routeAnnotationId, { autoZoom: true, seek: true })
-    }, [currentProjectId, loading, mediaId, openAnnotationEditorById, routeAnnotationId])
+        void openAnnotationEditorById(routeAnnotationId, {
+            autoZoom: routeAnnotationZoom,
+            seek: routeAnnotationZoom,
+        })
+    }, [currentProjectId, loading, mediaId, openAnnotationEditorById, routeAnnotationId, routeAnnotationZoom])
 
     useEffect(() => {
         if (!routeTaskMode) return
@@ -3892,6 +3900,96 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
 
     const navigateAdjacentFromId = useCallback(
         async (baseAnnotationId: number, dir: -1 | 1, listOverride?: AnnotationPublic[]) => {
+            const openHere = (annotationId: number) => {
+                void openAnnotationEditorById(annotationId, {
+                    autoZoom: navAutoZoomToAnnotation,
+                    seek: navAutoZoomToAnnotation,
+                })
+            }
+            const openOnMedia = (targetMediaId: number, annotationId: number, taskMode: boolean) => {
+                if (targetMediaId === mediaId) {
+                    openHere(annotationId)
+                    return
+                }
+                if (currentProjectId == null) {
+                    message.error("Missing project context.")
+                    return
+                }
+                const projectSegment =
+                    projectRouteId != null && projectRouteId.trim() !== ""
+                        ? projectRouteId.trim()
+                        : String(currentProjectId)
+                const params = new URLSearchParams(location.search)
+                params.set("annotation_id", String(annotationId))
+                params.set("annotation_zoom", navAutoZoomToAnnotation ? "1" : "0")
+                if (taskMode) params.set("task_mode", "1")
+                navigate({
+                    pathname: `/dashboard/${projectSegment}/media/${targetMediaId}`,
+                    search: params.toString(),
+                })
+            }
+            const selectedCollectionId = () => {
+                const selected = useProjectStore.getState().currentCollectionId
+                const n = Number(selected)
+                return Number.isFinite(n) && n > 0 ? Math.trunc(n) : undefined
+            }
+            const boundaryMessage = (taskMode: boolean) => {
+                message.info(
+                    dir < 0
+                        ? taskMode
+                            ? "Already at the first task annotation."
+                            : "Already at the first annotation."
+                        : taskMode
+                            ? "Already at the last task annotation."
+                            : "Already at the last annotation.",
+                )
+            }
+            /** 当前录音的注释走到头之后，打开上一条或下一条同类型媒体边上的注释。 */
+            const jumpToAdjacentMedia = async (taskMode: boolean) => {
+                if (currentProjectId == null) {
+                    message.error("Missing project context.")
+                    return
+                }
+                try {
+                const options = await mediaApi.getMediaOptions(
+                    {
+                        project_id: currentProjectId,
+                        collection_id: selectedCollectionId(),
+                    },
+                    true,
+                )
+                const ids = orderedMediaIdsOfType(options, isPhoto ? "photo" : "audio")
+                const index = ids.indexOf(mediaId)
+                if (index < 0) {
+                    boundaryMessage(taskMode)
+                    return
+                }
+                for (let i = index + dir; i >= 0 && i < ids.length; i += dir) {
+                    const targetId = ids[i]
+                    if (targetId == null) continue
+                    const list = await annotationsApi.listAll(
+                        {
+                            media_id: targetId,
+                            project_id: currentProjectId,
+                            order_by: "annotation_id",
+                            order_dir: "asc",
+                        },
+                        true,
+                    )
+                    const filtered = taskMode
+                        ? list.filter((annotation) => annotationHasTaskTagForNav(annotation, meUserId))
+                        : list
+                    const edge = annotationAtEdge(filtered, dir)
+                    if (!edge) continue
+                    openOnMedia(targetId, edge.annotation_id, taskMode)
+                    return
+                }
+                boundaryMessage(taskMode)
+                } catch (error: unknown) {
+                    message.error(error instanceof Error ? error.message : "Failed to open the next recording.")
+                }
+            }
+
             const source = navAutoZoomToAnnotation
                 ? await fetchAnnotationsForNavigation(true)
                 : (listOverride ?? spectrogramAnnotations)
@@ -3900,29 +3998,37 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                 .filter((annotation) => annotationHasTaskTagForNav(annotation, meUserId))
                 .sort(compareAnnotationByMinTimeAndFrequency)
 
-            if (navOnlyTaskTagged) {
-                if (taskList.length === 0) {
-                    message.info("No annotation tasks on this media.")
+            const continuePastThisMedia = async (taskMode: boolean) => {
+                if (navAutoZoomToAnnotation && listOverride == null) {
+                    await jumpToAdjacentMedia(taskMode)
                     return
                 }
+                const complete = await fetchAnnotationsForNavigation(true)
+                const completeList = taskMode
+                    ? complete.filter((annotation) => annotationHasTaskTagForNav(annotation, meUserId))
+                    : complete
+                const sorted = [...completeList].sort(compareAnnotationByMinTimeAndFrequency)
+                const completeIdx = sorted.findIndex((item) => item.annotation_id === baseAnnotationId)
+                if (completeIdx >= 0) {
+                    const further = sorted[completeIdx + dir]
+                    if (further) {
+                        openHere(further.annotation_id)
+                        return
+                    }
+                }
+                await jumpToAdjacentMedia(taskMode)
+            }
+
+            if (navOnlyTaskTagged) {
                 const currentId = baseAnnotationId
                 const idx = taskList.findIndex((x) => x.annotation_id === currentId)
                 if (idx >= 0) {
-                    const nextIdx = idx + dir
-                    if (nextIdx < 0 || nextIdx >= taskList.length) {
-                        message.info(
-                            dir < 0
-                                ? "Already at the first task annotation."
-                                : "Already at the last task annotation.",
-                        )
+                    const nextAnn = taskList[idx + dir]
+                    if (!nextAnn) {
+                        await continuePastThisMedia(true)
                         return
                     }
-                    const nextAnn = taskList[nextIdx]
-                    if (!nextAnn) return
-                    void openAnnotationEditorById(nextAnn.annotation_id, {
-                        autoZoom: navAutoZoomToAnnotation,
-                        seek: navAutoZoomToAnnotation,
-                    })
+                    openHere(nextAnn.annotation_id)
                     return
                 }
                 /** 当前标注不在任务子集内：按方向跳到最近一条带 Task 的标注 */
@@ -3938,17 +4044,10 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                     }
                 }
                 if (!nextAnn) {
-                    message.info(
-                        dir < 0
-                            ? "Already at the first task annotation."
-                            : "Already at the last task annotation.",
-                    )
+                    await continuePastThisMedia(true)
                     return
                 }
-                void openAnnotationEditorById(nextAnn.annotation_id, {
-                    autoZoom: navAutoZoomToAnnotation,
-                    seek: navAutoZoomToAnnotation,
-                })
+                openHere(nextAnn.annotation_id)
                 return
             }
 
@@ -3957,24 +4056,25 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                 message.error("Current annotation is not in the navigation list.")
                 return
             }
-            const nextIdx = idx + dir
-            if (nextIdx < 0 || nextIdx >= fullList.length) {
-                message.info(dir < 0 ? "Already at the first annotation." : "Already at the last annotation.")
+            const nextAnn = fullList[idx + dir]
+            if (!nextAnn) {
+                await continuePastThisMedia(false)
                 return
             }
-            const nextAnn = fullList[nextIdx]
-            if (!nextAnn) return
-            void openAnnotationEditorById(nextAnn.annotation_id, {
-                autoZoom: navAutoZoomToAnnotation,
-                seek: navAutoZoomToAnnotation,
-            })
+            openHere(nextAnn.annotation_id)
         },
         [
+            currentProjectId,
             fetchAnnotationsForNavigation,
+            isPhoto,
+            location.search,
             meUserId,
+            mediaId,
             navAutoZoomToAnnotation,
             navOnlyTaskTagged,
+            navigate,
             openAnnotationEditorById,
+            projectRouteId,
             spectrogramAnnotations,
         ],
     )
@@ -6616,8 +6716,8 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                                 active={navOnlyTaskTagged}
                                 label={
                                     navOnlyTaskTagged
-                                        ? "Task toggle ON. When ON, Previous/Next buttons navigate to annotations you are tasked to review (even in other media). When OFF, they select adjacent annotations."
-                                        : "Task toggle OFF. When ON, Previous/Next buttons navigate to annotations you are tasked to review (even in other media). When OFF, they select adjacent annotations."
+                                        ? "Task toggle ON. Previous/Next stay on this recording, then continue to the previous or next recording's assigned annotations."
+                                        : "Task toggle OFF. Previous/Next stay on this recording, then continue to the previous or next recording."
                                 }
                                 icon={<ListChecks size={20} strokeWidth={2} />}
                                 onClick={() => setNavOnlyTaskTagged((v) => !v)}

@@ -865,8 +865,8 @@ export function PhotoImageViewer({
                         active={navOnlyTaskTagged}
                         label={
                             navOnlyTaskTagged
-                                ? "Task toggle ON. When ON, Previous/Next buttons navigate to annotations you are tasked to review (even in other media). When OFF, they select adjacent annotations."
-                                : "Task toggle OFF. When ON, Previous/Next buttons navigate to annotations you are tasked to review (even in other media). When OFF, they select adjacent annotations."
+                                ? "Task toggle ON. Previous/Next stay on this photo, then continue to the previous or next photo's assigned annotations."
+                                : "Task toggle OFF. Previous/Next stay on this photo, then continue to the previous or next photo."
                         }
                         icon={<ListChecks size={20} strokeWidth={2} />}
                         onClick={onToggleNavOnlyTaskTagged}

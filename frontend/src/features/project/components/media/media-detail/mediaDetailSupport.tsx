@@ -235,6 +235,30 @@ export function compareAnnotationByMinTimeAndFrequency(a: AnnotationPublic, b: A
     return 0
 }
 
+/** 同一媒体类型按 media_id 排序，供注释走到头后跳到上一条或下一条录音/照片。 */
+export function orderedMediaIdsOfType(
+    options: Array<{ media_id: number; media_type?: string | null }>,
+    mediaType: string,
+): number[] {
+    const type = mediaType.trim().toLowerCase()
+    return options
+        .filter((item) => String(item.media_type ?? "").trim().toLowerCase() === type)
+        .map((item) => item.media_id)
+        .filter((id) => Number.isFinite(id) && id > 0)
+        .sort((a, b) => a - b)
+}
+
+/** dir 为 1 时取时间上的第一条，为 -1 时取最后一条。 */
+export function annotationAtEdge(list: AnnotationPublic[], dir: -1 | 1): AnnotationPublic | null {
+    if (list.length === 0) return null
+    const sorted = [...list].sort((a, b) => {
+        const byPosition = compareAnnotationByMinTimeAndFrequency(a, b)
+        if (byPosition !== 0) return byPosition
+        return a.annotation_id - b.annotation_id
+    })
+    return dir > 0 ? (sorted[0] ?? null) : (sorted[sorted.length - 1] ?? null)
+}
+
 export function nextAnnotationAfterByTime(currentId: number, list: AnnotationPublic[]): AnnotationPublic | null {
     const sorted = [...list].sort(compareAnnotationByMinTimeAndFrequency)
     const idx = sorted.findIndex((x) => x.annotation_id === currentId)
