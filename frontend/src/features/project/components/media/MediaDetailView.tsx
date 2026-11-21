@@ -7210,7 +7210,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                                     type="button"
                                     className="header-back"
                                     title="Back"
-                                    onClick={closeAnnotationPanel}
+                                    onClick={() => closeAnnotationPanel()}
                                 >
                                     <ArrowLeft size={18} strokeWidth={2.25} />
                                 </ESButton>
