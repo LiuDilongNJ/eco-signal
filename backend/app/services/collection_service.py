@@ -7,9 +7,12 @@ from app.csv_export import CsvColumn, export_columns_csv
 from app.media_paths import build_media_public_url, logical_project_media_path
 from app.models import (
     Collection,
+    CollectionBundleExport,
     CollectionContributor,
     CollectionTaxon,
+    Media,
     MediaCollection,
+    Preview,
     Project,
     ProjectCollection,
     Role,
@@ -28,7 +31,11 @@ from app.schemas.collection import (
     CollectionViewResponse,
 )
 from app.schemas.response import ApiResponse, PagedApiResponse, api_page
-from app.services import authorization_service, permission_service
+from app.services import (
+    authorization_service,
+    media_storage_cleanup_service,
+    permission_service,
+)
 from app.services.authorization_policy import AuthorizationAction
 
 _COLLECTION_EXPORT_COLUMNS = [
@@ -296,8 +303,9 @@ def update_collection(
 
 def delete_collection(session: Session, collection_id: int, user: User) -> ApiResponse:
     """
-    Delete a collection.
+    Delete a collection, its exclusive media records, and associated storage files.
 
+    Shared media linked to other collections are retained without moving their physical files.
     Requires project:write permission on any linked project for non-admin users.
     """
     collection = collection_repository.get(session, collection_id)
@@ -319,6 +327,65 @@ def delete_collection(session: Session, collection_id: int, user: User) -> ApiRe
         if not has_project_write:
             raise HTTPException(status_code=403, detail="Access denied")
 
+    linked_media_ids = list(
+        session.exec(
+            select(MediaCollection.media_id).where(
+                MediaCollection.collection_id == collection_id
+            )
+        ).all()
+    )
+    exclusive_media_ids: list[int] = []
+    if linked_media_ids:
+        shared_media_ids = set(
+            session.exec(
+                select(MediaCollection.media_id).where(
+                    MediaCollection.media_id.in_(linked_media_ids),
+                    MediaCollection.collection_id != collection_id,
+                )
+            ).all()
+        )
+        exclusive_media_ids = [
+            media_id for media_id in linked_media_ids if media_id not in shared_media_ids
+        ]
+
+    exclusive_snapshots: list[media_storage_cleanup_service.MediaCleanupSnapshot] = []
+    audio_setting_ids: list[int | None] = []
+    photo_setting_ids: list[int | None] = []
+    if exclusive_media_ids:
+        exclusive_media_rows = list(
+            session.exec(
+                select(Media).where(Media.media_id.in_(exclusive_media_ids))
+            ).all()
+        )
+        preview_rows = list(
+            session.exec(
+                select(Preview).where(Preview.media_id.in_(exclusive_media_ids))
+            ).all()
+        )
+        previews_by_media: dict[int, list[Preview]] = {}
+        for preview in preview_rows:
+            previews_by_media.setdefault(preview.media_id, []).append(preview)
+
+        for media in exclusive_media_rows:
+            audio_setting_ids.append(media.audio_setting_id)
+            photo_setting_ids.append(media.photo_setting_id)
+            exclusive_snapshots.append(
+                media_storage_cleanup_service.build_media_cleanup_snapshot(
+                    media,
+                    collection_ids=(collection_id,),
+                    previews=previews_by_media.get(media.media_id, ()),
+                )
+            )
+
+    export_paths = list(
+        session.exec(
+            select(CollectionBundleExport.path).where(
+                CollectionBundleExport.collection_id == collection_id,
+                CollectionBundleExport.path.is_not(None),
+            )
+        ).all()
+    )
+
     session.exec(delete(UserScopeRole).where(UserScopeRole.collection_id == collection_id))
     session.exec(delete(UserPermission).where(UserPermission.collection_id == collection_id))
     session.exec(delete(CollectionContributor).where(CollectionContributor.collection_id == collection_id))
@@ -327,7 +394,24 @@ def delete_collection(session: Session, collection_id: int, user: User) -> ApiRe
     session.exec(delete(SiteCollection).where(SiteCollection.collection_id == collection_id))
     session.exec(delete(ProjectCollection).where(ProjectCollection.collection_id == collection_id))
 
-    collection_repository.delete(session, id=collection_id)
+    if exclusive_media_ids:
+        session.exec(delete(Media).where(Media.media_id.in_(exclusive_media_ids)))
+        session.flush()
+        media_storage_cleanup_service.delete_unreferenced_media_settings(
+            session,
+            audio_setting_ids=audio_setting_ids,
+            photo_setting_ids=photo_setting_ids,
+        )
+
+    session.delete(collection)
+    session.commit()
+
+    media_storage_cleanup_service.cleanup_deleted_collection_storage(
+        session,
+        collection_id,
+        exclusive_snapshots,
+        export_paths=export_paths,
+    )
     return ApiResponse(message="Collection deleted successfully")
 
 

@@ -31,10 +31,14 @@ from app.csv_import import (
 )
 from app.enums import MediaType, QueueStatus, WorkerTaskType
 from app.media_paths import (
+    PLAYER_SPECTROGRAM_TYPE,
     build_media_public_url,
     logical_photo_media_path,
+    preview_basename,
+    preview_relative_candidates,
     resolve_existing_audio_media_path,
     resolve_existing_media_path,
+    resolve_media_storage_collection_id,
 )
 from app.models import (
     AudioSetting,
@@ -85,7 +89,12 @@ from app.schemas.media import (
     PreviewPublic,
 )
 from app.schemas.response import ApiResponse, PagedApiResponse, api_page
-from app.services import access_scope_service, authorization_service, permission_service
+from app.services import (
+    access_scope_service,
+    authorization_service,
+    media_storage_cleanup_service,
+    permission_service,
+)
 from app.services import detail_cache_service as detail_cache
 from app.services.authorization_policy import AuthorizationAction
 from app.spectrogram import (
@@ -178,9 +187,7 @@ async def create_audio_resampling_job(
         session.commit()
     return queue
 
-PLAYER_SPECTROGRAM_TYPE = "spectrogram"
 PLAYER_SPECTROGRAM_FILENAME_RE = re.compile(r"(?:_|-)player_s\.png$", re.IGNORECASE)
-LEGACY_SMALL_SPECTROGRAM_FILENAME_RE = re.compile(r"^\d+-small_s\.png$", re.IGNORECASE)
 _DETAIL_ASSET_MANIFEST_VERSION = 4
 _DETAIL_ASSET_MANIFEST_FILENAME = "manifest.json"
 _DETAIL_ASSET_ACCESS_FILENAME = ".last_access"
@@ -352,40 +359,12 @@ def parse_timeline_site_ids(site_ids: str | None) -> list[int] | None:
     return parsed_ids or None
 
 
-def _preview_basename(filename: str | None) -> str | None:
-    """Return the preview basename using the current storage rules."""
-    if not filename:
-        return None
-    raw = str(filename).replace("\\", "/").strip()
-    if not raw:
-        return None
-    name = Path(raw).name.strip()
-    return name or None
-
-
-def _preview_relative_candidates(
-    *,
-    collection_id: int,
-    directory: int | None,
-    media_type: str | None,
-    preview_type: str | None,
-    filename: str,
-) -> list[Path]:
-    dir_token = str(directory or "")
-    normalized_type = (preview_type or "").strip().lower()
-    is_legacy_small_spectrogram = bool(
-        _preview_basename(filename)
-        and LEGACY_SMALL_SPECTROGRAM_FILENAME_RE.search(_preview_basename(filename) or "")
+def _resolve_media_storage_bucket(media: Media) -> int | None:
+    """Resolve the physical storage bucket ID for a media record."""
+    return resolve_media_storage_collection_id(
+        media.storage_collection_id,
+        (mc.collection_id for mc in (media.media_collections or [])),
     )
-    # Audio thumbnails remain alongside recordings, except migrated legacy overview
-    # images which were stored under images rather than alongside the recording.
-    if normalized_type in {"spectrogram", "waveform", PLAYER_SPECTROGRAM_TYPE}:
-        category = "images"
-    elif normalized_type == "thumbnail":
-        category = "images" if media_type == "photo" or is_legacy_small_spectrogram else "sounds"
-    else:
-        category = "images"
-    return [Path(category) / str(collection_id) / dir_token / filename]
 
 
 def _build_preview_public_url(media: Media, preview) -> str | None:
@@ -393,9 +372,9 @@ def _build_preview_public_url(media: Media, preview) -> str | None:
     Build a preview URL from the stored preview metadata.
 
     Stored preview.filename keeps basename only; actual access path derives from
-    collection + directory with type-based category priority.
+    storage bucket + directory with type-based category priority.
     """
-    filename = _preview_basename(preview.filename)
+    filename = preview_basename(preview.filename)
     if not filename:
         logger.warning(
             "Preview URL resolution failed: empty filename",
@@ -408,10 +387,10 @@ def _build_preview_public_url(media: Media, preview) -> str | None:
         )
         return None
 
-    collection_ids = sorted({mc.collection_id for mc in (media.media_collections or [])})
-    if not collection_ids:
+    storage_collection_id = _resolve_media_storage_bucket(media)
+    if storage_collection_id is None:
         logger.warning(
-            "Preview URL resolution failed: media has no collection links",
+            "Preview URL resolution failed: media has no storage bucket or collection links",
             extra={
                 "media_id": media.media_id,
                 "preview_id": preview.preview_id,
@@ -421,8 +400,8 @@ def _build_preview_public_url(media: Media, preview) -> str | None:
         )
         return None
 
-    rel = _preview_relative_candidates(
-        collection_id=collection_ids[0],
+    rel = preview_relative_candidates(
+        collection_id=storage_collection_id,
         directory=media.directory,
         media_type=media.media_type,
         preview_type=preview.type,
@@ -433,16 +412,16 @@ def _build_preview_public_url(media: Media, preview) -> str | None:
 
 def _resolve_preview_file_path(media: Media, preview: Preview) -> Path | None:
     """Resolve a preview record to a physical file path."""
-    filename = _preview_basename(preview.filename)
+    filename = preview_basename(preview.filename)
     if not filename:
         return None
 
-    collection_ids = sorted({mc.collection_id for mc in (media.media_collections or [])})
-    if not collection_ids:
+    storage_collection_id = _resolve_media_storage_bucket(media)
+    if storage_collection_id is None:
         return None
 
-    for candidate in _preview_relative_candidates(
-        collection_id=collection_ids[0],
+    for candidate in preview_relative_candidates(
+        collection_id=storage_collection_id,
         directory=media.directory,
         media_type=media.media_type,
         preview_type=preview.type,
@@ -455,7 +434,7 @@ def _resolve_preview_file_path(media: Media, preview: Preview) -> Path | None:
 
 
 def _is_player_spectrogram_preview(preview: Preview) -> bool:
-    filename = _preview_basename(preview.filename)
+    filename = preview_basename(preview.filename)
     return bool(filename and PLAYER_SPECTROGRAM_FILENAME_RE.search(filename))
 
 
@@ -507,12 +486,12 @@ def _get_audio_path_for_media(media: Media) -> Path | None:
     if media.media_type != "audio" or not media.filename:
         return None
 
-    media_collection = _get_primary_media_collection(media)
-    if not media_collection:
+    storage_collection_id = _resolve_media_storage_bucket(media)
+    if storage_collection_id is None:
         return None
 
     return resolve_existing_audio_media_path(
-        media_collection.collection_id,
+        storage_collection_id,
         media.directory or "",
         media.filename,
     )
@@ -2781,11 +2760,11 @@ def get_media_content_path(session: Session, media_id: int) -> Path:
         return path
     if media.media_type != "photo":
         raise HTTPException(status_code=404, detail="Photo content is not available for this media")
-    primary_collection = _get_primary_media_collection(media)
-    if not primary_collection:
+    storage_collection_id = _resolve_media_storage_bucket(media)
+    if storage_collection_id is None:
         raise HTTPException(status_code=404, detail="Media collection not found")
     path = resolve_existing_media_path(
-        logical_photo_media_path(primary_collection.collection_id, media.directory or "", media.filename)
+        logical_photo_media_path(storage_collection_id, media.directory or "", media.filename)
     )
     if path is None:
         raise HTTPException(status_code=404, detail="Photo file not found on server")
@@ -3340,9 +3319,9 @@ def delete_media(
     session: Session, media_id: int, user: User, project_id: int | None = None
 ):
     """
-    Delete a media record.
+    Delete a media record and its physical storage files.
 
-    Requires audio:write on at least one project-local collection path.
+    Requires media:write on at least one project-local collection path.
 
     Args:
         session: Database session
@@ -3352,7 +3331,7 @@ def delete_media(
     Returns:
         Success response
     """
-    require_media_resource_write(
+    media_collections = require_media_resource_write(
         session,
         user,
         media_id,
@@ -3360,7 +3339,29 @@ def delete_media(
         denied_detail="No audio:write permission on this media",
     )
 
-    media_repository.delete(session, id=media_id)
+    media = session.get(Media, media_id)
+    if not media:
+        raise HTTPException(status_code=404, detail="Media not found")
+
+    previews = list(
+        session.exec(select(Preview).where(Preview.media_id == media_id)).all()
+    )
+    snapshot = media_storage_cleanup_service.build_media_cleanup_snapshot(
+        media,
+        collection_ids=(mc.collection_id for mc in media_collections),
+        previews=previews,
+    )
+
+    session.delete(media)
+    session.flush()
+    media_storage_cleanup_service.delete_unreferenced_media_settings(
+        session,
+        audio_setting_ids=(snapshot.audio_setting_id,),
+        photo_setting_ids=(snapshot.photo_setting_id,),
+    )
+    session.commit()
+
+    media_storage_cleanup_service.cleanup_deleted_media_files(session, snapshot)
     return ApiResponse(message="Media deleted successfully")
 
 

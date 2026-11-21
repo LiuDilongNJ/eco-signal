@@ -347,3 +347,64 @@ def admit(required: int, *, exclude: Path) -> None:
 
 def record_build(bundle: Path) -> None:
     _cleanup(exclude=bundle)
+
+
+def remove_media_cache(media_id: int) -> CleanupResult:
+    """Remove cached detail-view bundles for a deleted media item."""
+    result = CleanupResult()
+    cache_root = root()
+    if not cache_root.exists() or not safe_directory(cache_root, media_root()):
+        return result
+
+    media_dir = cache_root / str(media_id)
+    if not media_dir.exists() or not safe_directory(media_dir, cache_root):
+        return result
+
+    try:
+        entries = list(media_dir.iterdir())
+    except OSError:
+        result.errors += 1
+        logger.exception("Could not scan detail cache directory for media %s", media_id)
+        return result
+
+    for entry in entries:
+        if safe_directory(entry, media_dir):
+            try:
+                with bundle_lock(entry.name, timeout=0):
+                    if not safe_directory(entry, media_dir):
+                        continue
+                    before = size_bytes(entry)
+                    shutil.rmtree(entry)
+                    result.deleted += 1
+                    result.freed_bytes += before
+            except CacheLockTimeout:
+                result.skipped_locked += 1
+            except OSError:
+                result.errors += 1
+                logger.exception("Could not remove detail cache bundle: %s", entry)
+        elif entry.is_file() or entry.is_symlink():
+            try:
+                entry.unlink(missing_ok=True)
+            except OSError:
+                result.errors += 1
+                logger.exception("Could not remove detail cache file: %s", entry)
+
+    try:
+        media_dir.rmdir()
+    except OSError as exc:
+        if exc.errno not in (errno.ENOTEMPTY, errno.ENOENT):
+            result.errors += 1
+            logger.warning(
+                "Could not remove detail cache directory for media %s: %s",
+                media_id,
+                media_dir,
+                exc_info=True,
+            )
+
+    if result.deleted or result.skipped_locked or result.errors:
+        REMOVED.inc(result.deleted)
+        FREED.inc(result.freed_bytes)
+        SKIPPED.inc(result.skipped_locked)
+        ERRORS.inc(result.errors)
+        logger.info("Media detail cache removal for media_id=%s: %s", media_id, asdict(result))
+    return result

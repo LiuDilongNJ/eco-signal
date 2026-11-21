@@ -22,6 +22,7 @@ from app.media_paths import (
     normalize_media_relative_path,
     primary_media_path,
     resolve_existing_audio_media_path,
+    resolve_media_storage_collection_id,
 )
 from app.models import (
     AudioSetting,
@@ -352,6 +353,7 @@ async def process_media(
                 size_b=file_size,
                 md5_hash=md5_hash,
                 doi=doi,
+                storage_collection_id=collection_id,
             )
 
             # Only set foreign key fields if they have valid values (not None or 0)
@@ -639,11 +641,27 @@ async def process_audio_resampling(
             if not media or media.media_type != "audio" or not media.audio_setting:
                 failures.append(f"Media {media_id}: audio is not available")
                 continue
-            link = session.exec(
-                select(MediaCollection).where(MediaCollection.media_id == media_id).order_by(MediaCollection.collection_id)
-            ).first()
-            path = resolve_existing_audio_media_path(link.collection_id, media.directory or "", media.filename) if link else None
-            if path is None:
+            linked_collection_ids = list(
+                session.exec(
+                    select(MediaCollection.collection_id)
+                    .where(MediaCollection.media_id == media_id)
+                    .order_by(MediaCollection.collection_id)
+                ).all()
+            )
+            storage_collection_id = resolve_media_storage_collection_id(
+                media.storage_collection_id,
+                linked_collection_ids,
+            )
+            path = (
+                resolve_existing_audio_media_path(
+                    storage_collection_id,
+                    media.directory or "",
+                    media.filename,
+                )
+                if storage_collection_id is not None
+                else None
+            )
+            if path is None or storage_collection_id is None:
                 failures.append(f"Media {media_id}: audio file not found on server")
                 continue
             try:
@@ -675,7 +693,7 @@ async def process_audio_resampling(
                 for preview in session.exec(select(Preview).where(Preview.media_id == media_id)).all():
                     session.delete(preview)
                 generate_media_previews(
-                    session, media=media, collection_id=link.collection_id, source_path=path,
+                    session, media=media, collection_id=storage_collection_id, source_path=path,
                     thumbnail_generator=generate_thumbnail, player_generator=generate_player_spectrogram,
                     photo_generator=_generate_photo_thumbnail, atomic=False,
                 )

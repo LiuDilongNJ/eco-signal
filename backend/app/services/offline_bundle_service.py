@@ -264,9 +264,17 @@ def _resolve_media_source(session: Session, media: Media) -> Path:
     if not media.filename or media.directory is None:
         raise HTTPException(status_code=409, detail=f"Media {media.uuid} has no storage path")
 
-    collection_ids = session.exec(
-        select(MediaCollection.collection_id).where(MediaCollection.media_id == media.media_id)
-    ).all()
+    linked_collection_ids = list(
+        session.exec(
+            select(MediaCollection.collection_id).where(MediaCollection.media_id == media.media_id)
+        ).all()
+    )
+    collection_ids: list[int] = []
+    if media.storage_collection_id is not None:
+        collection_ids.append(media.storage_collection_id)
+    for linked_collection_id in linked_collection_ids:
+        if linked_collection_id not in collection_ids:
+            collection_ids.append(linked_collection_id)
     candidates: list[Path] = []
     for linked_collection_id in collection_ids:
         if media.media_type == "audio":
@@ -280,6 +288,8 @@ def _resolve_media_source(session: Session, media: Media) -> Path:
                 )
                 if resolved is not None and resolved not in candidates:
                     candidates.append(resolved)
+            if candidates and linked_collection_id == media.storage_collection_id:
+                break
             continue
         else:
             resolved = resolve_existing_media_path(
@@ -291,6 +301,8 @@ def _resolve_media_source(session: Session, media: Media) -> Path:
             )
         if resolved is not None and resolved not in candidates:
             candidates.append(resolved)
+        if candidates and linked_collection_id == media.storage_collection_id:
+            break
     if not candidates:
         raise HTTPException(
             status_code=409,
@@ -1146,6 +1158,7 @@ def _import_bundle_payloads(
             license_id=license_id,
             audio_setting_id=audio_setting_id,
             photo_setting_id=photo_setting_id,
+            storage_collection_id=collection.collection_id if target_path is not None else None,
             creation_date=_as_datetime(media_item.get("creation_date")) or datetime.now(UTC).replace(tzinfo=None),
         )
         session.add(media)

@@ -1014,12 +1014,15 @@ class AnalysisService:
         media_id: int,
     ) -> str:
         """Resolve the on-disk audio path for a media record."""
-        collection_id = session.exec(
-            select(MediaCollection.collection_id)
-            .where(MediaCollection.media_id == media_id)
-            .order_by(MediaCollection.added_date.asc())
-        ).first()
-        path_root = collection_id if collection_id else media.audio_setting_id
+        if media.storage_collection_id is not None:
+            path_root = media.storage_collection_id
+        else:
+            collection_id = session.exec(
+                select(MediaCollection.collection_id)
+                .where(MediaCollection.media_id == media_id)
+                .order_by(MediaCollection.added_date.asc())
+            ).first()
+            path_root = collection_id if collection_id else media.audio_setting_id
         filename = media.filename or ""
         resolved = resolve_existing_analysis_audio_media_path(
             path_root,

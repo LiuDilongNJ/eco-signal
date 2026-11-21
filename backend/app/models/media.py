@@ -132,6 +132,8 @@ class Media(MediaBase, table=True):
         ondelete="SET NULL",
         index=True
     )
+    # Physical storage bucket ID; intentionally not a FK so shared media stays readable after its original collection is deleted.
+    storage_collection_id: Optional[int] = Field(default=None, index=True)
     creation_date: datetime = Field(default_factory=datetime.utcnow)
     
     # Relationships

@@ -26,11 +26,11 @@ def _to_public(record: CollectionBundleExport) -> CollectionBundleExportPublic:
     return CollectionBundleExportPublic.model_validate(record, from_attributes=True)
 
 
-def _remove_artifact_file(record: CollectionBundleExport) -> None:
-    if not record.path:
+def remove_artifact_path(relative_path: str | None) -> None:
+    if not relative_path:
         return
     root = media_root().resolve()
-    target = (root / record.path).resolve()
+    target = (root / relative_path).resolve()
     if target.is_relative_to(root) and target.is_file():
         target.unlink()
     parent = target.parent
@@ -39,6 +39,10 @@ def _remove_artifact_file(record: CollectionBundleExport) -> None:
             parent.rmdir()
         except OSError:
             pass
+
+
+def _remove_artifact_file(record: CollectionBundleExport) -> None:
+    remove_artifact_path(record.path)
 
 
 def expire_if_needed(session: Session, record: CollectionBundleExport) -> None:

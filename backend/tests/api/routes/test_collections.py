@@ -1306,6 +1306,273 @@ class TestCollectionDelete:
         )
         assert r.status_code == 404
 
+    def test_delete_collection_removes_exclusive_media_files_cache_and_exports(
+        self,
+        client: TestClient,
+        superuser_token_headers: dict[str, str],
+        db: Session,
+        tmp_path,
+        monkeypatch,
+    ) -> None:
+        """Deleting a collection deletes exclusive media records, files, previews, cache, and export bundles."""
+        from app.models import (
+            AudioSetting,
+            CollectionBundleExport,
+            Media,
+            MediaCollection,
+            PhotoSetting,
+            Preview,
+            Queue,
+        )
+
+        monkeypatch.setattr(settings, "MEDIA_ROOT", str(tmp_path))
+        project = create_test_project(db)
+        collection = create_test_collection(db)
+        db.add(ProjectCollection(project_id=project.project_id, collection_id=collection.collection_id))
+
+        audio_setting = AudioSetting(sampling_rate_hz=44100, duration_s=5.0)
+        photo_setting = PhotoSetting(exposure_ms=8.0, aperture=2.8, iso=400)
+        db.add(audio_setting)
+        db.add(photo_setting)
+        db.flush()
+
+        audio = Media(
+            media_type="audio",
+            directory=21,
+            filename="col_audio.flac",
+            storage_collection_id=collection.collection_id,
+            uploader_id=1,
+            creator_id=1,
+            audio_setting_id=audio_setting.audio_setting_id,
+        )
+        photo = Media(
+            media_type="photo",
+            directory=21,
+            filename="col_photo.jpg",
+            storage_collection_id=collection.collection_id,
+            uploader_id=1,
+            creator_id=1,
+            photo_setting_id=photo_setting.photo_setting_id,
+        )
+        db.add(audio)
+        db.add(photo)
+        db.flush()
+
+        db.add(MediaCollection(media_id=audio.media_id, collection_id=collection.collection_id, added_by=1))
+        db.add(MediaCollection(media_id=photo.media_id, collection_id=collection.collection_id, added_by=1))
+        db.add(Preview(media_id=audio.media_id, filename="col_audio_thumbnail.png", type="thumbnail"))
+        db.add(Preview(media_id=audio.media_id, filename="col_audio_player_s.png", type="spectrogram"))
+        db.add(Preview(media_id=photo.media_id, filename="col_photo_thumbnail.png", type="thumbnail"))
+
+        queue = Queue(type="offline_export", user_id=1, total=1)
+        db.add(queue)
+        db.flush()
+        export_rel = f"offline_exports/{collection.collection_id}/bundle.zip"
+        db.add(
+            CollectionBundleExport(
+                project_id=project.project_id,
+                collection_id=collection.collection_id,
+                user_id=1,
+                queue_id=queue.queue_id,
+                status="completed",
+                filename="bundle.zip",
+                path=export_rel,
+            )
+        )
+        db.commit()
+
+        cid = str(collection.collection_id)
+        created_files = [
+            tmp_path / "sounds" / cid / "21" / "col_audio.flac",
+            tmp_path / "sounds" / cid / "21" / "col_audio_thumbnail.png",
+            tmp_path / "sounds" / cid / "99" / "orphan_audio.flac",
+            tmp_path / "images" / cid / "21" / "col_audio_player_s.png",
+            tmp_path / "images" / cid / "21" / "col_photo.jpg",
+            tmp_path / "images" / cid / "21" / "col_photo_thumbnail.png",
+            tmp_path / "tmp" / "detail" / str(audio.media_id) / "bundle1" / "zoomed.flac",
+            tmp_path / export_rel,
+        ]
+        for file_path in created_files:
+            file_path.parent.mkdir(parents=True, exist_ok=True)
+            file_path.write_bytes(b"data")
+
+        collection_id = collection.collection_id
+        audio_id = audio.media_id
+        photo_id = photo.media_id
+        audio_setting_id = audio_setting.audio_setting_id
+        photo_setting_id = photo_setting.photo_setting_id
+
+        r = client.delete(
+            f"{settings.API_V1_STR}/collections/{collection_id}",
+            headers=superuser_token_headers,
+        )
+        assert r.status_code == 200
+        db.expire_all()
+
+        assert db.get(Collection, collection_id) is None
+        assert db.get(Media, audio_id) is None
+        assert db.get(Media, photo_id) is None
+        assert db.get(AudioSetting, audio_setting_id) is None
+        assert db.get(PhotoSetting, photo_setting_id) is None
+        for file_path in created_files:
+            assert not file_path.exists()
+        assert not (tmp_path / "sounds" / cid).exists()
+        assert not (tmp_path / "images" / cid).exists()
+
+    def test_delete_collection_retains_shared_media_in_place_and_cleans_exclusive_media(
+        self,
+        client: TestClient,
+        superuser_token_headers: dict[str, str],
+        db: Session,
+        tmp_path,
+        monkeypatch,
+    ) -> None:
+        """Deleting collection A keeps shared media readable from collection B without moving files."""
+        from app.models import Media, MediaCollection, PhotoSetting, Preview
+
+        monkeypatch.setattr(settings, "MEDIA_ROOT", str(tmp_path))
+        project = create_test_project(db)
+        col_a = create_test_collection(db, name="Col A Shared Origin")
+        col_b = create_test_collection(db, name="Col B Surviving")
+        db.add(ProjectCollection(project_id=project.project_id, collection_id=col_a.collection_id))
+        db.add(ProjectCollection(project_id=project.project_id, collection_id=col_b.collection_id))
+
+        ps1 = PhotoSetting(exposure_ms=4.0, aperture=2.8, iso=100)
+        ps2 = PhotoSetting(exposure_ms=5.0, aperture=4.0, iso=200)
+        db.add(ps1)
+        db.add(ps2)
+        db.flush()
+
+        exclusive_photo = Media(
+            media_type="photo",
+            directory=5,
+            filename="only_a.png",
+            storage_collection_id=col_a.collection_id,
+            uploader_id=1,
+            creator_id=1,
+            photo_setting_id=ps1.photo_setting_id,
+        )
+        shared_photo = Media(
+            media_type="photo",
+            directory=6,
+            filename="shared_ab.png",
+            storage_collection_id=col_a.collection_id,
+            uploader_id=1,
+            creator_id=1,
+            photo_setting_id=ps2.photo_setting_id,
+        )
+        db.add(exclusive_photo)
+        db.add(shared_photo)
+        db.flush()
+
+        db.add(MediaCollection(media_id=exclusive_photo.media_id, collection_id=col_a.collection_id, added_by=1))
+        db.add(MediaCollection(media_id=shared_photo.media_id, collection_id=col_a.collection_id, added_by=1))
+        db.add(MediaCollection(media_id=shared_photo.media_id, collection_id=col_b.collection_id, added_by=1))
+        shared_preview = Preview(media_id=shared_photo.media_id, filename="shared_ab_thumbnail.png", type="thumbnail")
+        db.add(shared_preview)
+        db.commit()
+
+        col_a_id = col_a.collection_id
+        exclusive_photo_id = exclusive_photo.media_id
+        shared_photo_id = shared_photo.media_id
+        shared_preview_id = shared_preview.preview_id
+
+        cid_a = str(col_a_id)
+        exclusive_file = tmp_path / "images" / cid_a / "5" / "only_a.png"
+        shared_file = tmp_path / "images" / cid_a / "6" / "shared_ab.png"
+        shared_thumb = tmp_path / "images" / cid_a / "6" / "shared_ab_thumbnail.png"
+        for p in (exclusive_file, shared_file, shared_thumb):
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_bytes(b"img-bytes")
+
+        r = client.delete(
+            f"{settings.API_V1_STR}/collections/{col_a_id}",
+            headers=superuser_token_headers,
+        )
+        assert r.status_code == 200
+        db.expire_all()
+
+        # Exclusive media is gone (DB + disk), while shared media stays in place and readable.
+        assert db.get(Media, exclusive_photo_id) is None
+        assert not exclusive_file.exists()
+        assert not (tmp_path / "images" / cid_a / "5").exists()
+
+        surviving_shared = db.get(Media, shared_photo_id)
+        assert surviving_shared is not None
+        assert surviving_shared.storage_collection_id == col_a_id
+        assert shared_file.exists()
+        assert shared_thumb.exists()
+
+        content_res = client.get(
+            f"{settings.API_V1_STR}/media/{shared_photo_id}/content",
+            params={"project_id": project.project_id},
+            headers=superuser_token_headers,
+        )
+        assert content_res.status_code == 200
+        assert content_res.content == b"img-bytes"
+
+        preview_res = client.get(
+            f"{settings.API_V1_STR}/media/{shared_photo_id}/previews/{shared_preview_id}",
+            params={"project_id": project.project_id},
+            headers=superuser_token_headers,
+        )
+        assert preview_res.status_code == 200
+        assert preview_res.content == b"img-bytes"
+
+        # Once the surviving shared media is later deleted, the old bucket directory is pruned.
+        del_shared = client.delete(
+            f"{settings.API_V1_STR}/media/{shared_photo_id}",
+            headers=superuser_token_headers,
+        )
+        assert del_shared.status_code == 200
+        assert not shared_file.exists()
+        assert not shared_thumb.exists()
+        assert not (tmp_path / "images" / cid_a).exists()
+
+    def test_delete_collection_forbidden_preserves_media_and_files(
+        self,
+        client: TestClient,
+        normal_user_token_headers: dict[str, str],
+        db: Session,
+        tmp_path,
+        monkeypatch,
+    ) -> None:
+        """Unauthorized collection delete leaves media records and physical files intact."""
+        from app.models import AudioSetting, Media, MediaCollection
+
+        monkeypatch.setattr(settings, "MEDIA_ROOT", str(tmp_path))
+        collection = create_test_collection(db, creator_id=1, public_access=False, name="No Delete Files")
+        link_collection_to_project(db, collection)
+
+        audio_setting = AudioSetting(sampling_rate_hz=44100, duration_s=3.0)
+        db.add(audio_setting)
+        db.flush()
+        media = Media(
+            media_type="audio",
+            directory=3,
+            filename="keep.flac",
+            storage_collection_id=collection.collection_id,
+            uploader_id=1,
+            creator_id=1,
+            audio_setting_id=audio_setting.audio_setting_id,
+        )
+        db.add(media)
+        db.flush()
+        db.add(MediaCollection(media_id=media.media_id, collection_id=collection.collection_id, added_by=1))
+        db.commit()
+
+        audio_file = tmp_path / "sounds" / str(collection.collection_id) / "3" / "keep.flac"
+        audio_file.parent.mkdir(parents=True, exist_ok=True)
+        audio_file.write_bytes(b"keep-audio")
+
+        r = client.delete(
+            f"{settings.API_V1_STR}/collections/{collection.collection_id}",
+            headers=normal_user_token_headers,
+        )
+        assert r.status_code == 403
+        assert audio_file.exists()
+        assert db.get(Media, media.media_id) is not None
+
 
 class TestCollectionExport:
     """Tests for GET /collections/exports endpoint."""

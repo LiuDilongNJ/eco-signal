@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+import re
+from collections.abc import Iterable
 from pathlib import Path, PurePosixPath
 
 from app.core.config import settings
 
 _TOP_LEVEL_MEDIA_DIRS = {"sounds", "images", "projects", "tmp"}
+PLAYER_SPECTROGRAM_TYPE = "spectrogram"
+SMALL_SPECTROGRAM_FILENAME_RE = re.compile(r"^\d+-small_s\.png$", re.IGNORECASE)
 
 
 def media_root() -> Path:
@@ -224,3 +228,51 @@ def is_safe_public_media_request_path(value: str) -> bool:
         and not str(relative).startswith("http")
         and relative.parts[0] != "tmp"
     )
+
+
+def resolve_media_storage_collection_id(
+    storage_collection_id: int | None,
+    fallback_collection_ids: Iterable[int] = (),
+) -> int | None:
+    """Resolve the physical storage bucket ID, preferring the stored value over linked collections."""
+    if storage_collection_id is not None:
+        return storage_collection_id
+    candidates = sorted({cid for cid in fallback_collection_ids if cid is not None})
+    return candidates[0] if candidates else None
+
+
+def preview_basename(filename: str | None) -> str | None:
+    """Return the normalized basename for a stored preview filename."""
+    if not filename:
+        return None
+    raw = str(filename).replace("\\", "/").strip()
+    if not raw:
+        return None
+    name = Path(raw).name.strip()
+    return name or None
+
+
+def preview_relative_candidates(
+    *,
+    collection_id: int,
+    directory: int | None,
+    media_type: str | None,
+    preview_type: str | None,
+    filename: str,
+) -> list[Path]:
+    """Return relative storage path candidates for a media preview file."""
+    dir_token = str(directory or "")
+    normalized_type = (preview_type or "").strip().lower()
+    basename = preview_basename(filename)
+    is_small_spectrogram = bool(
+        basename and SMALL_SPECTROGRAM_FILENAME_RE.search(basename)
+    )
+    # Audio thumbnails remain alongside recordings, except small overview
+    # spectrogram images which are stored under images/.
+    if normalized_type in {"spectrogram", "waveform", PLAYER_SPECTROGRAM_TYPE}:
+        category = "images"
+    elif normalized_type == "thumbnail":
+        category = "images" if media_type == "photo" or is_small_spectrogram else "sounds"
+    else:
+        category = "images"
+    return [Path(category) / str(collection_id) / dir_token / filename]

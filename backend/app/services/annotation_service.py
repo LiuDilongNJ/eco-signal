@@ -76,14 +76,28 @@ def _validate_annotation_bounds(session: Session, media_id: int, min_x: float, m
         return
     from PIL import Image
 
-    from app.media_paths import logical_photo_media_path, resolve_existing_media_path
+    from app.media_paths import (
+        logical_photo_media_path,
+        resolve_existing_media_path,
+        resolve_media_storage_collection_id,
+    )
 
-    collection_ids = session.exec(
-        select(MediaCollection.collection_id).where(MediaCollection.media_id == media_id).order_by(MediaCollection.collection_id)
-    ).all()
-    if not collection_ids or not media.filename:
+    collection_ids = list(
+        session.exec(
+            select(MediaCollection.collection_id)
+            .where(MediaCollection.media_id == media_id)
+            .order_by(MediaCollection.collection_id)
+        ).all()
+    )
+    storage_collection_id = resolve_media_storage_collection_id(
+        media.storage_collection_id,
+        collection_ids,
+    )
+    if storage_collection_id is None or not media.filename:
         return
-    path = resolve_existing_media_path(logical_photo_media_path(collection_ids[0], media.directory or "", media.filename))
+    path = resolve_existing_media_path(
+        logical_photo_media_path(storage_collection_id, media.directory or "", media.filename)
+    )
     if path is None:
         return
     try:

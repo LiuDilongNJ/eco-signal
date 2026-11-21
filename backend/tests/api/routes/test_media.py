@@ -4462,3 +4462,256 @@ def test_photo_media_rejects_spectrogram_endpoint(
         payload.get("detail") == "Audio media not found on server"
         or payload.get("message") == "Audio media not found on server"
     )
+
+
+def test_delete_media_removes_audio_and_photo_files_previews_and_cache(
+    client: TestClient,
+    superuser_token_headers: dict,
+    db: Session,
+    tmp_path,
+    monkeypatch,
+) -> None:
+    """Deleting single and multiple audio/photo media removes files, previews, cache, and settings."""
+    monkeypatch.setattr(settings, "MEDIA_ROOT", str(tmp_path))
+    creator = db.exec(select(User).where(User.role_id == 1)).first()
+    collection = Collection(
+        name=f"del_media_col_{uuid.uuid4().hex[:6]}",
+        creator_id=creator.user_id,
+        public_access=False,
+    )
+    db.add(collection)
+    db.commit()
+    db.refresh(collection)
+
+    audio_setting_1 = AudioSetting(sampling_rate_hz=44100, bit_depth=16, channel_num=1, duration_s=4.0)
+    audio_setting_2 = AudioSetting(sampling_rate_hz=44100, bit_depth=16, channel_num=1, duration_s=6.0)
+    photo_setting = PhotoSetting(exposure_ms=5.0, aperture=2.0, iso=100)
+    db.add(audio_setting_1)
+    db.add(audio_setting_2)
+    db.add(photo_setting)
+    db.flush()
+
+    audio_1 = Media(
+        media_type="audio",
+        directory=12,
+        filename="rec_a.flac",
+        name="rec_a.flac",
+        storage_collection_id=collection.collection_id,
+        uploader_id=creator.user_id,
+        creator_id=creator.user_id,
+        audio_setting_id=audio_setting_1.audio_setting_id,
+    )
+    audio_2 = Media(
+        media_type="audio",
+        directory=12,
+        filename="rec_b.flac",
+        name="rec_b.flac",
+        storage_collection_id=collection.collection_id,
+        uploader_id=creator.user_id,
+        creator_id=creator.user_id,
+        audio_setting_id=audio_setting_2.audio_setting_id,
+    )
+    photo = Media(
+        media_type="photo",
+        directory=12,
+        filename="snap_a.jpg",
+        name="snap_a.jpg",
+        storage_collection_id=collection.collection_id,
+        uploader_id=creator.user_id,
+        creator_id=creator.user_id,
+        photo_setting_id=photo_setting.photo_setting_id,
+    )
+    for item in (audio_1, audio_2, photo):
+        db.add(item)
+    db.flush()
+
+    for item in (audio_1, audio_2, photo):
+        db.add(
+            MediaCollection(
+                media_id=item.media_id,
+                collection_id=collection.collection_id,
+                added_by=creator.user_id,
+            )
+        )
+    db.add(Preview(media_id=audio_1.media_id, filename="rec_a_thumbnail.png", type="thumbnail"))
+    db.add(Preview(media_id=audio_1.media_id, filename="rec_a_player_s.png", type="spectrogram"))
+    db.add(Preview(media_id=audio_2.media_id, filename="rec_b_thumbnail.png", type="thumbnail"))
+    db.add(Preview(media_id=audio_2.media_id, filename="rec_b_player_s.png", type="spectrogram"))
+    db.add(Preview(media_id=photo.media_id, filename="snap_a_thumbnail.png", type="thumbnail"))
+    db.commit()
+
+    audio_1_id = audio_1.media_id
+    audio_2_id = audio_2.media_id
+    photo_id = photo.media_id
+    audio_setting_1_id = audio_setting_1.audio_setting_id
+    audio_setting_2_id = audio_setting_2.audio_setting_id
+    photo_setting_id = photo_setting.photo_setting_id
+
+    cid = str(collection.collection_id)
+    files = {
+        "a1": tmp_path / "sounds" / cid / "12" / "rec_a.flac",
+        "a1_thumb": tmp_path / "sounds" / cid / "12" / "rec_a_thumbnail.png",
+        "a1_spec": tmp_path / "images" / cid / "12" / "rec_a_player_s.png",
+        "a1_cache": tmp_path / "tmp" / "detail" / str(audio_1_id) / "key1" / "zoomed.flac",
+        "a2": tmp_path / "sounds" / cid / "12" / "rec_b.flac",
+        "a2_thumb": tmp_path / "sounds" / cid / "12" / "rec_b_thumbnail.png",
+        "a2_spec": tmp_path / "images" / cid / "12" / "rec_b_player_s.png",
+        "photo": tmp_path / "images" / cid / "12" / "snap_a.jpg",
+        "photo_thumb": tmp_path / "images" / cid / "12" / "snap_a_thumbnail.png",
+    }
+    for path in files.values():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b"media-bytes")
+
+    # Single deletion removes only audio_1's files while keeping audio_2 and photo intact.
+    r1 = client.delete(
+        f"{settings.API_V1_STR}/media/{audio_1_id}",
+        headers=superuser_token_headers,
+    )
+    assert r1.status_code == 200
+    db.expire_all()
+    assert not files["a1"].exists()
+    assert not files["a1_thumb"].exists()
+    assert not files["a1_spec"].exists()
+    assert not files["a1_cache"].parent.parent.exists()
+    assert files["a2"].exists()
+    assert files["photo"].exists()
+    assert db.get(AudioSetting, audio_setting_1_id) is None
+
+    # Subsequent deletions remove audio_2 and photo files and prune empty collection dirs.
+    for media_id in (audio_2_id, photo_id):
+        res = client.delete(
+            f"{settings.API_V1_STR}/media/{media_id}",
+            headers=superuser_token_headers,
+        )
+        assert res.status_code == 200
+
+    db.expire_all()
+    for path in files.values():
+        assert not path.exists()
+    assert not (tmp_path / "sounds" / cid).exists()
+    assert not (tmp_path / "images" / cid).exists()
+    assert db.get(AudioSetting, audio_setting_2_id) is None
+    assert db.get(PhotoSetting, photo_setting_id) is None
+
+
+def test_delete_media_forbidden_preserves_files_on_disk(
+    client: TestClient,
+    normal_user_token_headers: dict,
+    db: Session,
+    tmp_path,
+    monkeypatch,
+) -> None:
+    """Unauthorized delete returns 403 and leaves physical files untouched."""
+    monkeypatch.setattr(settings, "MEDIA_ROOT", str(tmp_path))
+    creator = db.exec(select(User).where(User.role_id == 1)).first()
+    collection = Collection(
+        name=f"del_forbid_col_{uuid.uuid4().hex[:6]}",
+        creator_id=creator.user_id,
+        public_access=False,
+    )
+    db.add(collection)
+    db.commit()
+    db.refresh(collection)
+
+    audio_setting = AudioSetting(sampling_rate_hz=44100, duration_s=3.0)
+    db.add(audio_setting)
+    db.flush()
+    media = Media(
+        media_type="audio",
+        directory=4,
+        filename="protected.flac",
+        storage_collection_id=collection.collection_id,
+        uploader_id=creator.user_id,
+        creator_id=creator.user_id,
+        audio_setting_id=audio_setting.audio_setting_id,
+    )
+    db.add(media)
+    db.flush()
+    db.add(MediaCollection(media_id=media.media_id, collection_id=collection.collection_id, added_by=creator.user_id))
+    db.commit()
+
+    audio_file = tmp_path / "sounds" / str(collection.collection_id) / "4" / "protected.flac"
+    audio_file.parent.mkdir(parents=True, exist_ok=True)
+    audio_file.write_bytes(b"protected-audio")
+
+    r = client.delete(
+        f"{settings.API_V1_STR}/media/{media.media_id}",
+        headers=normal_user_token_headers,
+    )
+    assert r.status_code == 403
+    assert audio_file.exists()
+    assert db.get(Media, media.media_id) is not None
+
+
+def test_shared_media_resolves_content_and_preview_via_storage_collection_id(
+    client: TestClient,
+    superuser_token_headers: dict,
+    db: Session,
+    tmp_path,
+    monkeypatch,
+) -> None:
+    """Media uploaded to a higher-ID collection stays readable after linking to a lower-ID collection."""
+    monkeypatch.setattr(settings, "MEDIA_ROOT", str(tmp_path))
+    creator = db.exec(select(User).where(User.role_id == 1)).first()
+    lower_col = Collection(
+        name=f"lower_col_{uuid.uuid4().hex[:6]}",
+        creator_id=creator.user_id,
+        public_access=False,
+    )
+    higher_col = Collection(
+        name=f"higher_col_{uuid.uuid4().hex[:6]}",
+        creator_id=creator.user_id,
+        public_access=False,
+    )
+    db.add(lower_col)
+    db.add(higher_col)
+    db.commit()
+    db.refresh(lower_col)
+    db.refresh(higher_col)
+    assert lower_col.collection_id < higher_col.collection_id
+
+    project_id = _ensure_project_for_collection(db, lower_col.collection_id, creator.user_id)
+
+    photo_setting = PhotoSetting(exposure_ms=6.0, aperture=2.8, iso=100)
+    db.add(photo_setting)
+    db.flush()
+    photo = Media(
+        media_type="photo",
+        directory=9,
+        filename="shared_photo.png",
+        name="shared_photo.png",
+        storage_collection_id=higher_col.collection_id,
+        uploader_id=creator.user_id,
+        creator_id=creator.user_id,
+        photo_setting_id=photo_setting.photo_setting_id,
+    )
+    db.add(photo)
+    db.flush()
+    db.add(MediaCollection(media_id=photo.media_id, collection_id=higher_col.collection_id, added_by=creator.user_id))
+    db.add(MediaCollection(media_id=photo.media_id, collection_id=lower_col.collection_id, added_by=creator.user_id))
+    preview = Preview(media_id=photo.media_id, filename="shared_photo_thumbnail.png", type="thumbnail")
+    db.add(preview)
+    db.commit()
+
+    photo_path = tmp_path / "images" / str(higher_col.collection_id) / "9" / "shared_photo.png"
+    thumb_path = tmp_path / "images" / str(higher_col.collection_id) / "9" / "shared_photo_thumbnail.png"
+    photo_path.parent.mkdir(parents=True, exist_ok=True)
+    photo_path.write_bytes(b"fake-png-content")
+    thumb_path.write_bytes(b"fake-thumb-content")
+
+    content_res = client.get(
+        f"{settings.API_V1_STR}/media/{photo.media_id}/content",
+        params={"project_id": project_id},
+        headers=superuser_token_headers,
+    )
+    assert content_res.status_code == 200
+    assert content_res.content == b"fake-png-content"
+
+    preview_res = client.get(
+        f"{settings.API_V1_STR}/media/{photo.media_id}/previews/{preview.preview_id}",
+        params={"project_id": project_id},
+        headers=superuser_token_headers,
+    )
+    assert preview_res.status_code == 200
+    assert preview_res.content == b"fake-thumb-content"
