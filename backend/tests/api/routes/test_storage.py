@@ -68,10 +68,14 @@ def test_get_storage_status_requires_authentication(client: TestClient) -> None:
 def test_get_storage_status_returns_503_when_disk_read_fails(
     client: TestClient,
     superuser_token_headers: dict[str, str],
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
-    with patch(
-        "app.services.storage_service.shutil.disk_usage",
-        side_effect=OSError("unavailable"),
+    with (
+        caplog.at_level("WARNING", logger="app.services.storage_service"),
+        patch(
+            "app.services.storage_service.shutil.disk_usage",
+            side_effect=OSError("unavailable"),
+        ),
     ):
         response = client.get(
             f"{settings.API_V1_STR}/system/storage",
@@ -80,6 +84,8 @@ def test_get_storage_status_returns_503_when_disk_read_fails(
 
     assert response.status_code == 503
     assert response.json()["message"] == "Storage status is unavailable"
+    assert "Failed to read filesystem capacity for container_root" in caplog.text
+    assert "Storage status is unavailable for all monitored filesystems" in caplog.text
 
 
 def test_get_storage_status_keeps_partial_results(client, superuser_token_headers):

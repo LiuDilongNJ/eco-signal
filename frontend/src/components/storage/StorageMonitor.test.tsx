@@ -10,8 +10,15 @@ const response = (status = "warning", percent = 80) => ({ code: 0, data: {
     filesystems: [{ scope: "media", path: "/media", available: true, total_bytes: 100, used_bytes: percent, free_bytes: 100-percent, used_percent: percent, status }],
 } })
 function Consumer() {
-    const { storage, refresh } = useStorageMonitor()
-    return <><button onClick={refresh}>Refresh storage</button><span data-testid="status">{storage?.status}</span><StorageWarningBanner /></>
+    const { storage, loading, refresh } = useStorageMonitor()
+    return (
+        <>
+            <button onClick={refresh}>Refresh storage</button>
+            <span data-testid="status">{storage?.status}</span>
+            <span data-testid="loading">{String(loading)}</span>
+            <StorageWarningBanner />
+        </>
+    )
 }
 function mount() { return render(<StorageMonitorProvider><Consumer /></StorageMonitorProvider>) }
 
@@ -102,5 +109,56 @@ describe("filesystem warning", () => {
         })
         await act(async () => { resolve(response()) })
         expect(screen.queryByRole("alert")).not.toBeInTheDocument()
+    })
+    it("ignores non-auth storage events from other tabs", async () => {
+        mount()
+        await screen.findByRole("alert")
+        expect(api.storage).toHaveBeenCalledOnce()
+        act(() => {
+            window.dispatchEvent(new StorageEvent("storage", { key: "authSessionLastActivityAt", newValue: String(Date.now()) }))
+        })
+        await act(async () => {})
+        expect(api.storage).toHaveBeenCalledOnce()
+        expect(screen.getByRole("alert")).toBeInTheDocument()
+    })
+    it("clears storage on auth storage events from other tabs", async () => {
+        mount()
+        await screen.findByRole("alert")
+        act(() => {
+            localStorage.removeItem("accessToken")
+            window.dispatchEvent(new StorageEvent("storage", { key: "accessToken", newValue: null }))
+        })
+        await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument())
+    })
+    it("keeps loading true while verifying administrator status", async () => {
+        let resolveMe: (value: unknown) => void = () => {}
+        api.me.mockReturnValueOnce(new Promise(done => { resolveMe = done }))
+        mount()
+        expect(screen.getByTestId("loading").textContent).toBe("true")
+        await act(async () => { resolveMe({ data: { is_admin: true } }) })
+        await waitFor(() => expect(screen.getByTestId("loading").textContent).toBe("false"))
+        expect(screen.getByTestId("status").textContent).toBe("warning")
+    })
+    it("retries administrator verification after a transient error", async () => {
+        vi.useFakeTimers()
+        const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {})
+        api.me.mockRejectedValueOnce(new Error("temporary gateway error"))
+        mount()
+        await act(async () => {})
+        expect(api.me).toHaveBeenCalledOnce()
+        expect(api.storage).not.toHaveBeenCalled()
+        expect(warnSpy).toHaveBeenCalled()
+        await act(async () => { await vi.advanceTimersByTimeAsync(60000) })
+        expect(api.me).toHaveBeenCalledTimes(2)
+        expect(api.storage).toHaveBeenCalledOnce()
+        warnSpy.mockRestore()
+    })
+    it("reports unavailable when the storage payload is malformed", async () => {
+        const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {})
+        api.storage.mockResolvedValue({ code: 0, data: { status: "healthy" } })
+        mount()
+        expect(await screen.findByRole("alert")).toHaveTextContent("Storage status is unavailable")
+        expect(warnSpy).toHaveBeenCalled()
+        warnSpy.mockRestore()
     })
 })

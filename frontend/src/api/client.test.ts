@@ -3,7 +3,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 
 const auth = vi.hoisted(() => ({
     authUtils: {
-        getToken: vi.fn(() => null),
+        getToken: vi.fn<() => string | null>(() => null),
+        setToken: vi.fn(),
+        setIdleTimeoutSeconds: vi.fn(),
         markSessionActivity: vi.fn(),
     },
     dispatchAuthChange: vi.fn(),
@@ -58,5 +60,64 @@ describe("apiClient authorization handling", () => {
 
         await expect(apiClient.get("/v1/users/creators")).rejects.toBeInstanceOf(ApiError)
         expect(reloadMock).toHaveBeenCalled()
+    })
+
+    it("refreshes and retries a 401 request even when ignoreUnauthorized is true", async () => {
+        auth.authUtils.getToken.mockReturnValue("expired-token")
+        vi.mocked(fetch)
+            .mockResolvedValueOnce(
+                new Response(JSON.stringify({ message: "Unauthorized" }), {
+                    status: 401,
+                    statusText: "Unauthorized",
+                    headers: { "Content-Type": "application/json" },
+                }),
+            )
+            .mockResolvedValueOnce(
+                new Response(JSON.stringify({ access_token: "fresh-token", session_idle_timeout_seconds: 1800 }), {
+                    status: 200,
+                    statusText: "OK",
+                    headers: { "Content-Type": "application/json" },
+                }),
+            )
+            .mockResolvedValueOnce(
+                new Response(JSON.stringify({ code: 0, data: { is_admin: true } }), {
+                    status: 200,
+                    statusText: "OK",
+                    headers: { "Content-Type": "application/json" },
+                }),
+            )
+
+        const result = await apiClient.get<{ code: number; data: { is_admin: boolean } }>("/v1/current-user", {
+            ignoreUnauthorized: true,
+        })
+
+        expect(result.data.is_admin).toBe(true)
+        expect(auth.authUtils.setToken).toHaveBeenCalledWith("fresh-token")
+        expect(auth.dispatchLoginRequired).not.toHaveBeenCalled()
+        expect(vi.mocked(fetch)).toHaveBeenCalledTimes(3)
+    })
+
+    it("throws without prompting login when ignoreUnauthorized is true and token refresh fails", async () => {
+        auth.authUtils.getToken.mockReturnValue("expired-token")
+        vi.mocked(fetch)
+            .mockResolvedValueOnce(
+                new Response(JSON.stringify({ message: "Unauthorized" }), {
+                    status: 401,
+                    statusText: "Unauthorized",
+                    headers: { "Content-Type": "application/json" },
+                }),
+            )
+            .mockResolvedValueOnce(
+                new Response(JSON.stringify({ message: "Refresh failed" }), {
+                    status: 401,
+                    statusText: "Unauthorized",
+                    headers: { "Content-Type": "application/json" },
+                }),
+            )
+
+        await expect(
+            apiClient.get("/v1/current-user", { ignoreUnauthorized: true }),
+        ).rejects.toBeInstanceOf(ApiError)
+        expect(auth.dispatchLoginRequired).not.toHaveBeenCalled()
     })
 })

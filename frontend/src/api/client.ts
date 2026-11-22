@@ -264,7 +264,7 @@ async function request<T>(
     endpoint: string,
     config: RequestConfig = {}
 ): Promise<T> {
-    const { params, body, headers: customHeaders, ...restConfig } = config
+    const { params, body, headers: customHeaders, ignoreUnauthorized, ...restConfig } = config
 
     const url = buildUrl(endpoint, params)
     const token = getAuthToken()
@@ -300,11 +300,11 @@ async function request<T>(
     let response = await doFetch(token ?? undefined)
     let alreadyHandledUnauthorized = false
 
-    if (response.status === 401 && token && shouldAttemptRefresh(endpoint) && !config.ignoreUnauthorized) {
+    if (response.status === 401 && token && shouldAttemptRefresh(endpoint)) {
         const refreshedToken = await refreshAccessToken()
         if (refreshedToken) {
             response = await doFetch(refreshedToken)
-        } else {
+        } else if (!ignoreUnauthorized) {
             dispatchLoginRequired()
             alreadyHandledUnauthorized = true
         }
@@ -316,7 +316,7 @@ async function request<T>(
         if (alreadyHandledUnauthorized) {
             throw new ApiError(response.status, response.statusText, data)
         }
-        handleUnauthorizedAndThrow(response, endpoint, data, config.ignoreUnauthorized)
+        handleUnauthorizedAndThrow(response, endpoint, data, ignoreUnauthorized)
     }
 
     // 204 No Content
@@ -334,7 +334,7 @@ async function requestBlob(
     endpoint: string,
     config: RequestConfig = {}
 ): Promise<DownloadResponse> {
-    const { params, body, headers: customHeaders, method = "GET" } = config
+    const { params, body, headers: customHeaders, method = "GET", ignoreUnauthorized } = config
 
     const url = buildUrl(endpoint, params)
     const token = getAuthToken()
@@ -364,11 +364,11 @@ async function requestBlob(
     let response = await doFetch(token ?? undefined)
     let alreadyHandledUnauthorized = false
 
-    if (response.status === 401 && token && shouldAttemptRefresh(endpoint) && !config.ignoreUnauthorized) {
+    if (response.status === 401 && token && shouldAttemptRefresh(endpoint)) {
         const refreshedToken = await refreshAccessToken()
         if (refreshedToken) {
             response = await doFetch(refreshedToken)
-        } else {
+        } else if (!ignoreUnauthorized) {
             dispatchLoginRequired()
             alreadyHandledUnauthorized = true
         }
@@ -380,7 +380,7 @@ async function requestBlob(
         if (alreadyHandledUnauthorized) {
             throw new ApiError(response.status, response.statusText, data)
         }
-        handleUnauthorizedAndThrow(response, endpoint, data, config.ignoreUnauthorized)
+        handleUnauthorizedAndThrow(response, endpoint, data, ignoreUnauthorized)
     }
 
     return {

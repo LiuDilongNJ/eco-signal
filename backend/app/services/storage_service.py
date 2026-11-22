@@ -1,11 +1,13 @@
 """Capacity reporting for the container root and the media filesystem."""
 
+import logging
 import shutil
 from datetime import UTC, datetime
 
 from app.media_paths import media_root
 from app.schemas.storage import FilesystemStatus, StorageHealth, StorageStatus
 
+logger = logging.getLogger(__name__)
 WARNING_PERCENT = 80.0
 CRITICAL_PERCENT = 90.0
 
@@ -43,13 +45,20 @@ def get_storage_status() -> StorageStatus:
                     status=_storage_status(percent),
                 )
             )
-        except OSError:
+        except OSError as exc:
+            logger.warning(
+                "Failed to read filesystem capacity for %s (%s): %s",
+                scope,
+                path,
+                exc,
+            )
             filesystems.append(
                 FilesystemStatus(
                     scope=scope, path=path, available=False, status="unavailable"
                 )
             )
     if not any(item.available for item in filesystems):
+        logger.error("Storage status is unavailable for all monitored filesystems")
         raise StorageStatusUnavailableError("Storage status is unavailable")
     severity = {"healthy": 0, "unavailable": 1, "warning": 2, "critical": 3}
     return StorageStatus(
