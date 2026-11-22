@@ -98,9 +98,9 @@ export function AnnotationsPage() {
     const canImportAnnotations = canWriteAnnotation || can("annotation:write_own")
     const canReadMedia = can("media:read")
 
-    // Assignment drawer state（tag 任务需 annotation_ids；单选行时为当前标注 ID）
+    // Assignment drawer state for batch annotation tasks across one or more media files
     const [assignTasksOpen, setAssignTasksOpen] = useState(false)
-    const [selectedMediaId, setSelectedMediaId] = useState<number | null>(null)
+    const [assignMediaIds, setAssignMediaIds] = useState<number[]>([])
     const [assignAnnotationIds, setAssignAnnotationIds] = useState<number[] | undefined>(undefined)
 
     // Edit drawer state
@@ -414,27 +414,31 @@ export function AnnotationsPage() {
                                 .filter((id) => Number.isFinite(id) && id > 0),
                         ),
                     )
-                    const canAssign = selectionCan(selectedRows, rows, "annotation_id", "assign")
-                        && selectedAnnotations.length > 0
-                        && mediaIds.length === 1
+                    const hasAssignPermission = selectionCan(selectedRows, rows, "annotation_id", "assign")
+                    const canAssign = hasAssignPermission && selectedAnnotations.length > 0 && mediaIds.length > 0
+                    const assignTooltip = selectedRows.size === 0
+                        ? "Select at least one annotation to assign"
+                        : !hasAssignPermission
+                            ? "You do not have permission to assign tasks"
+                            : mediaIds.length === 0
+                                ? "Selected annotations are missing associated media"
+                                : "Assign a task to the selected annotation rows"
 
                     return (
                         <ESButton appearance="unstyled"
                             className="data-btn"
-                            title={canAssign
-                                ? "Assign a task to the selected annotation rows"
-                                : "You do not have permission to assign tasks"}
+                            title={assignTooltip}
                             disabled={!canAssign}
                             onClick={() => {
                                 if (selectedAnnotations.length === 0) {
                                     message.warning("Please select at least one annotation")
                                     return
                                 }
-                                if (mediaIds.length !== 1) {
-                                    message.warning("Selected annotations must belong to the same media")
+                                if (mediaIds.length === 0) {
+                                    message.warning("Selected annotations are missing associated media")
                                     return
                                 }
-                                setSelectedMediaId(mediaIds[0]!)
+                                setAssignMediaIds(mediaIds)
                                 setAssignAnnotationIds(
                                     selectedAnnotations
                                         .map((row) => Number(row.annotation_id))
@@ -451,12 +455,13 @@ export function AnnotationsPage() {
             {/* Assign Tasks Drawer */}
             <AssignTasksDrawer
                 open={assignTasksOpen}
-                mediaId={selectedMediaId}
+                mediaId={assignMediaIds[0] ?? null}
+                mediaIds={assignMediaIds}
                 projectId={currentProjectId ? Number(currentProjectId) : null}
                 annotationIds={assignAnnotationIds}
                 onClose={() => {
                     setAssignTasksOpen(false)
-                    setSelectedMediaId(null)
+                    setAssignMediaIds([])
                     setAssignAnnotationIds(undefined)
                 }}
             />

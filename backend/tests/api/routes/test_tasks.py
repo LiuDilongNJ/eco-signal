@@ -7,13 +7,15 @@ Covers:
 - PUT /media/{media_id}/tasks
 """
 import csv
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from fastapi.testclient import TestClient
 from sqlmodel import Session, select
 
 from app.core.config import settings
-from app.models import Collection, Project, ProjectCollection, Role, Task, User
+from app.core.security import create_access_token
+from app.models import Collection, Permission, Project, ProjectCollection, Role, Task, User, UserPermission
+from app.models.annotation import Annotation
 from app.models.media import AudioSetting, Media, MediaCollection, PhotoSetting
 
 
@@ -759,3 +761,404 @@ class TestTaskImports:
 
         tasks = db.exec(select(Task).where(Task.media_id == media.media_id)).all()
         assert {task.assignee_id for task in tasks} == {assignee_a.user_id, assignee_b.user_id}
+
+
+def _auth_headers_for_user(user: User) -> dict[str, str]:
+    token = create_access_token(
+        subject=str(user.user_id),
+        expires_delta=timedelta(minutes=30),
+    )
+    return {"Authorization": f"Bearer {token}"}
+
+
+def _grant_collection_permission(
+    db: Session,
+    *,
+    user_id: int,
+    project_id: int,
+    collection_id: int,
+    permission_name: str,
+) -> None:
+    perm = db.exec(select(Permission).where(Permission.name == permission_name)).one()
+    db.add(
+        UserPermission(
+            user_id=user_id,
+            project_id=project_id,
+            collection_id=collection_id,
+            permission_id=perm.permission_id,
+        )
+    )
+    db.commit()
+
+
+def _create_media_in_collection(
+    db: Session,
+    collection: Collection,
+    creator_id: int,
+    filename: str = "batch_task_test.wav",
+) -> Media:
+    audio = AudioSetting(sampling_rate_hz=44100, duration_s=10.0)
+    db.add(audio)
+    db.flush()
+    media = Media(
+        media_type="audio",
+        filename=filename,
+        uploader_id=creator_id,
+        audio_setting_id=audio.audio_setting_id,
+    )
+    db.add(media)
+    db.flush()
+    db.add(
+        MediaCollection(
+            media_id=media.media_id,
+            collection_id=collection.collection_id,
+            added_by=creator_id,
+        )
+    )
+    db.commit()
+    db.refresh(media)
+    return media
+
+
+def _create_annotation(db: Session, media_id: int, creator_id: int, index: int = 0) -> Annotation:
+    ann = Annotation(
+        media_id=media_id,
+        min_x=float(index),
+        max_x=float(index) + 0.5,
+        min_y=100.0,
+        max_y=500.0,
+        creator_id=creator_id,
+    )
+    db.add(ann)
+    db.commit()
+    db.refresh(ann)
+    return ann
+
+
+# GET /tasks/assignee-options
+
+class TestBatchAssignableUsers:
+    """Tests for GET /tasks/assignee-options."""
+
+    def test_requires_auth(self, client: TestClient) -> None:
+        r = client.get(f"{settings.API_V1_STR}/tasks/assignee-options?project_id=1&media_ids=1")
+        assert r.status_code == 401
+
+    def test_invalid_media_ids_rejected(
+        self, client: TestClient, superuser_token_headers: dict
+    ) -> None:
+        for raw in ["", " , ", "abc", "1,-2", "0"]:
+            r = client.get(
+                f"{settings.API_V1_STR}/tasks/assignee-options",
+                params={"project_id": 1, "media_ids": raw},
+                headers=superuser_token_headers,
+            )
+            assert r.status_code == 400
+
+    def test_media_not_found(
+        self, client: TestClient, superuser_token_headers: dict
+    ) -> None:
+        r = client.get(
+            f"{settings.API_V1_STR}/tasks/assignee-options",
+            params={"project_id": 1, "media_ids": "999999"},
+            headers=superuser_token_headers,
+        )
+        assert r.status_code == 404
+
+    def test_media_outside_project_rejected(
+        self, client: TestClient, superuser_token_headers: dict, db: Session
+    ) -> None:
+        media, col = _create_media_with_collection(db)
+        _create_project_for_collection(db, col)
+        other_col = Collection(name="Other Project Col", public_access=False, creator_id=col.creator_id)
+        db.add(other_col)
+        db.commit()
+        db.refresh(other_col)
+        other_project = _create_project_for_collection(db, other_col)
+
+        r = client.get(
+            f"{settings.API_V1_STR}/tasks/assignee-options",
+            params={"project_id": other_project.project_id, "media_ids": str(media.media_id)},
+            headers=superuser_token_headers,
+        )
+        assert r.status_code == 400
+
+    def test_non_manager_forbidden_when_missing_write_on_any_media(
+        self, client: TestClient, db: Session
+    ) -> None:
+        user_role = db.exec(select(Role).where(Role.name == "User")).one()
+        actor = _create_user(db, user_role.role_id, "batch_opt_actor", "Batch Opt Actor")
+
+        media_a, col_a = _create_media_with_collection(db)
+        project = _create_project_for_collection(db, col_a)
+        col_b = Collection(name="Batch Opt Col B", public_access=False, creator_id=col_a.creator_id)
+        db.add(col_b)
+        db.flush()
+        db.add(ProjectCollection(project_id=project.project_id, collection_id=col_b.collection_id))
+        db.commit()
+        db.refresh(col_b)
+        media_b = _create_media_in_collection(db, col_b, col_a.creator_id, "col_b.wav")
+
+        # Actor can manage col_a, but only has read on col_b
+        _grant_collection_permission(
+            db, user_id=actor.user_id, project_id=project.project_id,
+            collection_id=col_a.collection_id, permission_name="collection:write",
+        )
+        _grant_collection_permission(
+            db, user_id=actor.user_id, project_id=project.project_id,
+            collection_id=col_b.collection_id, permission_name="collection:read",
+        )
+
+        r = client.get(
+            f"{settings.API_V1_STR}/tasks/assignee-options",
+            params={"project_id": project.project_id, "media_ids": f"{media_a.media_id},{media_b.media_id}"},
+            headers=_auth_headers_for_user(actor),
+        )
+        assert r.status_code == 403
+
+    def test_cross_collection_returns_intersection_plus_admins(
+        self, client: TestClient, superuser_token_headers: dict, db: Session
+    ) -> None:
+        user_role = db.exec(select(Role).where(Role.name == "User")).one()
+        both_user = _create_user(db, user_role.role_id, "batch_opt_both", "Both User")
+        only_a_user = _create_user(db, user_role.role_id, "batch_opt_only_a", "Only A User")
+
+        media_a, col_a = _create_media_with_collection(db)
+        project = _create_project_for_collection(db, col_a)
+        col_b = Collection(name="Batch Intersect Col B", public_access=False, creator_id=col_a.creator_id)
+        db.add(col_b)
+        db.flush()
+        db.add(ProjectCollection(project_id=project.project_id, collection_id=col_b.collection_id))
+        db.commit()
+        db.refresh(col_b)
+        media_b = _create_media_in_collection(db, col_b, col_a.creator_id, "intersect_b.wav")
+
+        _grant_collection_permission(
+            db, user_id=both_user.user_id, project_id=project.project_id,
+            collection_id=col_a.collection_id, permission_name="collection:read",
+        )
+        _grant_collection_permission(
+            db, user_id=both_user.user_id, project_id=project.project_id,
+            collection_id=col_b.collection_id, permission_name="collection:read",
+        )
+        _grant_collection_permission(
+            db, user_id=only_a_user.user_id, project_id=project.project_id,
+            collection_id=col_a.collection_id, permission_name="collection:read",
+        )
+
+        r = client.get(
+            f"{settings.API_V1_STR}/tasks/assignee-options",
+            params={"project_id": project.project_id, "media_ids": f"{media_a.media_id},{media_b.media_id}"},
+            headers=superuser_token_headers,
+        )
+        assert r.status_code == 200
+        returned_ids = {item["user_id"] for item in r.json()["data"]}
+        assert both_user.user_id in returned_ids
+        assert only_a_user.user_id not in returned_ids
+
+
+# PUT /tasks
+
+class TestBatchAssignTasks:
+    """Tests for PUT /tasks cross-media batch assignment."""
+
+    def test_requires_auth(self, client: TestClient) -> None:
+        r = client.put(
+            f"{settings.API_V1_STR}/tasks?project_id=1",
+            json={"type": "annotation", "annotation_ids": [1], "assignments": [{"user_id": 1}]},
+        )
+        assert r.status_code == 401
+
+    def test_validation_errors(
+        self, client: TestClient, superuser_token_headers: dict
+    ) -> None:
+        invalid_payloads = [
+            {"type": "annotation", "annotation_ids": [1], "assignments": []},
+            {"type": "annotation", "assignments": [{"user_id": 1}]},
+            {"type": "annotation", "annotation_ids": [0], "assignments": [{"user_id": 1}]},
+            {"type": "media", "assignments": [{"user_id": 1}]},
+            {"type": "media", "media_ids": [-1], "assignments": [{"user_id": 1}]},
+            {"type": "invalid", "media_ids": [1], "assignments": [{"user_id": 1}]},
+        ]
+        for payload in invalid_payloads:
+            r = client.put(
+                f"{settings.API_V1_STR}/tasks?project_id=1",
+                headers=superuser_token_headers,
+                json=payload,
+            )
+            assert r.status_code == 422
+
+    def test_batch_assign_annotations_across_multiple_media_and_upsert(
+        self, client: TestClient, superuser_token_headers: dict, db: Session
+    ) -> None:
+        media_1, col = _create_media_with_collection(db)
+        project = _create_project_for_collection(db, col)
+        media_2 = _create_media_in_collection(db, col, col.creator_id, "batch_m2.wav")
+        media_3 = _create_media_in_collection(db, col, col.creator_id, "batch_m3.wav")
+
+        # Create 30 annotations spanning 3 media files (10 each)
+        annotations = [
+            _create_annotation(db, media.media_id, col.creator_id, idx)
+            for media in (media_1, media_2, media_3)
+            for idx in range(10)
+        ]
+        ann_ids = [ann.annotation_id for ann in annotations]
+
+        user_role = db.exec(select(Role).where(Role.name == "User")).one()
+        reviewer = _create_user(db, user_role.role_id, "batch_ann_reviewer", "Batch Reviewer")
+
+        r = client.put(
+            f"{settings.API_V1_STR}/tasks?project_id={project.project_id}",
+            headers=superuser_token_headers,
+            json={
+                "type": "annotation",
+                "annotation_ids": ann_ids,
+                "assignments": [{"user_id": reviewer.user_id, "comment": "Initial batch"}],
+            },
+        )
+        assert r.status_code == 200
+        assert r.json()["data"]["assigned_count"] == 30
+
+        tasks = db.exec(
+            select(Task).where(
+                Task.type == "annotation",
+                Task.annotation_id.in_(ann_ids),
+                Task.assignee_id == reviewer.user_id,
+            )
+        ).all()
+        assert len(tasks) == 30
+        ann_to_media = {ann.annotation_id: ann.media_id for ann in annotations}
+        assert all(task.media_id == ann_to_media[task.annotation_id] for task in tasks)
+        assert all(task.comment == "Initial batch" for task in tasks)
+
+        # Re-assigning updates existing tasks in place without duplicates
+        r_update = client.put(
+            f"{settings.API_V1_STR}/tasks?project_id={project.project_id}",
+            headers=superuser_token_headers,
+            json={
+                "type": "annotation",
+                "annotation_ids": ann_ids,
+                "assignments": [{"user_id": reviewer.user_id, "comment": "Updated batch"}],
+            },
+        )
+        assert r_update.status_code == 200
+        assert r_update.json()["data"]["assigned_count"] == 30
+
+        tasks_after = db.exec(
+            select(Task).where(
+                Task.type == "annotation",
+                Task.annotation_id.in_(ann_ids),
+                Task.assignee_id == reviewer.user_id,
+            )
+        ).all()
+        assert len(tasks_after) == 30
+        assert all(task.comment == "Updated batch" for task in tasks_after)
+
+    def test_batch_assign_annotations_missing_annotation_returns_404(
+        self, client: TestClient, superuser_token_headers: dict, db: Session
+    ) -> None:
+        media, col = _create_media_with_collection(db)
+        project = _create_project_for_collection(db, col)
+        ann = _create_annotation(db, media.media_id, col.creator_id)
+        admin = db.exec(select(User).where(User.role_id == 1)).first()
+
+        r = client.put(
+            f"{settings.API_V1_STR}/tasks?project_id={project.project_id}",
+            headers=superuser_token_headers,
+            json={
+                "type": "annotation",
+                "annotation_ids": [ann.annotation_id, 999999],
+                "assignments": [{"user_id": admin.user_id, "comment": "Should roll back"}],
+            },
+        )
+        assert r.status_code == 404
+        existing = db.exec(select(Task).where(Task.annotation_id == ann.annotation_id)).all()
+        assert existing == []
+
+    def test_batch_assign_annotations_partial_permission_forbidden_and_atomic(
+        self, client: TestClient, db: Session
+    ) -> None:
+        user_role = db.exec(select(Role).where(Role.name == "User")).one()
+        actor = _create_user(db, user_role.role_id, "batch_perm_actor", "Batch Perm Actor")
+        reviewer = _create_user(db, user_role.role_id, "batch_perm_rev", "Batch Perm Rev")
+
+        media_a, col_a = _create_media_with_collection(db)
+        project = _create_project_for_collection(db, col_a)
+        col_b = Collection(name="Batch Forbidden Col B", public_access=False, creator_id=col_a.creator_id)
+        db.add(col_b)
+        db.flush()
+        db.add(ProjectCollection(project_id=project.project_id, collection_id=col_b.collection_id))
+        db.commit()
+        db.refresh(col_b)
+        media_b = _create_media_in_collection(db, col_b, col_a.creator_id, "forbid_b.wav")
+
+        ann_a = _create_annotation(db, media_a.media_id, col_a.creator_id, 1)
+        ann_b = _create_annotation(db, media_b.media_id, col_a.creator_id, 2)
+
+        _grant_collection_permission(
+            db, user_id=actor.user_id, project_id=project.project_id,
+            collection_id=col_a.collection_id, permission_name="collection:write",
+        )
+
+        r = client.put(
+            f"{settings.API_V1_STR}/tasks?project_id={project.project_id}",
+            headers=_auth_headers_for_user(actor),
+            json={
+                "type": "annotation",
+                "annotation_ids": [ann_a.annotation_id, ann_b.annotation_id],
+                "assignments": [{"user_id": reviewer.user_id, "comment": "Atomic check"}],
+            },
+        )
+        assert r.status_code == 403
+        # Ensure zero tasks were written for ann_a either
+        created = db.exec(
+            select(Task).where(Task.annotation_id.in_([ann_a.annotation_id, ann_b.annotation_id]))
+        ).all()
+        assert created == []
+
+    def test_batch_assign_media_multiple_items(
+        self, client: TestClient, superuser_token_headers: dict, db: Session
+    ) -> None:
+        media_1, col = _create_media_with_collection(db)
+        project = _create_project_for_collection(db, col)
+        media_2 = _create_media_in_collection(db, col, col.creator_id, "batch_media_2.wav")
+        user_role = db.exec(select(Role).where(Role.name == "User")).one()
+        reviewer = _create_user(db, user_role.role_id, "batch_media_rev", "Batch Media Rev")
+
+        r = client.put(
+            f"{settings.API_V1_STR}/tasks?project_id={project.project_id}",
+            headers=superuser_token_headers,
+            json={
+                "type": "media",
+                "media_ids": [media_1.media_id, media_2.media_id],
+                "assignments": [{"user_id": reviewer.user_id, "comment": "Review audio"}],
+            },
+        )
+        assert r.status_code == 200
+        assert r.json()["data"]["assigned_count"] == 2
+
+        tasks = db.exec(
+            select(Task).where(
+                Task.type == "media",
+                Task.media_id.in_([media_1.media_id, media_2.media_id]),
+                Task.assignee_id == reviewer.user_id,
+            )
+        ).all()
+        assert len(tasks) == 2
+
+    def test_batch_assign_unknown_assignee_returns_404(
+        self, client: TestClient, superuser_token_headers: dict, db: Session
+    ) -> None:
+        media, col = _create_media_with_collection(db)
+        project = _create_project_for_collection(db, col)
+
+        r = client.put(
+            f"{settings.API_V1_STR}/tasks?project_id={project.project_id}",
+            headers=superuser_token_headers,
+            json={
+                "type": "media",
+                "media_ids": [media.media_id],
+                "assignments": [{"user_id": 999999, "comment": "Missing user"}],
+            },
+        )
+        assert r.status_code == 404

@@ -14,6 +14,7 @@ from app.repositories.task_repository import TaskNavigationAccess
 from app.schemas.response import ApiResponse, PagedApiResponse, api_page, api_success
 from app.schemas.task import (
     AssignableUserPublic,
+    BatchTaskAssignmentRequest,
     TaskAssignmentRequest,
     TaskAssignmentResult,
     TaskListItem,
@@ -122,6 +123,69 @@ def assign_tasks(
     return api_success(data=result)
 
 router_tasks = APIRouter(prefix="/tasks", tags=["任务列表 / task management"])
+
+
+@router_tasks.get(
+    "/assignee-options",
+    response_model=ApiResponse[list[AssignableUserPublic]],
+    summary="批量获取可分配任务用户列表 / Get Batch Assignable Users",
+)
+def get_batch_assignable_users(
+    session: SessionDep,
+    current_user: CurrentUser,
+    project_id: int = Query(..., gt=0, description="项目 ID / Project ID"),
+    media_ids: str = Query(..., description="逗号分隔的媒体 ID 列表 / Comma-separated media IDs"),
+) -> Any:
+    """
+    获取对所选全部媒体均具备有效访问权限的可分配用户列表（管理员始终包含）。
+    / Get users assignable to all specified media in the project (admins are always included).
+
+    - 仅限管理员或对所选全部媒体所属集合拥有写权限的用户访问。
+    / Accessible only by admins or users with collection write permission on every selected media.
+    """
+    parsed_media_ids = task_service.parse_media_ids(media_ids)
+    users = task_service.get_batch_assignable_users(
+        session=session,
+        media_ids=parsed_media_ids,
+        current_user=current_user,
+        project_id=project_id,
+    )
+    result = [AssignableUserPublic(**u) for u in users]
+    return api_success(data=result)
+
+
+@router_tasks.put(
+    "",
+    response_model=ApiResponse[TaskAssignmentResult],
+    summary="跨媒体批量分配任务 / Batch Assign Tasks Across Media",
+)
+def assign_tasks_batch(
+    session: SessionDep,
+    current_user: CurrentUser,
+    body: BatchTaskAssignmentRequest,
+    project_id: int = Query(..., gt=0, description="项目 ID / Project ID"),
+) -> Any:
+    """
+    在单事务内为多个媒体或跨多个媒体的多条标注批量分配任务（upsert）。
+    / Atomically batch assign tasks for multiple media or annotations spanning multiple media using upsert logic.
+
+    - 仅限管理员或对涉及的全部媒体所属集合拥有写权限的用户访问。
+    / Accessible only by admins or users with collection write permission on every involved media.
+    """
+    assignments_data = [
+        {"user_id": item.user_id, "comment": item.comment}
+        for item in body.assignments
+    ]
+    result = task_service.assign_tasks_batch(
+        session=session,
+        current_user=current_user,
+        project_id=project_id,
+        task_type=body.type,
+        assignments=assignments_data,
+        media_ids=body.media_ids,
+        annotation_ids=body.annotation_ids,
+    )
+    return api_success(data=result)
 
 
 @router_tasks.get(

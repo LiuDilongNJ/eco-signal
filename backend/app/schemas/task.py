@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Any, Literal, Optional
 
-from pydantic import ConfigDict, Field, field_validator
+from pydantic import ConfigDict, Field, field_validator, model_validator
 from sqlmodel import SQLModel
 
 from app.enums.task import AssignmentTaskType
@@ -87,6 +87,41 @@ class TaskAssignmentRequest(SQLModel):
         if normalized not in allowed:
             raise ValueError("type must be 'media' or 'annotation'")
         return normalized
+
+
+class BatchTaskAssignmentRequest(SQLModel):
+    """Request body for batch assigning tasks across multiple media or annotations."""
+    type: str = Field(AssignmentTaskType.MEDIA.value, max_length=50, description="Task type: 'media' or 'annotation'")
+    media_ids: list[int] | None = Field(
+        None, description="Media IDs for media-type tasks (required when type='media')"
+    )
+    annotation_ids: list[int] | None = Field(
+        None, description="Annotation IDs for annotation-type tasks (required when type='annotation')"
+    )
+    assignments: list[TaskAssignmentItem] = Field(..., min_length=1, description="List of user assignments")
+
+    @field_validator("type")
+    @classmethod
+    def validate_type(cls, value: str) -> str:
+        normalized = value.strip().lower()
+        allowed = {task_type.value for task_type in AssignmentTaskType}
+        if normalized not in allowed:
+            raise ValueError("type must be 'media' or 'annotation'")
+        return normalized
+
+    @model_validator(mode="after")
+    def validate_targets(self) -> "BatchTaskAssignmentRequest":
+        if self.type == AssignmentTaskType.ANNOTATION.value:
+            if not self.annotation_ids:
+                raise ValueError("annotation_ids is required for annotation-type tasks")
+            if any(item <= 0 for item in self.annotation_ids):
+                raise ValueError("annotation_ids must contain positive integers")
+        else:
+            if not self.media_ids:
+                raise ValueError("media_ids is required for media-type tasks")
+            if any(item <= 0 for item in self.media_ids):
+                raise ValueError("media_ids must contain positive integers")
+        return self
 
 
 class TaskAssignmentResult(SQLModel):

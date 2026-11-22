@@ -7,7 +7,7 @@ import { CustomScrollArea } from "@/components/ui"
 import { EmptyState } from "@/components/ui"
 import { useAppStore } from "@/store/useAppStore"
 import { useAntdBrandConfig } from "../../hooks/useAntdBrandConfig"
-import { tasksApi } from "../../../../api/endpoints/tasks"
+import { tasksApi, type AssignableUserPublic, type BatchTaskAssignmentRequest } from "../../../../api/endpoints/tasks"
 import { isSuccessfulDrawerResponse } from "./utils/isSuccessfulDrawerResponse"
 import { dispatchTasksChanged } from "../../data/taskEvents"
 import "./styles/AssignTasksDrawer.css"
@@ -30,18 +30,32 @@ export function AssignTasksDrawer({ open, mediaId, mediaIds, projectId, annotati
     const drawerTheme = useAntdBrandConfig(isDark)
     const [loading, setLoading] = useState(false)
     const [saving, setSaving] = useState(false)
-    const [assignableUsers, setAssignableUsers] = useState<any[]>([])
+    const [assignableUsers, setAssignableUsers] = useState<AssignableUserPublic[]>([])
     const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
     const [comments, setComments] = useState<Record<number, string>>({})
     const targetMediaIds = useMemo(
-        () => (
-            Array.isArray(mediaIds) && mediaIds.length > 0
-                ? mediaIds
-                : mediaId != null
-                    ? [mediaId]
-                    : []
-        ).filter((id) => Number.isFinite(id) && id > 0),
+        () =>
+            Array.from(
+                new Set(
+                    (Array.isArray(mediaIds) && mediaIds.length > 0
+                        ? mediaIds
+                        : mediaId != null
+                            ? [mediaId]
+                            : []
+                    ).filter((id) => Number.isFinite(id) && id > 0),
+                ),
+            ),
         [mediaId, mediaIds],
+    )
+    const isAnnotationMode = annotationIds !== undefined
+    const targetAnnotationIds = useMemo(
+        () =>
+            Array.from(
+                new Set(
+                    (annotationIds ?? []).filter((id) => Number.isFinite(id) && id > 0),
+                ),
+            ),
+        [annotationIds],
     )
 
     useEffect(() => {
@@ -53,7 +67,7 @@ export function AssignTasksDrawer({ open, mediaId, mediaIds, projectId, annotati
             setSelectedIds(new Set())
             setComments({})
         }
-    }, [open, targetMediaIds])
+    }, [open, projectId, targetMediaIds])
 
     const fetchData = async () => {
         if (!projectId) return
@@ -72,7 +86,7 @@ export function AssignTasksDrawer({ open, mediaId, mediaIds, projectId, annotati
 
                 // Pre-select users who already have tasks for this media
                 const currentlyAssigned = new Set<number>()
-                users.forEach(u => {
+                users.forEach((u) => {
                     if (u.task_count > 0) {
                         currentlyAssigned.add(u.user_id)
                     }
@@ -81,22 +95,12 @@ export function AssignTasksDrawer({ open, mediaId, mediaIds, projectId, annotati
                 return
             }
 
-            const responses = await Promise.all(targetMediaIds.map((id) => tasksApi.getAssignableUsers(projectId, id)))
-            const userMap = new Map<number, any>()
-
-            for (const res of responses) {
-                if (res.code !== 0 && res.code !== 200) {
-                    message.error(res.message || "Failed to fetch users")
-                    return
-                }
-                for (const user of res.data || []) {
-                    if (!userMap.has(user.user_id)) {
-                        userMap.set(user.user_id, user)
-                    }
-                }
+            const res = await tasksApi.getBatchAssignableUsers(projectId, targetMediaIds)
+            if (res.code !== 0 && res.code !== 200) {
+                message.error(res.message || "Failed to fetch users")
+                return
             }
-
-            setAssignableUsers(Array.from(userMap.values()))
+            setAssignableUsers(res.data || [])
             setSelectedIds(new Set())
         } catch (error) {
             console.error(error)
@@ -107,95 +111,60 @@ export function AssignTasksDrawer({ open, mediaId, mediaIds, projectId, annotati
     }
 
     const handleSave = async () => {
-        if (targetMediaIds.length === 0) return
+        if (!projectId || targetMediaIds.length === 0 || selectedIds.size === 0) return
+        if (isAnnotationMode && targetAnnotationIds.length === 0) {
+            message.error("No target annotations to assign.")
+            return
+        }
         setSaving(true)
         try {
-            const assignments = Array.from(selectedIds).map(userId => ({
+            const assignments = Array.from(selectedIds).map((userId) => ({
                 user_id: userId,
-                comment: comments[userId] || ""
+                comment: comments[userId] || "",
             }))
 
-            const succeededMediaIds: number[] = []
-            const skippedMediaIds: number[] = []
-            const failedMediaIds: number[] = []
+            const payload: BatchTaskAssignmentRequest = isAnnotationMode
+                ? {
+                      type: "annotation",
+                      annotation_ids: targetAnnotationIds,
+                      assignments,
+                  }
+                : {
+                      type: "media",
+                      media_ids: targetMediaIds,
+                      assignments,
+                  }
 
-            for (const currentMediaId of targetMediaIds) {
-                let payload:
-                    | {
-                          type: "media"
-                          assignments: { user_id: number; comment?: string }[]
-                      }
-                    | {
-                          type: "annotation"
-                          annotation_ids: number[]
-                          assignments: { user_id: number; comment?: string }[]
-                      }
-
-                if (annotationIds !== undefined) {
-                    const annotation_ids =
-                        targetMediaIds.length === 1
-                            ? annotationIds
-                            : []
-
-                    if (annotation_ids.length === 0) {
-                        skippedMediaIds.push(currentMediaId)
-                        continue
-                    }
-
-                    payload = {
-                        type: "annotation",
-                        annotation_ids,
-                        assignments,
-                    }
-                } else {
-                    payload = {
-                        type: "media",
-                        assignments,
-                    }
-                }
-
-                if (!projectId) {
-                    failedMediaIds.push(currentMediaId)
-                    continue
-                }
-                const res = await tasksApi.assignTasks(projectId, currentMediaId, payload)
-                if (isSuccessfulDrawerResponse(res.code, res.message)) {
-                    succeededMediaIds.push(currentMediaId)
-                } else {
-                    failedMediaIds.push(currentMediaId)
-                }
-            }
-
-            if (succeededMediaIds.length === 0 && skippedMediaIds.length > 0 && failedMediaIds.length === 0) {
-                message.error("No target annotations to assign.")
-                return
-            }
-
-            if (failedMediaIds.length === 0) {
-                const successMessage = targetMediaIds.length === 1
-                    ? "Tasks assigned successfully"
-                    : skippedMediaIds.length > 0
-                        ? `Tasks assigned for ${succeededMediaIds.length} items, skipped ${skippedMediaIds.length}`
-                        : `Tasks assigned for ${succeededMediaIds.length} items`
+            const res = await tasksApi.assignTasksBatch(projectId, payload)
+            if (isSuccessfulDrawerResponse(res.code, res.message)) {
+                const successMessage = isAnnotationMode
+                    ? targetAnnotationIds.length > 1
+                        ? `Tasks assigned for ${targetAnnotationIds.length} annotations`
+                        : "Tasks assigned successfully"
+                    : targetMediaIds.length > 1
+                        ? `Tasks assigned for ${targetMediaIds.length} items`
+                        : "Tasks assigned successfully"
                 message.success(successMessage)
                 dispatchTasksChanged(projectId)
                 onSuccess?.()
                 onClose()
             } else {
-                if (succeededMediaIds.length > 0) {
-                    dispatchTasksChanged(projectId)
-                    onSuccess?.()
-                }
-                message.warning(
-                    `Assigned ${succeededMediaIds.length} items, skipped ${skippedMediaIds.length}, failed ${failedMediaIds.length}`,
-                )
+                message.error(res.message || "Failed to assign tasks")
             }
         } catch (err) {
-            message.error("Failed to assign tasks")
+            message.error(err instanceof Error && err.message ? err.message : "Failed to assign tasks")
         } finally {
             setSaving(false)
         }
     }
+
+    const drawerTitle = isAnnotationMode
+        ? targetAnnotationIds.length > 1
+            ? `Assign Tasks (${targetAnnotationIds.length} annotations)`
+            : "Assign Tasks"
+        : targetMediaIds.length > 1
+            ? `Assign Tasks (${targetMediaIds.length} items)`
+            : "Assign Tasks"
 
     const toggleUser = (id: number, checked: boolean) => {
         setSelectedIds(prev => {
@@ -220,7 +189,7 @@ export function AssignTasksDrawer({ open, mediaId, mediaIds, projectId, annotati
                 closable={false}
                 title={
                     <Title level={4} style={{ margin: 0 }}>
-                        {targetMediaIds.length > 1 ? `Assign Tasks (${targetMediaIds.length} items)` : "Assign Tasks"}
+                        {drawerTitle}
                     </Title>
                 }
                 placement="right"
@@ -250,8 +219,8 @@ export function AssignTasksDrawer({ open, mediaId, mediaIds, projectId, annotati
                         <Button
                             type="primary"
                             loading={saving}
+                            disabled={loading || selectedIds.size === 0}
                             onClick={handleSave}
-                            style={{ background: "var(--brand)", borderColor: "var(--brand)" }}
                         >
                             Save
                         </Button>

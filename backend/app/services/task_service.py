@@ -94,10 +94,99 @@ def require_media_write_access(
     return media
 
 
+_MAX_BATCH_MEDIA_OPTIONS_IDS = 500
+
+
+def parse_media_ids(raw: str) -> list[int]:
+    """Parse a comma-separated list of positive media IDs."""
+    parts = [part.strip() for part in raw.split(",") if part.strip()]
+    if not parts:
+        raise HTTPException(status_code=400, detail="media_ids cannot be empty")
+    parsed: list[int] = []
+    for part in parts:
+        try:
+            value = int(part)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail="media_ids must be comma-separated positive integers") from exc
+        if value <= 0:
+            raise HTTPException(status_code=400, detail="media_ids must be comma-separated positive integers")
+        parsed.append(value)
+    unique_ids = list(dict.fromkeys(parsed))
+    if len(unique_ids) > _MAX_BATCH_MEDIA_OPTIONS_IDS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"At most {_MAX_BATCH_MEDIA_OPTIONS_IDS} media_ids are supported per request",
+        )
+    return unique_ids
+
+
+def _require_assignees_exist(session: Session, assignments: list[dict]) -> None:
+    assignee_ids = list(dict.fromkeys(item.get("user_id") for item in assignments))
+    if any(uid is None for uid in assignee_ids):
+        raise HTTPException(status_code=404, detail="Assignee not found")
+    existing_ids = set(
+        session.exec(select(User.user_id).where(User.user_id.in_(assignee_ids))).all()
+    )
+    if len(existing_ids) != len(assignee_ids):
+        raise HTTPException(status_code=404, detail="Assignee not found")
+
+
+def _require_project_media_assign_access(
+    session: Session,
+    media_ids: list[int],
+    current_user: User,
+    project_id: int,
+    action: AuthorizationAction,
+) -> dict[int, set[int]]:
+    """Verify all media belong to project_id and current_user can assign tasks on every media."""
+    media_collections = authorization_service.media_collection_map(
+        session, set(media_ids), project_id
+    )
+    authz = authorization_service.evaluator(session, current_user, project_id)
+    for media_id in media_ids:
+        collection_ids = media_collections.get(media_id, set())
+        if not collection_ids:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Media {media_id} does not belong to the given project",
+            )
+        authz.require(
+            action,
+            authorization_service.AuthorizationSubject(frozenset(collection_ids)),
+            detail="No write permission on this media's collection",
+        )
+    return media_collections
+
+
 def get_assignable_users(session: Session, media_id: int, current_user: User, project_id: int | None = None) -> list[dict]:
     """Get users assignable to tasks for the given media."""
     require_media_write_access(session, media_id, current_user, project_id)
     return task_repository.get_assignable_users(session, media_id)
+
+
+def get_batch_assignable_users(
+    session: Session,
+    media_ids: list[int],
+    current_user: User,
+    project_id: int,
+) -> list[dict]:
+    """Get users assignable across all specified media within a project."""
+    unique_media_ids = list(dict.fromkeys(media_ids))
+    if not unique_media_ids:
+        raise HTTPException(status_code=400, detail="media_ids cannot be empty")
+
+    existing_media_ids = set(
+        session.exec(select(Media.media_id).where(Media.media_id.in_(unique_media_ids))).all()
+    )
+    if len(existing_media_ids) != len(unique_media_ids):
+        raise HTTPException(status_code=404, detail="Media not found")
+
+    media_collections = _require_project_media_assign_access(
+        session, unique_media_ids, current_user, project_id, AuthorizationAction.MEDIA_ASSIGN
+    )
+    return task_repository.get_assignable_users_for_media_collections(
+        session, media_collections, project_id
+    )
 
 
 def get_media_tasks(session: Session, media_id: int, current_user: User, project_id: int | None = None) -> list[dict]:
@@ -120,27 +209,88 @@ def assign_tasks(
     """Batch assign tasks to users for a specific media."""
     validate_task_assignments(session, media_id, current_user, task_type, assignments, annotation_ids, project_id)
 
-    total_count = 0
+    if task_type == AssignmentTaskType.ANNOTATION.value:
+        unique_ann_ids = list(dict.fromkeys(annotation_ids or []))
+        targets = [(media_id, ann_id) for ann_id in unique_ann_ids]
+    else:
+        targets = [(media_id, None)]
+
+    total_count = task_repository.upsert_batch_assignments(
+        session=session,
+        targets=targets,
+        assigner_id=current_user.user_id,
+        task_type=task_type,
+        assignments=assignments,
+        commit=commit,
+    )
+
+    return {"assigned_count": total_count}
+
+
+def assign_tasks_batch(
+    session: Session,
+    current_user: User,
+    project_id: int,
+    task_type: str,
+    assignments: list[dict],
+    *,
+    media_ids: list[int] | None = None,
+    annotation_ids: list[int] | None = None,
+    commit: bool = True,
+) -> dict:
+    """Atomically batch assign tasks across multiple media or annotations in a project."""
+    if not assignments:
+        raise HTTPException(status_code=400, detail="assignments list cannot be empty")
+    if task_type not in {task.value for task in AssignmentTaskType}:
+        raise HTTPException(status_code=400, detail="task_type must be 'media' or 'annotation'")
+
+    _require_assignees_exist(session, assignments)
 
     if task_type == AssignmentTaskType.ANNOTATION.value:
-        for ann_id in annotation_ids or []:
-            count = task_repository.upsert_assignments(
-                session=session, media_id=media_id, assigner_id=current_user.user_id,
-                task_type=AssignmentTaskType.ANNOTATION.value, assignments=assignments,
-                annotation_id=ann_id, commit=False,
+        unique_ann_ids = list(dict.fromkeys(annotation_ids or []))
+        if not unique_ann_ids:
+            raise HTTPException(
+                status_code=400,
+                detail="annotation_ids is required for annotation-type tasks",
             )
-            total_count += count
-    else:
-        total_count = task_repository.upsert_assignments(
-            session=session, media_id=media_id, assigner_id=current_user.user_id,
-            task_type=task_type, assignments=assignments, commit=False,
+        ann_rows = session.exec(
+            select(Annotation).where(Annotation.annotation_id.in_(unique_ann_ids))
+        ).all()
+        ann_map = {ann.annotation_id: ann for ann in ann_rows if ann.annotation_id is not None}
+        for ann_id in unique_ann_ids:
+            if ann_id not in ann_map:
+                raise HTTPException(status_code=404, detail=f"Annotation {ann_id} not found")
+
+        unique_media_ids = list(dict.fromkeys(ann_map[ann_id].media_id for ann_id in unique_ann_ids))
+        _require_project_media_assign_access(
+            session, unique_media_ids, current_user, project_id, AuthorizationAction.ANNOTATION_ASSIGN
         )
-
-    if commit:
-        session.commit()
+        targets = [(ann_map[ann_id].media_id, ann_id) for ann_id in unique_ann_ids]
     else:
-        session.flush()
+        unique_media_ids = list(dict.fromkeys(media_ids or []))
+        if not unique_media_ids:
+            raise HTTPException(
+                status_code=400,
+                detail="media_ids is required for media-type tasks",
+            )
+        existing_media_ids = set(
+            session.exec(select(Media.media_id).where(Media.media_id.in_(unique_media_ids))).all()
+        )
+        if len(existing_media_ids) != len(unique_media_ids):
+            raise HTTPException(status_code=404, detail="Media not found")
+        _require_project_media_assign_access(
+            session, unique_media_ids, current_user, project_id, AuthorizationAction.MEDIA_ASSIGN
+        )
+        targets = [(media_id, None) for media_id in unique_media_ids]
 
+    total_count = task_repository.upsert_batch_assignments(
+        session=session,
+        targets=targets,
+        assigner_id=current_user.user_id,
+        task_type=task_type,
+        assignments=assignments,
+        commit=commit,
+    )
     return {"assigned_count": total_count}
 
 
@@ -158,10 +308,7 @@ def validate_task_assignments(
     if task_type not in {task.value for task in AssignmentTaskType}:
         raise HTTPException(status_code=400, detail="task_type must be 'media' or 'annotation'")
 
-    for item in assignments:
-        assignee_id = item.get("user_id")
-        if session.get(User, assignee_id) is None:
-            raise HTTPException(status_code=404, detail="Assignee not found")
+    _require_assignees_exist(session, assignments)
 
     if task_type == AssignmentTaskType.ANNOTATION.value:
         if not annotation_ids:
@@ -169,9 +316,15 @@ def validate_task_assignments(
                 status_code=400,
                 detail="annotation_ids is required for annotation-type tasks",
             )
-        for ann_id in annotation_ids:
-            ann = session.get(Annotation, ann_id)
-            if not ann or ann.media_id != media_id:
+        unique_ann_ids = list(dict.fromkeys(annotation_ids))
+        ann_rows = session.exec(
+            select(Annotation.annotation_id, Annotation.media_id).where(
+                Annotation.annotation_id.in_(unique_ann_ids)
+            )
+        ).all()
+        ann_media_map = {ann_id: ann_media_id for ann_id, ann_media_id in ann_rows}
+        for ann_id in unique_ann_ids:
+            if ann_media_map.get(ann_id) != media_id:
                 raise HTTPException(
                     status_code=400,
                     detail=f"Annotation {ann_id} does not belong to media {media_id}",

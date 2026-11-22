@@ -229,6 +229,69 @@ class TaskRepository(BaseRepository[Task, Any, Any]):
             for row in results
         ]
 
+    def get_assignable_users_for_media_collections(
+        self,
+        session: Session,
+        media_collections: dict[int, set[int]],
+        project_id: int,
+    ) -> list[dict]:
+        """Get users assignable to all specified media within a project.
+
+        Admins are always eligible. Non-admin users must hold effective
+        project_collection access to at least one collection for every
+        target media so they can open every assigned task.
+        """
+        if not media_collections:
+            return []
+
+        all_collection_ids = set().union(*media_collections.values())
+        permitted_user_ids: list[int] = []
+        if all_collection_ids:
+            rows = session.exec(
+                select(
+                    UserEffectivePermission.user_id,
+                    UserEffectivePermission.collection_id,
+                )
+                .where(
+                    UserEffectivePermission.scope_type == "project_collection",
+                    UserEffectivePermission.project_id == project_id,
+                    UserEffectivePermission.collection_id.in_(all_collection_ids),
+                )
+                .distinct()
+            ).all()
+            user_collections: dict[int, set[int]] = {}
+            for user_id, collection_id in rows:
+                if collection_id is not None:
+                    user_collections.setdefault(user_id, set()).add(collection_id)
+
+            media_col_sets = list(media_collections.values())
+            permitted_user_ids = [
+                user_id
+                for user_id, cols in user_collections.items()
+                if all(bool(cols & media_cols) for media_cols in media_col_sets)
+            ]
+
+        admin_role_ids = select(Role.role_id).where(Role.name == settings.ADMIN_ROLE_NAME)
+        condition = User.role_id.in_(admin_role_ids)
+        if permitted_user_ids:
+            condition = condition | User.user_id.in_(permitted_user_ids)
+
+        stmt = (
+            select(User.user_id, User.name, User.username)
+            .where(condition)
+            .order_by(User.name)
+        )
+        results = session.exec(stmt).all()
+        return [
+            {
+                "user_id": row.user_id,
+                "name": row.name,
+                "username": row.username,
+                "task_count": 0,
+            }
+            for row in results
+        ]
+
     def get_tasks_by_media(
         self,
         session: Session,
@@ -268,6 +331,97 @@ class TaskRepository(BaseRepository[Task, Any, Any]):
             })
         return result
 
+    def upsert_batch_assignments(
+        self,
+        session: Session,
+        targets: list[tuple[int, int | None]],
+        assigner_id: int,
+        task_type: str,
+        assignments: list[dict],
+        *,
+        commit: bool = True,
+    ) -> int:
+        """Bulk upsert task assignments in O(1) queries.
+
+        Targets are (media_id, annotation_id) pairs where annotation_id is
+        populated for annotation tasks and None for media tasks.
+        """
+        if not targets or not assignments:
+            return 0
+
+        # Deduplicate assignees while preserving order (last comment wins).
+        deduped_assignments: dict[int, str | None] = {}
+        for item in assignments:
+            deduped_assignments[item["user_id"]] = item.get("comment")
+        assignee_ids = list(deduped_assignments.keys())
+
+        is_annotation_task = task_type == AssignmentTaskType.ANNOTATION.value
+        if is_annotation_task:
+            ann_ids = [ann_id for _, ann_id in targets if ann_id is not None]
+            existing_rows = session.exec(
+                select(Task).where(
+                    Task.type == AssignmentTaskType.ANNOTATION.value,
+                    Task.annotation_id.in_(ann_ids),
+                    Task.assignee_id.in_(assignee_ids),
+                )
+            ).all()
+            existing_map: dict[tuple[int, int], Task] = {
+                (row.annotation_id, row.assignee_id): row
+                for row in existing_rows
+                if row.annotation_id is not None
+            }
+        else:
+            media_ids = [media_id for media_id, _ in targets]
+            existing_rows = session.exec(
+                select(Task).where(
+                    Task.type == AssignmentTaskType.MEDIA.value,
+                    Task.media_id.in_(media_ids),
+                    Task.assignee_id.in_(assignee_ids),
+                )
+            ).all()
+            existing_map = {
+                (row.media_id, row.assignee_id): row
+                for row in existing_rows
+                if row.media_id is not None
+            }
+
+        now = datetime.now(UTC)
+        new_tasks: list[Task] = []
+        count = 0
+
+        for media_id, annotation_id in targets:
+            target_key_id = annotation_id if is_annotation_task and annotation_id is not None else media_id
+            for assignee_id, comment in deduped_assignments.items():
+                existing = existing_map.get((target_key_id, assignee_id))
+                if existing is not None:
+                    existing.comment = comment
+                    existing.assigner_id = assigner_id
+                    existing.datetime = now
+                    session.add(existing)
+                else:
+                    new_task = Task(
+                        type=task_type,
+                        media_id=media_id,
+                        annotation_id=annotation_id if is_annotation_task else None,
+                        assigner_id=assigner_id,
+                        assignee_id=assignee_id,
+                        status=TaskStatus.ASSIGNED.value,
+                        comment=comment,
+                        datetime=now,
+                    )
+                    new_tasks.append(new_task)
+                    existing_map[(target_key_id, assignee_id)] = new_task
+                count += 1
+
+        if new_tasks:
+            session.add_all(new_tasks)
+
+        if commit:
+            session.commit()
+        else:
+            session.flush()
+        return count
+
     def upsert_assignments(
         self,
         session: Session,
@@ -280,70 +434,16 @@ class TaskRepository(BaseRepository[Task, Any, Any]):
         commit: bool = True,
     ) -> int:
         """
-        Batch upsert task assignments.
-
-        For media tasks: match by (media_id, assignee_id).
-        For annotation tasks: match by (annotation_id, assignee_id).
-        Existing tasks get comment/assigner updated; new ones are created
-        with status='assigned'.
-
-        Args:
-            session: Database session
-            media_id: ID of the media
-            assigner_id: ID of the user doing the assignment
-            task_type: 'media' or 'annotation'
-            assignments: List of dicts with keys 'user_id' and 'comment'
-            annotation_id: Required for annotation tasks
-
-        Returns:
-            Number of tasks upserted
+        Batch upsert task assignments for a single media or annotation target.
         """
-        now = datetime.now(UTC)
-        count = 0
-
-        for item in assignments:
-            assignee_id = item["user_id"]
-            comment = item.get("comment")
-
-            if task_type == AssignmentTaskType.ANNOTATION.value and annotation_id is not None:
-                existing_stmt = select(Task).where(
-                    Task.type == AssignmentTaskType.ANNOTATION.value,
-                    Task.annotation_id == annotation_id,
-                    Task.assignee_id == assignee_id,
-                )
-            else:
-                existing_stmt = select(Task).where(
-                    Task.type == AssignmentTaskType.MEDIA.value,
-                    Task.media_id == media_id,
-                    Task.assignee_id == assignee_id,
-                )
-            existing = session.exec(existing_stmt).first()
-
-            if existing:
-                existing.comment = comment
-                existing.assigner_id = assigner_id
-                existing.datetime = now
-                session.add(existing)
-            else:
-                new_task = Task(
-                    type=task_type,
-                    media_id=media_id,
-                    annotation_id=annotation_id,
-                    assigner_id=assigner_id,
-                    assignee_id=assignee_id,
-                    status=TaskStatus.ASSIGNED.value,
-                    comment=comment,
-                    datetime=now,
-                )
-                session.add(new_task)
-
-            count += 1
-
-        if commit:
-            session.commit()
-        else:
-            session.flush()
-        return count
+        return self.upsert_batch_assignments(
+            session=session,
+            targets=[(media_id, annotation_id)],
+            assigner_id=assigner_id,
+            task_type=task_type,
+            assignments=assignments,
+            commit=commit,
+        )
 
     def mark_media_task_reviewed(
         self,

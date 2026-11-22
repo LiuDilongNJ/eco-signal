@@ -36,6 +36,10 @@ export type TaskAssignmentRequest =
     | { type: "annotation"; annotation_ids: number[]; assignments: TaskAssignmentItem[] }
     | { type: "media"; annotation_ids?: null; assignments: TaskAssignmentItem[] }
 
+export type BatchTaskAssignmentRequest =
+    | { type: "annotation"; annotation_ids: number[]; assignments: TaskAssignmentItem[] }
+    | { type: "media"; media_ids: number[]; assignments: TaskAssignmentItem[] }
+
 export interface TaskAssignmentResult {
     assigned_count: number
 }
@@ -83,8 +87,18 @@ export const tasksApi = {
         return apiClient.get<ApiResponse<AssignableUserPublic[]>>(`/v1/media/${mediaId}/task-assignee-options`, { params: { project_id: projectId } })
     },
 
+    getBatchAssignableUsers(projectId: number, mediaIds: number[]) {
+        return apiClient.get<ApiResponse<AssignableUserPublic[]>>("/v1/tasks/assignee-options", {
+            params: { project_id: projectId, media_ids: mediaIds.join(",") },
+        })
+    },
+
     assignTasks(projectId: number, mediaId: number, payload: TaskAssignmentRequest) {
         return apiClient.put<ApiResponse<TaskAssignmentResult>>(`/v1/media/${mediaId}/tasks`, payload, { params: { project_id: projectId } })
+    },
+
+    assignTasksBatch(projectId: number, payload: BatchTaskAssignmentRequest) {
+        return apiClient.put<ApiResponse<TaskAssignmentResult>>("/v1/tasks", payload, { params: { project_id: projectId } })
     },
 
     async listAssignableUsers(projectId: number, mediaId: number, ignoreUnauthorized?: boolean): Promise<AssignableUserPublic[]> {
