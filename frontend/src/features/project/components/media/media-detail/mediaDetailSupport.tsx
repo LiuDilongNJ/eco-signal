@@ -847,6 +847,51 @@ export function reviewStatusDisablesTaxon(statusId: number): boolean {
     return !reviewStatusRequiresTaxon(statusId)
 }
 
+export interface AnnotationReviewPanelVisibility {
+    showReviewForm: boolean
+    showEditButton: boolean
+}
+
+/**
+ * Show review action buttons for any user with review write privileges who has not
+ * yet reviewed this annotation, even if other users have already submitted reviews.
+ * Hide them once the current user has an existing review unless they enter edit mode.
+ */
+export function resolveAnnotationReviewPanelVisibility(params: {
+    isAuthenticated: boolean
+    canCreateReview: boolean
+    hasOwnReview: boolean
+    isOwnReviewResolved: boolean
+    isEditingOwnReview: boolean
+}): AnnotationReviewPanelVisibility {
+    const {
+        isAuthenticated,
+        canCreateReview,
+        hasOwnReview,
+        isOwnReviewResolved,
+        isEditingOwnReview,
+    } = params
+
+    if (!isAuthenticated || !canCreateReview || !isOwnReviewResolved) {
+        return {
+            showReviewForm: false,
+            showEditButton: false,
+        }
+    }
+
+    if (!hasOwnReview) {
+        return {
+            showReviewForm: true,
+            showEditButton: false,
+        }
+    }
+
+    return {
+        showReviewForm: isEditingOwnReview,
+        showEditButton: !isEditingOwnReview,
+    }
+}
+
 export function normalizeAnnotationReviews(raw: unknown): AnnotationReviewRead[] {
     if (!Array.isArray(raw)) return []
     const out: AnnotationReviewRead[] = []

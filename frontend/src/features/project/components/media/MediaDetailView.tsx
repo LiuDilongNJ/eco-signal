@@ -261,6 +261,7 @@ import {
     REVIEW_ACTION_TOOLTIPS,
     reviewStatusRequiresTaxon,
     reviewStatusDisablesTaxon,
+    resolveAnnotationReviewPanelVisibility,
     normalizeAnnotationReviews,
     pickAnnotationIdFromPublic,
     copyTextToClipboard,
@@ -785,8 +786,8 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
     const annotationPanelActiveRef = useRef(false)
     annotationPanelActiveRef.current = rightPanel === "new-annotation"
 
-    /** 有历史记录时：false 仅展示列表 + Edit/Delete；true 展示右侧表单 */
-    const [reviewPanelExpanded, setReviewPanelExpanded] = useState(true)
+    /** Whether the current user explicitly opened edit mode for their existing review. */
+    const [reviewPanelExpanded, setReviewPanelExpanded] = useState(false)
     const [reviewStatusId, setReviewStatusId] = useState<number>(REVIEW_STATUS_IDS.accepted)
     const [reviewNote, setReviewNote] = useState("")
     const [reviewTaxonId, setReviewTaxonId] = useState<number | null>(null)
@@ -1038,7 +1039,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
         setEditingAnnotationId(null)
         setEditingAnnotationMeta(null)
         setEditingAnnotationReviews([])
-        setReviewPanelExpanded(true)
+        setReviewPanelExpanded(false)
         pendingReviewInitRef.current = false
         if (currentProjectId == null) {
             setDetailError("Missing project context")
@@ -2777,7 +2778,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
             )
             if (reviewerId === meUserId) {
                 initReviewFormFromReviews([], null)
-                setReviewPanelExpanded(true)
+                setReviewPanelExpanded(false)
             }
             setAnnotationListTick((n) => n + 1)
             updateMessageSuccess(loadingId, "Review deleted.")
@@ -2805,6 +2806,14 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
         if (meUserId == null) return undefined
         return editingAnnotationReviews.find((r) => r.reviewer_id === meUserId)
     }, [editingAnnotationReviews, meUserId])
+
+    const reviewPanelVisibility = resolveAnnotationReviewPanelVisibility({
+        isAuthenticated: Boolean(authUtils.getToken()),
+        canCreateReview,
+        hasOwnReview: myAnnotationReviewRow != null,
+        isOwnReviewResolved: meUserReady || editingAnnotationReviews.length === 0,
+        isEditingOwnReview: reviewPanelExpanded,
+    })
 
     /** 点 Revise 且 Review 侧 Taxon 为空时，用当前标注表单 / 详情里的物种预填 */
     const seedReviewTaxonForReviseFromAnnotation = useCallback(() => {
@@ -3058,7 +3067,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                 reviewsOverride ??
                 normalizeAnnotationReviews((a as AnnotationWithReviews).reviews)
             setEditingAnnotationReviews(revs)
-            setReviewPanelExpanded(revs.length === 0)
+            setReviewPanelExpanded(false)
             pendingReviewInitRef.current = true
             setRightPanel("new-annotation")
             const sr = Number(media?.sampling_rate_hz) || 0
@@ -4510,7 +4519,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
         setEditingAnnotationId(null)
         setEditingAnnotationMeta(null)
         setEditingAnnotationReviews([])
-        setReviewPanelExpanded(true)
+        setReviewPanelExpanded(false)
         pendingReviewInitRef.current = false
         setReviewStatusId(REVIEW_STATUS_IDS.accepted)
         setReviewNote("")
@@ -4544,7 +4553,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                 current === closingAnnotationId ? null : current,
             )
         }
-        setReviewPanelExpanded(true)
+        setReviewPanelExpanded(false)
         pendingReviewInitRef.current = false
         setReviewStatusId(REVIEW_STATUS_IDS.accepted)
         setReviewNote("")
@@ -4651,7 +4660,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
         setEditingAnnotationId(null)
         setEditingAnnotationMeta(null)
         setEditingAnnotationReviews([])
-        setReviewPanelExpanded(true)
+        setReviewPanelExpanded(false)
         pendingReviewInitRef.current = false
         resetAnnotationFormFields()
         spectrogramMagnifierBackupRef.current = null
@@ -4678,7 +4687,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                 setEditingAnnotationId(null)
                 setEditingAnnotationMeta(null)
                 setEditingAnnotationReviews([])
-                setReviewPanelExpanded(true)
+                setReviewPanelExpanded(false)
                 pendingReviewInitRef.current = false
                 spectrogramMagnifierBackupRef.current = null
                 setSpectrogramMagnifierZoomed(false)
@@ -5410,7 +5419,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
             const fresh = normalizeAnnotationReviews(items)
             setEditingAnnotationReviews(fresh)
             initReviewFormFromReviews(fresh, meUserId)
-            setReviewPanelExpanded(fresh.length === 0)
+            setReviewPanelExpanded(false)
             setEditingAnnotationMeta((annotation) =>
                 annotation?.annotation_id === annId
                     ? { ...annotation, reviews: fresh }
@@ -7786,9 +7795,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                                             <div className="studio-annot-review-head">
                                                 <span className="studio-annot-review-title">REVIEW</span>
                                                 <div className="studio-annot-review-head-actions">
-                                                    {sortedEditingAnnotationReviews.length > 0 &&
-                                                    !reviewPanelExpanded &&
-                                                    canCreateReview ? (
+                                                    {reviewPanelVisibility.showEditButton ? (
                                                         <Button
                                                             type="primary"
                                                             className="studio-annot-review-edit-btn"
@@ -7802,8 +7809,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                                             </div>
                                             <div
                                                 className={
-                                                    reviewPanelExpanded ||
-                                                        sortedEditingAnnotationReviews.length === 0
+                                                    reviewPanelVisibility.showReviewForm
                                                         ? "studio-annot-review-cols"
                                                         : "studio-annot-review-cols studio-annot-review-cols--solo"
                                                 }
@@ -7887,9 +7893,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                                                         </CustomScrollArea>
                                                     )}
                                                 </div>
-                                                {(reviewPanelExpanded ||
-                                                    sortedEditingAnnotationReviews.length === 0) &&
-                                                    authUtils.getToken() && (
+                                                {reviewPanelVisibility.showReviewForm && (
                                                         <div className="studio-annot-review-form-col">
                                                             <div className="studio-annot-review-status-grid">
                                                                 {(
