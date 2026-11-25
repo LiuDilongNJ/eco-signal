@@ -2304,11 +2304,12 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
 
     useEffect(() => {
         const valid = new Set(annotationTableRows.map((r) => r.annotation_id))
+        if (editingAnnotationId != null) valid.add(editingAnnotationId)
         setSelectedAnnotationKeys((prev) => {
             const next = prev.filter((k) => valid.has(Number(k)))
             return next.length === prev.length ? prev : next
         })
-    }, [annotationTableRows])
+    }, [annotationTableRows, editingAnnotationId])
 
     useEffect(() => {
         annotationTableSelectedIdsRef.current = selectedAnnotationKeys
@@ -4513,25 +4514,6 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
         return () => ro.disconnect()
     }, [loading, media, readViewportLayoutSize, spectrogramBlobUrl])
 
-    const dismissAnnotationPanelAfterMagnify = useCallback(() => {
-        setRightPanel("info")
-        setAnnotationDraft(null)
-        setEditingAnnotationId(null)
-        setEditingAnnotationMeta(null)
-        setEditingAnnotationReviews([])
-        setReviewPanelExpanded(false)
-        pendingReviewInitRef.current = false
-        setReviewStatusId(REVIEW_STATUS_IDS.accepted)
-        setReviewNote("")
-        setReviewTaxonId(null)
-        setReviewTaxonSearch("")
-        reviewTaxonOptionsState.reset()
-        setMarqueePx(null)
-        setMarqueeCreating(false)
-        setAnnotationDraftHasSize(false)
-        draftInteractionRef.current = null
-    }, [reviewTaxonOptionsState.reset])
-
     const closeAnnotationPanel = useCallback((options?: { keepSelection?: boolean }) => {
         const closingAnnotationId = editingAnnotationId
         setRightPanel("info")
@@ -4634,16 +4616,9 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
         applyMagnifierZoomLayout(layout)
         audioPreserveTimeRef.current = layout.vs
         syncPlaybackToSpectrogramViewStart(layout.vs)
-        if (annotationPanelActiveRef.current) {
-            const dismissPanel = dismissAnnotationPanelAfterMagnify
-            requestAnimationFrame(() => {
-                dismissPanel()
-            })
-        }
     }, [
         annotationDraft,
         applyMagnifierZoomLayout,
-        dismissAnnotationPanelAfterMagnify,
         editingAnnotationId,
         editingAnnotationMeta,
         media?.duration_s,
@@ -5983,13 +5958,11 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
     }
     const handleSpectrogramZoomIn = () => {
         runSpectrogramControl(() => {
-            exitAnnotationPanelIfActive()
             applySpectrogramCentralZoomByFactor(spectrogramZoomFactorDraft, "in")
         })
     }
     const handleSpectrogramZoomOut = () => {
         runSpectrogramControl(() => {
-            exitAnnotationPanelIfActive()
             applySpectrogramCentralZoomByFactor(spectrogramZoomFactorDraft, "out")
         })
     }
