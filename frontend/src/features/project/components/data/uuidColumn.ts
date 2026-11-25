@@ -1,5 +1,8 @@
 import type { ColumnDef } from "./DataPageLayout"
 
+export const UUID_COLUMN_TOOLTIP =
+    "Unique identifier. Expand the column when you need the full value."
+
 /** Compact default width — full UUID remains available via hover title / expand. */
 export const UUID_COLUMN_WIDTH_COLLAPSED = 108
 /** Expanded width for copying / reading the full value. */
@@ -34,7 +37,7 @@ export function createUuidColumn(overrides?: Partial<ColumnDef>): ColumnDef {
         ellipsis: true,
         sortable: true,
         filterable: true,
-        tooltip: "Unique identifier. Expand the column when you need the full value.",
+        tooltip: UUID_COLUMN_TOOLTIP,
         ...overrides,
     }
 }

@@ -379,9 +379,16 @@
     text-overflow: ellipsis;
 }
 
+.dpl-th-help {
+    display: inline-flex;
+    flex: 0 0 auto;
+    cursor: help;
+}
+
 .dpl-th-label-tooltip .es-form-help-icon {
     color: var(--text-secondary);
     cursor: help;
+    pointer-events: none;
 }
 
 button.dpl-uuid-toggle {

@@ -986,7 +986,14 @@ export function DataPageLayout({
                                     <Tooltip title={col.tooltip}>
                                         <span className="dpl-th-label-tooltip">
                                             {col.label}
-                                            {isUuidColumn && !uuidColumnExpanded ? null : <FormHelpIcon />}
+                                            {isUuidColumn && !uuidColumnExpanded ? null : (
+                                                <span
+                                                    className="dpl-th-help"
+                                                    onClick={(event) => event.stopPropagation()}
+                                                >
+                                                    <FormHelpIcon />
+                                                </span>
+                                            )}
                                         </span>
                                     </Tooltip>
                                 ) : col.label}

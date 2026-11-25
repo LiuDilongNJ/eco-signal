@@ -1,4 +1,4 @@
-import { Button as ESButton, Input as ESInput, Tooltip } from "@/components/ui"
+import { Button as ESButton, FormHelpIcon, Input as ESInput, Tooltip } from "@/components/ui"
 /**
  * MediaDetailView - 统一媒体详情页
  *
@@ -87,6 +87,12 @@ import {
     type UpdateAnnotationPayload,
 } from "../../../../api/endpoints/annotations"
 import { tasksApi, type AssignableUserPublic } from "../../../../api/endpoints/tasks"
+import {
+    readUuidColumnExpanded,
+    UUID_COLUMN_WIDTH_COLLAPSED,
+    UUID_COLUMN_WIDTH_EXPANDED,
+    writeUuidColumnExpanded,
+} from "../data/uuidColumn"
 import { dispatchTasksChanged } from "../../data/taskEvents"
 import {
     reviewsApi,
@@ -698,6 +704,14 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
     const [annotationColumnFilters, setAnnotationColumnFilters] = useState<Record<string, string>>({})
     const [annotationSortKey, setAnnotationSortKey] = useState<string | null>(null)
     const [annotationSortDir, setAnnotationSortDir] = useState<"asc" | "desc" | null>(null)
+    const [uuidColumnExpanded, setUuidColumnExpanded] = useState(readUuidColumnExpanded)
+    const toggleUuidColumnExpanded = useCallback(() => {
+        setUuidColumnExpanded((prev) => {
+            const next = !prev
+            writeUuidColumnExpanded(next)
+            return next
+        })
+    }, [])
 
     const toggleAnnotationSort = useCallback(
         (key: string) => {
@@ -2018,6 +2032,10 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
 
         const columnsForMedia = isPhoto ? PHOTO_STUDIO_ANNOTATION_COLUMNS : STUDIO_ANNOTATION_COLUMNS
         const cols = columnsForMedia.map((col) => {
+            const isUuidColumn = col.key === "uuid"
+            const columnWidth = isUuidColumn
+                ? (uuidColumnExpanded ? UUID_COLUMN_WIDTH_EXPANDED : UUID_COLUMN_WIDTH_COLLAPSED)
+                : col.width
             const useTextFilter = col.key === "creator_name" || col.key === "soundscape_component" || col.key === "sound_type"
             const filterOptionsResolved =
                 useTextFilter
@@ -2035,7 +2053,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
             return {
                 key: col.key,
                 columnKey: col.key,
-                ...(col.width ? { width: col.width } : {}),
+                ...(columnWidth ? { width: columnWidth } : {}),
                 ellipsis: true,
                 dataIndex: col.key,
                 title: (
@@ -2051,7 +2069,43 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                                     fontWeight: annotationSortKey === col.key ? "bold" : "normal",
                                 }}
                             >
-                                {col.label}
+                                {col.tooltip ? (
+                                    <Tooltip title={col.tooltip}>
+                                        <span className="dpl-th-label-tooltip">
+                                            {col.label}
+                                            {isUuidColumn && !uuidColumnExpanded ? null : (
+                                                <span
+                                                    className="dpl-th-help"
+                                                    onClick={(event) => event.stopPropagation()}
+                                                >
+                                                    <FormHelpIcon />
+                                                </span>
+                                            )}
+                                        </span>
+                                    </Tooltip>
+                                ) : (
+                                    col.label
+                                )}
+                                {isUuidColumn ? (
+                                    <ESButton
+                                        appearance="unstyled"
+                                        type="button"
+                                        className="dpl-uuid-toggle"
+                                        title={uuidColumnExpanded ? "Collapse UUID column" : "Expand UUID column"}
+                                        aria-label={uuidColumnExpanded ? "Collapse UUID column" : "Expand UUID column"}
+                                        aria-pressed={uuidColumnExpanded}
+                                        onClick={(event) => {
+                                            event.stopPropagation()
+                                            toggleUuidColumnExpanded()
+                                        }}
+                                    >
+                                        {uuidColumnExpanded ? (
+                                            <ChevronLeft size={14} strokeWidth={2.25} aria-hidden />
+                                        ) : (
+                                            <ChevronRight size={14} strokeWidth={2.25} aria-hidden />
+                                        )}
+                                    </ESButton>
+                                ) : null}
                             </div>
                             {col.sortable && (
                                 <div className={`dpl-th-sort-icon ${annotationSortKey === col.key ? "active" : ""}`}>
@@ -2283,6 +2337,8 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
         toggleAnnotationRowSelected,
         toggleAnnotationSelectAllCurrentPage,
         toggleAnnotationSort,
+        toggleUuidColumnExpanded,
+        uuidColumnExpanded,
     ])
 
     const handleAnnotationTableChange = useCallback(
@@ -7088,7 +7144,12 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                                         tableLayout="fixed"
                                         columns={annotationAntdColumns as any}
                                         dataSource={annotationTableRows}
-                                        scroll={{ x: 3800, y: annotationTableBodyScrollY }}
+                                        scroll={{
+                                            x: uuidColumnExpanded
+                                                ? 3800 + (UUID_COLUMN_WIDTH_EXPANDED - UUID_COLUMN_WIDTH_COLLAPSED)
+                                                : 3800,
+                                            y: annotationTableBodyScrollY,
+                                        }}
                                         locale={{
                                             emptyText: showAnnotationTableLoading ? (
                                                 <div className="data-table-empty-state studio-annotation-table-empty" />

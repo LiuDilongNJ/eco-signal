@@ -7,6 +7,7 @@ import type { SoundClassificationPublic } from "../../../../../api/endpoints/tax
 import { COOKIE_RETENTION_DAYS, isFunctionalCookiesAllowed } from "../../../../home/cookieConsent"
 import type { MenuProps } from "@/components/ui"
 import type { ColumnDef } from "../../data/DataPageLayout"
+import { UUID_COLUMN_TOOLTIP } from "../../data/uuidColumn"
 import { viewportParamsKey, type MediaViewportParams } from "../mediaViewportParams"
 import { annotationHasActiveAssignedTask, normalizeUserColorHex } from "../mediaAnnotationPresentation"
 
@@ -557,7 +558,7 @@ export const REFERENCE_FIELD_HELP_TEXT =
 
 export const STUDIO_ANNOTATION_COLUMNS: ColumnDef[] = [
     { key: "annotation_id", label: "ID", type: "number", sortable: true, filterable: true, width: 150 },
-    { key: "uuid", label: "UUID", type: "text", sortable: true, filterable: true, width: 108, ellipsis: true },
+    { key: "uuid", label: "UUID", type: "text", sortable: true, filterable: true, width: 108, ellipsis: true, tooltip: UUID_COLUMN_TOOLTIP },
     { key: "min_x", label: "Min X (s)", type: "number", sortable: true, filterable: true, filterType: "numberRange", width: 280 },
     { key: "max_x", label: "Max X (s)", type: "number", sortable: true, filterable: true, filterType: "numberRange", width: 280 },
     { key: "min_y", label: "Min Y (Hz)", type: "number", sortable: true, filterable: true, filterType: "numberRange", width: 280 },
@@ -579,7 +580,7 @@ export const STUDIO_ANNOTATION_COLUMNS: ColumnDef[] = [
 /** Photo annotations use object classification fields instead of audio soundscape fields. */
 export const PHOTO_STUDIO_ANNOTATION_COLUMNS: ColumnDef[] = [
     { key: "annotation_id", label: "ID", type: "number", sortable: true, filterable: true, width: 150 },
-    { key: "uuid", label: "UUID", type: "text", sortable: true, filterable: true, width: 108, ellipsis: true },
+    { key: "uuid", label: "UUID", type: "text", sortable: true, filterable: true, width: 108, ellipsis: true, tooltip: UUID_COLUMN_TOOLTIP },
     { key: "min_x", label: "Min X (px)", type: "number", sortable: true, filterable: true, filterType: "numberRange", width: 280 },
     { key: "max_x", label: "Max X (px)", type: "number", sortable: true, filterable: true, filterType: "numberRange", width: 280 },
     { key: "min_y", label: "Min Y (px)", type: "number", sortable: true, filterable: true, filterType: "numberRange", width: 280 },
