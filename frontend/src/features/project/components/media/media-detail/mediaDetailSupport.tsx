@@ -1053,6 +1053,25 @@ export function spectrogramRequestParamsKey(viewport: MediaViewportParams): stri
     return viewportParamsKey(viewport)
 }
 
+/**
+ * Annotation boxes stay hidden until the spectrogram image for the current
+ * viewport has actually loaded. A navigation action clears the active key
+ * before the next image request, so the new box cannot flash on the old image.
+ */
+export function spectrogramAnnotationsReady(input: {
+    showSpectrogramLoading: boolean
+    spectrogramBlobUrl: string | null
+    spectrogramImageReadyUrl: string | null
+    viewportKey: string | null
+    readyParamsKey: string | null
+    activeParamsKey: string | null
+}): boolean {
+    if (input.showSpectrogramLoading) return false
+    if (input.spectrogramBlobUrl && input.spectrogramImageReadyUrl !== input.spectrogramBlobUrl) return false
+    if (input.viewportKey == null) return true
+    return input.viewportKey === input.readyParamsKey && input.viewportKey === input.activeParamsKey
+}
+
 export function pickRecordingDetailId(detail: RecordingDetail | null | undefined): number | null {
     if (detail == null) return null
     const candidates: unknown[] = [detail.media_id, detail.id]

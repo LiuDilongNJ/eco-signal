@@ -278,6 +278,7 @@ import {
     normalizeRecordingDetail,
     resolveSpectrogramRequestSize,
     spectrogramRequestParamsKey,
+    spectrogramAnnotationsReady,
     pickRecordingDetailId,
     resolveDetailThemeValue,
     type AnnotationPhysBox,
@@ -355,10 +356,12 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
     const [detailError, setDetailError] = useState<string | null>(null)
     const [spectrogramBlobUrl, setSpectrogramBlobUrl] = useState<string | null>(null)
     const [spectrogramImageReadyUrl, setSpectrogramImageReadyUrl] = useState<string | null>(null)
+    const [spectrogramReadyParamsKey, setSpectrogramReadyParamsKey] = useState<string | null>(null)
     const [spectrogramLoading, setSpectrogramLoading] = useState(false)
     const [spectrogramInitialReady, setSpectrogramInitialReady] = useState(false)
     const [spectrogramRetryToken, setSpectrogramRetryToken] = useState(0)
     const spectrogramBlobUrlRef = useRef<string | null>(null)
+    const spectrogramBlobParamsKeyByUrlRef = useRef(new Map<string, string>())
     const spectrogramRequestIdRef = useRef(0)
     const [audioBlobUrl, setAudioBlobUrl] = useState<string | null>(null)
     const [audioLoading, setAudioLoading] = useState(false)
@@ -1008,9 +1011,12 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
         setDetailError(null)
         setMedia(null)
         setSpectrogramBlobUrl(null)
+        setSpectrogramImageReadyUrl(null)
+        setSpectrogramReadyParamsKey(null)
         clearPrefetchedSpectrogram()
         const prevSpectrogramUrl = spectrogramBlobUrlRef.current
         spectrogramBlobUrlRef.current = null
+        spectrogramBlobParamsKeyByUrlRef.current.clear()
         activeViewportParamsKeyRef.current = null
         if (prevSpectrogramUrl) URL.revokeObjectURL(prevSpectrogramUrl)
         setSpectrogramInitialReady(false)
@@ -1314,11 +1320,15 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
             pendingDisplayPrefetchedSpectrogramKeyRef.current = null
             const prev = spectrogramBlobUrlRef.current
             spectrogramBlobUrlRef.current = prefetched.url
+            spectrogramBlobParamsKeyByUrlRef.current.set(prefetched.url, paramsKey)
             setSpectrogramBlobUrl(prefetched.url)
             activeViewportParamsKeyRef.current = paramsKey
             setSpectrogramInitialReady(true)
             setSpectrogramLoading(false)
-            if (prev) URL.revokeObjectURL(prev)
+            if (prev) {
+                spectrogramBlobParamsKeyByUrlRef.current.delete(prev)
+                URL.revokeObjectURL(prev)
+            }
             return
         }
 
@@ -1346,13 +1356,18 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                 url = URL.createObjectURL(blob)
                 const prev = spectrogramBlobUrlRef.current
                 spectrogramBlobUrlRef.current = url
+                spectrogramBlobParamsKeyByUrlRef.current.set(url, paramsKey)
                 setSpectrogramBlobUrl(url)
                 activeViewportParamsKeyRef.current = paramsKey
-                if (prev) URL.revokeObjectURL(prev)
+                if (prev) {
+                    spectrogramBlobParamsKeyByUrlRef.current.delete(prev)
+                    URL.revokeObjectURL(prev)
+                }
             })
             .catch(() => {
                 if (!cancelled && requestId === spectrogramRequestIdRef.current) {
                     setSpectrogramBlobUrl(null)
+                    setSpectrogramReadyParamsKey(null)
                 }
             })
             .finally(() => {
@@ -3512,11 +3527,15 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                     prefetchedSpectrogramsRef.current.delete(key)
                     const current = spectrogramBlobUrlRef.current
                     spectrogramBlobUrlRef.current = url
+                    spectrogramBlobParamsKeyByUrlRef.current.set(url, key)
                     setSpectrogramBlobUrl(url)
                     activeViewportParamsKeyRef.current = key
                     setSpectrogramInitialReady(true)
                     setSpectrogramLoading(false)
-                    if (current) URL.revokeObjectURL(current)
+                    if (current) {
+                        spectrogramBlobParamsKeyByUrlRef.current.delete(current)
+                        URL.revokeObjectURL(current)
+                    }
                     return
                 }
                 const prev = prefetchedSpectrogramsRef.current.get(key)
@@ -5863,12 +5882,29 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
             ? `. Your current player width is ${spectrogramPlayerWidthPx} pixels.`
             : "")
     const showSpectrogramLoading = spectrogramLoading || !spectrogramInitialReady
-    const spectrogramImageReady =
-        !showSpectrogramLoading &&
-        (!spectrogramBlobUrl || spectrogramImageReadyUrl === spectrogramBlobUrl)
+    spectrogramViewStartRef.current = spectrogramViewStart
+    spectrogramZoomPercentRef.current = spectrogramZoomPercent
+    audioBandFilterRef.current = audioBandFilter
+    annotationDraftRef.current = annotationDraft
+    const spectrogramViewportParams = isPhoto ? null : buildDetailViewportParams(spectrogramViewStart)
+    const spectrogramViewportKey = spectrogramViewportParams
+        ? spectrogramRequestParamsKey(spectrogramViewportParams)
+        : null
+    const spectrogramImageReady = spectrogramAnnotationsReady({
+        showSpectrogramLoading,
+        spectrogramBlobUrl,
+        spectrogramImageReadyUrl,
+        viewportKey: spectrogramViewportKey,
+        readyParamsKey: spectrogramReadyParamsKey,
+        activeParamsKey: activeViewportParamsKeyRef.current,
+    })
     const markSpectrogramImageReady = (event: React.SyntheticEvent<HTMLImageElement>) => {
         const loadedSrc = event.currentTarget.currentSrc || event.currentTarget.src
-        if (loadedSrc) setSpectrogramImageReadyUrl(loadedSrc)
+        if (!loadedSrc || loadedSrc !== spectrogramBlobUrlRef.current) return
+        const paramsKey = spectrogramBlobParamsKeyByUrlRef.current.get(loadedSrc)
+        if (!paramsKey || paramsKey !== activeViewportParamsKeyRef.current) return
+        setSpectrogramImageReadyUrl(loadedSrc)
+        setSpectrogramReadyParamsKey(paramsKey)
     }
     const showAnnotationTableLoading = annotationListLoading || !annotationListInitialReady
     const playheadViewStart = specViewStart
