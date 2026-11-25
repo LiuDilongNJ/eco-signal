@@ -553,6 +553,40 @@ export function computeMagnifierLayoutForAnnotation(
 }
 
 /** 与 audio.html 标注表列一致；列 key 即数据表字段名，与后端 list order_by / 筛选参数对齐（不设 width，由内容与表头撑开） */
+export const ANNOTATION_ZOOM_TOGGLE_STORAGE_KEY = "eco-signal.player.annotation-zoom"
+
+export function annotationZoomToggleLabel(enabled: boolean): string {
+    return enabled
+        ? "Annotation zoom ON. Previous/Next buttons select and zoom into annotations."
+        : "Annotation zoom OFF. Previous/Next buttons select annotations."
+}
+
+export function taskToggleLabel(enabled: boolean): string {
+    return enabled
+        ? "Task toggle ON. Previous/Next buttons select or zoom into annotations you are tasked to review, and jump to those in other media."
+        : "Task toggle OFF. Previous/Next buttons select or zoom into annotations."
+}
+
+/** URL wins when the navigation link set it; otherwise keep the last toggle for this tab. */
+export function readAnnotationZoomToggle(search: string): boolean {
+    const param = new URLSearchParams(search).get("annotation_zoom")
+    if (param === "1") return true
+    if (param === "0") return false
+    try {
+        return sessionStorage.getItem(ANNOTATION_ZOOM_TOGGLE_STORAGE_KEY) === "1"
+    } catch {
+        return false
+    }
+}
+
+export function writeAnnotationZoomToggle(enabled: boolean) {
+    try {
+        sessionStorage.setItem(ANNOTATION_ZOOM_TOGGLE_STORAGE_KEY, enabled ? "1" : "0")
+    } catch {
+        // Private browsing must not break the toolbar.
+    }
+}
+
 export const REFERENCE_FIELD_HELP_TEXT =
     "Mark as a reference annotation (e.g. for constituting reference call libraries, assembling training datasets, or other uses)"
 
@@ -1053,10 +1087,32 @@ export function spectrogramRequestParamsKey(viewport: MediaViewportParams): stri
     return viewportParamsKey(viewport)
 }
 
+/** State that actually requests a new spectrogram image. Opening an annotation does not change it. */
+export function spectrogramAnnotationDisplayKey(input: {
+    mediaId: number
+    viewStart: number
+    zoomPercent: number
+    freqMin: number
+    freqMax: number
+    fft: string
+    channel: number
+    bandFilter: boolean
+}): string {
+    return [
+        input.mediaId,
+        input.viewStart,
+        input.zoomPercent,
+        input.freqMin,
+        input.freqMax,
+        input.fft,
+        input.channel,
+        input.bandFilter ? 1 : 0,
+    ].join("|")
+}
+
 /**
- * Annotation boxes stay hidden until the spectrogram image for the current
- * viewport has actually loaded. A navigation action clears the active key
- * before the next image request, so the new box cannot flash on the old image.
+ * Annotation boxes stay hidden only while a new spectrogram image is loading.
+ * Clicking an annotation must not hide them when the current image is still showing.
  */
 export function spectrogramAnnotationsReady(input: {
     showSpectrogramLoading: boolean
@@ -1064,12 +1120,12 @@ export function spectrogramAnnotationsReady(input: {
     spectrogramImageReadyUrl: string | null
     viewportKey: string | null
     readyParamsKey: string | null
-    activeParamsKey: string | null
 }): boolean {
     if (input.showSpectrogramLoading) return false
-    if (input.spectrogramBlobUrl && input.spectrogramImageReadyUrl !== input.spectrogramBlobUrl) return false
+    if (!input.spectrogramBlobUrl) return true
+    if (input.spectrogramImageReadyUrl !== input.spectrogramBlobUrl) return false
     if (input.viewportKey == null) return true
-    return input.viewportKey === input.readyParamsKey && input.viewportKey === input.activeParamsKey
+    return input.viewportKey === input.readyParamsKey
 }
 
 export function pickRecordingDetailId(detail: RecordingDetail | null | undefined): number | null {

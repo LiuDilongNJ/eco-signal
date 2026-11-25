@@ -25,6 +25,7 @@ import {
 import { mediaApi, type RecordingDetail } from "../../../../api/endpoints/media"
 import type { AnnotationPublic } from "../../../../api/endpoints/annotations"
 import { COOKIE_RETENTION_DAYS, isFunctionalCookiesAllowed } from "../../../home/cookieConsent"
+import { annotationZoomToggleLabel, taskToggleLabel } from "./media-detail/mediaDetailSupport"
 import { MediaViewerToolbarButton } from "./MediaViewerToolbarButton"
 import {
     AnnotationNavAutoZoomIcon,
@@ -852,22 +853,14 @@ export function PhotoImageViewer({
                     <MediaViewerToolbarButton
                         className="btn-toolbar"
                         active={navAutoZoomToAnnotation}
-                        label={
-                            navAutoZoomToAnnotation
-                                ? "Annotation zoom ON. When ON, Previous/Next buttons select and zoom into annotations. When OFF, these buttons only select annotations."
-                                : "Annotation zoom OFF. When ON, Previous/Next buttons select and zoom into annotations. When OFF, these buttons only select annotations."
-                        }
+                        label={annotationZoomToggleLabel(Boolean(navAutoZoomToAnnotation))}
                         icon={<AnnotationNavAutoZoomIcon size={20} strokeWidth={2} />}
                         onClick={onToggleNavAutoZoomToAnnotation}
                     />
                     <MediaViewerToolbarButton
                         className="btn-toolbar"
                         active={navOnlyTaskTagged}
-                        label={
-                            navOnlyTaskTagged
-                                ? "Task toggle ON. Previous/Next stay on this photo, then continue to the previous or next photo's assigned annotations."
-                                : "Task toggle OFF. Previous/Next stay on this photo, then continue to the previous or next photo."
-                        }
+                        label={taskToggleLabel(Boolean(navOnlyTaskTagged))}
                         icon={<ListChecks size={20} strokeWidth={2} />}
                         onClick={onToggleNavOnlyTaskTagged}
                     />

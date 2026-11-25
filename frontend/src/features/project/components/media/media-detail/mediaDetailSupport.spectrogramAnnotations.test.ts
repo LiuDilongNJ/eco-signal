@@ -8,7 +8,6 @@ const loaded = {
     spectrogramImageReadyUrl: "blob:current",
     viewportKey: "view-a",
     readyParamsKey: "view-a",
-    activeParamsKey: "view-a",
 }
 
 describe("spectrogramAnnotationsReady", () => {
@@ -21,9 +20,12 @@ describe("spectrogramAnnotationsReady", () => {
             spectrogramAnnotationsReady({
                 ...loaded,
                 viewportKey: "view-b",
-                activeParamsKey: null,
             }),
         ).toBe(false)
+    })
+
+    it("keeps the current annotations visible when an annotation is opened without a new image", () => {
+        expect(spectrogramAnnotationsReady(loaded)).toBe(true)
     })
 
     it("stays hidden while the replacement spectrogram is still decoding", () => {

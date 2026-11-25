@@ -1,7 +1,14 @@
 import { describe, expect, it } from "vitest"
 
 import type { AnnotationPublic } from "../../../../../api/endpoints/annotations"
-import { annotationAtEdge, orderedMediaIdsOfType } from "./mediaDetailSupport"
+import {
+    annotationAtEdge,
+    annotationZoomToggleLabel,
+    orderedMediaIdsOfType,
+    readAnnotationZoomToggle,
+    taskToggleLabel,
+    writeAnnotationZoomToggle,
+} from "./mediaDetailSupport"
 
 function annotation(id: number, minX: number, minY = 0): AnnotationPublic {
     return { annotation_id: id, min_x: minX, max_x: minX + 1, min_y: minY, max_y: minY + 1 } as AnnotationPublic
@@ -25,6 +32,16 @@ describe("annotationAtEdge", () => {
 
     it("uses the earliest annotation when moving onto the next recording", () => {
         expect(annotationAtEdge(list, 1)?.annotation_id).toBe(2)
+    })
+
+    it("keeps annotation zoom on when the next media link or this tab already enabled it", () => {
+        writeAnnotationZoomToggle(false)
+        expect(readAnnotationZoomToggle("?annotation_zoom=1")).toBe(true)
+        expect(readAnnotationZoomToggle("?annotation_zoom=0")).toBe(false)
+        writeAnnotationZoomToggle(true)
+        expect(readAnnotationZoomToggle("")).toBe(true)
+        expect(annotationZoomToggleLabel(true)).toContain("select and zoom into annotations")
+        expect(taskToggleLabel(true)).toContain("jump to those in other media")
     })
 
     it("uses the latest annotation when moving onto the previous recording", () => {

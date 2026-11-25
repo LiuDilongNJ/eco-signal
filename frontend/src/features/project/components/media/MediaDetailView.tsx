@@ -256,6 +256,10 @@ import {
     REFERENCE_FIELD_HELP_TEXT,
     type StudioAnnotationRow,
     annotationHasTaskTagForNav,
+    annotationZoomToggleLabel,
+    readAnnotationZoomToggle,
+    taskToggleLabel,
+    writeAnnotationZoomToggle,
     annotationPublicToStudioRow,
     mergeStudioAnnotationQuery,
     annotationTableBoolBadge,
@@ -278,6 +282,7 @@ import {
     normalizeRecordingDetail,
     resolveSpectrogramRequestSize,
     spectrogramRequestParamsKey,
+    spectrogramAnnotationDisplayKey,
     spectrogramAnnotationsReady,
     pickRecordingDetailId,
     resolveDetailThemeValue,
@@ -362,6 +367,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
     const [spectrogramRetryToken, setSpectrogramRetryToken] = useState(0)
     const spectrogramBlobUrlRef = useRef<string | null>(null)
     const spectrogramBlobParamsKeyByUrlRef = useRef(new Map<string, string>())
+    const spectrogramDisplayKeyRef = useRef("")
     const spectrogramRequestIdRef = useRef(0)
     const [audioBlobUrl, setAudioBlobUrl] = useState<string | null>(null)
     const [audioLoading, setAudioLoading] = useState(false)
@@ -685,7 +691,16 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
     /** 仅在有「任务」标记的标注间跳转（见 `annotationHasTaskTagForNav`）；可与 navAutoZoomToAnnotation 同时开启 */
     const [navOnlyTaskTagged, setNavOnlyTaskTagged] = useState(false)
     /** 上一条/下一条时是否自动将声谱图缩放到目标标注时间范围 */
-    const [navAutoZoomToAnnotation, setNavAutoZoomToAnnotation] = useState(false)
+    const [navAutoZoomToAnnotation, setNavAutoZoomToAnnotation] = useState(() =>
+        readAnnotationZoomToggle(location.search),
+    )
+    const toggleNavAutoZoomToAnnotation = useCallback(() => {
+        setNavAutoZoomToAnnotation((prev) => {
+            const next = !prev
+            writeAnnotationZoomToggle(next)
+            return next
+        })
+    }, [])
     const [taskModeTipOpen, setTaskModeTipOpen] = useState(false)
     const taskModeTipShownKeyRef = useRef("")
     const [formIndividualNum, setFormIndividualNum] = useState(1)
@@ -1035,7 +1050,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
         spectrogramMagnifierBackupRef.current = null
         setSpectrogramMagnifierZoomed(false)
         setNavOnlyTaskTagged(false)
-        setNavAutoZoomToAnnotation(false)
+        setNavAutoZoomToAnnotation(readAnnotationZoomToggle(location.search))
         setFormSoundscape(null)
         setFormSoundTypeSoundId(null)
         setFormTaxonId(null)
@@ -1283,6 +1298,16 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
         },
         [media, audioChannel, specFreqMinHz, specFreqMaxHz, fftValue],
     )
+    spectrogramDisplayKeyRef.current = spectrogramAnnotationDisplayKey({
+        mediaId,
+        viewStart: spectrogramViewStart,
+        zoomPercent: spectrogramZoomPercent,
+        freqMin: specFreqMinHz,
+        freqMax: specFreqMaxHz,
+        fft: fftValue,
+        channel: audioChannel,
+        bandFilter: audioBandFilter,
+    })
 
     useEffect(() => {
         if (!media || currentProjectId == null) {
@@ -1320,7 +1345,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
             pendingDisplayPrefetchedSpectrogramKeyRef.current = null
             const prev = spectrogramBlobUrlRef.current
             spectrogramBlobUrlRef.current = prefetched.url
-            spectrogramBlobParamsKeyByUrlRef.current.set(prefetched.url, paramsKey)
+            spectrogramBlobParamsKeyByUrlRef.current.set(prefetched.url, spectrogramDisplayKeyRef.current)
             setSpectrogramBlobUrl(prefetched.url)
             activeViewportParamsKeyRef.current = paramsKey
             setSpectrogramInitialReady(true)
@@ -1356,7 +1381,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                 url = URL.createObjectURL(blob)
                 const prev = spectrogramBlobUrlRef.current
                 spectrogramBlobUrlRef.current = url
-                spectrogramBlobParamsKeyByUrlRef.current.set(url, paramsKey)
+                spectrogramBlobParamsKeyByUrlRef.current.set(url, spectrogramDisplayKeyRef.current)
                 setSpectrogramBlobUrl(url)
                 activeViewportParamsKeyRef.current = paramsKey
                 if (prev) {
@@ -3527,7 +3552,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                     prefetchedSpectrogramsRef.current.delete(key)
                     const current = spectrogramBlobUrlRef.current
                     spectrogramBlobUrlRef.current = url
-                    spectrogramBlobParamsKeyByUrlRef.current.set(url, key)
+                    spectrogramBlobParamsKeyByUrlRef.current.set(url, spectrogramDisplayKeyRef.current)
                     setSpectrogramBlobUrl(url)
                     activeViewportParamsKeyRef.current = key
                     setSpectrogramInitialReady(true)
@@ -5882,27 +5907,30 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
             ? `. Your current player width is ${spectrogramPlayerWidthPx} pixels.`
             : "")
     const showSpectrogramLoading = spectrogramLoading || !spectrogramInitialReady
-    spectrogramViewStartRef.current = spectrogramViewStart
-    spectrogramZoomPercentRef.current = spectrogramZoomPercent
-    audioBandFilterRef.current = audioBandFilter
-    annotationDraftRef.current = annotationDraft
-    const spectrogramViewportParams = isPhoto ? null : buildDetailViewportParams(spectrogramViewStart)
-    const spectrogramViewportKey = spectrogramViewportParams
-        ? spectrogramRequestParamsKey(spectrogramViewportParams)
-        : null
+    const spectrogramViewportKey = isPhoto
+        ? null
+        : spectrogramAnnotationDisplayKey({
+            mediaId,
+            viewStart: spectrogramViewStart,
+            zoomPercent: spectrogramZoomPercent,
+            freqMin: specFreqMinHz,
+            freqMax: specFreqMaxHz,
+            fft: fftValue,
+            channel: audioChannel,
+            bandFilter: audioBandFilter,
+        })
     const spectrogramImageReady = spectrogramAnnotationsReady({
         showSpectrogramLoading,
         spectrogramBlobUrl,
         spectrogramImageReadyUrl,
         viewportKey: spectrogramViewportKey,
         readyParamsKey: spectrogramReadyParamsKey,
-        activeParamsKey: activeViewportParamsKeyRef.current,
     })
     const markSpectrogramImageReady = (event: React.SyntheticEvent<HTMLImageElement>) => {
         const loadedSrc = event.currentTarget.currentSrc || event.currentTarget.src
         if (!loadedSrc || loadedSrc !== spectrogramBlobUrlRef.current) return
         const paramsKey = spectrogramBlobParamsKeyByUrlRef.current.get(loadedSrc)
-        if (!paramsKey || paramsKey !== activeViewportParamsKeyRef.current) return
+        if (!paramsKey) return
         setSpectrogramImageReadyUrl(loadedSrc)
         setSpectrogramReadyParamsKey(paramsKey)
     }
@@ -6228,7 +6256,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                         navOnlyTaskTagged={navOnlyTaskTagged}
                         onPreviousAnnotation={() => goToAdjacentAnnotation(-1)}
                         onNextAnnotation={() => goToAdjacentAnnotation(1)}
-                        onToggleNavAutoZoomToAnnotation={() => setNavAutoZoomToAnnotation((v) => !v)}
+                        onToggleNavAutoZoomToAnnotation={toggleNavAutoZoomToAnnotation}
                         onToggleNavOnlyTaskTagged={() => setNavOnlyTaskTagged((v) => !v)}
                         zoomRequest={photoZoomRequest}
                     />
@@ -6777,22 +6805,14 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                             <MediaViewerToolbarButton
                                 className="btn-toolbar"
                                 active={navAutoZoomToAnnotation}
-                                label={
-                                    navAutoZoomToAnnotation
-                                        ? "Annotation zoom ON. When ON, Previous/Next buttons select and zoom into annotations. When OFF, these buttons only select annotations."
-                                        : "Annotation zoom OFF. When ON, Previous/Next buttons select and zoom into annotations. When OFF, these buttons only select annotations."
-                                }
+                                label={annotationZoomToggleLabel(navAutoZoomToAnnotation)}
                                 icon={<AnnotationNavAutoZoomIcon size={20} strokeWidth={2} />}
-                                onClick={() => setNavAutoZoomToAnnotation((v) => !v)}
+                                onClick={toggleNavAutoZoomToAnnotation}
                             />
                             <MediaViewerToolbarButton
                                 className="btn-toolbar"
                                 active={navOnlyTaskTagged}
-                                label={
-                                    navOnlyTaskTagged
-                                        ? "Task toggle ON. Previous/Next stay on this recording, then continue to the previous or next recording's assigned annotations."
-                                        : "Task toggle OFF. Previous/Next stay on this recording, then continue to the previous or next recording."
-                                }
+                                label={taskToggleLabel(navOnlyTaskTagged)}
                                 icon={<ListChecks size={20} strokeWidth={2} />}
                                 onClick={() => setNavOnlyTaskTagged((v) => !v)}
                             />
