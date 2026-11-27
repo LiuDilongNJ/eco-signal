@@ -298,7 +298,7 @@ class TestMediaCreate:
     def test_create_media_with_filename_prefix(
         self, client: TestClient, superuser_token_headers: dict, db: Session
     ) -> None:
-        """filename_prefix should produce a prefixed logical display filename for worker tasks."""
+        """The upload prefix is passed to the worker as part of the display name."""
         fu = FileUpload(
             path="/tmp/pending/1/prefix_case.wav",
             filename="prefix_case.wav",
@@ -329,7 +329,7 @@ class TestMediaCreate:
                 headers=superuser_token_headers,
                 json={
                     "collection_id": 1,
-                    "filename_prefix": "LEGACY_",
+                    "filename_prefix": "Survey_",
                     "file_upload_ids": [fu.file_upload_id],
                     "media_type": "audio",
                     "date_from_filename": True,
@@ -344,7 +344,7 @@ class TestMediaCreate:
                 "file_upload_id": fu.file_upload_id,
                 "file_date": "1970-01-01",
                 "file_time": "00:00:00",
-                "display_filename": "LEGACY_prefix_case.wav",
+                "display_filename": "Survey_prefix_case.wav",
             }
         ]
 

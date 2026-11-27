@@ -106,7 +106,7 @@ class MediaCreate(SQLModel):
     filename_prefix: Optional[str] = Field(
         default=None,
         max_length=64,
-        description="Optional prefix to prepend to stored filename",
+        description="Optional prefix to prepend to the media display name",
     )
     date_time: Optional[str] = Field(None, description="Recording datetime in format YYYY-MM-DD HH:mm:ss")
     date_from_filename: bool = Field(False, description="Parse date from filename")

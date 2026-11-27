@@ -546,7 +546,7 @@ class TestMediaService:
         assert queue.warning is None
 
     async def test_create_media_applies_filename_prefix(self, db: Session, setup_data):
-        """Batch-level filename_prefix should be prepended to logical filename."""
+        """The upload prefix is prepended to the display name."""
         user = setup_data["user"]
         col = setup_data["collection"]
 
@@ -575,6 +575,33 @@ class TestMediaService:
         assert len(res.queued) == 1
         kwargs = mock_redis.enqueue_task.call_args.kwargs
         assert kwargs["items"][0]["display_filename"] == "ABC_origin.wav"
+
+    async def test_create_media_rejects_overlong_display_name(self, db: Session, setup_data):
+        filename = f"{'a' * 246}.wav"
+        upload = FileUpload(
+            filename=filename,
+            name=filename,
+            directory=1,
+            path=f"/tmp/{filename}",
+            status=1,
+            uploader_id=setup_data["user"].user_id,
+        )
+        db.add(upload)
+        db.flush()
+        publisher = AsyncMock()
+        request = MediaCreate(
+            collection_id=setup_data["collection"].collection_id,
+            file_upload_ids=[upload.file_upload_id],
+            filename_prefix="A",
+            date_from_filename=True,
+            media_type="audio",
+        )
+
+        result = await media_service.create_media(db, request, setup_data["user"], publisher)
+
+        assert result.queued == []
+        assert result.failed[0].reason == "Media display name must be at most 250 characters"
+        publisher.enqueue_task.assert_not_awaited()
 
     async def test_import_metadata_csv_success(self, db: Session, setup_data):
         user = setup_data["user"]

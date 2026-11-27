@@ -302,16 +302,6 @@ def _filename_datetime_warning(filenames: list[str]) -> str | None:
     )
 
 
-def _build_display_filename(original_name: str, filename_prefix: str) -> str:
-    """Build the logical stored filename using the current naming rules."""
-    base_name = original_name.strip()
-    if not base_name:
-        return filename_prefix
-    if not filename_prefix:
-        return base_name
-    return f"{filename_prefix}{base_name}"
-
-
 def _metadata_csv_row_error_message(
     row: int,
     col_key: str | None,
@@ -740,18 +730,18 @@ async def create_media(
         else:
             file_date, file_time = shared_date_time_parts
 
-        original_name = (file_upload.name or file_upload.filename or "").strip()
-        display_filename = _build_display_filename(original_name, filename_prefix)
-        if not Path(display_filename).name == display_filename:
+        original_name = file_upload.name or file_upload.filename
+        display_name = f"{filename_prefix}{original_name}"
+        if len(display_name) > 250:
             failed.append(
                 MediaCreateFailedItem(
                     file_upload_id=fid,
-                    reason="display filename contains invalid path characters",
+                    reason="Media display name must be at most 250 characters",
                 )
             )
             continue
 
-        valid_items.append((fid, file_date, file_time, display_filename))
+        valid_items.append((fid, file_date, file_time, display_name))
 
     if failed:
         return MediaCreateResponse(queued=[], failed=failed)
@@ -777,9 +767,9 @@ async def create_media(
                     "file_upload_id": fid,
                     "file_date": file_date,
                     "file_time": file_time,
-                    "display_filename": display_filename,
+                    "display_filename": display_name,
                 }
-                for fid, file_date, file_time, display_filename in valid_items
+                for fid, file_date, file_time, display_name in valid_items
             ],
             site_id=request.site_id,
             sensor_id=request.sensor_id,

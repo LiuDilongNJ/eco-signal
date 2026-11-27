@@ -191,7 +191,7 @@ async def process_media(
         duty_cycle_period: int | None = None,
         note: str | None = None,
         doi: str | None = None,
-        display_filename: str | None = None,
+        display_name: str | None = None,
         target_sampling_rate_hz: int | None = None,
 ) -> dict[str, Any]:
     """
@@ -246,28 +246,25 @@ async def process_media(
             md5_hash = _md5_file(file_path)
             storage_filename = file_upload.filename
             media_filename = file_upload.filename
-            media_name = file_upload.name
+            media_name = display_name or file_upload.name or file_upload.filename
             audio_file_metadata: dict[str, Any] | None = None
             if actual_media_type == "audio":
-                resolved_display_filename = display_filename or file_upload.filename
                 source_suffix = file_path.suffix.lower()
                 started_at = monotonic()
                 file_path, normalized_filename, audio_file_metadata = file_service.prepare_audio_for_storage(
                     file_path,
-                    source_filename=resolved_display_filename,
+                    source_filename=file_upload.filename,
                     target_sampling_rate_hz=target_sampling_rate_hz,
                 )
                 storage_filename = normalized_filename
                 media_filename = normalized_filename
-                media_name = file_upload.name or file_upload.filename
                 file_upload.filename = normalized_filename
                 file_upload.path = str(normalize_media_relative_path(file_path))
                 logger.info(
-                    "Prepared upload %s from %s to %s (display=%s) in %.3fs",
+                    "Prepared upload %s from %s to %s in %.3fs",
                     file_upload_id,
                     source_suffix or "<no_ext>",
                     normalized_filename,
-                    resolved_display_filename,
                     monotonic() - started_at,
                 )
 
@@ -573,7 +570,8 @@ async def process_media_batch(
             duty_cycle_period=duty_cycle_period,
             note=note,
             doi=doi,
-            display_filename=item.get("display_filename"),
+            # Queued batches carry the display name in this field.
+            display_name=item.get("display_filename"),
             target_sampling_rate_hz=target_sampling_rate_hz,
         )
         _sync_batch_completed(queue_id, item_ids)
