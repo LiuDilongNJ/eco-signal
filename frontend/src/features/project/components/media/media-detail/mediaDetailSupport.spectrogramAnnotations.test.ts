@@ -34,7 +34,6 @@ describe("spectrogramAnnotationsReady", () => {
                 ...loaded,
                 spectrogramBlobUrl: "blob:next",
                 viewportKey: "view-b",
-                activeParamsKey: "view-b",
             }),
         ).toBe(false)
     })
