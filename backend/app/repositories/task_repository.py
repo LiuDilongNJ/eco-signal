@@ -79,6 +79,10 @@ class TaskRepository(BaseRepository[Task, Any, Any]):
     def __init__(self):
         super().__init__(Task)
 
+    def count_by_annotation_ids(self, session: Session, annotation_ids: list[int]) -> int:
+        statement = select(func.count(Task.task_id)).where(Task.annotation_id.in_(annotation_ids))
+        return session.exec(statement).one()
+
     def _navigation_paths(self, access: TaskNavigationAccess):
         paths = select(MediaCollection.collection_id).join(
             ProjectCollection,

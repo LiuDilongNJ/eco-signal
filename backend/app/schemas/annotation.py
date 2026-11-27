@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from typing import Literal, Optional
 
-from pydantic import ConfigDict, Field, field_serializer, model_validator
+from pydantic import ConfigDict, Field, PositiveInt, field_serializer, model_validator
 from sqlmodel import SQLModel
 
 from app.schemas.review import ReviewRead
@@ -157,3 +157,12 @@ class AnnotationNavigation(SQLModel):
 class AnnotationBatchDelete(SQLModel):
     """Schema for batch deleting annotations."""
     annotation_ids: list[int] = Field(..., min_length=1, max_length=2000, description="List of annotation IDs to delete")
+
+
+class AnnotationDeletionPreviewRequest(SQLModel):
+    annotation_ids: list[PositiveInt] = Field(min_length=1, max_length=2000)
+
+
+class AnnotationDeletionPreview(SQLModel):
+    annotation_count: int
+    task_count: int

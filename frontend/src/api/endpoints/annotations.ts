@@ -52,6 +52,11 @@ export interface AnnotationPublic {
 /** GET /v1/annotations/{annotation_id} §4.5 标注详情（含审阅列表） */
 export type AnnotationWithReviews = AnnotationPublic
 
+export interface AnnotationDeletionPreview {
+    annotation_count: number
+    task_count: number
+}
+
 export interface AnnotationPageInfo {
     total: number
     page: number
@@ -219,6 +224,22 @@ export const annotationsApi = {
             { params: { project_id: projectId }, ignoreUnauthorized },
         )
         return getApiData(res) as AnnotationWithReviews
+    },
+
+    async getDeletionPreview(annotationIds: number[], projectId: number, signal?: AbortSignal): Promise<AnnotationDeletionPreview> {
+        const preview = { annotation_count: 0, task_count: 0 }
+        const batchSize = 2000
+        for (let offset = 0; offset < annotationIds.length; offset += batchSize) {
+            const res = await apiClient.post<{ code: number; message: string; data: AnnotationDeletionPreview }>(
+                "/v1/annotations/deletion-previews",
+                { annotation_ids: annotationIds.slice(offset, offset + batchSize) },
+                { params: { project_id: projectId }, signal },
+            )
+            const data = getApiData(res)
+            preview.annotation_count += data.annotation_count
+            preview.task_count += data.task_count
+        }
+        return preview
     },
 
     /** §4.4 DELETE /v1/annotations/{annotation_id} */

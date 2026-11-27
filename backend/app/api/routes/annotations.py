@@ -2,7 +2,7 @@
 from datetime import datetime
 from typing import Any, Literal, Optional
 
-from fastapi import APIRouter, Body, File, Form, Query, UploadFile
+from fastapi import APIRouter, Body, File, Form, HTTPException, Query, UploadFile
 
 from app.api.deps import CurrentUser, CurrentUserOptional, SessionDep
 from app.api.responses import csv_response
@@ -12,6 +12,8 @@ from app.schemas.annotation import (
     AnnotationBatchDelete,
     AnnotationCreate,
     AnnotationCreateResponse,
+    AnnotationDeletionPreview,
+    AnnotationDeletionPreviewRequest,
     AnnotationNavigation,
     AnnotationUpdate,
     AnnotationWithReviews,
@@ -406,6 +408,56 @@ def update_annotation(
     return api_success()
 
 
+def _require_annotation_deletion(
+    session: SessionDep,
+    current_user: CurrentUser,
+    project_id: int,
+    annotation_ids: list[int],
+    *,
+    require_all: bool = False,
+) -> list[int]:
+    annotations = annotation_service.get_annotations_for_deletion(session, annotation_ids)
+    if require_all and len(annotations) != len(set(annotation_ids)):
+        raise HTTPException(status_code=404, detail="Annotation not found")
+    if not annotations:
+        return []
+
+    media_collections = authorization_service.media_collection_map(
+        session, {annotation.media_id for annotation in annotations}, project_id
+    )
+    authz = authorization_service.evaluator(session, current_user, project_id)
+    for annotation in annotations:
+        collection_ids = media_collections.get(annotation.media_id, set())
+        if not collection_ids:
+            raise HTTPException(status_code=400, detail="Annotation media does not belong to the given project")
+        authz.require(
+            AuthorizationAction.ANNOTATION_DELETE,
+            authorization_service.AuthorizationSubject(
+                frozenset(collection_ids), owner_id=annotation.creator_id
+            ),
+            detail="Not authorized to delete this annotation",
+        )
+    return [annotation.annotation_id for annotation in annotations]
+
+
+@router.post(
+    "/deletion-previews",
+    response_model=ApiResponse[AnnotationDeletionPreview],
+    summary="预览删除标注的影响 / Preview Annotation Deletion",
+)
+def preview_annotation_deletion(
+    session: SessionDep,
+    current_user: CurrentUser,
+    body: AnnotationDeletionPreviewRequest,
+    project_id: int = Query(..., gt=0, description="项目 ID / Project ID"),
+) -> Any:
+    """统计可删除的标注和关联任务。 / Count deletable annotations and their associated tasks."""
+    annotation_ids = _require_annotation_deletion(
+        session, current_user, project_id, body.annotation_ids, require_all=True
+    )
+    return api_success(data=annotation_service.get_deletion_preview(session, annotation_ids))
+
+
 @router.delete(
     "",
     response_model=ApiResponse[dict],
@@ -422,12 +474,8 @@ def delete_annotations(
     仅创建者(且拥有集合 read 权限) 或 拥有集合 annotation:write 权限的管理者 可删除。
     Only creator or manager can delete.
     """
-    deleted_count = annotation_service.delete_annotations(
-        session,
-        current_user=current_user,
-        project_id=project_id,
-        annotation_ids=body.annotation_ids,
-    )
+    annotation_ids = _require_annotation_deletion(session, current_user, project_id, body.annotation_ids)
+    deleted_count = annotation_service.delete_annotations(session, annotation_ids)
     return api_success(
         data={"deleted_count": deleted_count},
         message=f"Successfully deleted {deleted_count} annotations",
@@ -450,10 +498,8 @@ def delete_annotation(
     仅创建者(且拥有集合 read 权限) 或 拥有集合 annotation:write 权限的管理者 可删除。
     Only creator or manager can delete.
     """
-    annotation_service.delete_annotation(
-        session,
-        current_user=current_user,
-        project_id=project_id,
-        annotation_id=annotation_id,
+    annotation_ids = _require_annotation_deletion(
+        session, current_user, project_id, [annotation_id], require_all=True
     )
+    annotation_service.delete_annotations(session, annotation_ids)
     return api_success(data={"annotation_id": annotation_id})

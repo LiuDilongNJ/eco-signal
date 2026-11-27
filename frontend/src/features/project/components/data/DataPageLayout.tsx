@@ -358,6 +358,9 @@ export interface DataPageLayoutProps {
     onEditCustom?: (selectedKeys: any[]) => void
     /** Custom handler for Delete sequence - if provided, handles the deletion process with the selected keys */
     onDeleteCustom?: (selectedKeys: any[]) => void
+    /** Let a page prepare and confirm deletion for the selected keys. */
+    onDeleteRequest?: (selectedKeys: Key[]) => void
+    deleteRequestPending?: boolean
     /** Require the selected record name before deleting high-impact entities. */
     deleteConfirmation?: {
         entityLabel: string
@@ -454,6 +457,8 @@ export function DataPageLayout({
     onAddCustom,
     onEditCustom,
     onDeleteCustom,
+    onDeleteRequest,
+    deleteRequestPending,
     deleteConfirmation,
     renderCustomActions,
     onExportCustom,
@@ -1572,8 +1577,8 @@ export function DataPageLayout({
                                             : deleteConfirmation && !deleteConfirmationName
                                                 ? "This record has no name to confirm"
                                                 : "Delete"}
-                                    disabled={!selectionCanDelete || Boolean(deleteConfirmation && (selectedRows.size !== 1 || !deleteConfirmationName))}
-                                    onClick={() => setDeleteConfirmOpen(true)}
+                                    disabled={deleteRequestPending || !selectionCanDelete || Boolean(deleteConfirmation && (selectedRows.size !== 1 || !deleteConfirmationName))}
+                                    onClick={() => onDeleteRequest ? onDeleteRequest(Array.from(selectedRows)) : setDeleteConfirmOpen(true)}
                                 >
                                     <Trash2 size={14} /> Delete
                                 </ESButton>

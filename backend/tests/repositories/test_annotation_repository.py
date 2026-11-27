@@ -145,6 +145,4 @@ def test_resampling_impact_and_adjustment_share_frequency_boundaries(db: Session
     assert db.get(AnnotationReview, (clipped_id, 1)) is not None
     assert db.get(AnnotationReview, (removed_id, 1)) is None
     assert db.get(Task, clipped_task_id) is not None
-    removed_annotation_task = db.get(Task, removed_task_id)
-    assert removed_annotation_task is not None
-    assert removed_annotation_task.annotation_id is None
+    assert db.get(Task, removed_task_id) is None

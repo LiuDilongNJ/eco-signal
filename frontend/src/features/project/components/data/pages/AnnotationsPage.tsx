@@ -13,6 +13,8 @@ import { useProjectStore } from "../../../stores/useProjectStore"
 import { ScanLine, ListChecks } from "lucide-react"
 import { AssignTasksDrawer } from "../../modals/AssignTasksDrawer"
 import { AnnotationFormDrawer } from "../../modals/AnnotationFormDrawer"
+import { ConfirmDialog } from "../../modals/ConfirmDialog"
+import { useAnnotationDeletionConfirmation } from "../../modals/useAnnotationDeletionConfirmation"
 import { downloadFile } from "@/utils/download"
 import { useTableFetchScheduler } from "@/hooks/useTableFetchScheduler"
 import { usePermissions } from "@/hooks/usePermissions"
@@ -93,6 +95,7 @@ export function AnnotationsPage() {
     const [loading, setLoading] = useState(true)
     const currentProjectId = useProjectStore(s => s.currentProjectId)
     const currentCollectionId = useProjectStore(s => s.currentCollectionId)
+    const deletion = useAnnotationDeletionConfirmation(currentProjectId ? Number(currentProjectId) : null, currentCollectionId)
     const { can } = usePermissions(currentProjectId, currentCollectionId)
     const canWriteAnnotation = can("annotation:write")
     const canImportAnnotations = canWriteAnnotation || can("annotation:write_own")
@@ -265,22 +268,14 @@ export function AnnotationsPage() {
         }
     }
 
-    const handleDelete = async (selectedRowKeys: any[]) => {
-        if (!selectedRowKeys || selectedRowKeys.length === 0) return
-        if (!currentProjectId) {
-            message.warning("Please select a project first")
-            return
-        }
-        const hide = message.loading(`Deleting ${selectedRowKeys.length} annotation(s)...`, 0)
+    const handleDelete = async (annotationIds: number[], projectId: number) => {
+        const hide = message.loading(`Deleting ${annotationIds.length} annotation(s)...`, 0)
         try {
-            const numericKeys = selectedRowKeys
-                .map((k) => Number(k))
-                .filter((k) => Number.isFinite(k) && k > 0)
             const CHUNK_SIZE = 1000
             let successCount = 0
-            for (let i = 0; i < numericKeys.length; i += CHUNK_SIZE) {
-                const chunk = numericKeys.slice(i, i + CHUNK_SIZE)
-                const res = await annotationsApi.deleteBatch(chunk, Number(currentProjectId))
+            for (let i = 0; i < annotationIds.length; i += CHUNK_SIZE) {
+                const chunk = annotationIds.slice(i, i + CHUNK_SIZE)
+                const res = await annotationsApi.deleteBatch(chunk, projectId)
                 successCount += res.deleted_count
             }
             message.success(`Successfully deleted ${successCount} annotation(s)`)
@@ -396,7 +391,8 @@ export function AnnotationsPage() {
                 defaultSortKey="annotation_id"
                 defaultSortDir="asc"
                 onEditCustom={handleEdit}
-                onDeleteCustom={handleDelete}
+                onDeleteRequest={(keys) => void deletion.prepareDeletion(keys, handleDelete)}
+                deleteRequestPending={deletion.pending}
                 onExportCustom={handleExport}
                 onViewCustom={handleView}
                 viewRequiresSingle={false}
@@ -452,6 +448,7 @@ export function AnnotationsPage() {
                     )
                 }}
             />
+            <ConfirmDialog {...deletion.dialog} />
             {/* Assign Tasks Drawer */}
             <AssignTasksDrawer
                 open={assignTasksOpen}

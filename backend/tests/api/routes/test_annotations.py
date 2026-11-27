@@ -11,7 +11,7 @@ from fastapi.testclient import TestClient
 from sqlmodel import Session, select
 
 from app.core.config import settings
-from app.models import Permission, Role, UserPermission
+from app.models import Permission, Role, Task, UserPermission
 from app.models.annotation import Annotation
 from app.models.collection import Collection
 from app.models.media import AudioSetting, Media, MediaCollection, PhotoSetting
@@ -768,12 +768,19 @@ def test_delete_annotation(
     assert create_resp.json()["data"]["annotation_id"] == ann_row.annotation_id
     ann_id = ann_row.annotation_id
 
+    task = Task(type="annotation", media_id=media.media_id, annotation_id=ann_id, assigner_id=1, assignee_id=1)
+    db.add(task)
+    db.flush()
+    task_id = task.task_id
+
     response = client.delete(
         f"{settings.API_V1_STR}/annotations/{ann_id}",
         headers=superuser_token_headers,
         params={"project_id": project.project_id},
     )
     assert response.status_code == 200
+
+    assert db.exec(select(Task.task_id).where(Task.task_id == task_id)).first() is None
 
     get_resp = client.get(
         f"{settings.API_V1_STR}/annotations?project_id={project.project_id}&annotation_id={ann_id}",
@@ -804,6 +811,14 @@ def test_batch_delete_annotations(
         assert create_resp.status_code == 201
         ann_ids.append(create_resp.json()["data"]["annotation_id"])
 
+    annotation_task = Task(
+        type="annotation", media_id=media.media_id, annotation_id=ann_ids[0], assigner_id=1, assignee_id=1
+    )
+    media_task = Task(type="media", media_id=media.media_id, assigner_id=1, assignee_id=1)
+    db.add_all([annotation_task, media_task])
+    db.flush()
+    task_ids = [annotation_task.task_id, media_task.task_id]
+
     response = client.request(
         "DELETE",
         f"{settings.API_V1_STR}/annotations",
@@ -821,6 +836,73 @@ def test_batch_delete_annotations(
         select(Annotation).where(Annotation.annotation_id.in_(ann_ids))
     ).all()
     assert len(remaining) == 0
+    assert db.exec(select(Task.task_id).where(Task.task_id.in_(task_ids))).all() == [task_ids[1]]
+
+
+def test_preview_annotation_deletion_counts_all_associated_tasks(
+    client: TestClient, superuser_token_headers: dict[str, str], db: Session,
+) -> None:
+    media, _, project = create_test_media(db)
+    assignee = _create_normal_user(db)
+    annotation = Annotation(
+        media_id=media.media_id, sound_id=1, min_x=0, max_x=2, min_y=0, max_y=500,
+        creator_type="user", creator_id=1,
+    )
+    db.add(annotation)
+    db.flush()
+    db.add_all([
+        Task(type="annotation", media_id=media.media_id, annotation_id=annotation.annotation_id,
+             assigner_id=1, assignee_id=assignee_id)
+        for assignee_id in (1, assignee.user_id)
+    ])
+    db.add(Task(type="media", media_id=media.media_id, assigner_id=1, assignee_id=1))
+    db.flush()
+
+    response = client.post(
+        f"{settings.API_V1_STR}/annotations/deletion-previews",
+        headers=superuser_token_headers,
+        params={"project_id": project.project_id},
+        json={"annotation_ids": [annotation.annotation_id, annotation.annotation_id]},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["data"] == {"annotation_count": 1, "task_count": 2}
+    assert len(db.exec(select(Task.task_id).where(Task.annotation_id == annotation.annotation_id)).all()) == 2
+
+
+def test_preview_annotation_deletion_requires_delete_permission(
+    client: TestClient, normal_user_token_headers: dict[str, str], db: Session,
+) -> None:
+    media, _, project = create_test_media(db, public_access=True, public_tags=True)
+    annotation = Annotation(
+        media_id=media.media_id, sound_id=1, min_x=0, max_x=2, min_y=0, max_y=500,
+        creator_type="user", creator_id=1,
+    )
+    db.add(annotation)
+    db.flush()
+
+    response = client.post(
+        f"{settings.API_V1_STR}/annotations/deletion-previews",
+        headers=normal_user_token_headers,
+        params={"project_id": project.project_id},
+        json={"annotation_ids": [annotation.annotation_id]},
+    )
+
+    assert response.status_code == 403
+
+
+@pytest.mark.parametrize("annotation_ids", [[], [0], [-1], list(range(1, 2002))])
+def test_preview_annotation_deletion_validates_ids(
+    client: TestClient, superuser_token_headers: dict[str, str], annotation_ids: list[int],
+) -> None:
+    response = client.post(
+        f"{settings.API_V1_STR}/annotations/deletion-previews",
+        headers=superuser_token_headers,
+        params={"project_id": 1},
+        json={"annotation_ids": annotation_ids},
+    )
+
+    assert response.status_code == 422
 
 
 def test_batch_delete_annotations_forbidden(
