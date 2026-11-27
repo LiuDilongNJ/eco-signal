@@ -5170,6 +5170,19 @@ input[type=number] {
     box-shadow: none !important;
 }
 
+/* Hover and selection use the same yellow halo as non-tasked annotations. */
+.spectrogram-viewport .media-annotation-box.media-annotation-box--has-task.media-annotation-box--linked {
+    box-shadow:
+        0 0 0 1px rgba(var(--es-color-annotation-selected-rgb), 0.45),
+        0 2px 10px rgba(var(--es-color-annotation-selected-rgb), 0.28) !important;
+}
+
+.media-studio--dark .spectrogram-viewport .media-annotation-box.media-annotation-box--has-task.media-annotation-box--linked {
+    box-shadow:
+        0 0 0 1px rgba(var(--es-color-annotation-selected-rgb), 0.55),
+        0 2px 12px rgba(var(--es-color-annotation-selected-rgb), 0.34) !important;
+}
+
 .spectrogram-viewport .media-annotation-box--has-task::after {
     content: none !important;
 }
