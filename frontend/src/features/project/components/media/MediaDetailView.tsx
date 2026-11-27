@@ -1414,7 +1414,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
             return
         }
 
-        if (continuousEngineRef.current && prefetchingSpectrogramKeysRef.current.has(paramsKey)) {
+        if (prefetchingSpectrogramKeysRef.current.has(paramsKey)) {
             pendingDisplayPrefetchedSpectrogramKeyRef.current = paramsKey
             setSpectrogramInitialReady(true)
             setSpectrogramLoading(false)
@@ -3205,6 +3205,8 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
         annotationZoomLayoutMediaRef.current = mediaId
         spectrogramViewStartRef.current = vs
         spectrogramZoomPercentRef.current = zp
+        audioPreserveTimeRef.current = vs
+        setPlaybackTime(vs)
         setSpecFreqMinHz(layout.y0)
         setSpecFreqMaxHz(layout.y1)
         setSpectrogramZoomPercent(zp)
@@ -3213,7 +3215,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
         setSpectrogramMagnifierZoomed(true)
         setAnnotationZoomHold(false)
         setAudioReloadToken((n) => n + 1)
-    }, [media?.duration_s, mediaId])
+    }, [media?.duration_s, mediaId, setPlaybackTime])
 
     const openAnnotationEditorForPublic = useCallback(
         (a: AnnotationPublic, reviewsOverride?: AnnotationReviewRead[]) => {
@@ -3313,6 +3315,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                         )
                         if (layout) {
                             applyMagnifierZoomLayout(layout)
+                            setSpectrogramMagnifierZoomed(false)
                             autoZoomViewStart = layout.vs
                         } else {
                             setAnnotationZoomHold(false)
@@ -3584,11 +3587,11 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
         ],
     )
 
-    const prefetchContinuousSpectrogram = useCallback(
-        async (segment: ContinuousPlaybackSegment, runId: number) => {
+    const spectrogramPrefetchGenerationRef = useRef(new Map<string, number>())
+    const prefetchSpectrogramViewport = useCallback(
+        async (viewport: MediaViewportParams, stillWanted: () => boolean = () => true) => {
             if (!media || currentProjectId == null) return
-            const viewport = buildDetailViewportParams(segment.viewStart)
-            if (!viewport) return
+            if (mediaIdRef.current !== mediaId || !stillWanted()) return
             const measuredWidth =
                 viewportSizeRef.current.w > 0
                     ? Math.round(viewportSizeRef.current.w)
@@ -3612,12 +3615,17 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
             const key = spectrogramRequestParamsKey(viewport)
             if (
                 key === activeViewportParamsKeyRef.current ||
-                prefetchedSpectrogramsRef.current.has(key) ||
-                prefetchingSpectrogramKeysRef.current.has(key)
+                prefetchedSpectrogramsRef.current.has(key)
             ) {
                 return
             }
+            const generation = (spectrogramPrefetchGenerationRef.current.get(key) ?? 0) + 1
+            spectrogramPrefetchGenerationRef.current.set(key, generation)
             prefetchingSpectrogramKeysRef.current.add(key)
+            const ownsThisPrefetch = () =>
+                spectrogramPrefetchGenerationRef.current.get(key) === generation &&
+                stillWanted() &&
+                mediaIdRef.current === mediaId
             try {
                 const { blob } = await mediaApi.fetchSpectrogramBlob(
                     mediaId,
@@ -3625,8 +3633,12 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                     toSpectrogramQueryParams(viewport, requestSize.width, requestSize.height),
                     true,
                 )
-                if (continuousRunIdRef.current !== runId || !prefetchingSpectrogramKeysRef.current.has(key)) return
+                if (!ownsThisPrefetch()) return
                 const url = URL.createObjectURL(blob)
+                if (!ownsThisPrefetch()) {
+                    URL.revokeObjectURL(url)
+                    return
+                }
                 if (pendingDisplayPrefetchedSpectrogramKeyRef.current === key) {
                     pendingDisplayPrefetchedSpectrogramKeyRef.current = null
                     prefetchedSpectrogramsRef.current.delete(key)
@@ -3634,6 +3646,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                     spectrogramBlobUrlRef.current = url
                     spectrogramBlobParamsKeyByUrlRef.current.set(url, spectrogramDisplayKeyRef.current)
                     setSpectrogramBlobUrl(url)
+                    setSpectrogramImageViewport(viewport)
                     activeViewportParamsKeyRef.current = key
                     setSpectrogramInitialReady(true)
                     setSpectrogramLoading(false)
@@ -3644,7 +3657,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                     return
                 }
                 const prev = prefetchedSpectrogramsRef.current.get(key)
-                prefetchedSpectrogramsRef.current.set(key, { key, url, runId })
+                prefetchedSpectrogramsRef.current.set(key, { key, url, runId: 0 })
                 if (prev && prev.url !== url) URL.revokeObjectURL(prev.url)
             } catch {
                 if (pendingDisplayPrefetchedSpectrogramKeyRef.current === key) {
@@ -3652,7 +3665,10 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                     setSpectrogramRetryToken((n) => n + 1)
                 }
             } finally {
-                prefetchingSpectrogramKeysRef.current.delete(key)
+                if (spectrogramPrefetchGenerationRef.current.get(key) === generation) {
+                    prefetchingSpectrogramKeysRef.current.delete(key)
+                    spectrogramPrefetchGenerationRef.current.delete(key)
+                }
             }
         },
         [
@@ -3663,6 +3679,184 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
             readViewportLayoutSize,
         ],
     )
+
+    const prefetchSpectrogramAtViewStart = useCallback(
+        async (viewStart: number, stillWanted: () => boolean = () => true) => {
+            const viewport = buildDetailViewportParams(viewStart)
+            if (!viewport) return
+            await prefetchSpectrogramViewport(viewport, stillWanted)
+        },
+        [buildDetailViewportParams, prefetchSpectrogramViewport],
+    )
+
+    const prefetchContinuousSpectrogram = useCallback(
+        async (segment: ContinuousPlaybackSegment, runId: number) => {
+            if (continuousRunIdRef.current !== runId) return
+            await prefetchSpectrogramAtViewStart(
+                segment.viewStart,
+                () => continuousRunIdRef.current === runId && mediaIdRef.current === mediaId,
+            )
+        },
+        [mediaId, prefetchSpectrogramAtViewStart],
+    )
+
+    useEffect(() => {
+        if (!media || currentProjectId == null || isPhoto) return
+        if (pickRecordingDetailId(media) !== mediaId) return
+        if (!spectrogramBlobUrl || spectrogramLoading || continuousSegmentPlayback) return
+        const dur = Number(media.duration_s) || 0
+        if (!(dur > 0)) return
+        const step = spectrogramVisibleWindowSec(dur, spectrogramZoomPercent)
+        if (!(step > 0) || step + 1e-6 >= dur) {
+            if (prefetchedSpectrogramsRef.current.size > 0) clearPrefetchedSpectrogram()
+            return
+        }
+        if (editingAnnotationId != null) return
+        const nextStart = resolveSpectrogramViewportWindow(
+            dur,
+            spectrogramViewStart + step,
+            spectrogramZoomPercent,
+        ).viewStartClamped
+        const prevStart = resolveSpectrogramViewportWindow(
+            dur,
+            spectrogramViewStart - step,
+            spectrogramZoomPercent,
+        ).viewStartClamped
+        const starts: number[] = []
+        if (Math.abs(nextStart - spectrogramViewStart) > 1e-4) starts.push(nextStart)
+        if (
+            Math.abs(prevStart - spectrogramViewStart) > 1e-4 &&
+            Math.abs(prevStart - nextStart) > 1e-4
+        ) {
+            starts.push(prevStart)
+        }
+        if (starts.length === 0) return
+
+        let cancelled = false
+        const wantedKeys = new Set<string>()
+        for (const start of starts) {
+            const viewport = buildDetailViewportParams(start)
+            if (!viewport) continue
+            wantedKeys.add(spectrogramRequestParamsKey(viewport))
+        }
+        void (async () => {
+            await Promise.all(
+                starts.map((start) =>
+                    prefetchSpectrogramAtViewStart(start, () => !cancelled && mediaIdRef.current === mediaId),
+                ),
+            )
+            if (cancelled) return
+            for (const [key, item] of Array.from(prefetchedSpectrogramsRef.current.entries())) {
+                if (wantedKeys.has(key)) continue
+                prefetchedSpectrogramsRef.current.delete(key)
+                URL.revokeObjectURL(item.url)
+            }
+        })()
+        return () => {
+            cancelled = true
+        }
+    }, [
+        buildDetailViewportParams,
+        clearPrefetchedSpectrogram,
+        continuousSegmentPlayback,
+        currentProjectId,
+        editingAnnotationId,
+        isPhoto,
+        media,
+        mediaId,
+        prefetchSpectrogramAtViewStart,
+        spectrogramBlobUrl,
+        spectrogramLoading,
+        spectrogramViewStart,
+        spectrogramZoomPercent,
+    ])
+
+    const annotationNavListRef = useRef<{ mediaId: number; tick: number; items: AnnotationPublic[] } | null>(null)
+    const prefetchMagnifierAnnotation = useCallback((annotation: AnnotationPublic) => {
+        if (!media || currentProjectId == null || isPhoto) return
+        const dur = Number(media.duration_s) || 0
+        const sr = Number(media.sampling_rate_hz) || 0
+        if (!(dur > 0)) return
+        const layout = computeMagnifierLayoutForAnnotation(annotation, dur, sr)
+        if (!layout) return
+        const layoutWindowSec = Math.max(layout.end_time - layout.start_time, spectrogramMinWindowSec(dur))
+        const zp = resolveSpectrogramZoomWindow(dur, layoutWindowSec).zp
+        const vs = snapTimeSec(layout.start_time, dur)
+        const { windowSec, viewStartClamped } = resolveSpectrogramViewportWindow(dur, vs, zp)
+        const viewport = buildMediaViewportParams({
+            durationS: dur,
+            samplingRateHz: sr,
+            viewStart: viewStartClamped,
+            windowSec,
+            freqMinHz: layout.y0,
+            freqMaxHz: layout.y1,
+            fftSize: Number(fftValue),
+            stereo: Number(media.channels) === 2,
+            audioChannel,
+            bandFilter: audioBandFilter,
+        })
+        void prefetchSpectrogramViewport(viewport, () => mediaIdRef.current === mediaId)
+    }, [
+        audioBandFilter,
+        audioChannel,
+        currentProjectId,
+        fftValue,
+        isPhoto,
+        media,
+        mediaId,
+        prefetchSpectrogramViewport,
+    ])
+    useEffect(() => {
+        if (!media || currentProjectId == null || isPhoto || editingAnnotationId == null) return
+        if (pickRecordingDetailId(media) !== mediaId) return
+        if (continuousSegmentPlayback) return
+        const dur = Number(media.duration_s) || 0
+        if (!(dur > 0)) return
+        const step = spectrogramVisibleWindowSec(dur, spectrogramZoomPercent)
+        if (!(step > 0) || step + 1e-6 >= dur) return
+
+        let cancelled = false
+        void (async () => {
+            let items =
+                annotationNavListRef.current?.mediaId === mediaId &&
+                annotationNavListRef.current.tick === annotationListTick
+                    ? annotationNavListRef.current.items
+                    : null
+            if (items == null) {
+                items = await annotationsApi.listAll(
+                    {
+                        media_id: mediaId,
+                        project_id: currentProjectId,
+                        order_by: "annotation_id",
+                        order_dir: "asc",
+                    },
+                    true,
+                )
+                if (cancelled || mediaIdRef.current !== mediaId) return
+                annotationNavListRef.current = { mediaId, tick: annotationListTick, items }
+            }
+            const sorted = [...items].sort(compareAnnotationByMinTimeAndFrequency)
+            const index = sorted.findIndex((item) => item.annotation_id === editingAnnotationId)
+            if (index < 0) return
+            const neighbors = [index - 1, index + 1]
+                .map((neighborIndex) => sorted[neighborIndex])
+                .filter((item): item is AnnotationPublic => item != null)
+            neighbors.forEach((annotation) => prefetchMagnifierAnnotation(annotation))
+        })()
+        return () => {
+            cancelled = true
+        }
+    }, [
+        annotationListTick,
+        continuousSegmentPlayback,
+        currentProjectId,
+        editingAnnotationId,
+        isPhoto,
+        media,
+        mediaId,
+        prefetchMagnifierAnnotation,
+        spectrogramZoomPercent,
+    ])
 
     const scheduleContinuousSegment = useCallback(
         (
@@ -4091,10 +4285,41 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
     const navigateAdjacentFromId = useCallback(
         async (baseAnnotationId: number, dir: -1 | 1, listOverride?: AnnotationPublic[]) => {
             const zoomIntoTarget = navAutoZoomToAnnotation
+            const dur = Number(media?.duration_s) || 0
+            const windowSec = dur > 0 ? spectrogramVisibleWindowSec(dur, spectrogramZoomPercent) : 0
+            const viewIsZoomed = !isPhoto && dur > 0 && windowSec + 1e-6 < dur
+            const prefetchZoomAhead = (openedId: number) => {
+                if (isPhoto || !(zoomIntoTarget || viewIsZoomed) || currentProjectId == null) return
+                void (async () => {
+                    let items =
+                        annotationNavListRef.current?.mediaId === mediaId
+                            ? annotationNavListRef.current.items
+                            : null
+                    if (items == null) {
+                        items = await annotationsApi.listAll(
+                            {
+                                media_id: mediaId,
+                                project_id: currentProjectId,
+                                order_by: "annotation_id",
+                                order_dir: "asc",
+                            },
+                            true,
+                        )
+                        if (mediaIdRef.current !== mediaId) return
+                        annotationNavListRef.current = { mediaId, tick: annotationListTick, items }
+                    }
+                    const sorted = [...items].sort(compareAnnotationByMinTimeAndFrequency)
+                    const index = sorted.findIndex((item) => item.annotation_id === openedId)
+                    const ahead = index >= 0 ? sorted[index + dir] : undefined
+                    if (ahead) prefetchMagnifierAnnotation(ahead)
+                })()
+            }
             const openHere = (annotationId: number) => {
+                const autoZoom = zoomIntoTarget || viewIsZoomed
+                if (autoZoom) prefetchZoomAhead(annotationId)
                 void openAnnotationEditorById(annotationId, {
-                    autoZoom: zoomIntoTarget,
-                    seek: zoomIntoTarget,
+                    autoZoom,
+                    seek: autoZoom,
                 })
             }
             const openOnMedia = (targetMediaId: number, annotationId: number, taskMode: boolean) => {
@@ -4257,13 +4482,17 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
             openHere(nextAnn.annotation_id)
         },
         [
+            annotationListTick,
             currentProjectId,
             fetchAnnotationsForNavigation,
             isPhoto,
+            prefetchMagnifierAnnotation,
             location.search,
             meUserId,
+            media?.duration_s,
             mediaId,
             navAutoZoomToAnnotation,
+            spectrogramZoomPercent,
             navOnlyTaskTagged,
             navigate,
             openAnnotationEditorById,
