@@ -63,6 +63,7 @@ function openTaskViewTab(projectId: number, mediaId: number, taskId: number, ann
     const params = new URLSearchParams()
     if (annotationId != null) params.set("annotation_id", String(annotationId))
     params.set("task_mode", "1")
+    params.set("annotation_zoom", "1")
     const query = `?${params.toString()}`
     window.open(
         `/dashboard/${projectId}/media/${mediaId}${query}`,

@@ -318,6 +318,25 @@ import {
     writeLastAnnotationSound,
 } from "./media-detail/lastAnnotationSoundPreference"
 
+function studioAnnotationViewportKey(
+    mediaId: number,
+    filter: {
+        view_time_start: number
+        view_time_end: number
+        view_freq_min: number
+        view_freq_max: number
+    } | null,
+): string {
+    if (!filter) return `${mediaId}|none`
+    return [
+        mediaId,
+        filter.view_time_start,
+        filter.view_time_end,
+        filter.view_freq_min,
+        filter.view_freq_max,
+    ].join("|")
+}
+
 export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
     const { id: projectRouteId } = useParams<{ id?: string }>()
     const location = useLocation()
@@ -336,7 +355,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
         return Number.isFinite(parsed) && parsed > 0 ? Math.trunc(parsed) : null
     }, [location.search])
     const routeAnnotationZoom = useMemo(() => {
-        return new URLSearchParams(location.search).get("annotation_zoom") !== "0"
+        return new URLSearchParams(location.search).get("annotation_zoom") === "1"
     }, [location.search])
     const routeTaskMode = useMemo(() => {
         const raw = new URLSearchParams(location.search).get("task_mode")
@@ -348,6 +367,8 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
     const isDark = useAppStore((s) => s.effectiveTheme === "dark")
     const isThemeTransitioning = useAppStore((s) => s.isThemeTransitioning)
     const [media, setMedia] = useState<RecordingDetail | null>(null)
+    const mediaIdRef = useRef(mediaId)
+    mediaIdRef.current = mediaId
     const isPhoto = String(media?.media_type ?? "").toLowerCase() === "photo"
     const [photoContentUrl, setPhotoContentUrl] = useState<string | null>(null)
     const [photoZoomRequest, setPhotoZoomRequest] = useState<PhotoZoomRequest | null>(null)
@@ -360,6 +381,9 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
     const [analysisBlocking, setAnalysisBlocking] = useState(false)
     const [detailError, setDetailError] = useState<string | null>(null)
     const [spectrogramBlobUrl, setSpectrogramBlobUrl] = useState<string | null>(null)
+    const [spectrogramImageViewport, setSpectrogramImageViewport] = useState<MediaViewportParams | null>(null)
+    /** 从其它音频带着标注缩放进来时，先不画注释，等视窗缩到目标标注再画。 */
+    const [annotationZoomHold, setAnnotationZoomHold] = useState(false)
     const [spectrogramImageReadyUrl, setSpectrogramImageReadyUrl] = useState<string | null>(null)
     const [spectrogramReadyParamsKey, setSpectrogramReadyParamsKey] = useState<string | null>(null)
     const [spectrogramLoading, setSpectrogramLoading] = useState(false)
@@ -461,6 +485,8 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
     const spectrogramPxPerSecRef = useRef(spectrogramPxPerSec)
     /** 进入新录音后待按整段时长适配声谱图视窗（viewport 就绪后执行一次） */
     const spectrogramFitPendingMediaIdRef = useRef<number | null>(null)
+    /** 这条录音已经按注释缩放过，之后不要再把频率轴拉回整段。 */
+    const annotationZoomLayoutMediaRef = useRef<number | null>(null)
     const spectrogramCursorTimeRef = useRef<number | null>(null)
     const spectrogramCursorFracRef = useRef<number | null>(null)
     /** 点击放大镜缩放声谱图前保存的视窗，再次点击恢复（含频率轴范围） */
@@ -690,17 +716,22 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
 
     /** 仅在有「任务」标记的标注间跳转（见 `annotationHasTaskTagForNav`）；可与 navAutoZoomToAnnotation 同时开启 */
     const [navOnlyTaskTagged, setNavOnlyTaskTagged] = useState(false)
+    const routeAutoOpenedAnnotationKeyRef = useRef<string>("")
     /** 上一条/下一条时是否自动将声谱图缩放到目标标注时间范围 */
     const [navAutoZoomToAnnotation, setNavAutoZoomToAnnotation] = useState(() =>
         readAnnotationZoomToggle(location.search),
     )
     const toggleNavAutoZoomToAnnotation = useCallback(() => {
-        setNavAutoZoomToAnnotation((prev) => {
-            const next = !prev
-            writeAnnotationZoomToggle(next)
-            return next
-        })
-    }, [])
+        const next = !navAutoZoomToAnnotation
+        writeAnnotationZoomToggle(next)
+        setNavAutoZoomToAnnotation(next)
+        const params = new URLSearchParams(location.search)
+        params.set("annotation_zoom", next ? "1" : "0")
+        if (routeAnnotationId != null) {
+            routeAutoOpenedAnnotationKeyRef.current = `${mediaId}:${routeAnnotationId}:${next ? "zoom" : "fit"}`
+        }
+        navigate({ search: params.toString() }, { replace: true })
+    }, [location.search, mediaId, navAutoZoomToAnnotation, navigate, routeAnnotationId])
     const [taskModeTipOpen, setTaskModeTipOpen] = useState(false)
     const taskModeTipShownKeyRef = useRef("")
     const [formIndividualNum, setFormIndividualNum] = useState(1)
@@ -756,7 +787,8 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
     /** 声谱图叠加：当前媒体下全部标注（分页拉全），与表格分页无关 */
     const [spectrogramAnnotations, setSpectrogramAnnotations] = useState<AnnotationPublic[]>([])
     const spectrogramAnnotationsRef = useRef<AnnotationPublic[]>([])
-    const routeAutoOpenedAnnotationKeyRef = useRef<string>("")
+    const spectrogramAnnotationsViewportKeyRef = useRef("")
+    const annotationListViewportKeyRef = useRef("")
     useEffect(() => {
         spectrogramAnnotationsRef.current = spectrogramAnnotations
     }, [spectrogramAnnotations])
@@ -1026,6 +1058,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
         setDetailError(null)
         setMedia(null)
         setSpectrogramBlobUrl(null)
+        setSpectrogramImageViewport(null)
         setSpectrogramImageReadyUrl(null)
         setSpectrogramReadyParamsKey(null)
         clearPrefetchedSpectrogram()
@@ -1050,7 +1083,12 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
         spectrogramMagnifierBackupRef.current = null
         setSpectrogramMagnifierZoomed(false)
         setNavOnlyTaskTagged(false)
-        setNavAutoZoomToAnnotation(readAnnotationZoomToggle(location.search))
+        const annotationZoomFromRoute = readAnnotationZoomToggle(location.search)
+        setNavAutoZoomToAnnotation(annotationZoomFromRoute)
+        const zoomParam = new URLSearchParams(location.search).get("annotation_zoom")
+        if (zoomParam === "1" || zoomParam === "0") {
+            writeAnnotationZoomToggle(zoomParam === "1")
+        }
         setFormSoundscape(null)
         setFormSoundTypeSoundId(null)
         setFormTaxonId(null)
@@ -1181,6 +1219,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
 
     useEffect(() => {
         if (!media) return
+        if (annotationZoomLayoutMediaRef.current === mediaId) return
         const sr = Number(media.sampling_rate_hz)
         const nyq = !Number.isNaN(sr) && sr > 0 ? Math.round(sr / 2) : 24000
         keepVisibleSpectrogramFreqRef.current = false
@@ -1319,11 +1358,27 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
             setSpectrogramInitialReady(true)
             return
         }
+        if (pickRecordingDetailId(media) !== mediaId) {
+            setSpectrogramLoading(false)
+            return
+        }
+        spectrogramZoomPercentRef.current = spectrogramZoomPercent
+        spectrogramViewStartRef.current = spectrogramViewStart
         const viewport = buildDetailViewportParams(spectrogramViewStart)
         if (!viewport) {
             setSpectrogramLoading(false)
             return
         }
+        const requestedDisplayKey = spectrogramAnnotationDisplayKey({
+            mediaId,
+            viewStart: spectrogramViewStart,
+            zoomPercent: spectrogramZoomPercent,
+            freqMin: specFreqMinHz,
+            freqMax: specFreqMaxHz,
+            fft: fftValue,
+            channel: audioChannel,
+            bandFilter: audioBandFilter,
+        })
 
         const vp = viewportRef.current
         const { w: measuredWidth = 0, h: measuredHeight = 0 } = vp ? readViewportLayoutSize(vp) : {}
@@ -1334,6 +1389,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
         }
         const paramsKey = spectrogramRequestParamsKey(viewport)
         if (paramsKey === activeViewportParamsKeyRef.current && spectrogramBlobUrlRef.current) {
+            setSpectrogramImageViewport(viewport)
             setSpectrogramInitialReady(true)
             return
         }
@@ -1345,8 +1401,9 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
             pendingDisplayPrefetchedSpectrogramKeyRef.current = null
             const prev = spectrogramBlobUrlRef.current
             spectrogramBlobUrlRef.current = prefetched.url
-            spectrogramBlobParamsKeyByUrlRef.current.set(prefetched.url, spectrogramDisplayKeyRef.current)
+            spectrogramBlobParamsKeyByUrlRef.current.set(prefetched.url, requestedDisplayKey)
             setSpectrogramBlobUrl(prefetched.url)
+            setSpectrogramImageViewport(viewport)
             activeViewportParamsKeyRef.current = paramsKey
             setSpectrogramInitialReady(true)
             setSpectrogramLoading(false)
@@ -1381,8 +1438,9 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                 url = URL.createObjectURL(blob)
                 const prev = spectrogramBlobUrlRef.current
                 spectrogramBlobUrlRef.current = url
-                spectrogramBlobParamsKeyByUrlRef.current.set(url, spectrogramDisplayKeyRef.current)
+                spectrogramBlobParamsKeyByUrlRef.current.set(url, requestedDisplayKey)
                 setSpectrogramBlobUrl(url)
+                setSpectrogramImageViewport(viewport)
                 activeViewportParamsKeyRef.current = paramsKey
                 if (prev) {
                     spectrogramBlobParamsKeyByUrlRef.current.delete(prev)
@@ -1392,6 +1450,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
             .catch(() => {
                 if (!cancelled && requestId === spectrogramRequestIdRef.current) {
                     setSpectrogramBlobUrl(null)
+                    setSpectrogramImageViewport(null)
                     setSpectrogramReadyParamsKey(null)
                 }
             })
@@ -1666,6 +1725,11 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
 
     useEffect(() => {
         if (loading || !media) return
+        const viewportKey = studioAnnotationViewportKey(mediaId, spectrogramViewportFilter)
+        if (annotationListViewportKeyRef.current !== viewportKey) {
+            annotationListViewportKeyRef.current = viewportKey
+            setAnnotationListItems([])
+        }
         let cancelled = false
         setAnnotationListLoading(true)
         const t = window.setTimeout(() => {
@@ -1716,6 +1780,11 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
         if (currentProjectId == null) {
             setSpectrogramAnnotations([])
             return
+        }
+        const viewportKey = studioAnnotationViewportKey(mediaId, spectrogramViewportFilter)
+        if (spectrogramAnnotationsViewportKeyRef.current !== viewportKey) {
+            spectrogramAnnotationsViewportKeyRef.current = viewportKey
+            setSpectrogramAnnotations([])
         }
         let cancelled = false
             ; (async () => {
@@ -1947,17 +2016,22 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
     }, [editingAnnotationId, editingAnnotationMeta, spectrogramAnnotations])
 
     const annotationOverlayPx = useMemo(() => {
+        if (annotationZoomHold) return []
         if (!media || !annotationsVisible) return []
         const w = viewportSize.w
         const h = viewportSize.h
         if (w <= 0 || h <= 0) return []
         const sr = Number(media.sampling_rate_hz)
         const nyq = !Number.isNaN(sr) && sr > 0 ? Math.round(sr / 2) : 24000
-        const f0 = clamp(specFreqMinHz, 0, nyq)
-        const f1 = clamp(specFreqMaxHz, f0, nyq)
+        const liveF0 = clamp(specFreqMinHz, 0, nyq)
+        const liveF1 = clamp(specFreqMaxHz, liveF0, nyq)
         const { windowSec, viewStartClamped } = spectrogramLayout
-        const t0 = viewStartClamped
-        const t1 = viewStartClamped + windowSec
+        const frame = spectrogramImageViewport
+        const t0 = frame ? frame.start_time : viewStartClamped
+        const t1 = frame ? frame.end_time : viewStartClamped + windowSec
+        const f0 = frame ? frame.min_freq : liveF0
+        const f1 = frame ? frame.max_freq : liveF1
+        const frameWindowSec = Math.max(t1 - t0, 1e-6)
         return renderedAnnotations
             .map((a) => {
                 const phys: AnnotationPhysBox = {
@@ -1967,7 +2041,8 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                     max_y: Math.max(a.min_y, a.max_y),
                 }
                 if (phys.max_x < t0 || phys.min_x > t1) return null
-                const pxRaw = physToPixelsWindow(phys, w, h, viewStartClamped, windowSec, f0, f1)
+                if (phys.max_y < f0 || phys.min_y > f1) return null
+                const pxRaw = physToPixelsWindow(phys, w, h, t0, frameWindowSec, f0, f1)
                 const px = normalizeAnnotationOverlayRect(pxRaw, w, h)
                 const sc = (a.soundscape_component ?? "").trim()
                 const presentation = getMediaAnnotationPresentation(a, userAnnotationColor, meUserId)
@@ -1981,10 +2056,14 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
             })
             .filter((x): x is NonNullable<typeof x> => x != null)
     }, [
+        annotationZoomHold,
         annotationsVisible,
         media,
         renderedAnnotations,
+        spectrogramImageViewport,
         spectrogramLayout,
+        specFreqMaxHz,
+        specFreqMinHz,
         meUserId,
         userAnnotationColor,
         viewportSize.h,
@@ -3133,6 +3212,8 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
         const vs = snapTimeSec(layout.start_time, dur > 0 ? dur : undefined)
         pendingAudioBandpassHzRef.current = { lo: layout.y0, hi: layout.y1 }
         activeViewportParamsKeyRef.current = null
+        spectrogramFitPendingMediaIdRef.current = null
+        annotationZoomLayoutMediaRef.current = mediaId
         spectrogramViewStartRef.current = vs
         spectrogramZoomPercentRef.current = zp
         setSpecFreqMinHz(layout.y0)
@@ -3141,8 +3222,9 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
         storeSpectrogramZoomPercentCookie(zp)
         setSpectrogramViewStart(vs)
         setSpectrogramMagnifierZoomed(true)
+        setAnnotationZoomHold(false)
         setAudioReloadToken((n) => n + 1)
-    }, [media?.duration_s])
+    }, [media?.duration_s, mediaId])
 
     const openAnnotationEditorForPublic = useCallback(
         (a: AnnotationPublic, reviewsOverride?: AnnotationReviewRead[]) => {
@@ -3207,8 +3289,10 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                         }, true)
                         .catch(() => null),
                 ])
-                if (detail.media_id !== mediaId) {
-                    message.error("This annotation belongs to another recording.")
+                if (detail.media_id !== mediaIdRef.current) {
+                    if (mediaId === mediaIdRef.current) {
+                        message.error("This annotation belongs to another recording.")
+                    }
                     return
                 }
                 const revsFromApi = reviewsPaged != null ? normalizeAnnotationReviews(reviewsPaged.items) : null
@@ -3220,6 +3304,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                 let autoZoomViewStart: number | null = null
                 if (options?.autoZoom) {
                     if (isPhoto) {
+                        setAnnotationZoomHold(false)
                         setPhotoZoomRequest((prev) => ({
                             nonce: (prev?.nonce ?? 0) + 1,
                             box: {
@@ -3240,6 +3325,8 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                         if (layout) {
                             applyMagnifierZoomLayout(layout)
                             autoZoomViewStart = layout.vs
+                        } else {
+                            setAnnotationZoomHold(false)
                         }
                     }
                 }
@@ -3257,6 +3344,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                     scrollAnnotationTableRowIntoView(annotationId)
                 })
             } catch (e: unknown) {
+                setAnnotationZoomHold(false)
                 message.error(e instanceof Error ? e.message : "Failed to load annotation.")
             } finally {
                 // closeLoadingMessage(loadingId)
@@ -3271,14 +3359,17 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
             return
         }
         if (loading || currentProjectId == null) return
-        const key = `${mediaId}:${routeAnnotationId}`
+        if (pickRecordingDetailId(media) !== mediaId) return
+        const dur = Number(media?.duration_s) || 0
+        if (routeAnnotationZoom && !isPhoto && !(dur > 0)) return
+        const key = `${mediaId}:${routeAnnotationId}:${routeAnnotationZoom ? "zoom" : "fit"}`
         if (routeAutoOpenedAnnotationKeyRef.current === key) return
         routeAutoOpenedAnnotationKeyRef.current = key
         void openAnnotationEditorById(routeAnnotationId, {
             autoZoom: routeAnnotationZoom,
             seek: routeAnnotationZoom,
         })
-    }, [currentProjectId, loading, mediaId, openAnnotationEditorById, routeAnnotationId, routeAnnotationZoom])
+    }, [currentProjectId, isPhoto, loading, media, media?.duration_s, mediaId, openAnnotationEditorById, routeAnnotationId, routeAnnotationZoom])
 
     useEffect(() => {
         if (!routeTaskMode) return
@@ -4010,10 +4101,11 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
 
     const navigateAdjacentFromId = useCallback(
         async (baseAnnotationId: number, dir: -1 | 1, listOverride?: AnnotationPublic[]) => {
+            const zoomIntoTarget = navAutoZoomToAnnotation
             const openHere = (annotationId: number) => {
                 void openAnnotationEditorById(annotationId, {
-                    autoZoom: navAutoZoomToAnnotation,
-                    seek: navAutoZoomToAnnotation,
+                    autoZoom: zoomIntoTarget,
+                    seek: zoomIntoTarget,
                 })
             }
             const openOnMedia = (targetMediaId: number, annotationId: number, taskMode: boolean) => {
@@ -4031,8 +4123,9 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                         : String(currentProjectId)
                 const params = new URLSearchParams(location.search)
                 params.set("annotation_id", String(annotationId))
-                params.set("annotation_zoom", navAutoZoomToAnnotation ? "1" : "0")
+                params.set("annotation_zoom", zoomIntoTarget ? "1" : "0")
                 if (taskMode) params.set("task_mode", "1")
+                else params.delete("task_mode")
                 navigate({
                     pathname: `/dashboard/${projectSegment}/media/${targetMediaId}`,
                     search: params.toString(),
@@ -4100,16 +4193,17 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                 }
             }
 
-            const source = navAutoZoomToAnnotation
-                ? await fetchAnnotationsForNavigation(true)
-                : (listOverride ?? spectrogramAnnotations)
+            let source = listOverride ?? spectrogramAnnotations
+            if (listOverride == null && (zoomIntoTarget || !source.some((item) => item.annotation_id === baseAnnotationId))) {
+                source = await fetchAnnotationsForNavigation(true)
+            }
             const fullList = [...source].sort(compareAnnotationByMinTimeAndFrequency)
             const taskList = [...source]
                 .filter((annotation) => annotationHasTaskTagForNav(annotation, meUserId))
                 .sort(compareAnnotationByMinTimeAndFrequency)
 
             const continuePastThisMedia = async (taskMode: boolean) => {
-                if (navAutoZoomToAnnotation && listOverride == null) {
+                if (zoomIntoTarget && listOverride == null) {
                     await jumpToAdjacentMedia(taskMode)
                     return
                 }
@@ -4343,8 +4437,14 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
         setLabelPopoverOpen(false)
         setAudioChannel(1)
         spectrogramFitPendingMediaIdRef.current = mediaId
+        annotationZoomLayoutMediaRef.current = null
+        spectrogramZoomPercentRef.current = 0
+        spectrogramViewStartRef.current = 0
+        pendingAudioBandpassHzRef.current = null
         setSpectrogramZoomPercent(0)
         setSpectrogramViewStart(0)
+        const routeSearch = new URLSearchParams(location.search)
+        setAnnotationZoomHold(routeSearch.get("annotation_zoom") === "1" && routeSearch.get("annotation_id") != null)
         activeViewportParamsKeyRef.current = null
         activeAudioViewportParamsKeyRef.current = null
         audioWindowStartRef.current = 0
@@ -4357,6 +4457,10 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
     }, [spectrogramMagnifierZoomed])
 
     useEffect(() => {
+        if (new URLSearchParams(location.search).get("annotation_zoom") === "1") {
+            spectrogramFitPendingMediaIdRef.current = null
+            return
+        }
         if (spectrogramFitPendingMediaIdRef.current !== mediaId) return
         if (!media) return
         if (pickRecordingDetailId(media) !== mediaId) return
@@ -4365,7 +4469,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
         if (!(dur > 0) || !(w > 0)) return
         fitSpectrogramToFullDuration()
         spectrogramFitPendingMediaIdRef.current = null
-    }, [mediaId, media, media?.duration_s, viewportSize.w, fitSpectrogramToFullDuration])
+    }, [location.search, mediaId, media, media?.duration_s, viewportSize.w, fitSpectrogramToFullDuration])
 
     const applyAudioElementPlaybackRate = useCallback((audio = audioRef.current, rate = playbackSpeedRef.current) => {
         const r = clamp(rate, PLAYBACK_RATE_SLIDER_MIN, PLAYBACK_RATE_SLIDER_MAX)
@@ -4691,7 +4795,6 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
     }, [closeAnnotationPanel])
 
     const handleAnnotToolbarMagnifierZoom = useCallback(() => {
-        if (spectrogramMagnifierZoomed) return
         const dur = Number(media?.duration_s) || 0
         const sr = Number(media?.sampling_rate_hz) || 0
         if (!(dur > 0)) return
@@ -4714,6 +4817,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
 
         setAnnotationDraftOverlayVisible(false)
         applyMagnifierZoomLayout(layout)
+        setSpectrogramMagnifierZoomed(false)
         audioPreserveTimeRef.current = layout.vs
         syncPlaybackToSpectrogramViewStart(layout.vs)
     }, [
@@ -4723,7 +4827,6 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
         editingAnnotationMeta,
         media?.duration_s,
         media?.sampling_rate_hz,
-        spectrogramMagnifierZoomed,
         syncPlaybackToSpectrogramViewStart,
     ])
 
@@ -6778,13 +6881,9 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
 
                             <MediaViewerToolbarButton
                                 className="btn-toolbar"
-                                active={spectrogramMagnifierZoomed}
                                 label="Zoom the spectrogram to this annotation/selection"
                                 icon={<AnnotationZoomIcon size={20} strokeWidth={2} />}
-                                disabled={
-                                    !(annotationDraft || (editingAnnotationMeta && editingAnnotationId)) ||
-                                    spectrogramMagnifierZoomed
-                                }
+                                disabled={!(annotationDraft || (editingAnnotationMeta && editingAnnotationId))}
                                 onClick={handleAnnotToolbarMagnifierZoom}
                             />
 
