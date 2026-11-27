@@ -176,6 +176,10 @@ class AnnotationRepository(BaseRepository[Annotation, Any, Any]):
         )
         return list(session.exec(statement).all())
 
+    def get_by_ids(self, session: Session, annotation_ids: list[int]) -> list[Annotation]:
+        statement = select(Annotation).where(Annotation.annotation_id.in_(annotation_ids))
+        return list(session.exec(statement).all())
+
     def delete_by_ids(
         self,
         session: Session,
@@ -187,9 +191,7 @@ class AnnotationRepository(BaseRepository[Annotation, Any, Any]):
         if not annotation_ids:
             return 0
  
-        statement = select(Annotation).where(Annotation.annotation_id.in_(annotation_ids))
-        annotations = session.exec(statement).all()
-        count = len(annotations)
+        annotations = self.get_by_ids(session, annotation_ids)
  
         for ann in annotations:
             session.delete(ann)
@@ -198,7 +200,7 @@ class AnnotationRepository(BaseRepository[Annotation, Any, Any]):
             session.commit()
         else:
             session.flush()
-        return count
+        return len(annotations)
 
     def get_resampling_impact(
         self,

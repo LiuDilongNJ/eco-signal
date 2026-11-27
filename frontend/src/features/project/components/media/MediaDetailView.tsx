@@ -185,6 +185,7 @@ import {
     normalizeUserColorHex,
 } from "./mediaAnnotationPresentation"
 import { ConfirmDialog } from "../modals/ConfirmDialog"
+import { useAnnotationDeletionConfirmation } from "../modals/useAnnotationDeletionConfirmation"
 import { TaskModeTipModal, shouldOpenTaskModeTip } from "../modals/TaskModeTipModal"
 import { CustomScrollArea } from "@/components/ui"
 import { LoadingState } from "@/components/ui"
@@ -600,8 +601,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
     )
     const [marqueeCreating, setMarqueeCreating] = useState(false)
     const [annotationDraftHasSize, setAnnotationDraftHasSize] = useState(false)
-    const [deleteAnnotationsConfirmOpen, setDeleteAnnotationsConfirmOpen] = useState(false)
-    const [deleteEditingAnnotationConfirmOpen, setDeleteEditingAnnotationConfirmOpen] = useState(false)
+    const annotationDeletion = useAnnotationDeletionConfirmation(currentProjectId, mediaId)
     const [deleteReviewConfirmOpen, setDeleteReviewConfirmOpen] = useState(false)
     const [pendingDeleteReview, setPendingDeleteReview] = useState<AnnotationReviewRead | null>(null)
     const [annotationExportConfirmOpen, setAnnotationExportConfirmOpen] = useState(false)
@@ -2594,14 +2594,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
         }
     }, [assignComments, assignSelectedUserIds, closeAssignTaskPanel, currentProjectId, mediaId])
 
-    const handleDeleteSelectedAnnotations = useCallback(async () => {
-        if (selectedAnnotationKeys.length === 0) {
-            return
-        }
-        const ids = selectedAnnotationKeys
-            .map((k) => Number(k))
-            .filter((n) => Number.isFinite(n) && n > 0)
-        if (ids.length === 0) return
+    const handleDeleteSelectedAnnotations = useCallback(async (ids: number[], projectId: number) => {
         const selected = annotationListItems.filter((annotation) => ids.includes(annotation.annotation_id))
         if (
             selected.length !== ids.length ||
@@ -2612,15 +2605,11 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
         }
         const loadingId = openLoadingMessage(`Deleting ${ids.length} annotation(s)…`)
         try {
-            if (currentProjectId == null) {
-                message.error("Missing project context.")
-                return
-            }
             const CHUNK_SIZE = 1000
             let totalDeleted = 0
             for (let i = 0; i < ids.length; i += CHUNK_SIZE) {
                 const chunk = ids.slice(i, i + CHUNK_SIZE)
-                const res = await annotationsApi.deleteBatch(chunk, currentProjectId)
+                const res = await annotationsApi.deleteBatch(chunk, projectId)
                 totalDeleted += res.deleted_count
             }
             updateMessageSuccess(loadingId, `Deleted ${totalDeleted} annotation(s).`)
@@ -2631,7 +2620,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
         } finally {
             closeLoadingMessage(loadingId)
         }
-    }, [annotationListItems, selectedAnnotationKeys, currentProjectId])
+    }, [annotationListItems])
 
     const handleExportViewportAnnotationsCsv = useCallback(async () => {
         if (!media || currentProjectId == null) return
@@ -4759,8 +4748,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
         closeAnnotationPanel({ keepSelection: true })
     }, [closeAnnotationPanel, editingAnnotationId, selectedAnnotationKeys])
 
-    const handleDeleteEditingAnnotation = useCallback(async () => {
-        const id = reviewContextAnnotationId
+    const handleDeleteEditingAnnotation = useCallback(async ([id]: number[], projectId: number) => {
         if (id == null) {
             message.error("Missing annotation id.")
             return
@@ -4771,13 +4759,8 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
         }
         const loadingId = openLoadingMessage("Deleting annotation...")
         try {
-            if (currentProjectId == null) {
-                message.error("Missing project context.")
-                return
-            }
-            await annotationsApi.delete(id, currentProjectId)
+            await annotationsApi.delete(id, projectId)
             updateMessageSuccess(loadingId, "Annotation deleted.")
-            setDeleteEditingAnnotationConfirmOpen(false)
             setSelectedAnnotationKeys((prev) => prev.filter((k) => Number(k) !== id))
             annotationTableSelectedIdsRef.current = annotationTableSelectedIdsRef.current.filter((n) => n !== id)
             closeAnnotationPanel()
@@ -4787,7 +4770,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
         } finally {
             closeLoadingMessage(loadingId)
         }
-    }, [canDeleteAnnotation, closeAnnotationPanel, currentProjectId, reviewContextAnnotationId])
+    }, [canDeleteAnnotation, closeAnnotationPanel])
 
     const exitAnnotationPanelIfActive = useCallback(() => {
         if (!annotationPanelActiveRef.current) return
@@ -7218,8 +7201,8 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                                                 className="data-btn danger"
                                                 style={{ padding: 8, justifyContent: "center", width: "100%" }}
                                                 title="Delete selected rows"
-                                                disabled={!canDeleteSelectedAnnotations}
-                                                onClick={() => setDeleteAnnotationsConfirmOpen(true)}
+                                                disabled={!canDeleteSelectedAnnotations || annotationDeletion.pending}
+                                                onClick={() => void annotationDeletion.prepareDeletion(selectedAnnotationKeys, handleDeleteSelectedAnnotations)}
                                             >
                                                 <Trash2 size={16} />
                                             </ESButton>
@@ -7433,8 +7416,12 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                                             className="studio-annot-header-icon studio-annot-header-icon--danger"
                                             title={canDeleteAnnotation ? "Delete annotation" : "You do not have permission to delete this annotation"}
                                             aria-label="Delete annotation"
-                                            disabled={!canDeleteAnnotation}
-                                            onClick={() => setDeleteEditingAnnotationConfirmOpen(true)}
+                                            disabled={!canDeleteAnnotation || annotationDeletion.pending}
+                                            onClick={() => {
+                                                if (reviewContextAnnotationId != null) {
+                                                    void annotationDeletion.prepareDeletion([reviewContextAnnotationId], handleDeleteEditingAnnotation)
+                                                }
+                                            }}
                                         >
                                             <Trash2 size={15} />
                                         </ESButton>
@@ -8751,16 +8738,7 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                 </div>
             ) : null}
         </div>
-        <ConfirmDialog
-            open={deleteAnnotationsConfirmOpen}
-            onClose={() => setDeleteAnnotationsConfirmOpen(false)}
-            title="Delete Records"
-            message={`Are you sure you want to delete ${selectedAnnotationKeys.length} selected record${selectedAnnotationKeys.length === 1 ? "" : "s"}? This action cannot be undone.`}
-            confirmLabel="Delete"
-            cancelLabel="Cancel"
-            variant="danger"
-            onConfirm={() => void handleDeleteSelectedAnnotations()}
-        />
+        <ConfirmDialog {...annotationDeletion.dialog} />
         <TaskModeTipModal open={taskModeTipOpen} onClose={() => setTaskModeTipOpen(false)} />
         <ConfirmDialog
             open={annotationExportConfirmOpen}
@@ -8777,16 +8755,6 @@ export function MediaDetailView({ mediaId }: MediaDetailViewProps) {
                 annotationExportActionRef.current = null
                 void action?.()
             }}
-        />
-        <ConfirmDialog
-            open={deleteEditingAnnotationConfirmOpen}
-            onClose={() => setDeleteEditingAnnotationConfirmOpen(false)}
-            title="Delete Annotation"
-            message="Are you sure you want to delete this annotation? This action cannot be undone."
-            confirmLabel="Delete"
-            cancelLabel="Cancel"
-            variant="danger"
-            onConfirm={() => void handleDeleteEditingAnnotation()}
         />
         <ConfirmDialog
             open={deleteReviewConfirmOpen}

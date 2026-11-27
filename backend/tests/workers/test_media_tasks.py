@@ -1,4 +1,6 @@
 """Unit tests for media worker tasks."""
+import wave
+from contextlib import nullcontext
 from datetime import datetime
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -6,6 +8,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from sqlmodel import Session
 
+from app.core.config import settings
 from app.enums import QueueStatus
 from app.models import (
     AudioSetting,
@@ -660,81 +663,54 @@ class TestProcessMediaTask:
         mock_photo_metadata.assert_not_called()
         mock_unlink.assert_called_once()
 
-    @patch("app.workers.tasks.media.generate_thumbnail")
-    @patch("app.workers.tasks.media.file_service.prepare_audio_for_storage")
-    @patch("mutagen.File")
-    @patch("hashlib.md5")
-    @patch("shutil.move")
-    @patch("pathlib.Path.mkdir")
-    @patch("pathlib.Path.is_file")
-    @patch("pathlib.Path.stat")
-    @patch("pathlib.Path.read_bytes")
-    async def test_process_media_uses_display_filename_as_logical_name(
-        self,
-        mock_read_bytes,
-        mock_stat,
-        mock_is_file,
-        mock_mkdir,
-        mock_move,
-        mock_md5,
-        mock_mutagen,
-        mock_ensure_flac,
-        mock_generate_thumbnail,
+    @pytest.mark.parametrize("display_name", ["Survey_test.wav", None])
+    async def test_process_media_stores_original_basename_and_display_name(
+        self, db: Session, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, display_name: str | None
     ):
-        """Audio stores prefixed FLAC filename while keeping original display name in media.name."""
-        mock_session = MagicMock()
-        mock_generate_thumbnail.return_value = b"\x89PNG\r\nfake"
-        mock_ensure_flac.return_value = (Path("/tmp/LEGACY_test.flac"), "LEGACY_test.flac", {"stored": {"sampling_rate_hz": 48000, "channel_num": 2, "bit_depth": 24, "duration_s": 10.5}})
+        monkeypatch.setattr(settings, "MEDIA_ROOT", str(tmp_path))
+        collection = Collection(name="Upload naming test", creator_id=1)
+        db.add(collection)
+        db.flush()
 
-        file_upload = FileUpload(
-            file_upload_id=1,
+        source_path = tmp_path / "tmp" / "test.wav"
+        source_path.parent.mkdir()
+        with wave.open(str(source_path), "wb") as audio:
+            audio.setnchannels(1)
+            audio.setsampwidth(2)
+            audio.setframerate(8000)
+            audio.writeframes(b"\x00\x00" * 800)
+
+        upload = FileUpload(
             filename="test.wav",
-            path="/tmp/test.wav",
+            name="test.wav",
+            path="tmp/test.wav",
             status=1,
             uploader_id=1,
-            directory="dir1",
-            name="test.wav",
+            directory=1,
         )
-        mock_session.get.return_value = file_upload
-        mock_is_file.return_value = True
-        mock_stat.return_value.st_size = 1000
-        mock_read_bytes.return_value = b"fake-audio-data"
-        mock_md5.return_value.hexdigest.return_value = "fake-md5-hash"
+        db.add(upload)
+        db.flush()
 
-        mock_audio = MagicMock()
-        mock_audio.info.length = 10.5
-        mock_audio.info.sample_rate = 48000
-        mock_audio.info.channels = 2
-        mock_audio.info.bits_per_sample = 24
-        mock_mutagen.return_value = mock_audio
-
-        media_holder: dict[str, Media] = {}
-
-        def mock_add(obj):
-            if isinstance(obj, AudioSetting):
-                obj.audio_setting_id = 100
-            elif isinstance(obj, Media):
-                obj.media_id = 200
-                media_holder["media"] = obj
-
-        mock_session.add.side_effect = mock_add
-
-        with patch("app.workers.tasks.media.Session", return_value=mock_session):
-            mock_session.__enter__ = MagicMock(return_value=mock_session)
-            mock_session.__exit__ = MagicMock(return_value=False)
-
+        with (
+            patch("app.workers.tasks.media.Session", return_value=nullcontext(db)),
+            patch("app.workers.tasks.media.generate_media_previews") as generate_previews,
+        ):
+            generate_previews.return_value.warnings = []
             result = await process_media(
                 ctx={},
-                file_upload_id=1,
-                collection_id=10,
-                display_filename="LEGACY_test.wav",
+                file_upload_id=upload.file_upload_id,
+                collection_id=collection.collection_id,
+                display_name=display_name,
             )
 
         assert result["status"] == "completed"
-        assert file_upload.filename == "LEGACY_test.flac"
-        assert file_upload.path == "tmp/LEGACY_test.flac"
-        assert media_holder["media"].filename == "LEGACY_test.flac"
-        assert media_holder["media"].name == "test.wav"
+        media = db.get(Media, result["media_id"])
+        assert media is not None
+        assert media.filename == upload.filename == "test.flac"
+        assert media.name == (display_name or "test.wav")
+        target_dir = tmp_path / "sounds" / str(collection.collection_id) / "1"
+        assert [path.name for path in target_dir.iterdir()] == ["test.flac"]
+        assert (target_dir / media.filename).read_bytes().startswith(b"fLaC")
 
     @patch("pathlib.Path.is_file")
     async def test_process_media_file_not_found(self, mock_is_file):

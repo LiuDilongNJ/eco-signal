@@ -1,5 +1,5 @@
 import { useEffect, type ReactNode } from "react"
-import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { MemoryRouter } from "react-router-dom"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -13,6 +13,7 @@ vi.mock("@/api/endpoints/annotations", () => ({
         getList: vi.fn(),
         getById: vi.fn(),
         update: vi.fn(),
+        getDeletionPreview: vi.fn(),
         deleteBatch: vi.fn(),
         exportCsv: vi.fn(),
     },
@@ -44,6 +45,8 @@ vi.mock("../DataPageLayout", () => ({
     DataPageLayout: ({
         rows,
         onTableStateChange,
+        onDeleteRequest,
+        deleteRequestPending,
         renderCustomActions,
     }: {
         rows: Array<Record<string, unknown>>
@@ -54,6 +57,8 @@ vi.mock("../DataPageLayout", () => ({
             sortDir: "asc" | "desc" | null
             filters: Record<string, string>
         }) => void
+        onDeleteRequest?: (keys: number[]) => void
+        deleteRequestPending?: boolean
         renderCustomActions?: (selectedRows: Set<number>) => ReactNode
     }) => {
         useEffect(() => {
@@ -63,11 +68,66 @@ vi.mock("../DataPageLayout", () => ({
         return (
             <div>
                 <div data-testid="row-count">{rows.length}</div>
+                <button disabled={!rows.length || deleteRequestPending} onClick={() => onDeleteRequest?.([...allKeys])}>
+                    Delete selected annotations
+                </button>
                 {renderCustomActions?.(allKeys)}
             </div>
         )
     },
 }))
+
+describe("AnnotationsPage deletion", () => {
+    beforeEach(() => {
+        vi.clearAllMocks()
+        vi.mocked(annotationsApi.getList).mockResolvedValue({
+            code: 0,
+            message: "success",
+            data: [
+                { annotation_id: 11, media_id: 101, uuid: "one", min_x: 0, max_x: 1, min_y: 0, max_y: 1, creator_id: 1 },
+                { annotation_id: 12, media_id: 101, uuid: "two", min_x: 1, max_x: 2, min_y: 0, max_y: 1, creator_id: 1 },
+            ],
+            page_info: { total: 2, page: 1, page_size: 50, total_pages: 1 },
+        })
+    })
+
+    it("shows the associated task count and deletes the previewed selection only after confirmation", async () => {
+        vi.mocked(annotationsApi.getDeletionPreview).mockResolvedValue({ annotation_count: 2, task_count: 5 })
+        vi.mocked(annotationsApi.deleteBatch).mockResolvedValue({ deleted_count: 2 })
+        render(<MemoryRouter><div id="app-overlay-root" /><AnnotationsPage /></MemoryRouter>)
+        const deleteButton = screen.getByRole("button", { name: "Delete selected annotations" })
+        await waitFor(() => expect(deleteButton).toBeEnabled())
+
+        fireEvent.click(deleteButton)
+        const dialog = await screen.findByRole("dialog", { name: "Delete Annotations" })
+        expect(within(dialog).getByText(/Deleting 2 annotations will also delete 5 associated tasks/)).toBeInTheDocument()
+        expect(annotationsApi.getDeletionPreview).toHaveBeenCalledWith([11, 12], 10, expect.any(AbortSignal))
+        expect(annotationsApi.deleteBatch).not.toHaveBeenCalled()
+
+        fireEvent.click(within(dialog).getByRole("button", { name: "Delete" }))
+        await waitFor(() => expect(annotationsApi.deleteBatch).toHaveBeenCalledWith([11, 12], 10))
+    })
+
+    it("allows retry after preview fails and supports canceling a preview with no associated tasks", async () => {
+        vi.mocked(annotationsApi.getDeletionPreview)
+            .mockRejectedValueOnce(new Error("Preview unavailable"))
+            .mockResolvedValueOnce({ annotation_count: 2, task_count: 0 })
+        render(<MemoryRouter><div id="app-overlay-root" /><AnnotationsPage /></MemoryRouter>)
+        const deleteButton = screen.getByRole("button", { name: "Delete selected annotations" })
+        await waitFor(() => expect(deleteButton).toBeEnabled())
+
+        fireEvent.click(deleteButton)
+        await waitFor(() => expect(deleteButton).toBeEnabled())
+        expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+
+        fireEvent.click(deleteButton)
+        const dialog = await screen.findByRole("dialog", { name: "Delete Annotations" })
+        expect(within(dialog).getByText(/Are you sure you want to delete 2 annotations/)).toBeInTheDocument()
+        fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }))
+        expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+        expect(annotationsApi.deleteBatch).not.toHaveBeenCalled()
+    })
+})
 
 describe("AnnotationsPage batch assignment", () => {
     beforeEach(() => {

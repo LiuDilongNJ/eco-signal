@@ -16,6 +16,7 @@ from app.repositories.permission_repository import permission_repository
 from app.repositories.task_repository import task_repository
 from app.schemas.annotation import (
     AnnotationCreate,
+    AnnotationDeletionPreview,
     AnnotationNavigation,
     AnnotationsPublic,
     AnnotationUpdate,
@@ -623,76 +624,16 @@ def update_annotation(
     )
 
 
-def delete_annotation(
-    session: Session,
-    current_user: User,
-    project_id: int,
-    annotation_id: int,
-) -> None:
-    """
-    Delete an annotation entirely.
-    User can delete if they have annotation:write on the collection,
-    OR if they are the creator.
-    """
-    annotation = annotation_repository.get(session, annotation_id)
-    if not annotation:
-        # Idempotent or just ignore
-        raise HTTPException(status_code=404, detail="Annotation not found")
-        
-    collection_ids = _verify_media_and_get_project_collections(session, annotation.media_id, project_id)
-    
-    authorization_service.evaluator(session, current_user, project_id).require(
-        AuthorizationAction.ANNOTATION_DELETE,
-        authorization_service.AuthorizationSubject(
-            frozenset(collection_ids), owner_id=annotation.creator_id
-        ),
-        detail="Not authorized to delete this annotation",
+def get_annotations_for_deletion(session: Session, annotation_ids: list[int]) -> list[Annotation]:
+    return annotation_repository.get_by_ids(session, annotation_ids)
+
+
+def get_deletion_preview(session: Session, annotation_ids: list[int]) -> AnnotationDeletionPreview:
+    return AnnotationDeletionPreview(
+        annotation_count=len(annotation_ids),
+        task_count=task_repository.count_by_annotation_ids(session, annotation_ids),
     )
 
-    annotation_repository.delete_by_ids(session, [annotation_id])
 
-
-def delete_annotations(
-    session: Session,
-    current_user: User,
-    project_id: int,
-    annotation_ids: list[int],
-) -> int:
-    """
-    Delete multiple annotations in batch within a project scope.
-    User can delete if they have annotation:write on the collection,
-    OR if they are the creator.
-    """
-    if not annotation_ids:
-        return 0
-
-    unique_ids = list(dict.fromkeys(annotation_ids))
-    annotations = session.exec(
-        select(Annotation).where(Annotation.annotation_id.in_(unique_ids))
-    ).all()
-    if not annotations:
-        return 0
-
-    media_ids = {a.media_id for a in annotations}
-    media_collections = authorization_service.media_collection_map(
-        session, media_ids, project_id
-    )
-    authz = authorization_service.evaluator(session, current_user, project_id)
-
-    for ann in annotations:
-        collection_ids = media_collections.get(ann.media_id, set())
-        if not collection_ids:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Annotation {ann.annotation_id} media does not belong to the given project",
-            )
-        authz.require(
-            AuthorizationAction.ANNOTATION_DELETE,
-            authorization_service.AuthorizationSubject(
-                frozenset(collection_ids), owner_id=ann.creator_id
-            ),
-            detail=f"Not authorized to delete annotation {ann.annotation_id}",
-        )
-
-    to_delete = [ann.annotation_id for ann in annotations if ann.annotation_id is not None]
-    return annotation_repository.delete_by_ids(session, to_delete)
+def delete_annotations(session: Session, annotation_ids: list[int]) -> int:
+    return annotation_repository.delete_by_ids(session, annotation_ids)

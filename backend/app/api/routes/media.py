@@ -361,9 +361,8 @@ async def create_media(
     当收到最后一个分块时，将自动创建 FileUpload 记录。 / The FileUpload record is automatically created when the last chunk is received.
 
     字段语义说明（音频）： / Field semantics (audio):
-    - `name` 保留原始上传文件名（展示语义）。 / `name` keeps the original uploaded filename for display.
-    - `filename` 保存转码后的实际文件名（音频统一为 `.flac`，含前缀时也会反映在此字段）。 / `filename` stores the normalized storage filename (audio is normalized to `.flac`, including prefix when provided).
-    - 实际落盘文件统一为 FLAC，并通过路径兼容规则解析。 / Physical storage is normalized to FLAC and resolved through compatibility path lookup.
+    - `name` 使用原始文件名，可通过 `filename_prefix` 添加显示前缀。 / `name` uses the uploaded filename with an optional display prefix from `filename_prefix`.
+    - `filename` 使用原始文件主名，扩展名取决于实际存储的音频格式。 / `filename` uses the uploaded basename with the extension of the stored audio format.
     """
     authorization_service.require_collection_action(
         session,
